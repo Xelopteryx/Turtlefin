@@ -116,6 +116,8 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
    « MESA: error: Export failed » après ~42 s (limite de 1024). Contournement dans `src/mpv.rs` (OpenGL ES uniquement) :
    tampons persistants cachés à mpv, barrières créées pendant le dessin d'une image notées et libérées si mpv ne l'a pas fait.
    Diagnostic : `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` doit rester stable (~50) pendant la lecture.
+   **Vérifié sur le Pi le 4 octobre 2026** : 46 à 48 fichiers ouverts stables sur 2 min de lecture, plus aucun message ;
+   Turtlefin ≈ 99 % CPU (contre 120 % avec la fuite) et 411 à 452 Mo (ancienne version : Turtlefin 112 + mpv 395-440 Mo).
 3. **Croissance RAM de mpv** (~3 Mo/min, par paliers, sur un épisode de FMA aux sous-titres ASS) : cause non élucidée (polices/glyphes libass probable). Test à faire avec `TURTLEFIN_MPV_ARGS="--sid=no"`. Borné à la durée d'une lecture puisque mpv est relancé à chaque vidéo.
 4. Cache d'images disque sans purge (`<cache>/turtlefin/img`).
 5. Jeton d'accès en clair dans `session.json` (0600 sous Unix) ; avec libmpv, il n'apparaît plus dans une ligne de commande.
