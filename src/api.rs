@@ -130,7 +130,52 @@ pub struct CardInfo {
 pub type ImageRef = (String, Option<String>);
 
 /// (id de l'élément, type d'image : "Primary" / "Thumb" / "Backdrop", étiquette)
+/// Type "Url" : `id` est une adresse complète (images hors Jellyfin).
 pub type ImgCand = (String, &'static str, Option<String>);
+
+/// Une demande Seerr de l'utilisateur.
+#[derive(Clone, Debug)]
+pub struct SeerrRequest {
+    /// 1 en attente · 2 acceptée · 3 refusée · 4 en échec · 5 terminée
+    pub status: i64,
+    pub tv: bool,
+    pub title: String,
+    pub year: String,
+    pub poster: Option<String>,
+    /// Date de la demande (ISO 8601).
+    pub created: String,
+    /// Élément Jellyfin correspondant, une fois le média disponible.
+    pub jellyfin_id: Option<String>,
+    pub seasons: Vec<i64>,
+}
+
+impl SeerrRequest {
+    pub fn card(&self) -> CardInfo {
+        let mut parts: Vec<String> = vec![if self.tv { "Série" } else { "Film" }.to_string()];
+        if !self.year.is_empty() {
+            parts.push(self.year.clone());
+        }
+        if self.tv && !self.seasons.is_empty() {
+            let s: Vec<String> = self.seasons.iter().map(|n| n.to_string()).collect();
+            parts.push(format!("S{}", s.join(", ")));
+        }
+        // Demandé le JJ/MM
+        if let (Some(m), Some(d)) = (self.created.get(5..7), self.created.get(8..10)) {
+            parts.push(format!("demandé le {d}/{m}"));
+        }
+        CardInfo {
+            // Disponible : on ouvre sa fiche Jellyfin ; sinon la carte ne mène nulle part.
+            id: self.jellyfin_id.clone().unwrap_or_default(),
+            title: self.title.clone(),
+            subtitle: parts.join(" · "),
+            img_id: self.poster.clone(),
+            img_tag: None,
+            thumbs: Vec::new(),
+            progress: 0.0,
+            rating: String::new(),
+        }
+    }
+}
 
 impl Item {
     fn primary_tag(&self) -> Option<String> {
@@ -686,13 +731,93 @@ impl Client {
     }
 
     /// Première image disponible parmi des candidats de types différents (Thumb, Backdrop...).
+    /// Type "Url" : `id` est une adresse complète hors Jellyfin (affiches TMDB des demandes Seerr).
     pub async fn image_any(&self, candidates: &[ImgCand], size: Size) -> Option<Vec<u8>> {
         for (id, kind, tag) in candidates {
-            if let Ok(b) = self.image(id, kind, tag.as_deref(), size).await {
+            let r = if *kind == "Url" { self.image_url(id).await } else { self.image(id, kind, tag.as_deref(), size).await };
+            if let Ok(b) = r {
                 return Some(b);
             }
         }
         None
+    }
+
+    /// Image hors Jellyfin (adresse complète), avec le même cache disque.
+    async fn image_url(&self, url: &str) -> Result<Vec<u8>> {
+        // Nom de fichier stable tiré de l'adresse (pas besoin d'un vrai hachage cryptographique).
+        let key: String = url.chars().filter(|c| c.is_ascii_alphanumeric()).rev().take(48).collect();
+        let cache = image_cache_path(&key, "Url", None, "orig");
+        if let Some(p) = &cache {
+            if let Ok(b) = tokio::fs::read(p).await {
+                return Ok(b);
+            }
+        }
+        let resp = self.http.get(url).send().await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("image {url} : {}", resp.status()));
+        }
+        let bytes = resp.bytes().await?.to_vec();
+        if let Some(p) = &cache {
+            if let Some(dir) = p.parent() {
+                let _ = tokio::fs::create_dir_all(dir).await;
+            }
+            let _ = tokio::fs::write(p, &bytes).await;
+        }
+        Ok(bytes)
+    }
+
+    // -----------------------------------------------------------------------
+    // Seerr (Jellyseerr / Overseerr), via le plugin Jellyfin Enhanced : il relaie les requêtes
+    // avec la connexion Jellyfin de l'utilisateur, sans clé Seerr côté client.
+    // -----------------------------------------------------------------------
+
+    /// Identifiant Seerr de l'utilisateur si Seerr est configuré, joignable et relié à son compte
+    /// Jellyfin. None sinon (plugin absent, Seerr désactivé ou injoignable, compte non relié).
+    pub async fn seerr_user(&self) -> Option<i64> {
+        let v: serde_json::Value = self.get("/JellyfinEnhanced/jellyseerr/user-status", &[]).await.ok()?;
+        if v["active"].as_bool() != Some(true) || v["userFound"].as_bool() != Some(true) {
+            return None;
+        }
+        match &v["jellyseerrUserId"] {
+            serde_json::Value::Number(n) => n.as_i64(),
+            serde_json::Value::String(s) => s.parse().ok(),
+            _ => None,
+        }
+    }
+
+    /// Demandes Seerr faites par l'utilisateur `seerr_user`, avec titre et affiche.
+    pub async fn seerr_requests(&self, seerr_user: i64) -> Result<Vec<SeerrRequest>> {
+        let v: serde_json::Value =
+            self.get("/JellyfinEnhanced/jellyseerr/request", &[("take", "100"), ("filter", "all")]).await?;
+        let mut out: Vec<SeerrRequest> = Vec::new();
+        for r in v["results"].as_array().into_iter().flatten() {
+            if r["requestedBy"]["id"].as_i64() != Some(seerr_user) {
+                continue;
+            }
+            let media = &r["media"];
+            let tv = r["type"].as_str() == Some("tv") || media["mediaType"].as_str() == Some("tv");
+            let Some(tmdb) = media["tmdbId"].as_i64() else { continue };
+            // Titre et affiche : fiche TMDB relayée par Seerr.
+            let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}", if tv { "tv" } else { "movie" });
+            let d: serde_json::Value = self.get(&path, &[]).await.unwrap_or_default();
+            let title = d[if tv { "name" } else { "title" }].as_str().unwrap_or("Sans titre").to_string();
+            let year = d[if tv { "firstAirDate" } else { "releaseDate" }].as_str().unwrap_or("").chars().take(4).collect();
+            let poster = d["posterPath"].as_str().filter(|p| !p.is_empty()).map(|p| format!("https://image.tmdb.org/t/p/w342{p}"));
+            out.push(SeerrRequest {
+                status: r["status"].as_i64().unwrap_or(0),
+                tv,
+                title,
+                year,
+                poster,
+                created: r["createdAt"].as_str().unwrap_or("").to_string(),
+                jellyfin_id: media["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string),
+                seasons: r["seasons"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(|s| s["seasonNumber"].as_i64()).collect())
+                    .unwrap_or_default(),
+            });
+        }
+        Ok(out)
     }
 
     /// Première image disponible parmi plusieurs candidats.

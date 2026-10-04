@@ -66,8 +66,10 @@ struct App {
     device_id: String,
     /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images).
     tv: bool,
-    /// Onglet de l'accueil affiché : "home" ou "favorites".
+    /// Onglet de l'accueil affiché : "home", "favorites" ou "requests".
     tab: Mutex<String>,
+    /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
+    seerr_user: Mutex<Option<i64>>,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -210,7 +212,14 @@ impl ImageJob {
         let cands: Vec<api::ImgCand> = if landscape {
             c.thumbs.clone()
         } else {
-            c.img_id.clone().map(|id| (id, "Primary", c.img_tag.clone())).into_iter().collect()
+            c.img_id
+                .clone()
+                .map(|id| {
+                    let kind = if id.starts_with("http") { "Url" } else { "Primary" };
+                    (id, kind, c.img_tag.clone())
+                })
+                .into_iter()
+                .collect()
         };
         (!cands.is_empty()).then(|| ImageJob { a, b, item_id: c.id.clone(), cands })
     }
@@ -295,6 +304,10 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     app.stack.lock().unwrap().clear();
+    // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
+    let seerr = client.seerr_user().await;
+    *app.seerr_user.lock().unwrap() = seerr;
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_has_requests(seerr.is_some()));
     load_tab(app, client).await;
 }
 
@@ -303,7 +316,12 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
     let ui = app.ui();
     let _ = ui.upgrade_in_event_loop(|u| u.set_screen("loading".into()));
     let tab = app.tab.lock().unwrap().clone();
-    let sections = if tab == "favorites" { favorite_sections(&client).await } else { home_sections(&client).await };
+    let seerr = *app.seerr_user.lock().unwrap();
+    let sections = match (tab.as_str(), seerr) {
+        ("favorites", _) => favorite_sections(&client).await,
+        ("requests", Some(id)) => request_sections(&client, id).await,
+        _ => home_sections(&client).await,
+    };
     match sections {
         Ok(s) => present_sections(&app, &client, s),
         Err(e) => handle_error(&ui, e),
@@ -348,6 +366,22 @@ async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionDa
     for (title, kinds, landscape) in groups {
         let of_kind: Vec<api::Item> = items.iter().filter(|i| kinds.contains(&i.kind.as_str())).cloned().collect();
         push_section(&mut sections, title, landscape, Ok(of_kind));
+    }
+    Ok(sections)
+}
+
+/// Demandes Seerr de l'utilisateur, rangées par état.
+async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Result<Vec<SectionData>> {
+    let mut reqs = client.seerr_requests(seerr_user).await?;
+    reqs.sort_by(|a, b| b.created.cmp(&a.created)); // plus récentes d'abord
+    let groups: [(&str, &[i64]); 4] =
+        [("En attente", &[1]), ("Acceptées", &[2, 5]), ("Refusées", &[3]), ("En échec", &[4])];
+    let mut sections: Vec<SectionData> = Vec::new();
+    for (title, states) in groups {
+        let cards: Vec<api::CardInfo> = reqs.iter().filter(|r| states.contains(&r.status)).map(|r| r.card()).collect();
+        if !cards.is_empty() {
+            sections.push(SectionData { title: title.to_string(), landscape: false, cards });
+        }
     }
     Ok(sections)
 }
@@ -428,6 +462,12 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
 // Navigation : fiche détail
 // ---------------------------------------------------------------------------
 fn push_detail(app: &Arc<App>, id: String) {
+    if id.is_empty() {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_toast("Pas encore disponible dans Jellyfin.".into());
+        }
+        return;
+    }
     app.stack.lock().unwrap().push(id.clone());
     start_detail(app, id);
 }
@@ -812,6 +852,7 @@ fn main() -> anyhow::Result<()> {
         device_id: saved.device_id.clone(),
         tv: cli.tv,
         tab: Mutex::new("home".to_string()),
+        seerr_user: Mutex::new(None),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),

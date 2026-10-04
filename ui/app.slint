@@ -439,9 +439,10 @@ export component AppWindow inherits Window {
     in-out property <[Section]> sections;
     in-out property <int> sel-section: 0;
     in-out property <int> sel-item: 0;
-    in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites"
+    in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites" | "requests"
+    in property <bool> has-requests;         // Seerr disponible : onglet Demandes
     in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
-    in-out property <int> h-sel: 0;          // 0 Accueil · 1 Favoris · 2 Recherche · 3 Profil
+    in-out property <int> h-sel: 0;          // onglets (Accueil, Favoris, [Demandes]), puis Recherche, Profil
     in property <string> clock;              // « 16:52 »
     in-out property <int> prof-sel: 1;      // écran Profil : 0 Réglages · 1 Déconnexion
 
@@ -477,16 +478,16 @@ export component AppWindow inherits Window {
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
-    callback select-tab(string);            // "home" | "favorites"
+    callback select-tab(string);            // "home" | "favorites" | "requests"
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
     property <length> card-w: root.tv-mode ? 230px : 170px;
     property <length> header-h: 72px * root.k;
-    property <int> tab-count: 2;
+    property <int> tab-count: root.has-requests ? 3 : 2;
 
     function tab-index() -> int {
-        return root.tab == "favorites" ? 1 : 0;
+        return root.tab == "favorites" ? 1 : root.tab == "requests" ? 2 : 0;
     }
 
     // Onglets, puis Recherche, puis Profil.
@@ -495,6 +496,8 @@ export component AppWindow inherits Window {
             root.select-tab("home");
         } else if (i == 1) {
             root.select-tab("favorites");
+        } else if (i == 2 && root.has-requests) {
+            root.select-tab("requests");
         } else if (i == root.tab-count) {
             root.screen = "search";
         } else {
@@ -620,6 +623,16 @@ export component AppWindow inherits Window {
                         root.header-activate(1);
                     }
                 }
+                if root.has-requests: Tab {
+                    text: "Demandes";
+                    k: root.k;
+                    active: root.tab == "requests";
+                    focused: root.h-focus && root.h-sel == 2;
+                    clicked => {
+                        root.h-sel = 2;
+                        root.header-activate(2);
+                    }
+                }
             }
 
             HorizontalLayout {
@@ -724,7 +737,8 @@ export component AppWindow inherits Window {
             }
 
             if root.sections.length == 0: Text {
-                text: root.tab == "favorites" ? "Aucun favori pour l'instant." : "Rien à afficher.";
+                text: root.tab == "favorites" ? "Aucun favori pour l'instant."
+                    : root.tab == "requests" ? "Aucune demande pour l'instant." : "Rien à afficher.";
                 color: Theme.muted;
                 font-size: 20px * root.k;
                 horizontal-alignment: center;

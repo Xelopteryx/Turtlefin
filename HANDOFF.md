@@ -91,6 +91,21 @@ Principes :
 - Vérifié par l'utilisateur sur le Pi : compilation, lecture fluide, mode TV. Pas testé : souris réelle (clic, glisser la barre), Wayland,
   enchaînement automatique en fin d'épisode, « Reprendre » à jour dans Jellyfin Web.
 
+### Menus au style JellySkin (4 octobre 2026) : vérifié sur captures (PC et télé du Pi)
+- Police Montserrat intégrée (`ui/fonts`, OFL), fond #010e18, titres de section précédés d'un trait.
+- En-tête : Accueil / Favoris / Demandes (si Seerr), recherche et profil (écrans d'attente ; Profil = déconnexion),
+  horloge. Navigation : ↑ depuis la première rangée monte dans l'en-tête.
+- Cartes : encadré translucide, image aux coins du haut arrondis au décodage (`Shape::card_top`), titre centré,
+  sélection = encadré plus sombre + `transform-scale` 1,06. Reprendre / À suivre en 16:9 (vignette Thumb de la série,
+  comme le client web) avec avancement et note. Rangées positionnées en pixels calculés en Rust (`y-px`, `h-px`).
+- **Onglet Demandes** : via le plugin Jellyfin Enhanced (relais Seerr avec la connexion Jellyfin, sans clé côté client).
+  `GET /JellyfinEnhanced/jellyseerr/user-status` (actif + compte relié → onglet affiché),
+  `GET /JellyfinEnhanced/jellyseerr/request?take=100&filter=all` filtré sur `requestedBy.id`, titre/affiche par
+  `/JellyfinEnhanced/jellyseerr/{movie|tv}/{tmdbId}`, affiches TMDB (`image.tmdb.org`, cache disque). Rangées :
+  En attente (1), Acceptées (2, 5), Refusées (3), En échec (4). Une demande disponible ouvre sa fiche Jellyfin.
+  Détection vérifiée (compte `test`) ; affichage des cartes **pas vérifié** (aucune demande sur ce compte).
+- Backdrop flouté : repoussé, en option (décision de l'utilisateur).
+
 ### Pas fait
 - **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
 - Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).
