@@ -82,6 +82,8 @@ pub struct MediaStream {
     pub codec: Option<String>,
     pub language: Option<String>,
     pub is_external: bool,
+    pub display_title: Option<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -473,6 +475,34 @@ impl Item {
                 rating: String::new(),
                 seerr: false,
             });
+        }
+        out
+    }
+
+    /// Clé des préférences de pistes : la série pour un épisode, l'élément sinon.
+    pub fn pref_key(&self) -> String {
+        match (&*self.kind, &self.series_id) {
+            ("Episode" | "Season", Some(s)) => s.clone(),
+            _ => self.id.clone(),
+        }
+    }
+
+    /// Pistes audio ou sous-titres de la première source : (langue, libellé).
+    pub fn streams(&self, kind: &str) -> Vec<(String, String)> {
+        let Some(src) = self.media_sources.as_ref().and_then(|v| v.first()) else { return Vec::new() };
+        let mut out: Vec<(String, String)> = Vec::new();
+        for st in src.media_streams.iter().filter(|s| s.kind == kind) {
+            let lang = st.language.clone().unwrap_or_default();
+            let label = st
+                .display_title
+                .clone()
+                .or_else(|| st.title.clone())
+                .unwrap_or_else(|| if lang.is_empty() { "Inconnue".into() } else { lang.to_uppercase() });
+            // Une entrée par langue : la préférence est enregistrée par langue.
+            if !lang.is_empty() && out.iter().any(|(l, _)| *l == lang) {
+                continue;
+            }
+            out.push((lang, label));
         }
         out
     }

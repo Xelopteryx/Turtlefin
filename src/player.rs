@@ -289,6 +289,7 @@ pub async fn play(
     let mut tick = tokio::time::interval(Duration::from_secs(10));
     tick.tick().await; // le premier tick est immédiat : on le consomme
     let mut last_sec: i64 = -1;
+    let mut last_tracks = Value::Null;
     let mut switching = false;
     let mut result: Result<Exit> = Ok(Exit::Back);
 
@@ -355,6 +356,7 @@ pub async fn play(
                             push_chapters(&ui, &cur);
                         }
                         "track-list" => {
+                            last_tracks = v.clone();
                             let (audio, audio_cur) = tracks(&v, "audio");
                             let (subs, sub_cur) = tracks(&v, "sub");
                             let _ = ui.upgrade_in_event_loop(move |u| {
@@ -428,8 +430,23 @@ pub async fn play(
                         }
                     }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
-                    "aid" => player.set_property("aid", arg),
-                    "sid" => player.set_property("sid", arg),
+                    // Changement de piste pendant la lecture : retenu pour la série / le film.
+                    "aid" | "sid" => {
+                        let r = player.set_property(verb, arg);
+                        if let Some(it) = &cur.item {
+                            let lang = if arg == "no" {
+                                "off".to_string()
+                            } else {
+                                track_lang(&last_tracks, arg)
+                            };
+                            if verb == "aid" {
+                                crate::config::set_track_pref(&it.pref_key(), Some(&lang), None);
+                            } else {
+                                crate::config::set_track_pref(&it.pref_key(), None, Some(&lang));
+                            }
+                        }
+                        r
+                    }
                     "episode" => {
                         go_episode = arg.parse().ok();
                         Ok(())
@@ -669,6 +686,17 @@ fn shuffle<T>(v: &mut [T]) {
     }
 }
 
+/// Langue d'une piste mpv (identifiant `id`) d'après la dernière liste reçue.
+fn track_lang(list: &Value, id: &str) -> String {
+    list.as_array()
+        .into_iter()
+        .flatten()
+        .find(|t| t["id"].as_i64().map(|i| i.to_string()).as_deref() == Some(id))
+        .and_then(|t| t["lang"].as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
 /// Épisode voisin (décalage -1 / +1) dans la liste de la série.
 fn neighbour(episodes: &[String], item: Option<&Item>, d: i64) -> Option<String> {
     let id = &item?.id;
@@ -707,6 +735,20 @@ fn load(
     };
 
     player.set_property("force-media-title", &title)?;
+    // Pistes préférées de la série / du film (langue audio, sous-titres).
+    if let Some(it) = &item {
+        let pref = crate::config::track_pref(&it.pref_key());
+        let _ = player.set_property("alang", &pref.audio);
+        match pref.sub.as_str() {
+            "off" => {
+                let _ = player.set_property("sid", "no");
+            }
+            lang => {
+                let _ = player.set_property("sid", "auto");
+                let _ = player.set_property("slang", lang);
+            }
+        }
+    }
     let start = if start_secs > 1.0 { format!("{start_secs:.1}") } else { "none".to_string() };
     player.set_property("start", &start)?;
     player.command(&["loadfile", &url, "replace"])?;

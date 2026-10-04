@@ -730,6 +730,10 @@ export component AppWindow inherits Window {
     in-out property <int> d-button: 0;
     in-out property <int> d-child: 0;
     in-out property <bool> overview-open: false;
+    // Choix des pistes de la fiche (liste au premier plan) : "" | "audio" | "sub"
+    in-out property <string> tp-kind;
+    in property <[TrackData]> tp-items;
+    in-out property <int> tp-sel;
     in-out property <[Section]> detail-rows; // casting, plus de ce genre, Seerr (zones 4 et +)
     in-out property <int> d-x: 0;            // carte sélectionnée dans une rangée du bas
     in-out property <bool> playing: false;
@@ -781,6 +785,7 @@ export component AppWindow inherits Window {
     callback servers-search();
     callback dl-play(string);
     callback seerr-action();
+    callback track-pick(string, string, string); // type, langue ("" défaut, "off"), libellé
     callback dl-delete(string);
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
@@ -1329,6 +1334,18 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
+                if (root.tp-kind != "") {
+                    if (event.text == Key.UpArrow) {
+                        root.tp-sel = max(0, root.tp-sel - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.tp-sel = min(root.tp-items.length - 1, root.tp-sel + 1);
+                    } else if (event.text == Key.Return) {
+                        root.track-pick(root.tp-kind, root.tp-items[root.tp-sel].id, root.tp-items[root.tp-sel].label);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.tp-kind = "";
+                    }
+                    return EventResult.accept;
+                }
                 if (!root.overview-open && root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -1737,6 +1754,72 @@ export component AppWindow inherits Window {
                 root.open-item(row.items[i].id);
             }
         }
+        }
+
+        // Choix des pistes (au premier plan)
+        if root.tp-kind != "": Rectangle {
+            background: #000000a6;
+            TouchArea {
+                clicked => {
+                    root.tp-kind = "";
+                }
+            }
+            Rectangle {
+                width: 480px * root.k;
+                height: 70px * root.k + root.tp-items.length * 44px * root.k;
+                border-radius: 16px;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                TouchArea { }
+                Text {
+                    x: 24px * root.k;
+                    y: 16px * root.k;
+                    text: root.tp-kind == "audio" ? "Langue audio" : "Sous-titres";
+                    color: Theme.text;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 24px * root.k;
+                    y: 42px * root.k;
+                    text: "Retenu pour toute la série";
+                    color: Theme.muted;
+                    font-size: 12px * root.k;
+                }
+                for t[i] in root.tp-items: Rectangle {
+                    x: 12px * root.k;
+                    y: 62px * root.k + i * 44px * root.k;
+                    width: parent.width - 24px * root.k;
+                    height: 40px * root.k;
+                    border-radius: 10px * root.k;
+                    background: (i == root.tp-sel || tp-area.has-hover)
+                        ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                    if t.current: Rectangle {
+                        x: 14px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 9px * root.k;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: white;
+                    }
+                    Text {
+                        x: 34px * root.k;
+                        width: parent.width - 44px * root.k;
+                        height: parent.height;
+                        text: t.label;
+                        color: white;
+                        font-size: 15px * root.k;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    tp-area := TouchArea {
+                        clicked => {
+                            root.track-pick(root.tp-kind, t.id, t.label);
+                        }
+                    }
+                }
+            }
         }
 
         // Panneau du résumé complet (toujours instancié, affiché à la demande)

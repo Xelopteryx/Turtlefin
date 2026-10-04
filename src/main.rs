@@ -82,6 +82,8 @@ struct App {
     /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
     /// pour y revenir au retour.
     lib_return: Mutex<Option<(String, usize)>>,
+    /// Fiche affichée : clé de préférences et pistes (langue, libellé) audio / sous-titres.
+    detail_streams: Mutex<(String, Vec<(String, String)>, Vec<(String, String)>)>,
     /// Page Seerr affichée.
     seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
@@ -631,6 +633,82 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
         });
         spawn_image_jobs(&app2, &client2, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply);
     });
+}
+
+/// « Japanese - AAC - Stereo - Default » -> « Japanese ».
+fn short_label(l: &str) -> String {
+    l.split(" - ").next().unwrap_or(l).trim().to_string()
+}
+
+/// Nom d'une langue (code ISO 639-2 de Jellyfin), sinon le libellé court de la piste.
+fn lang_name(code: &str, label: &str) -> String {
+    let n = match code {
+        "fre" | "fra" => "Français",
+        "eng" => "Anglais",
+        "jpn" => "Japonais",
+        "ger" | "deu" => "Allemand",
+        "spa" => "Espagnol",
+        "ita" => "Italien",
+        "por" => "Portugais",
+        "kor" => "Coréen",
+        "chi" | "zho" => "Chinois",
+        "rus" => "Russe",
+        "ara" => "Arabe",
+        "dut" | "nld" => "Néerlandais",
+        _ => "",
+    };
+    if n.is_empty() { short_label(label) } else { n.to_string() }
+}
+
+/// Ouvre la liste des pistes de la fiche (« audio » ou « sub »).
+fn open_track_picker(app: &Arc<App>, kind: &str) {
+    let (key, audio, subs) = app.detail_streams.lock().unwrap().clone();
+    let pref = config::track_pref(&key);
+    let mut rows: Vec<TrackData> = Vec::new();
+    let cur;
+    if kind == "audio" {
+        cur = pref.audio.clone();
+        rows.push(TrackData { id: "".into(), label: "Par défaut (fichier)".into(), current: cur.is_empty() });
+        for (l, t) in &audio {
+            rows.push(TrackData { id: l.clone().into(), label: t.clone().into(), current: *l == cur });
+        }
+    } else {
+        cur = pref.sub.clone();
+        rows.push(TrackData { id: "".into(), label: "Par défaut (fichier)".into(), current: cur.is_empty() });
+        rows.push(TrackData { id: "off".into(), label: "Désactivés".into(), current: cur == "off" });
+        for (l, t) in &subs {
+            rows.push(TrackData { id: l.clone().into(), label: t.clone().into(), current: *l == cur });
+        }
+    }
+    let sel = rows.iter().position(|r| r.current).unwrap_or(0) as i32;
+    if let Some(u) = app.ui().upgrade() {
+        u.set_tp_items(ModelRc::new(VecModel::from(rows)));
+        u.set_tp_sel(sel);
+        u.set_tp_kind(kind.into());
+    }
+}
+
+/// Piste choisie dans la liste : enregistrée pour la série / le film, bouton mis à jour.
+fn pick_track(app: &Arc<App>, kind: &str, lang: &str, label: &str) {
+    let key = app.detail_streams.lock().unwrap().0.clone();
+    if kind == "audio" {
+        config::set_track_pref(&key, Some(lang), None);
+    } else {
+        config::set_track_pref(&key, None, Some(lang));
+    }
+    let Some(u) = app.ui().upgrade() else { return };
+    let d = u.get_detail();
+    let action = if kind == "audio" { "pick-audio" } else { "pick-sub" };
+    let shown = if lang.is_empty() { "par défaut".to_string() } else if lang == "off" { "désactivés".to_string() } else { lang_name(lang, label) };
+    for i in 0..d.buttons.row_count() {
+        if let Some(mut b) = d.buttons.row_data(i) {
+            if b.action == action {
+                b.label = format!("{} : {shown}", if kind == "audio" { "Audio" } else { "Sous-titres" }).into();
+                d.buttons.set_row_data(i, b);
+            }
+        }
+    }
+    u.set_tp_kind("".into());
 }
 
 /// Favori / vu : bascule côté serveur, puis mise à jour du bouton (sans recharger la fiche).
@@ -1332,6 +1410,27 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     };
     let has_next = next_card.is_some();
     let mut buttons = item.buttons(app.can_download.load(Ordering::SeqCst));
+    // Film / épisode : choix des pistes pour la lecture (retenu pour toute la série).
+    let audio_streams = item.streams("Audio");
+    let sub_streams = item.streams("Subtitle");
+    if matches!(item.kind.as_str(), "Movie" | "Episode") {
+        let pref = config::track_pref(&item.pref_key());
+        let lang_label = |list: &[(String, String)], lang: &str| -> Option<String> {
+            list.iter().find(|(l, _)| l == lang).map(|(_, t)| t.clone())
+        };
+        if audio_streams.len() > 1 {
+            let label = lang_label(&audio_streams, &pref.audio).map(|l| lang_name(&pref.audio, &l)).unwrap_or_else(|| "par défaut".into());
+            buttons.push((format!("Audio : {label}"), "pick-audio".into(), String::new(), false));
+        }
+        if !sub_streams.is_empty() {
+            let label = match pref.sub.as_str() {
+                "off" => "désactivés".to_string(),
+                l => lang_label(&sub_streams, l).map(|t| lang_name(l, &t)).unwrap_or_else(|| "par défaut".into()),
+            };
+            buttons.push((format!("Sous-titres : {label}"), "pick-sub".into(), String::new(), false));
+        }
+    }
+    *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
     if downloads::exists(&item.id) {
         for b in buttons.iter_mut().filter(|b| b.1 == "download") {
             b.3 = true;
@@ -1645,6 +1744,7 @@ fn main() -> anyhow::Result<()> {
         play_start: Mutex::new(None),
         can_download: AtomicBool::new(false),
         seerr_page: Mutex::new(None),
+        detail_streams: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
         offline: AtomicBool::new(false),
@@ -1725,6 +1825,11 @@ fn main() -> anyhow::Result<()> {
         tick();
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
+
+    ui.on_track_pick({
+        let app = app.clone();
+        move |kind, lang, label| pick_track(&app, &kind, &lang, &label)
+    });
 
     ui.on_seerr_action({
         let app = app.clone();
@@ -1885,6 +1990,8 @@ fn main() -> anyhow::Result<()> {
                     let a2 = app.clone();
                     app.rt.spawn(async move { play_flow(a2, Some(id), None).await });
                 }
+            } else if a == "pick-audio" || a == "pick-sub" {
+                open_track_picker(&app, if a == "pick-audio" { "audio" } else { "sub" });
             } else if a == "fav" || a == "played" {
                 toggle_flag(&app, a);
             } else if a == "download" {
