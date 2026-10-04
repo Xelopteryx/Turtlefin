@@ -124,9 +124,13 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
 6. Le multi-ligne avec points de suspension du résumé dépend de la version de Slint (au pire coupure nette).
 7. Le `FocusScope` de taille nulle de la fiche : si les flèches ne répondent pas, regarder là.
 8. Le défilement mémorisé des rangées de l'accueil est perdu quand on revient de la fiche (l'écran est recréé).
-10. **Saccades au défilement des menus sur le Pi** (accueil, rangées de cartes ; signalé le 4 octobre 2026). La lecture, elle,
-   est fluide. Pistes à examiner : synchronisation verticale (intervalle de swap) avec femtovg sous X11, coût des cartes
-   arrondies avec `clip: true` (pochoir OpenGL) et des posters redimensionnés à chaque image, animations `animate x/y`.
+10. **Saccades au défilement des menus sur le Pi** : c'était du **déchirement d'image** (Xorg modesetting + Openbox sans
+   compositeur, pas d'option TearFree : le haut de l'écran montrait l'image précédente). Turtlefin tient 59 images/s
+   (écran 59,8 Hz). Corrigé par le compositeur **picom** (vérifié par l'utilisateur le 4 octobre 2026) :
+   `MESA_GL_VERSION_OVERRIDE=3.3 MESA_GLSL_VERSION_OVERRIDE=330 picom --backend egl --vsync` (le moteur GLX ne démarre pas
+   sur le v3d, picom 12 exige GLSL 3.30 alors que le pilote annonce 3.1). Coût : picom ~2,5 % d'un cœur, lecture inchangée.
+   Avant ça : cartes arrondies avec `clip: true` remplacées par des images préformées (évite les couches hors écran).
+   Mesures : `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console` + `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms, hors vidéo).
 9. Décodage logiciel sur le Pi : peut peiner en 4K/HEVC lourd ; piste future : `TURTLEFIN_HWDEC=auto-copy` avec libmpv (copie en mémoire, évite l'import SAND), sinon v4l2request / drm-copy.
 
 ## 8. Variables d'environnement utiles
