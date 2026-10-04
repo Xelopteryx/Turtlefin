@@ -70,6 +70,13 @@ struct App {
     tab: Mutex<String>,
     /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
     seerr_user: Mutex<Option<i64>>,
+    /// Bibliothèque affichée en grille : (id, type de collection, éléments chargés, total).
+    library: Mutex<Option<(String, Option<String>, u32, u32)>>,
+    /// Une page de bibliothèque est en cours de chargement.
+    lib_loading: AtomicBool,
+    /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
+    /// pour y revenir au retour.
+    lib_return: Mutex<Option<(String, usize)>>,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -307,7 +314,14 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
     let seerr = client.seerr_user().await;
     *app.seerr_user.lock().unwrap() = seerr;
-    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_has_requests(seerr.is_some()));
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        u.set_has_requests(seerr.is_some());
+        u.set_can_back(false);
+    });
+    // Menu latéral : bibliothèques de l'utilisateur.
+    if let Ok(views) = client.views().await {
+        set_menu(&app, &views);
+    }
     load_tab(app, client).await;
 }
 
@@ -341,6 +355,8 @@ async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>>
         .collect();
     push_section(&mut sections, "Mes médias", true, Ok(my_media));
     // « Reprendre » et « À suivre » en vignettes 16:9 avec avancement, comme JellySkin.
+    let resume_ids: Vec<String> = resume.as_ref().map(|r| r.iter().map(|i| i.id.clone()).collect()).unwrap_or_default();
+    let next = next.map(|n| n.into_iter().filter(|i| !resume_ids.contains(&i.id)).collect());
     push_section(&mut sections, "Reprendre", true, resume);
     push_section(&mut sections, "À suivre", true, next);
 
@@ -459,6 +475,135 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
 }
 
 // ---------------------------------------------------------------------------
+// Bibliothèque : grille de posters, chargée par pages de 60
+// ---------------------------------------------------------------------------
+const LIB_PAGE: u32 = 60;
+
+fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
+    // Retour depuis une fiche : on recharge assez de posters pour retrouver la sélection.
+    let back_to = match app.lib_return.lock().unwrap().take() {
+        Some((id, sel)) if id == lib.id => Some(sel),
+        _ => None,
+    };
+    *app.library.lock().unwrap() = Some((lib.id.clone(), lib.collection_type.clone(), 0, 0));
+    let title = lib.name.clone();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        u.set_lib_title(title.into());
+        u.set_lib_items(ModelRc::new(VecModel::<CardData>::default()));
+        u.set_lib_total(0);
+        u.set_l_sel(0);
+        u.set_h_focus(false);
+        u.set_screen("library".into());
+    });
+    load_library_page(app, client, back_to);
+}
+
+/// Charge la page suivante de la bibliothèque affichée (rien si tout est chargé ou déjà en cours).
+/// `select` : poster à resélectionner (retour depuis une fiche) ; la page est agrandie pour l'inclure.
+fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>) {
+    let Some((id, ctype, loaded, total)) = app.library.lock().unwrap().clone() else { return };
+    if (loaded > 0 && loaded >= total) || app.lib_loading.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let (app2, client2) = (app.clone(), client.clone());
+    app.rt.spawn(async move {
+        let limit = select.map(|s| (s as u32 + LIB_PAGE / 2).max(LIB_PAGE)).unwrap_or(LIB_PAGE);
+        let page = client2.library_page(&id, ctype.as_deref(), loaded, limit).await;
+        app2.lib_loading.store(false, Ordering::SeqCst);
+        let (items, total) = match page {
+            Ok(p) => p,
+            Err(e) => {
+                let msg = format!("Bibliothèque illisible : {e}");
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                return;
+            }
+        };
+        // La bibliothèque a pu changer entre-temps (retour, autre bibliothèque).
+        {
+            let mut lib = app2.library.lock().unwrap();
+            match lib.as_mut() {
+                Some((cur, _, l, t)) if *cur == id => {
+                    *l += items.len() as u32;
+                    *t = total;
+                }
+                _ => return,
+            }
+        }
+        let cards: Vec<api::CardInfo> = items.iter().map(|i| i.card()).collect();
+        let jobs: Vec<ImageJob> = cards
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| ImageJob::for_card(0, loaded as usize + i, c, false))
+            .collect();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let model = u.get_lib_items();
+            if let Some(vm) = model.as_any().downcast_ref::<VecModel<CardData>>() {
+                for c in &cards {
+                    vm.push(CardData {
+                        id: c.id.clone().into(),
+                        title: c.title.clone().into(),
+                        subtitle: c.subtitle.clone().into(),
+                        progress: c.progress,
+                        rating: c.rating.clone().into(),
+                        ..Default::default()
+                    });
+                }
+            }
+            u.set_lib_total(total as i32);
+            if let Some(sel) = select {
+                u.set_l_sel(sel.min(u.get_lib_items().row_count().saturating_sub(1)) as i32);
+            }
+        });
+        let card_w = if app2.tv { 230.0 } else { 170.0 };
+        let apply: Apply = Arc::new(|u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
+            let model = u.get_lib_items();
+            let Some(mut card) = model.row_data(job.b) else { return };
+            if card.id.as_str() != job.item_id {
+                return;
+            }
+            card.image = slint::Image::from_rgba8(buf);
+            card.has_image = true;
+            model.set_row_data(job.b, card);
+        });
+        spawn_image_jobs(&app2, &client2, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Menu latéral : bibliothèques, demandes, compte
+// ---------------------------------------------------------------------------
+fn set_menu(app: &Arc<App>, views: &[api::Item]) {
+    let has_requests = app.seerr_user.lock().unwrap().is_some();
+    let mut e: Vec<(String, String, bool)> = vec![
+        ("Navigation".into(), String::new(), true),
+        ("Accueil".into(), "home".into(), false),
+    ];
+    if has_requests {
+        e.push(("Demandes".into(), "requests".into(), false));
+    }
+    e.push(("Bibliothèques".into(), String::new(), true));
+    for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
+        e.push((v.name.clone(), format!("lib:{}", v.id), false));
+    }
+    e.push(("Compte".into(), String::new(), true));
+    for (label, action) in [
+        ("Sélectionner un serveur", "server"),
+        ("Paramètres", "settings"),
+        ("Se déconnecter", "logout"),
+        ("Fermer l'application", "quit"),
+    ] {
+        e.push((label.into(), action.into(), false));
+    }
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let entries: Vec<MenuEntry> = e
+            .into_iter()
+            .map(|(label, action, header)| MenuEntry { label: label.into(), action: action.into(), header })
+            .collect();
+        u.set_menu_entries(ModelRc::new(VecModel::from(entries)));
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Navigation : fiche détail
 // ---------------------------------------------------------------------------
 fn push_detail(app: &Arc<App>, id: String) {
@@ -468,8 +613,46 @@ fn push_detail(app: &Arc<App>, id: String) {
         }
         return;
     }
+    // Depuis une bibliothèque : on retient le poster sélectionné pour le retour.
+    if let (Some(u), Some((lib, ..))) = (app.ui().upgrade(), app.library.lock().unwrap().clone()) {
+        if u.get_screen().as_str() == "library" {
+            *app.lib_return.lock().unwrap() = Some((lib, u.get_l_sel().max(0) as usize));
+        }
+    }
     app.stack.lock().unwrap().push(id.clone());
+    sync_can_back(app);
     start_detail(app, id);
+}
+
+/// Le bouton Retour n'a de sens que si l'on a navigué depuis l'accueil.
+fn sync_can_back(app: &Arc<App>) {
+    let can = !app.stack.lock().unwrap().is_empty();
+    if let Some(u) = app.ui().upgrade() {
+        u.set_can_back(can);
+    }
+}
+
+/// Retour direct à l'accueil (bouton Accueil, menu).
+fn go_home(app: &Arc<App>) {
+    app.stack.lock().unwrap().clear();
+    sync_can_back(app);
+    app.gen.fetch_add(1, Ordering::SeqCst);
+    *app.library.lock().unwrap() = None;
+    let stale = app.home_stale.swap(false, Ordering::SeqCst);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_detail(DetailData::default());
+        u.set_child_items(ModelRc::default());
+        u.set_lib_items(ModelRc::default());
+        u.set_overview_open(false);
+        u.set_h_focus(false);
+        u.set_screen(if stale { "loading" } else { "home" }.into());
+    }
+    if stale {
+        if let Some(client) = app.client() {
+            let a = app.clone();
+            app.rt.spawn(async move { load_tab(a, client).await });
+        }
+    }
 }
 
 fn start_detail(app: &Arc<App>, id: String) {
@@ -492,26 +675,11 @@ fn go_back(app: &Arc<App>) {
         s.pop();
         s.last().cloned()
     };
+    sync_can_back(app);
     match top {
         Some(id) => start_detail(app, id),
-        None => {
-            app.gen.fetch_add(1, Ordering::SeqCst);
-            let stale = app.home_stale.swap(false, Ordering::SeqCst);
-            if let Some(u) = app.ui().upgrade() {
-                // On libère les images de la fiche (poster, logo, vignettes).
-                u.set_detail(DetailData::default());
-                u.set_child_items(ModelRc::default());
-                u.set_overview_open(false);
-                u.set_screen(if stale { "loading" } else { "home" }.into());
-            }
-            // Une lecture a eu lieu : on recharge l'accueil (Reprendre / À suivre à jour).
-            if stale {
-                if let Some(client) = app.client() {
-                    let a = app.clone();
-                    app.rt.spawn(async move { load_tab(a, client).await });
-                }
-            }
-        }
+        // Pile vide : accueil (rechargé si une lecture a eu lieu : Reprendre / À suivre à jour).
+        None => go_home(app),
     }
 }
 
@@ -544,8 +712,14 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         }
     };
 
-    // Séries/saisons : tout. Bibliothèques et collections : 60 premiers seulement
-    // (une grille paginée viendra plus tard ; 300 posters en mémoire, c'est trop).
+    if matches!(item.kind.as_str(), "CollectionFolder" | "UserView" | "Folder" | "BoxSet") {
+        if app.gen.load(Ordering::SeqCst) == my_gen {
+            open_library(&app, &client, item);
+        }
+        return;
+    }
+
+    // Séries/saisons : tout. Autres dossiers : 60 premiers seulement.
     let is_season_like = matches!(item.kind.as_str(), "Series" | "Season");
     let limit: u32 = if is_season_like { 300 } else { 60 };
     let children: Vec<api::Item> = if item.is_folder {
@@ -853,6 +1027,9 @@ fn main() -> anyhow::Result<()> {
         tv: cli.tv,
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
+        library: Mutex::new(None),
+        lib_loading: AtomicBool::new(false),
+        lib_return: Mutex::new(None),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),
@@ -881,10 +1058,15 @@ fn main() -> anyhow::Result<()> {
             *app.client.lock().unwrap() = None;
             *app.tab.lock().unwrap() = "home".to_string();
             app.stack.lock().unwrap().clear();
+            *app.library.lock().unwrap() = None;
             app.gen.fetch_add(1, Ordering::SeqCst);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tab("home".into());
                 u.set_h_focus(false);
+                u.set_can_back(false);
+                u.set_has_requests(false);
+                u.set_menu_open(false);
+                u.set_lib_items(ModelRc::default());
                 u.set_sections(ModelRc::default());
                 u.set_detail(DetailData::default());
                 u.set_child_items(ModelRc::default());
@@ -923,6 +1105,52 @@ fn main() -> anyhow::Result<()> {
         tick();
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
+
+    ui.on_go_home({
+        let app = app.clone();
+        move || go_home(&app)
+    });
+
+    ui.on_lib_more({
+        let app = app.clone();
+        move || {
+            if let Some(client) = app.client() {
+                load_library_page(&app, &client, None);
+            }
+        }
+    });
+
+    ui.on_menu_action({
+        let app = app.clone();
+        move |action| {
+            let a = action.as_str();
+            if a == "home" {
+                go_home(&app);
+            } else if a == "requests" {
+                *app.tab.lock().unwrap() = "requests".to_string();
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_tab("requests".into());
+                }
+                app.home_stale.store(true, Ordering::SeqCst);
+                go_home(&app);
+            } else if let Some(id) = a.strip_prefix("lib:") {
+                // Une bibliothèque ouverte depuis le menu repart de l'accueil.
+                app.stack.lock().unwrap().clear();
+                push_detail(&app, id.to_string());
+            } else if a == "settings" {
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_soon_title("Paramètres".into());
+                    u.set_screen("soon".into());
+                }
+            } else if a == "server" || a == "logout" {
+                if let Some(u) = app.ui().upgrade() {
+                    u.invoke_logout();
+                }
+            } else if a == "quit" {
+                let _ = slint::quit_event_loop();
+            }
+        }
+    });
 
     ui.on_open_item({
         let app = app.clone();

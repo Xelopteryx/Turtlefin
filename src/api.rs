@@ -48,6 +48,8 @@ struct AuthUser {
 #[serde(rename_all = "PascalCase")]
 struct ItemsResp {
     items: Vec<Item>,
+    #[serde(default)]
+    total_record_count: Option<u32>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -161,7 +163,7 @@ impl SeerrRequest {
         }
         // Demandé le JJ/MM
         if let (Some(m), Some(d)) = (self.created.get(5..7), self.created.get(8..10)) {
-            parts.push(format!("demandé le {d}/{m}"));
+            parts.push(format!("{d}/{m}"));
         }
         CardInfo {
             // Disponible : on ouvre sa fiche Jellyfin ; sinon la carte ne mène nulle part.
@@ -383,7 +385,6 @@ impl Item {
                 b.push(("Voir la série".to_string(), format!("open:{id}")));
             }
         }
-        b.push(("Retour".to_string(), "back".to_string()));
         b
     }
 
@@ -565,7 +566,7 @@ impl Client {
     /// « À suivre ».
     pub async fn next_up(&self) -> Result<Vec<Item>> {
         let r: ItemsResp = self
-            .get("/Shows/NextUp", &[("userId", &self.user_id), ("Limit", "16")])
+            .get("/Shows/NextUp", &[("userId", &self.user_id), ("Limit", "16"), ("enableResumable", "false")])
             .await?;
         Ok(r.items)
     }
@@ -624,6 +625,34 @@ impl Client {
             )
             .await?;
         Ok(r.items)
+    }
+
+    /// Une page du contenu d'une bibliothèque ou d'une collection, et le nombre total d'éléments.
+    /// Films et séries : recherche récursive par type, comme le client web.
+    pub async fn library_page(
+        &self,
+        parent_id: &str,
+        collection_type: Option<&str>,
+        start: u32,
+        limit: u32,
+    ) -> Result<(Vec<Item>, u32)> {
+        let (start, limit) = (start.to_string(), limit.to_string());
+        let mut q: Vec<(&str, &str)> = vec![
+            ("userId", &self.user_id),
+            ("parentId", parent_id),
+            ("SortBy", "SortName"),
+            ("SortOrder", "Ascending"),
+            ("StartIndex", &start),
+            ("Limit", &limit),
+        ];
+        match collection_type {
+            Some("movies") => q.extend([("Recursive", "true"), ("IncludeItemTypes", "Movie")]),
+            Some("tvshows") => q.extend([("Recursive", "true"), ("IncludeItemTypes", "Series")]),
+            _ => {}
+        }
+        let r: ItemsResp = self.get("/Items", &q).await?;
+        let total = r.total_record_count.unwrap_or(r.items.len() as u32);
+        Ok((r.items, total))
     }
 
     /// Prochain épisode à regarder d'une série.

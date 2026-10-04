@@ -103,13 +103,22 @@ Principes :
   `GET /JellyfinEnhanced/jellyseerr/request?take=100&filter=all` filtré sur `requestedBy.id`, titre/affiche par
   `/JellyfinEnhanced/jellyseerr/{movie|tv}/{tmdbId}`, affiches TMDB (`image.tmdb.org`, cache disque). Rangées :
   En attente (1), Acceptées (2, 5), Refusées (3), En échec (4). Une demande disponible ouvre sa fiche Jellyfin.
-  Détection vérifiée (compte `test`) ; affichage des cartes **pas vérifié** (aucune demande sur ce compte).
+  Vérifié avec de vraies demandes (compte `test`).
 - Backdrop flouté : repoussé, en option (décision de l'utilisateur).
+- **Navigation commune** (`NavBar`) : ☰ menu sur chaque écran, ← Retour seulement si la pile n'est pas vide
+  (`can-back`), ⌂ Accueil hors accueil. ↑ depuis le haut d'un écran monte dans la barre (sur Retour s'il existe).
+  Le bouton « Retour » des fiches a été retiré. Les FocusScope des écrans reprennent le clavier via `refocus`.
+- **Menu latéral** : Navigation (Accueil, Demandes), Bibliothèques, Compte (Sélectionner un serveur = déconnexion
+  vers l'écran de connexion, Paramètres = écran « bientôt », Se déconnecter, Fermer l'application).
+- **Bibliothèques / collections / dossiers** : grille centrée (écran `library`) au lieu d'une fiche, pages de 60,
+  page suivante chargée à l'approche de la fin ; films et séries en recherche récursive par type comme le client web.
+  Retour depuis une fiche : la sélection est retrouvée.
+- « À suivre » n'affiche plus les épisodes commencés (`enableResumable=false` + exclusion de ceux de « Reprendre »).
+- Onglet Demandes vérifié avec de vraies demandes (compte `test`).
 
 ### Pas fait
 - **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
 - Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).
-- Grille de bibliothèque paginée (aujourd'hui : 60 premiers éléments d'une bibliothèque/collection).
 - Défilement à la molette, survol souris qui déplace le focus.
 - Écran de connexion « vrai » (sélecteur de profils avec avatars via `/Users/Public`, Quick Connect, clavier à l'écran pour la télé). La connexion en ligne de commande couvre le kiosque en attendant.
 - Fond (backdrop) en option, avec logos transparents.

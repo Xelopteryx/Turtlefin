@@ -27,6 +27,12 @@ export struct Section {
     h-px: float,     // hauteur de la rangée, en pixels logiques
 }
 
+export struct MenuEntry {
+    label: string,
+    action: string, // "home" | "requests" | "lib:<id>" | "server" | "settings" | "logout" | "quit"
+    header: bool,   // intitulé de groupe (non sélectionnable)
+}
+
 export struct ButtonData {
     label: string,
     action: string, // "play" | "back" | "open:<id>"
@@ -305,6 +311,41 @@ component HeaderIcon inherits Rectangle {
         commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
     }
 
+    if root.icon == "menu": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: white;
+        stroke-width: 2.4px * root.k;
+        commands: "M 4 6.5 L 20 6.5 M 4 12 L 20 12 M 4 17.5 L 20 17.5";
+    }
+
+    if root.icon == "back": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 13.5 4 L 15.5 6 L 9.5 12 L 15.5 18 L 13.5 20 L 5.5 12 Z";
+    }
+
+    if root.icon == "home": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 12 3 L 21.5 11.5 L 19 11.5 L 19 20.5 L 14.5 20.5 L 14.5 15 L 9.5 15 L 9.5 20.5 L 5 20.5 L 5 11.5 L 2.5 11.5 Z";
+    }
+
     if root.icon == "profile": Path {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
@@ -418,6 +459,61 @@ component OverviewPanel inherits Rectangle {
     }
 }
 
+// Barre de navigation en haut à gauche de chaque écran : menu, retour (si l'on a navigué),
+// accueil (hors accueil) et titre de la page.
+component NavBar inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <bool> can-back;
+    in property <bool> show-home;
+    in property <string> title;
+    in property <brush> title-color: Theme.text;
+    in property <int> sel: -1; // bouton sélectionné : 0 menu · 1 retour (ou accueil) · 2 accueil
+    callback activate(int);
+
+    height: 72px * root.k;
+
+    HorizontalLayout {
+        alignment: start;
+        spacing: 10px * root.k;
+        padding-left: 24px * root.k;
+        padding-top: (root.height - 44px * root.k) / 2;
+        padding-bottom: (root.height - 44px * root.k) / 2;
+
+        HeaderIcon {
+            icon: "menu";
+            k: root.k;
+            focused: root.sel == 0;
+            clicked => {
+                root.activate(0);
+            }
+        }
+        if root.can-back: HeaderIcon {
+            icon: "back";
+            k: root.k;
+            focused: root.sel == 1;
+            clicked => {
+                root.activate(1);
+            }
+        }
+        if root.show-home: HeaderIcon {
+            icon: "home";
+            k: root.k;
+            focused: root.sel == (root.can-back ? 2 : 1);
+            clicked => {
+                root.activate(root.can-back ? 2 : 1);
+            }
+        }
+        Text {
+            text: root.title;
+            color: root.title-color;
+            font-size: 26px * root.k;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "Turtlefin";
     background: Theme.bg;
@@ -445,6 +541,20 @@ export component AppWindow inherits Window {
     in-out property <int> h-sel: 0;          // onglets (Accueil, Favoris, [Demandes]), puis Recherche, Profil
     in property <string> clock;              // « 16:52 »
     in-out property <int> prof-sel: 1;      // écran Profil : 0 Réglages · 1 Déconnexion
+
+    // Navigation commune : bouton Retour (si l'on a navigué), menu latéral
+    in property <bool> can-back;
+    in-out property <bool> menu-open;
+    in-out property <int> menu-sel;
+    in property <[MenuEntry]> menu-entries;
+    in-out property <string> soon-title: "Recherche"; // écran « bientôt disponible »
+    in-out property <int> refocus;          // incrémenté : l'écran affiché reprend le clavier
+
+    // Bibliothèque (grille)
+    in property <string> lib-title;
+    in-out property <[CardData]> lib-items;
+    in property <int> lib-total;
+    in-out property <int> l-sel;
 
     // Fiche détail
     in-out property <DetailData> detail;
@@ -479,12 +589,75 @@ export component AppWindow inherits Window {
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
     callback select-tab(string);            // "home" | "favorites" | "requests"
+    callback go-home();
+    callback menu-action(string);
+    callback lib-more();                    // page suivante de la bibliothèque
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
     property <length> card-w: root.tv-mode ? 230px : 170px;
     property <length> header-h: 72px * root.k;
     property <int> tab-count: root.has-requests ? 3 : 2;
+    // Boutons de la barre de navigation : menu, [retour], [accueil].
+    property <bool> show-home: root.screen != "home";
+    property <int> nav-n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
+
+    function nav-activate(i: int) {
+        root.h-focus = false;
+        if (i == 0) {
+            root.open-menu();
+        } else if (i == 1 && root.can-back) {
+            root.run-action("back");
+        } else {
+            root.go-home();
+        }
+    }
+
+    function open-menu() {
+        root.menu-sel = root.menu-entries.length > 1 && root.menu-entries[0].header ? 1 : 0;
+        root.menu-open = true;
+    }
+
+    function close-menu() {
+        root.menu-open = false;
+        root.refocus += 1;
+    }
+
+    // Déplacement dans le menu en sautant les intitulés de groupe.
+    function menu-move(d: int) {
+        if (root.menu-sel + d >= 0 && root.menu-sel + d < root.menu-entries.length) {
+            if (root.menu-entries[root.menu-sel + d].header) {
+                if (root.menu-sel + 2 * d >= 0 && root.menu-sel + 2 * d < root.menu-entries.length) {
+                    root.menu-sel += 2 * d;
+                }
+            } else {
+                root.menu-sel += d;
+            }
+        }
+    }
+
+    // Touches de la barre de navigation (écrans autres que l'accueil). Renvoie true si traitée.
+    function nav-key(t: string) -> bool {
+        if (!root.h-focus) {
+            return false;
+        }
+        if (t == Key.LeftArrow) {
+            root.h-sel = max(0, root.h-sel - 1);
+        } else if (t == Key.RightArrow) {
+            root.h-sel = min(root.nav-n - 1, root.h-sel + 1);
+        } else if (t == Key.DownArrow || t == Key.Escape) {
+            root.h-focus = false;
+        } else if (t == Key.Return) {
+            root.nav-activate(root.h-sel);
+        }
+        return true;
+    }
+
+    // Monte dans la barre de navigation, sur Retour s'il existe.
+    function nav-enter() {
+        root.h-focus = true;
+        root.h-sel = root.can-back ? 1 : 0;
+    }
 
     function tab-index() -> int {
         return root.tab == "favorites" ? 1 : root.tab == "requests" ? 2 : 0;
@@ -499,7 +672,8 @@ export component AppWindow inherits Window {
         } else if (i == 2 && root.has-requests) {
             root.select-tab("requests");
         } else if (i == root.tab-count) {
-            root.screen = "search";
+            root.soon-title = "Recherche";
+            root.screen = "soon";
         } else {
             root.prof-sel = 1;
             root.screen = "profile";
@@ -587,14 +761,18 @@ export component AppWindow inherits Window {
             y: 0px;
             height: root.header-h;
 
-            Text {
-                x: 32px * root.k;
-                height: parent.height;
-                text: "Turtlefin";
-                color: Theme.accent2;
-                font-size: 26px * root.k;
-                font-weight: 700;
-                vertical-alignment: center;
+            NavBar {
+                x: 0px;
+                width: parent.width / 3;
+                k: root.k;
+                can-back: false;
+                show-home: false;
+                title: "Turtlefin";
+                title-color: Theme.accent2;
+                sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
+                activate(i) => {
+                    root.nav-activate(i);
+                }
             }
 
             HorizontalLayout {
@@ -607,9 +785,9 @@ export component AppWindow inherits Window {
                     text: "Accueil";
                     k: root.k;
                     active: root.tab == "home";
-                    focused: root.h-focus && root.h-sel == 0;
+                    focused: root.h-focus && root.h-sel == root.nav-n + 0;
                     clicked => {
-                        root.h-sel = 0;
+                        root.h-sel = root.nav-n + 0;
                         root.header-activate(0);
                     }
                 }
@@ -617,9 +795,9 @@ export component AppWindow inherits Window {
                     text: "Favoris";
                     k: root.k;
                     active: root.tab == "favorites";
-                    focused: root.h-focus && root.h-sel == 1;
+                    focused: root.h-focus && root.h-sel == root.nav-n + 1;
                     clicked => {
-                        root.h-sel = 1;
+                        root.h-sel = root.nav-n + 1;
                         root.header-activate(1);
                     }
                 }
@@ -627,9 +805,9 @@ export component AppWindow inherits Window {
                     text: "Demandes";
                     k: root.k;
                     active: root.tab == "requests";
-                    focused: root.h-focus && root.h-sel == 2;
+                    focused: root.h-focus && root.h-sel == root.nav-n + 2;
                     clicked => {
-                        root.h-sel = 2;
+                        root.h-sel = root.nav-n + 2;
                         root.header-activate(2);
                     }
                 }
@@ -647,7 +825,7 @@ export component AppWindow inherits Window {
                 HeaderIcon {
                     icon: "search";
                     k: root.k;
-                    focused: root.h-focus && root.h-sel == root.tab-count;
+                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count;
                     clicked => {
                         root.header-activate(root.tab-count);
                     }
@@ -655,7 +833,7 @@ export component AppWindow inherits Window {
                 HeaderIcon {
                     icon: "profile";
                     k: root.k;
-                    focused: root.h-focus && root.h-sel == root.tab-count + 1;
+                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 1;
                     clicked => {
                         root.header-activate(root.tab-count + 1);
                     }
@@ -674,29 +852,38 @@ export component AppWindow inherits Window {
             y: root.header-h;
             height: parent.height - root.header-h;
 
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+
             init => {
                 self.focus();
             }
 
             key-pressed(event) => {
-                // Sélection dans l'en-tête
+                // Sélection dans l'en-tête : menu, onglets, recherche, profil
                 if (root.h-focus) {
                     if (event.text == Key.LeftArrow) {
                         root.h-sel = max(0, root.h-sel - 1);
                     } else if (event.text == Key.RightArrow) {
-                        root.h-sel = min(root.tab-count + 1, root.h-sel + 1);
+                        root.h-sel = min(root.nav-n + root.tab-count + 1, root.h-sel + 1);
                     } else if (event.text == Key.DownArrow) {
                         if (root.sections.length > 0) {
                             root.h-focus = false;
                         }
                     } else if (event.text == Key.Return) {
-                        root.header-activate(root.h-sel);
+                        if (root.h-sel < root.nav-n) {
+                            root.nav-activate(root.h-sel);
+                        } else {
+                            root.header-activate(root.h-sel - root.nav-n);
+                        }
                     }
                     return EventResult.accept;
                 }
                 if (root.sections.length == 0) {
                     root.h-focus = true;
-                    root.h-sel = root.tab-index();
+                    root.h-sel = root.nav-n + root.tab-index();
                     return EventResult.accept;
                 }
                 if (event.text == Key.RightArrow) {
@@ -725,7 +912,7 @@ export component AppWindow inherits Window {
                     } else {
                         // Depuis la première rangée : on monte dans l'en-tête, sur l'onglet affiché.
                         root.h-focus = true;
-                        root.h-sel = root.tab-index();
+                        root.h-sel = root.nav-n + root.tab-index();
                     }
                     return EventResult.accept;
                 }
@@ -776,15 +963,24 @@ export component AppWindow inherits Window {
         }
     }
 
-    // ------------------------------------------------------------ Recherche (à venir)
-    if root.screen == "search" && !root.playing: Rectangle {
+    // ------------------------------------------------------------ Bientôt disponible (Recherche, Paramètres)
+    if root.screen == "soon" && !root.playing: Rectangle {
         FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
             init => {
                 self.focus();
             }
             key-pressed(event) => {
-                if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
-                    root.screen = "home";
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.nav-enter();
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.go-home();
                 }
                 return EventResult.accept;
             }
@@ -795,7 +991,7 @@ export component AppWindow inherits Window {
             spacing: 14px * root.k;
 
             Text {
-                text: "Recherche";
+                text: root.soon-title;
                 color: Theme.text;
                 font-size: 34px * root.k;
                 font-weight: 700;
@@ -819,13 +1015,22 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Profil
     if root.screen == "profile" && !root.playing: Rectangle {
         FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
             init => {
                 self.focus();
             }
             key-pressed(event) => {
-                if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.screen = "home";
-                } else if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.nav-enter();
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.go-home();
+                } else if (event.text == Key.LeftArrow) {
                     root.prof-sel = 0;
                 } else if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
                     root.prof-sel = 1;
@@ -882,16 +1087,27 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Fiche détail
     if root.screen == "detail" && !root.playing: Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
         // Réceptionne le clavier / la télécommande (sans taille : seul le focus compte).
         FocusScope {
             width: 0px;
             height: 0px;
+
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
 
             init => {
                 self.focus();
             }
 
             key-pressed(event) => {
+                if (!root.overview-open && root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
                 // Panneau « résumé complet » ouvert : il capte toutes les touches.
                 if (root.overview-open) {
                     if (event.text == Key.DownArrow) {
@@ -914,8 +1130,12 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
 
-                // Zone 0 : boutons
+                // Zone 0 : boutons (↑ : barre de navigation)
                 if (root.d-zone == 0) {
+                    if (event.text == Key.UpArrow) {
+                        root.nav-enter();
+                        return EventResult.accept;
+                    }
                     if (event.text == Key.RightArrow) {
                         if (root.d-button < root.detail.buttons.length - 1) {
                             root.d-button += 1;
@@ -1235,6 +1455,215 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ------------------------------------------------------------ Bibliothèque (grille)
+    if root.screen == "library" && !root.playing: lib := Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
+        property <length> gap: 18px * root.k;
+        property <length> pad: 32px * root.k;
+        property <length> cw: root.card-w;
+        property <length> ch: root.card-w * 1.5 + 56px * root.k;
+        property <int> cols: max(1, floor((self.width - 2 * self.pad + self.gap) / (self.cw + self.gap)));
+        property <int> rows: ceil(root.lib-items.length / self.cols);
+        property <int> sel-row: floor(root.l-sel / self.cols);
+        // Grille centrée horizontalement.
+        property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
+
+        // Proche de la fin de ce qui est chargé : page suivante.
+        function maybe-more() {
+            if (root.l-sel >= root.lib-items.length - 2 * self.cols && root.lib-items.length < root.lib-total) {
+                root.lib-more();
+            }
+        }
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.run-action("back");
+                    return EventResult.accept;
+                }
+                if (root.lib-items.length == 0) {
+                    if (event.text == Key.UpArrow) {
+                        root.nav-enter();
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.RightArrow) {
+                    root.l-sel = min(root.lib-items.length - 1, root.l-sel + 1);
+                } else if (event.text == Key.LeftArrow) {
+                    root.l-sel = max(0, root.l-sel - 1);
+                } else if (event.text == Key.DownArrow) {
+                    if (lib.sel-row < lib.rows - 1) {
+                        root.l-sel = min(root.lib-items.length - 1, root.l-sel + lib.cols);
+                    }
+                } else if (event.text == Key.UpArrow) {
+                    if (lib.sel-row > 0) {
+                        root.l-sel -= lib.cols;
+                    } else {
+                        root.nav-enter();
+                    }
+                } else if (event.text == Key.Return) {
+                    root.open-item(root.lib-items[root.l-sel].id);
+                }
+                lib.maybe-more();
+                return EventResult.accept;
+            }
+        }
+
+        if root.lib-items.length == 0: Text {
+            text: root.lib-total == 0 ? "Chargement…" : "";
+            color: Theme.muted;
+            font-size: 20px * root.k;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            clip: true;
+
+            Rectangle {
+                // La rangée sélectionnée reste vers le milieu de l'écran.
+                y: min(0px, parent.height / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+                animate y { duration: 180ms; easing: ease-out; }
+
+                for card[i] in root.lib-items: Card {
+                    x: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
+                    y: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
+                    width: lib.cw;
+                    height: lib.ch;
+                    data: card;
+                    ratio: 1.5;
+                    k: root.k;
+                    focused: !root.h-focus && i == root.l-sel;
+                    clicked => {
+                        root.h-focus = false;
+                        root.l-sel = i;
+                        root.open-item(card.id);
+                    }
+                }
+            }
+        }
+    }
+
+    // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
+    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile")
+        && !root.playing: NavBar {
+        y: 0px;
+        width: parent.width;
+        k: root.k;
+        can-back: root.can-back;
+        show-home: true;
+        title: root.screen == "library" ? root.lib-title : "";
+        sel: root.h-focus ? root.h-sel : -1;
+        activate(i) => {
+            root.nav-activate(i);
+        }
+    }
+
+    // ------------------------------------------------------------ Menu latéral
+    if root.menu-open && !root.playing: Rectangle {
+        background: #000000a6;
+
+        TouchArea {
+            clicked => {
+                root.close-menu();
+            }
+        }
+
+        drawer := Rectangle {
+            x: 0px;
+            width: 340px * root.k;
+            height: parent.height;
+            background: #0b1520f5;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+
+            property <length> row-h: 40px * root.k;
+            property <length> top: 84px * root.k;
+            // Défilement si le menu dépasse l'écran (mode TV).
+            property <length> scroll: max(0px, (root.menu-sel + 1) * self.row-h - (self.height - self.top - 16px * root.k));
+
+            TouchArea { }
+
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.UpArrow) {
+                        root.menu-move(-1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.menu-move(1);
+                    } else if (event.text == Key.Return) {
+                        root.close-menu();
+                        root.menu-action(root.menu-entries[root.menu-sel].action);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                        root.close-menu();
+                    }
+                    return EventResult.accept;
+                }
+            }
+
+            Text {
+                x: 28px * root.k;
+                y: 0px;
+                height: parent.top;
+                text: "Turtlefin";
+                color: Theme.accent2;
+                font-size: 26px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                y: parent.top;
+                height: parent.height - parent.top;
+                clip: true;
+
+                for e[i] in root.menu-entries: Rectangle {
+                    x: 14px * root.k;
+                    y: i * drawer.row-h - drawer.scroll;
+                    width: parent.width - 28px * root.k;
+                    height: drawer.row-h - 4px * root.k;
+                    border-radius: 10px * root.k;
+                    background: !e.header && (i == root.menu-sel || row.has-hover)
+                        ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+
+                    Text {
+                        x: (e.header ? 14px : 18px) * root.k;
+                        width: parent.width - 28px * root.k;
+                        text: e.header ? e.label.to-uppercase() : e.label;
+                        color: e.header ? Theme.muted : white;
+                        font-size: (e.header ? 12px : 17px) * root.k;
+                        font-weight: e.header ? 700 : (i == root.menu-sel ? 600 : 500);
+                        vertical-alignment: e.header ? TextVerticalAlignment.bottom : TextVerticalAlignment.center;
+                        overflow: elide;
+                    }
+
+                    row := TouchArea {
+                        enabled: !e.header;
+                        clicked => {
+                            root.menu-sel = i;
+                            root.close-menu();
+                            root.menu-action(e.action);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------------------ Lecture
     if root.playing: PlayerView {
         width: parent.width;
@@ -1266,7 +1695,7 @@ export component AppWindow inherits Window {
     }
 
     // Message d'état (accueil et fiche)
-    if (root.screen == "home" || root.screen == "detail") && !root.playing: Text {
+    if (root.screen == "home" || root.screen == "detail" || root.screen == "library") && !root.playing: Text {
         x: 32px;
         y: parent.height - 32px;
         text: root.toast;
