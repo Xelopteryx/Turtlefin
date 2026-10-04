@@ -388,6 +388,12 @@ impl Render {
         Ok(Render { api, ctx, _wake: wake, _mpv: mpv })
     }
 
+    /// Prend connaissance d'une nouvelle image sans la dessiner (diagnostic).
+    pub fn acknowledge(&self) {
+        // SAFETY : contexte valide.
+        unsafe { (self.api.render_update)(self.ctx) };
+    }
+
     /// Dessine l'image courante dans le framebuffer `fbo` (taille w x h).
     pub fn render(&self, fbo: u32, w: i32, h: i32) {
         let mut target = OpenGlFbo { fbo: fbo as c_int, w, h, internal_format: 0 };

@@ -169,7 +169,12 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
             }
         }
 
-        if let Some(t) = &st.target {
+        // Diagnostic : TURTLEFIN_DEBUG_NO_VIDEO=1 laisse l'interface se redessiner à chaque image
+        // mais sans faire dessiner mpv (pour savoir qui, de mpv ou de Slint, provoque un problème).
+        let skip = std::env::var_os("TURTLEFIN_DEBUG_NO_VIDEO").is_some();
+        if skip {
+            render.acknowledge();
+        } else if let Some(t) = &st.target {
             render.render(t.fbo.0.get(), t.w as i32, t.h as i32);
         }
 
