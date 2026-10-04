@@ -1,0 +1,719 @@
+// Écran de lecture : la vidéo (texture dessinée par libmpv) et les commandes par-dessus.
+//
+// Navigation (clavier / télécommande) :
+//   commandes masquées : ← → reculer / avancer de 10 s sans rien afficher ; ↑ ↓ affichent les
+//   commandes sur la barre de temps ; Entrée les affiche sur Lecture/Pause ; Échap quitte la vidéo.
+//   barre de temps : ← → déplacer le curseur ; ↓ boutons (Lecture/Pause) ; ↑ bouton Retour.
+//   boutons : ← → changer de bouton ; Entrée activer ; ↑ barre de temps.
+//   menu des pistes : ↑ ↓ choisir ; Entrée valider ; Échap ou ← fermer.
+
+import { Theme } from "theme.slint";
+
+export struct TrackData {
+    id: string,    // identifiant mpv ("no" = sous-titres désactivés)
+    label: string,
+    current: bool,
+}
+
+// Icônes tracées (24 x 24) : aucune police d'icônes à installer.
+component Icon inherits Rectangle {
+    in property <string> name;
+
+    if root.name == "play": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 7 4 L 20 12 L 7 20 Z";
+    }
+    if root.name == "pause": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 6 4 L 10 4 L 10 20 L 6 20 Z M 14 4 L 18 4 L 18 20 L 14 20 Z";
+    }
+    if root.name == "prev-ep": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 5 5 L 8 5 L 8 19 L 5 19 Z M 19 5 L 19 19 L 9 12 Z";
+    }
+    if root.name == "next-ep": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 16 5 L 19 5 L 19 19 L 16 19 Z M 5 5 L 15 12 L 5 19 Z";
+    }
+    if root.name == "prev-chap": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 12 6 L 12 18 L 3 12 Z M 21 6 L 21 18 L 12 12 Z";
+    }
+    if root.name == "next-chap": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 3 6 L 12 12 L 3 18 Z M 12 6 L 21 12 L 12 18 Z";
+    }
+    if root.name == "back": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 13.5 4 L 15.5 6 L 9.5 12 L 15.5 18 L 13.5 20 L 5.5 12 Z";
+    }
+}
+
+// Bouton « pilule » de Style.css : verre clair, dégradé violet -> bleu au focus / survol.
+component PlayerButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> text;
+    in property <bool> focused;
+    in property <bool> enabled: true;
+    in property <length> size: 48px;
+    in property <length> font: 16px;
+    callback clicked();
+
+    property <bool> lit: root.enabled && (root.focused || area.has-hover);
+
+    width: root.text == "" ? root.size : label.preferred-width + root.size;
+    height: root.size;
+    border-radius: self.height / 2;
+    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
+    border-width: root.lit ? 0px : 1px;
+    border-color: #ffffff40;
+    opacity: root.enabled ? 1 : 0.35;
+
+    if root.icon != "": Icon {
+        width: root.size * 0.5;
+        height: root.size * 0.5;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        name: root.icon;
+    }
+
+    label := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.text;
+        color: white;
+        font-size: root.font;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    area := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component PlayerView inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <image> frame;
+    in property <bool> ready;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> paused;
+    in property <float> progress;
+    in property <string> pos-text;
+    in property <string> dur-text;
+    in property <string> end-text;
+    in property <[float]> chapters;
+    in property <int> chapter-count;
+    in property <bool> has-prev;
+    in property <bool> has-next;
+    in property <[TrackData]> audio-tracks;
+    in property <int> audio-current;
+    in property <[TrackData]> sub-tracks;
+    in property <int> sub-current;
+
+    callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "stop"
+    callback toggle-fullscreen();
+
+    property <bool> osd: true;   // commandes affichées
+    property <int> idle: 0;      // secondes sans activité
+    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour
+    property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 audio · 6 sous-titres
+    property <string> menu: "";  // "" | "audio" | "sub"
+    property <int> menu-sel: 0;
+    property <int> menu-rows: 8;
+    property <int> menu-top: max(0, root.menu-sel - root.menu-rows + 1);
+    property <[TrackData]> menu-items: root.menu == "audio" ? root.audio-tracks : root.sub-tracks;
+    property <bool> dragging;
+    property <float> drag-frac;
+    property <length> m: 24px * root.k;
+
+    // Sous-titres remontés au-dessus du panneau tant qu'il est affiché (marge mpv : unités sur 720 de haut).
+    function sub-margin() {
+        root.command("sub-margin:" + (root.osd ? round((160px * root.k + 2 * root.m) / root.height * 720) : 22));
+    }
+    changed osd => {
+        root.sub-margin();
+    }
+    init => {
+        root.sub-margin();
+    }
+
+    function show() {
+        root.osd = true;
+        root.idle = 0;
+    }
+
+    function hide() {
+        root.osd = false;
+        root.zone = 0;
+        root.menu = "";
+    }
+
+    function open-menu(kind: string) {
+        if (root.menu == kind) {
+            root.menu = "";
+        } else {
+            root.menu = kind;
+            root.menu-sel = kind == "audio" ? root.audio-current : root.sub-current;
+            root.zone = 2;
+            root.btn = kind == "audio" ? 5 : 6;
+        }
+        root.show();
+    }
+
+    function apply-menu() {
+        if (root.menu-sel < root.menu-items.length) {
+            root.command((root.menu == "audio" ? "aid:" : "sid:") + root.menu-items[root.menu-sel].id);
+        }
+        root.menu = "";
+    }
+
+    function activate(i: int) {
+        if (i == 0) {
+            if (root.has-prev) {
+                root.command("episode:-1");
+            }
+        } else if (i == 1) {
+            if (root.chapter-count > 0) {
+                root.command("chapter:-1");
+            }
+        } else if (i == 2) {
+            root.command("pause");
+        } else if (i == 3) {
+            if (root.chapter-count > 0) {
+                root.command("chapter:1");
+            }
+        } else if (i == 4) {
+            if (root.has-next) {
+                root.command("episode:1");
+            }
+        } else if (i == 5) {
+            root.open-menu("audio");
+        } else if (i == 6) {
+            root.open-menu("sub");
+        }
+        root.show();
+    }
+
+    background: black;
+
+    // Vidéo : la texture a la taille de la fenêtre, mpv y gère lui-même le format d'image.
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.frame;
+        image-fit: fill;
+    }
+
+    if !root.ready: Text {
+        text: "Chargement…";
+        color: Theme.muted;
+        font-size: 22px * root.k;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    // Souris sur la vidéo : affiche les commandes ; clic = pause ; double-clic = plein écran.
+    TouchArea {
+        mouse-cursor: root.osd ? MouseCursor.default : MouseCursor.none;
+        changed mouse-x => {
+            root.show();
+        }
+        changed mouse-y => {
+            root.show();
+        }
+        clicked => {
+            if (root.menu != "") {
+                root.menu = "";
+            } else {
+                root.command("pause");
+            }
+            root.show();
+        }
+        double-clicked => {
+            root.toggle-fullscreen();
+        }
+    }
+
+    Timer {
+        interval: 1s;
+        running: root.osd;
+        triggered => {
+            root.idle += 1;
+            if (root.idle >= 3 && !root.paused && root.menu == "" && !root.dragging) {
+                root.hide();
+            }
+        }
+    }
+
+    FocusScope {
+        width: 0px;
+        height: 0px;
+
+        init => {
+            self.focus();
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.F11 || event.text == "f") {
+                root.toggle-fullscreen();
+                return EventResult.accept;
+            }
+            if (event.text == "q") {
+                root.command("stop");
+                return EventResult.accept;
+            }
+            if (event.text == "a") {
+                root.open-menu("audio");
+                return EventResult.accept;
+            }
+            if (event.text == "s") {
+                root.open-menu("sub");
+                return EventResult.accept;
+            }
+            if (event.text == Key.Space) {
+                root.command("pause");
+                root.show();
+                return EventResult.accept;
+            }
+
+            // Menu des pistes ouvert : il prend les flèches.
+            if (root.menu != "") {
+                if (event.text == Key.UpArrow) {
+                    root.menu-sel = max(0, root.menu-sel - 1);
+                } else if (event.text == Key.DownArrow) {
+                    root.menu-sel = min(root.menu-items.length - 1, root.menu-sel + 1);
+                } else if (event.text == Key.Return) {
+                    root.apply-menu();
+                } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                    root.menu = "";
+                }
+                root.show();
+                return EventResult.accept;
+            }
+
+            // Commandes masquées (ou affichées à la souris, sans sélection).
+            if (!root.osd || root.zone == 0) {
+                if (event.text == Key.LeftArrow) {
+                    root.command("seek:-10");
+                } else if (event.text == Key.RightArrow) {
+                    root.command("seek:10");
+                } else if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                    root.zone = 1;
+                    root.show();
+                } else if (event.text == Key.Return) {
+                    root.zone = 2;
+                    root.btn = 2;
+                    root.show();
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    if (root.osd) {
+                        root.hide();
+                    } else {
+                        root.command("stop");
+                    }
+                }
+                return EventResult.accept;
+            }
+
+            if (event.text == Key.Escape || event.text == Key.Backspace) {
+                root.hide();
+                return EventResult.accept;
+            }
+
+            if (root.zone == 1) {
+                // Barre de temps
+                if (event.text == Key.LeftArrow) {
+                    root.command("seek:-10");
+                } else if (event.text == Key.RightArrow) {
+                    root.command("seek:10");
+                } else if (event.text == Key.DownArrow) {
+                    root.zone = 2;
+                    root.btn = 2;
+                } else if (event.text == Key.UpArrow) {
+                    root.zone = 3;
+                } else if (event.text == Key.Return) {
+                    root.command("pause");
+                }
+            } else if (root.zone == 2) {
+                // Boutons
+                if (event.text == Key.LeftArrow) {
+                    root.btn = max(0, root.btn - 1);
+                } else if (event.text == Key.RightArrow) {
+                    root.btn = min(6, root.btn + 1);
+                } else if (event.text == Key.UpArrow) {
+                    root.zone = 1;
+                } else if (event.text == Key.Return) {
+                    root.activate(root.btn);
+                }
+            } else if (root.zone == 3) {
+                // Bouton Retour
+                if (event.text == Key.DownArrow) {
+                    root.zone = 1;
+                } else if (event.text == Key.Return) {
+                    root.command("stop");
+                }
+            }
+            root.show();
+            return EventResult.accept;
+        }
+    }
+
+    // ------------------------------------------------------------ Commandes
+    if root.osd: Rectangle {
+        // Voile du haut pour la lisibilité du titre : simple dégradé, sans flou.
+        Rectangle {
+            y: 0px;
+            height: 150px * root.k;
+            background: @linear-gradient(180deg, #000000b3 0%, #00000000 100%);
+        }
+
+        PlayerButton {
+            x: root.m;
+            y: root.m;
+            size: 52px * root.k;
+            icon: "back";
+            focused: root.zone == 3;
+            clicked => {
+                root.command("stop");
+            }
+        }
+
+        Text {
+            x: root.m + 70px * root.k;
+            y: root.m - 2px * root.k;
+            width: parent.width - self.x - root.m;
+            height: 30px * root.k;
+            text: root.title;
+            color: Theme.text;
+            font-size: 22px * root.k;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            x: root.m + 70px * root.k;
+            y: root.m + 28px * root.k;
+            width: parent.width - self.x - root.m;
+            height: 24px * root.k;
+            text: root.subtitle;
+            color: Theme.accent2;
+            font-size: 16px * root.k;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        // Panneau du bas : temps, barre, boutons, heure de fin.
+        panel := Rectangle {
+            x: root.m;
+            width: parent.width - 2 * root.m;
+            height: 160px * root.k;
+            y: parent.height - self.height - root.m;
+            border-radius: 16px;
+            background: Theme.glass;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+
+            // Absorbe les clics sur le panneau (sinon ils mettraient en pause).
+            TouchArea { }
+
+            Text {
+                x: root.m;
+                y: 12px * root.k;
+                height: 24px * root.k;
+                text: root.pos-text;
+                color: Theme.text;
+                font-size: 16px * root.k;
+                vertical-alignment: center;
+            }
+
+            Text {
+                x: parent.width - self.width - root.m;
+                y: 12px * root.k;
+                width: 160px * root.k;
+                height: 24px * root.k;
+                text: root.dur-text;
+                color: Theme.muted;
+                font-size: 16px * root.k;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+
+            // Barre de temps (zone sensible plus haute que le trait).
+            bar := Rectangle {
+                x: root.m;
+                y: 40px * root.k;
+                width: parent.width - 2 * root.m;
+                height: 28px * root.k;
+
+                property <length> th: (root.zone == 1 ? 10px : 6px) * root.k;
+                property <float> shown: root.dragging ? root.drag-frac : root.progress;
+
+                track := Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    height: bar.th;
+                    border-radius: self.height / 2;
+                    background: #ffffff33;
+                }
+
+                Rectangle {
+                    x: 0px;
+                    y: track.y;
+                    width: max(bar.th, parent.width * bar.shown);
+                    height: bar.th;
+                    border-radius: self.height / 2;
+                    background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                }
+
+                // Repères de chapitres
+                for c in root.chapters: Rectangle {
+                    x: parent.width * c - 1.5px;
+                    y: track.y;
+                    width: 3px;
+                    height: bar.th;
+                    background: #000000b3;
+                }
+
+                Rectangle {
+                    width: (root.zone == 1 ? 22px : 14px) * root.k;
+                    height: self.width;
+                    x: parent.width * bar.shown - self.width / 2;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: self.width / 2;
+                    background: white;
+                    border-width: root.zone == 1 ? 3px : 0px;
+                    border-color: Theme.accent2;
+                }
+
+                TouchArea {
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            root.dragging = true;
+                            root.drag-frac = clamp(self.mouse-x / self.width, 0, 1);
+                        } else if (e.kind == PointerEventKind.up) {
+                            if (root.dragging) {
+                                root.command("seek-to:" + root.drag-frac);
+                            }
+                            root.dragging = false;
+                        } else if (e.kind == PointerEventKind.cancel) {
+                            root.dragging = false;
+                        }
+                    }
+                    moved => {
+                        if (root.dragging) {
+                            root.drag-frac = clamp(self.mouse-x / self.width, 0, 1);
+                            root.show();
+                        }
+                    }
+                }
+            }
+
+            // Boutons de lecture, au centre
+            HorizontalLayout {
+                x: 0px;
+                y: 78px * root.k;
+                width: parent.width;
+                height: 52px * root.k;
+                alignment: center;
+                spacing: 16px * root.k;
+
+                PlayerButton {
+                    size: 52px * root.k;
+                    icon: "prev-ep";
+                    enabled: root.has-prev;
+                    focused: root.zone == 2 && root.btn == 0;
+                    clicked => {
+                        root.zone = 0;
+                        root.activate(0);
+                    }
+                }
+                PlayerButton {
+                    size: 52px * root.k;
+                    icon: "prev-chap";
+                    enabled: root.chapter-count > 0;
+                    focused: root.zone == 2 && root.btn == 1;
+                    clicked => {
+                        root.zone = 0;
+                        root.activate(1);
+                    }
+                }
+                PlayerButton {
+                    size: 52px * root.k;
+                    icon: root.paused ? "play" : "pause";
+                    focused: root.zone == 2 && root.btn == 2;
+                    clicked => {
+                        root.zone = 0;
+                        root.activate(2);
+                    }
+                }
+                PlayerButton {
+                    size: 52px * root.k;
+                    icon: "next-chap";
+                    enabled: root.chapter-count > 0;
+                    focused: root.zone == 2 && root.btn == 3;
+                    clicked => {
+                        root.zone = 0;
+                        root.activate(3);
+                    }
+                }
+                PlayerButton {
+                    size: 52px * root.k;
+                    icon: "next-ep";
+                    enabled: root.has-next;
+                    focused: root.zone == 2 && root.btn == 4;
+                    clicked => {
+                        root.zone = 0;
+                        root.activate(4);
+                    }
+                }
+            }
+
+            // Pistes, à droite
+            HorizontalLayout {
+                x: 0px;
+                y: 82px * root.k;
+                width: parent.width - root.m;
+                height: 44px * root.k;
+                alignment: end;
+                spacing: 12px * root.k;
+
+                PlayerButton {
+                    size: 44px * root.k;
+                    font: 16px * root.k;
+                    text: "Audio";
+                    focused: root.zone == 2 && root.btn == 5;
+                    clicked => {
+                        root.activate(5);
+                    }
+                }
+                PlayerButton {
+                    size: 44px * root.k;
+                    font: 16px * root.k;
+                    text: "Sous-titres";
+                    focused: root.zone == 2 && root.btn == 6;
+                    clicked => {
+                        root.activate(6);
+                    }
+                }
+            }
+
+            Text {
+                y: parent.height - 28px * root.k;
+                width: parent.width;
+                height: 20px * root.k;
+                text: root.end-text;
+                color: Theme.muted;
+                font-size: 14px * root.k;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // Menu des pistes, au-dessus du panneau, à droite.
+        if root.menu != "": Rectangle {
+            width: 440px * root.k;
+            height: 64px * root.k + max(1, min(root.menu-items.length, root.menu-rows)) * 46px * root.k + 10px * root.k;
+            x: parent.width - self.width - root.m;
+            y: panel.y - self.height - 16px * root.k;
+            border-radius: 16px;
+            background: Theme.glass;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+
+            TouchArea { }
+
+            Text {
+                x: root.m;
+                y: 16px * root.k;
+                height: 32px * root.k;
+                text: root.menu == "audio" ? "Piste audio" : "Sous-titres";
+                color: Theme.text;
+                font-size: 22px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            if root.menu-items.length == 0: Text {
+                x: root.m;
+                y: 60px * root.k;
+                height: 42px * root.k;
+                text: "Aucune piste";
+                color: Theme.muted;
+                font-size: 17px * root.k;
+                vertical-alignment: center;
+            }
+
+            for t[i] in root.menu-items: Rectangle {
+                visible: i >= root.menu-top && i < root.menu-top + root.menu-rows;
+                x: 12px * root.k;
+                y: 60px * root.k + (i - root.menu-top) * 46px * root.k;
+                width: parent.width - 24px * root.k;
+                height: 42px * root.k;
+                border-radius: 10px * root.k;
+                background: (i == root.menu-sel || row.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+
+                if t.current: Rectangle {
+                    x: 14px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    width: 10px * root.k;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: white;
+                }
+
+                Text {
+                    x: 36px * root.k;
+                    width: parent.width - 48px * root.k;
+                    text: t.label;
+                    color: white;
+                    font-size: 17px * root.k;
+                    font-weight: i == root.menu-sel ? 700 : 400;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                row := TouchArea {
+                    clicked => {
+                        root.menu-sel = i;
+                        root.apply-menu();
+                        root.show();
+                    }
+                }
+            }
+        }
+    }
+}

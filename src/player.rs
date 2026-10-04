@@ -1,97 +1,32 @@
-//! Lecture via mpv, lancé dans un processus séparé et piloté par IPC JSON.
-//! Si mpv plante ou fuit, l'interface de Turtlefin n'est pas touchée.
+//! Lecture avec libmpv, intégrée à Turtlefin.
 //!
-//! Turtlefin observe `time-pos`, `pause` et `duration` via l'IPC et fait le
-//! rapport de lecture au serveur (début, progression toutes les 10 s, fin).
+//! mpv décode et dessine la vidéo dans une texture affichée par l'interface (voir video.rs) ;
+//! les commandes (barre de temps, chapitres, épisodes, pistes) sont dessinées par Slint.
+//! Turtlefin rapporte la lecture au serveur (début, progression toutes les 10 s, fin) et
+//! enchaîne sur l'épisode suivant en fin de fichier.
 
-use std::{ffi::OsString, path::PathBuf, process::Stdio, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::Command,
-};
+use slint::{ModelRc, VecModel};
 
 use crate::api::{Client, Item};
+use crate::mpv::{Event, Mpv};
+use crate::{video, AppWindow, TrackData};
 
 pub struct PlayRequest {
-    pub item: Item,
+    /// Élément Jellyfin à lire (None : fichier de test local, voir `test_url`).
+    pub item: Option<Item>,
     pub start_secs: f64,
-    /// Plein écran propre à mpv (ignoré en mode intégré : c'est la fenêtre de Turtlefin qui décide).
-    pub fullscreen: bool,
-    /// Identifiant natif de la fenêtre de Turtlefin (HWND sous Windows, XID sous X11).
-    /// Si présent, mpv dessine DANS cette fenêtre au lieu d'ouvrir la sienne.
-    pub wid: Option<i64>,
-}
-
-/// Interface de lecture (barre de contrôle, menus des pistes) dessinée par mpv dans la vidéo.
-/// Rien de Slint ne peut s'afficher par-dessus la vidéo intégrée : elle vit donc dans ce script Lua.
-const UI_SCRIPT: &str = include_str!("turtlefin_ui.lua");
-
-/// Nom sous lequel mpv connaît le script (nom du fichier sans extension).
-const UI_SCRIPT_NAME: &str = "turtlefin_ui";
-
-/// Envoie une commande JSON à mpv.
-async fn send<W: AsyncWriteExt + Unpin>(wr: &mut W, v: &Value) {
-    let _ = wr.write_all(format!("{v}
-").as_bytes()).await;
-}
-
-/// Écrit le script d'interface dans le dossier temporaire (mpv ne lit les scripts que depuis un fichier).
-fn ui_script_path() -> Option<PathBuf> {
-    let p = std::env::temp_dir().join(format!("{UI_SCRIPT_NAME}.lua"));
-    std::fs::write(&p, UI_SCRIPT).ok()?;
-    Some(p)
-}
-
-/// Cherche mpv : variable TURTLEFIN_MPV, puis à côté de l'exécutable, puis dans le PATH.
-fn mpv_path() -> OsString {
-    if let Ok(p) = std::env::var("TURTLEFIN_MPV") {
-        return p.into();
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let name = if cfg!(windows) { "mpv.exe" } else { "mpv" };
-            let p = dir.join(name);
-            if p.exists() {
-                return p.into_os_string();
-            }
-        }
-    }
-    "mpv".into()
-}
-
-#[cfg(unix)]
-mod ipc {
-    pub type Stream = tokio::net::UnixStream;
-
-    pub fn path() -> String {
-        let dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-        format!("{dir}/turtlefin-mpv-{}.sock", std::process::id())
-    }
-
-    pub async fn connect(path: &str) -> std::io::Result<Stream> {
-        tokio::net::UnixStream::connect(path).await
-    }
-}
-
-#[cfg(windows)]
-mod ipc {
-    pub type Stream = tokio::net::windows::named_pipe::NamedPipeClient;
-
-    pub fn path() -> String {
-        format!(r"\\.\pipe\turtlefin-mpv-{}", std::process::id())
-    }
-
-    pub async fn connect(path: &str) -> std::io::Result<Stream> {
-        tokio::net::windows::named_pipe::ClientOptions::new().open(path)
-    }
+    /// Lecture d'essai sans serveur (option --test-video).
+    pub test_url: Option<String>,
 }
 
 /// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
 /// Sur Raspberry Pi (Linux ARM 64 bits), le décodage matériel V4L2 produit des images au format
-/// Broadcom « SAND » que Vulkan ne sait pas importer dans mpv : résultat, un écran vide. On décode
+/// Broadcom « SAND » que mpv ne sait pas importer en OpenGL : résultat, un écran vide. On décode
 /// donc en logiciel par défaut. Ailleurs (Windows, PC Linux) : « auto-safe ».
 fn hwdec_mode() -> String {
     if let Ok(v) = std::env::var("TURTLEFIN_HWDEC") {
@@ -108,206 +43,450 @@ fn ticks(secs: f64) -> i64 {
     (secs.max(0.0) * 10_000_000.0) as i64
 }
 
-/// Lance mpv et bloque jusqu'à sa fermeture. Rapporte la lecture au serveur.
-pub async fn play(
-    client: &Client,
-    req: PlayRequest,
-    mut commands: tokio::sync::mpsc::UnboundedReceiver<String>,
-) -> Result<()> {
-    let item = &req.item;
-    let source = item.media_sources.as_ref().and_then(|v| v.first());
-    let ms_id = source.map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
-    let url = client.stream_url(&item.id, &ms_id);
-    let ipc_path = ipc::path();
-    let session = uuid::Uuid::new_v4().simple().to_string();
-
-    let (title, subtitle) = item.titles();
-    let media_title = if subtitle.is_empty() { title } else { format!("{title} - {subtitle}") };
-
-    let mut cmd = Command::new(mpv_path());
-    cmd.arg(format!("--input-ipc-server={ipc_path}"))
-        .arg(format!("--force-media-title={media_title}"))
-        .arg(format!("--hwdec={}", hwdec_mode()))
-        .arg("--keep-open=no");
-    // Notre interface remplace la barre de mpv (OSC).
-    match ui_script_path() {
-        Some(p) => {
-            cmd.arg("--osc=no").arg(format!("--script={}", p.display()));
-        }
-        None => eprintln!("turtlefin : impossible d'écrire le script d'interface, barre de mpv par défaut"),
+/// « 1:02:03 » ou « 2:03 ».
+fn fmt_time(secs: f64) -> String {
+    let t = secs.max(0.0) as u64;
+    let (h, m, s) = (t / 3600, t % 3600 / 60, t % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
     }
+}
+
+/// Crée et configure le lecteur.
+fn new_player() -> Result<Arc<Mpv>> {
+    let m = Mpv::new()?;
+    // Rendu dans la fenêtre de Turtlefin (API de rendu de libmpv).
+    m.set_option("vo", "libmpv");
+    m.set_option("hwdec", &hwdec_mode());
+    // Le lecteur reste ouvert entre deux épisodes ; on ne lit ni mpv.conf ni les scripts de l'utilisateur.
+    m.set_option("idle", "yes");
+    m.set_option("keep-open", "no");
+    m.set_option("config", "no");
+    m.set_option("terminal", "no");
+    m.set_option("input-default-bindings", "no");
+    m.set_option("osc", "no");
+    m.set_option("ytdl", "no");
     // Pi : rendu simplifié (mise à l'échelle bilinéaire...) pour ménager le GPU.
     if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        cmd.arg("--profile=fast");
+        m.set_option("profile", "fast");
     }
-    if let Some(wid) = req.wid {
-        cmd.arg(format!("--wid={wid}"));
-    } else if req.fullscreen {
-        cmd.arg("--fullscreen");
-    }
-    if req.start_secs > 1.0 {
-        cmd.arg(format!("--start={:.1}", req.start_secs));
-    }
-    if let Some(src) = source {
-        for st in src.media_streams.iter().filter(|s| s.kind == "Subtitle" && s.is_external) {
-            if let Some(u) = client.subtitle_url(&item.id, &ms_id, st) {
-                cmd.arg(format!("--sub-file={u}"));
-            }
-        }
-    }
-    // Linux : sortie audio via PipeWire/PulseAudio (le serveur de son du système), ALSA en dernier
-    // recours. Écrase un « ao=alsa » + « audio-device=alsa/plughw:... » de ~/.config/mpv/mpv.conf, qui
-    // échoue quand PipeWire occupe déjà la sortie HDMI. TURTLEFIN_AO=alsa (par ex.) pour choisir autre
-    // chose, ou TURTLEFIN_AO= (vide) pour ne rien imposer et laisser la config de mpv décider.
+    // Linux : sortie audio via PipeWire/PulseAudio, ALSA en dernier recours.
+    // TURTLEFIN_AO=alsa (par ex.) pour choisir autre chose, TURTLEFIN_AO= (vide) pour ne rien imposer.
     #[cfg(target_os = "linux")]
     match std::env::var("TURTLEFIN_AO") {
         Ok(v) if v.is_empty() => {}
         Ok(v) => {
-            cmd.arg(format!("--ao={v}")).arg("--audio-device=auto");
+            m.set_option("ao", &v);
+            m.set_option("audio-device", "auto");
         }
         Err(_) => {
-            cmd.arg("--ao=pipewire,pulse,alsa").arg("--audio-device=auto");
+            m.set_option("ao", "pipewire,pulse,alsa");
+            m.set_option("audio-device", "auto");
         }
     }
-    // Plafonne le cache réseau (par défaut mpv peut approcher 200 Mo de plus que nécessaire).
-    cmd.arg("--demuxer-max-bytes=100MiB").arg("--demuxer-max-back-bytes=25MiB");
+    // Plafonne le cache réseau.
+    m.set_option("demuxer-max-bytes", "100MiB");
+    m.set_option("demuxer-max-back-bytes", "25MiB");
     // Diagnostic : TURTLEFIN_MPV_LOG=/chemin/mpv.log enregistre le journal détaillé de mpv.
     if let Ok(path) = std::env::var("TURTLEFIN_MPV_LOG") {
-        cmd.arg(format!("--log-file={path}")).arg("--msg-level=all=v");
+        m.set_option("log-file", &path);
+        m.set_option("msg-level", "all=v");
     }
-    // Essais : TURTLEFIN_MPV_ARGS="--vo=x11 --hwdec=no" ajoute des options à mpv sans recompiler.
+    // Essais : TURTLEFIN_MPV_ARGS="--hwdec=no --profile=fast" ajoute des options sans recompiler.
     if let Ok(extra) = std::env::var("TURTLEFIN_MPV_ARGS") {
         for a in extra.split_whitespace() {
-            cmd.arg(a);
+            let a = a.trim_start_matches("--");
+            match a.split_once('=') {
+                Some((k, v)) => m.set_option(k, v),
+                None => m.set_option(a, "yes"),
+            }
         }
     }
-    cmd.arg("--").arg(&url);
-    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
-
-    let mut child = cmd.spawn().map_err(|e| {
-        anyhow!("Impossible de lancer mpv ({e}). Installe mpv ou indique son chemin avec TURTLEFIN_MPV.")
-    })?;
-
-    // mpv met un instant à créer son socket/pipe IPC.
-    let mut stream: Option<ipc::Stream> = None;
-    for _ in 0..80 {
-        if let Ok(s) = ipc::connect(&ipc_path).await {
-            stream = Some(s);
-            break;
-        }
-        if let Ok(Some(_)) = child.try_wait() {
-            return Err(anyhow!("mpv s'est fermé au démarrage"));
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    m.initialize()?;
+    for p in ["time-pos", "duration", "pause", "chapter-list", "track-list"] {
+        m.observe(p);
     }
-    let Some(stream) = stream else {
-        let _ = child.kill().await;
-        return Err(anyhow!("mpv n'a pas ouvert son canal IPC"));
-    };
+    Ok(Arc::new(m))
+}
 
-    let (rd, mut wr) = tokio::io::split(stream);
-    let mut lines = BufReader::new(rd).lines();
-    for (id, name) in [(1, "time-pos"), (2, "pause"), (3, "duration")] {
-        let msg = format!("{}\n", json!({ "command": ["observe_property", id, name] }));
-        wr.write_all(msg.as_bytes()).await?;
+/// Pistes audio / sous-titres pour les menus. Renvoie aussi l'index de la piste active.
+fn tracks(list: &Value, kind: &str) -> (Vec<TrackData>, i32) {
+    let mut out: Vec<TrackData> = Vec::new();
+    if kind == "sub" {
+        out.push(TrackData { id: "no".into(), label: "Désactivés".into(), current: false });
     }
+    for t in list.as_array().into_iter().flatten().filter(|t| t["type"] == kind) {
+        let id = t["id"].as_i64().unwrap_or(0);
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(l) = t["lang"].as_str().filter(|s| !s.is_empty()) {
+            parts.push(l.to_uppercase());
+        }
+        // Sous-titres externes : le « titre » est souvent un bout d'URL, inutile à afficher.
+        if let Some(s) = t["title"].as_str().filter(|s| !s.is_empty() && !s.contains(['/', '?'])) {
+            parts.push(s.to_string());
+        }
+        if let Some(c) = t["codec"].as_str().filter(|s| !s.is_empty()) {
+            parts.push(c.to_uppercase());
+        }
+        if kind == "audio" {
+            if let Some(c) = t["demux-channel-count"].as_i64() {
+                parts.push(format!("{c} canaux"));
+            }
+        }
+        if t["external"].as_bool().unwrap_or(false) {
+            parts.push("externe".to_string());
+        }
+        let label = if parts.is_empty() { format!("Piste {id}") } else { parts.join(" · ") };
+        out.push(TrackData {
+            id: id.to_string().into(),
+            label: label.into(),
+            current: t["selected"].as_bool().unwrap_or(false),
+        });
+    }
+    if kind == "sub" {
+        let any = out.iter().skip(1).any(|t| t.current);
+        out[0].current = !any;
+    }
+    let current = out.iter().position(|t| t.current).unwrap_or(0) as i32;
+    (out, current)
+}
 
-    let body = |pos_secs: f64, paused: bool| {
-        json!({
+/// Un fichier en cours de lecture et son rapport au serveur.
+struct Current {
+    item: Option<Item>,
+    ms_id: String,
+    session: String,
+    pos: f64,
+    dur: f64,
+    paused: bool,
+    chapters: Vec<f64>,
+    /// Sous-titres externes à ajouter une fois le fichier chargé : (url, langue).
+    subs: Vec<(String, String)>,
+    reported_stop: bool,
+}
+
+impl Current {
+    fn body(&self, pos: f64) -> Option<Value> {
+        let item = self.item.as_ref()?;
+        Some(json!({
             "ItemId": item.id,
-            "MediaSourceId": ms_id,
-            "PlaySessionId": session,
-            "PositionTicks": ticks(pos_secs),
-            "IsPaused": paused,
+            "MediaSourceId": self.ms_id,
+            "PlaySessionId": self.session,
+            "PositionTicks": ticks(pos),
+            "IsPaused": self.paused,
             "CanSeek": true,
             "PlayMethod": "DirectPlay",
-        })
+        }))
+    }
+}
+
+async fn report(client: Option<&Client>, endpoint: &str, body: Option<Value>) {
+    if let (Some(c), Some(b)) = (client, body) {
+        let _ = c.report(endpoint, &b).await;
+    }
+}
+
+/// Lance la lecture et rend la main quand l'utilisateur la quitte.
+pub async fn play(
+    client: Option<Client>,
+    req: PlayRequest,
+    mut commands: tokio::sync::mpsc::UnboundedReceiver<String>,
+    ui: slint::Weak<AppWindow>,
+) -> Result<()> {
+    let player = new_player()?;
+    let client = client.as_ref();
+
+    // Événements de mpv : un thread dédié les attend et les transmet à la boucle ci-dessous.
+    let (ev_tx, mut events) = tokio::sync::mpsc::unbounded_channel::<Event>();
+    {
+        let p = player.clone();
+        std::thread::spawn(move || loop {
+            match p.wait_event(-1.0) {
+                Some(Event::Shutdown) => {
+                    let _ = ev_tx.send(Event::Shutdown);
+                    break;
+                }
+                Some(e) => {
+                    let _ = ev_tx.send(e);
+                }
+                None => {}
+            }
+        });
+    }
+    let render_ready = video::attach(&ui, Some(player.clone()));
+
+    // Liste des épisodes de la série, pour « épisode précédent / suivant » et l'enchaînement.
+    let episodes: Vec<String> = match (client, req.item.as_ref()) {
+        (Some(c), Some(it)) if it.kind == "Episode" => match it.series_id.as_deref() {
+            Some(sid) => c.episodes(sid, None).await.map(|v| v.into_iter().map(|e| e.id).collect()).unwrap_or_default(),
+            None => Vec::new(),
+        },
+        _ => Vec::new(),
     };
 
-    let _ = client.report("/Sessions/Playing", &body(req.start_secs, false)).await;
+    // mpv doit avoir son rendu (créé par l'interface au prochain affichage) avant d'ouvrir le fichier.
+    if tokio::time::timeout(Duration::from_secs(5), render_ready).await.is_err() {
+        eprintln!("turtlefin : rendu vidéo pas prêt après 5 s, lecture sans image");
+    }
 
-    let mut pos = req.start_secs;
-    let mut paused = false;
-    let mut duration = 0.0_f64;
-    let mut reached_end = false;
+    let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
+    report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
 
     let mut tick = tokio::time::interval(Duration::from_secs(10));
     tick.tick().await; // le premier tick est immédiat : on le consomme
-    let mut commands_open = true;
+    let mut last_sec: i64 = -1;
+    let mut switching = false;
+    let mut result: Result<()> = Ok(());
 
     loop {
-        tokio::select! {
-            line = lines.next_line() => {
-                let Ok(Some(line)) = line else { break }; // mpv a fermé le canal
-                let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+        // Changement d'épisode demandé (bouton, ou fin de fichier) : Some(décalage).
+        let mut go_episode: Option<i64> = None;
 
-                match v.get("event").and_then(Value::as_str) {
-                    Some("property-change") => match v.get("name").and_then(Value::as_str) {
-                        Some("time-pos") => {
-                            if let Some(t) = v.get("data").and_then(Value::as_f64) {
-                                pos = t;
+        tokio::select! {
+            ev = events.recv() => {
+                let Some(ev) = ev else { break };
+                match ev {
+                    Event::Property(name, v) => match name.as_str() {
+                        "time-pos" => {
+                            cur.pos = v.as_f64().unwrap_or(cur.pos);
+                            let sec = cur.pos as i64;
+                            if sec != last_sec {
+                                last_sec = sec;
+                                push_time(&ui, &cur);
                             }
                         }
-                        Some("duration") => {
-                            if let Some(d) = v.get("data").and_then(Value::as_f64) {
-                                duration = d;
-                            }
+                        "duration" => {
+                            cur.dur = v.as_f64().unwrap_or(0.0);
+                            push_time(&ui, &cur);
+                            push_chapters(&ui, &cur);
                         }
-                        Some("pause") => {
-                            if let Some(b) = v.get("data").and_then(Value::as_bool) {
-                                if b != paused {
-                                    paused = b;
-                                    let _ = client.report("/Sessions/Playing/Progress", &body(pos, paused)).await;
-                                }
+                        "pause" => {
+                            let p = v.as_bool().unwrap_or(false);
+                            if p != cur.paused {
+                                cur.paused = p;
+                                report(client, "/Sessions/Playing/Progress", cur.body(cur.pos)).await;
                             }
+                            let _ = ui.upgrade_in_event_loop(move |u| u.set_p_paused(p));
+                        }
+                        "chapter-list" => {
+                            cur.chapters = v.as_array().into_iter().flatten().filter_map(|c| c["time"].as_f64()).collect();
+                            push_chapters(&ui, &cur);
+                        }
+                        "track-list" => {
+                            let (audio, audio_cur) = tracks(&v, "audio");
+                            let (subs, sub_cur) = tracks(&v, "sub");
+                            let _ = ui.upgrade_in_event_loop(move |u| {
+                                u.set_audio_tracks(ModelRc::new(VecModel::from(audio)));
+                                u.set_audio_current(audio_cur);
+                                u.set_sub_tracks(ModelRc::new(VecModel::from(subs)));
+                                u.set_sub_current(sub_cur);
+                            });
                         }
                         _ => {}
                     },
-                    Some("end-file") => {
-                        if v.get("reason").and_then(Value::as_str) == Some("eof") {
-                            reached_end = true;
+                    Event::FileLoaded => {
+                        for (url, lang) in std::mem::take(&mut cur.subs) {
+                            let _ = player.command(&["sub-add", &url, "auto", "", &lang]);
+                        }
+                        let _ = ui.upgrade_in_event_loop(|u| u.set_p_ready(true));
+                    }
+                    Event::EndFile { eof, error } => {
+                        if switching {
+                            // Fin de l'ancien fichier, provoquée par le changement d'épisode.
+                            switching = false;
+                        } else if let Some(e) = error {
+                            result = Err(anyhow!("mpv n'a pas pu lire ce média ({e})"));
+                            break;
+                        } else if eof {
+                            // Fin atteinte : on rapporte la durée complète (le serveur marque « vu »),
+                            // puis épisode suivant s'il y en a un.
+                            let end = if cur.dur > 0.0 { cur.dur } else { cur.pos };
+                            report(client, "/Sessions/Playing/Stopped", cur.body(end)).await;
+                            cur.reported_stop = true;
+                            if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
+                                go_episode = Some(1);
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
                         }
                     }
-                    _ => {}
+                    Event::Shutdown => break,
                 }
             }
             _ = tick.tick() => {
-                let _ = client.report("/Sessions/Playing/Progress", &body(pos, paused)).await;
+                report(client, "/Sessions/Playing/Progress", cur.body(cur.pos)).await;
             }
-            cmd = commands.recv(), if commands_open => {
-                let Some(c) = cmd else {
-                    commands_open = false;
-                    continue;
+            cmd = commands.recv() => {
+                let Some(c) = cmd else { break };
+                let (verb, arg) = c.split_once(':').unwrap_or((c.as_str(), ""));
+                let r = match verb {
+                    "pause" => player.command(&["cycle", "pause"]),
+                    "seek" => player.command(&["seek", arg, "relative"]),
+                    "seek-to" => {
+                        let pct = arg.parse::<f64>().unwrap_or(0.0).clamp(0.0, 1.0) * 100.0;
+                        player.command(&["seek", &format!("{pct:.3}"), "absolute-percent"])
+                    }
+                    "chapter" => player.command(&["add", "chapter", arg]),
+                    "sub-margin" => player.set_property("sub-margin-y", arg),
+                    "aid" => player.set_property("aid", arg),
+                    "sid" => player.set_property("sid", arg),
+                    "episode" => {
+                        go_episode = arg.parse().ok();
+                        Ok(())
+                    }
+                    "stop" => break,
+                    _ => Ok(()),
                 };
+                if let Err(e) = r {
+                    eprintln!("turtlefin : {e}");
+                }
+            }
+        }
 
-                // Les touches vont à l'interface dessinée par mpv, qui décide selon son état
-                // (barre affichée ou non, menu des pistes ouvert...). « q » quitte toujours.
-                let msg = if c == "quit" {
-                    json!({ "command": ["quit"] })
-                } else {
-                    json!({ "command": ["script-message-to", UI_SCRIPT_NAME, "key", c] })
-                };
-                send(&mut wr, &msg).await;
+        if let Some(d) = go_episode {
+            let Some(next_id) = neighbour(&episodes, cur.item.as_ref(), d) else { continue };
+            let Some(c) = client else { continue };
+            if !cur.reported_stop {
+                report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
+            }
+            match c.item(&next_id).await {
+                Ok(next) => {
+                    let start = next.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
+                    switching = true;
+                    match load(&player, client, Some(next), start, None, &episodes, &ui) {
+                        Ok(n) => {
+                            cur = n;
+                            last_sec = -1;
+                            report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
+                        }
+                        Err(e) => {
+                            result = Err(e);
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    result = Err(anyhow!("épisode suivant introuvable ({e})"));
+                    break;
+                }
             }
         }
     }
 
-    let status = child.wait().await;
-
-    // Fin de fichier atteinte : on rapporte la durée complète pour que le serveur marque « vu ».
-    if reached_end && duration > 0.0 {
-        pos = duration;
+    if !cur.reported_stop {
+        report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
     }
-    let _ = client.report("/Sessions/Playing/Stopped", &body(pos, false)).await;
+    // Arrêt du lecteur : le thread d'événements se termine, puis l'interface libère le rendu
+    // au prochain affichage, ce qui détruit le lecteur (et rend sa mémoire).
+    let _ = player.command(&["quit"]);
+    let _ = video::attach(&ui, None);
+    result
+}
 
-    // Un code de sortie non nul = mpv a échoué (sortie vidéo/audio impossible, flux illisible...).
-    if let Ok(st) = status {
-        if !st.success() {
-            return Err(anyhow!(
-                "mpv s'est terminé avec le code {:?} (relance avec TURTLEFIN_MPV_LOG=/tmp/mpv.log pour le détail)",
-                st.code()
-            ));
+/// Épisode voisin (décalage -1 / +1) dans la liste de la série.
+fn neighbour(episodes: &[String], item: Option<&Item>, d: i64) -> Option<String> {
+    let id = &item?.id;
+    let i = episodes.iter().position(|e| e == id)? as i64 + d;
+    episodes.get(usize::try_from(i).ok()?).cloned()
+}
+
+/// Charge un fichier dans le lecteur et prépare l'interface.
+fn load(
+    player: &Mpv,
+    client: Option<&Client>,
+    item: Option<Item>,
+    start_secs: f64,
+    test_url: Option<&str>,
+    episodes: &[String],
+    ui: &slint::Weak<AppWindow>,
+) -> Result<Current> {
+    let (url, ms_id, title, subtitle, subs) = match (&item, client, test_url) {
+        (Some(it), Some(c), _) => {
+            let source = it.media_sources.as_ref().and_then(|v| v.first());
+            let ms_id = source.map(|m| m.id.clone()).unwrap_or_else(|| it.id.clone());
+            let subs = source
+                .map(|src| {
+                    src.media_streams
+                        .iter()
+                        .filter(|s| s.kind == "Subtitle" && s.is_external)
+                        .filter_map(|s| c.subtitle_url(&it.id, &ms_id, s).map(|u| (u, s.language.clone().unwrap_or_default())))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (t, s) = it.titles();
+            (c.stream_url(&it.id, &ms_id), ms_id, t, s, subs)
         }
-    }
-    Ok(())
+        (_, _, Some(u)) => (u.to_string(), String::new(), "Vidéo de test".to_string(), u.to_string(), Vec::new()),
+        _ => return Err(anyhow!("rien à lire")),
+    };
+
+    player.set_property("force-media-title", &title)?;
+    let start = if start_secs > 1.0 { format!("{start_secs:.1}") } else { "none".to_string() };
+    player.set_property("start", &start)?;
+    player.command(&["loadfile", &url, "replace"])?;
+
+    let has_prev = neighbour(episodes, item.as_ref(), -1).is_some();
+    let has_next = neighbour(episodes, item.as_ref(), 1).is_some();
+    let _ = ui.upgrade_in_event_loop(move |u| {
+        u.set_p_title(title.into());
+        u.set_p_subtitle(subtitle.into());
+        u.set_p_has_prev(has_prev);
+        u.set_p_has_next(has_next);
+        u.set_p_ready(false);
+        u.set_p_progress(0.0);
+        u.set_p_pos_text("".into());
+        u.set_p_dur_text("".into());
+        u.set_p_end_text("".into());
+        u.set_p_chapters(ModelRc::default());
+        u.set_p_chapter_count(0);
+    });
+
+    Ok(Current {
+        item,
+        ms_id,
+        session: uuid::Uuid::new_v4().simple().to_string(),
+        pos: start_secs,
+        dur: 0.0,
+        paused: false,
+        chapters: Vec::new(),
+        subs,
+        reported_stop: false,
+    })
+}
+
+/// Temps écoulé, durée, progression et heure de fin.
+fn push_time(ui: &slint::Weak<AppWindow>, cur: &Current) {
+    let (pos, dur) = (cur.pos, cur.dur);
+    let progress = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) as f32 } else { 0.0 };
+    let end = if dur > 0.0 {
+        let left = chrono::Duration::milliseconds(((dur - pos).max(0.0) * 1000.0) as i64);
+        format!("Fin à {}", (chrono::Local::now() + left).format("%H:%M"))
+    } else {
+        String::new()
+    };
+    let (pos_t, dur_t) = (fmt_time(pos), if dur > 0.0 { fmt_time(dur) } else { String::new() });
+    let _ = ui.upgrade_in_event_loop(move |u| {
+        u.set_p_progress(progress);
+        u.set_p_pos_text(pos_t.into());
+        u.set_p_dur_text(dur_t.into());
+        u.set_p_end_text(end.into());
+    });
+}
+
+/// Repères de chapitres sur la barre de temps (fractions de la durée).
+fn push_chapters(ui: &slint::Weak<AppWindow>, cur: &Current) {
+    let marks: Vec<f32> = if cur.dur > 0.0 {
+        cur.chapters.iter().filter(|t| **t > 0.5).map(|t| (t / cur.dur).clamp(0.0, 1.0) as f32).collect()
+    } else {
+        Vec::new()
+    };
+    let count = cur.chapters.len() as i32;
+    let _ = ui.upgrade_in_event_loop(move |u| {
+        u.set_p_chapters(ModelRc::new(VecModel::from(marks)));
+        u.set_p_chapter_count(count);
+    });
 }

@@ -17,45 +17,49 @@ Prérequis Linux : Rust, un compilateur C, `pkg-config`, `libfontconfig1-dev`, `
 >     directories = "5"
 > (la 0.12 n'a pas besoin de la feature "query" : elle est incluse.)
 
-## Lecture (M3) : mpv requis
+## Lecture : libmpv requise
 
-Turtlefin lance **mpv** dans un processus séparé (le flux est lu en lecture directe) et le pilote par IPC.
-Il rapporte au serveur le début, la progression (toutes les 10 s) et la fin de la lecture :
+Turtlefin lit les vidéos avec **libmpv** (le moteur de mpv, sous forme de bibliothèque), chargée au moment de
+la lecture. La vidéo est dessinée dans la fenêtre de Turtlefin et les commandes Slint s'affichent par-dessus.
+Turtlefin rapporte au serveur le début, la progression (toutes les 10 s) et la fin de la lecture :
 « Reprendre » et « vu » sont donc à jour partout.
 
-- Windows : télécharge mpv (mpv.io), puis mets `mpv.exe` à côté de `turtlefin.exe` ou dans le PATH.
-- Linux / Pi : `sudo apt install mpv`.
-- Autre emplacement : variable `TURTLEFIN_MPV=chemin/vers/mpv`.
+- Windows : télécharge `mpv-dev-x86_64-….7z` sur https://github.com/shinchiro/mpv-winbuild-cmake/releases,
+  et place `libmpv-2.dll` (dans l'archive) à côté de `turtlefin.exe` (dossier `target/release`).
+- Linux / Pi : `sudo apt install libmpv2` (le programme `mpv` n'est plus nécessaire).
+- Autre emplacement : variable `TURTLEFIN_LIBMPV=chemin/vers/libmpv`.
+- Le rendu de Slint doit être OpenGL (femtovg, choisi automatiquement) : avec `SLINT_BACKEND=winit-software`,
+  la lecture est impossible.
 - Le bouton Lecture sur une série lance le prochain épisode ; sur une saison, le premier épisode non vu.
-- **Vidéo intégrée** : mpv dessine dans la fenêtre de Turtlefin (HWND sous Windows, XID sous X11).
-  Sous Wayland ce n'est pas possible : mpv s'ouvre alors dans sa propre fenêtre (un message l'indique).
-  `TURTLEFIN_EMBED=0` force l'ancien comportement (fenêtre mpv séparée).
-- **Interface de lecture** dessinée dans la vidéo, aux couleurs du thème (`src/turtlefin_ui.lua`, chargé dans mpv) :
-  barre avec titre, temps, barre de progression cliquable, boutons Lecture/Pause, -10 s, +10 s, Audio, Sous-titres,
-  Arrêter ; menus des pistes audio / sous-titres (langue, titre, codec, canaux ; point blanc = piste active).
-  Elle apparaît au mouvement de la souris ou à une touche, et se masque après 3 s (sauf en pause ou menu ouvert).
-- Souris : survol + clic sur les boutons et les pistes, clic sur la vidéo = pause, molette = volume (ou défilement du menu).
-- Touches (reçues par Turtlefin ou par mpv, donc valables aussi avec une télécommande) :
-  - barre masquée : Entrée affiche la barre et sélectionne les boutons · Espace pause · ← → saut de 10 s ·
-    ↑ ↓ volume · `a` menu audio · `s` menu sous-titres · Échap/Retour arrière arrête la lecture ;
-  - boutons sélectionnés : ← → changer de bouton · Entrée activer · Échap masquer la barre ;
-  - menu de pistes : ↑ ↓ choisir · Entrée valider · Échap ou ← fermer.
-  - `f` ou F11 plein écran de la fenêtre · `q` quitter tout de suite.
-- Limite du mode intégré : rien de Slint ne peut s'afficher PAR-DESSUS la vidéo, d'où l'interface dessinée par mpv.
+  En fin d'épisode, la lecture enchaîne sur le suivant.
 - Les sous-titres externes (srt/ass/vtt) sont ajoutés automatiquement.
-- Le jeton d'accès figure dans la ligne de commande de mpv (visible des autres processus de la machine).
+
+### Commandes pendant la lecture
+
+En haut à gauche : bouton **Retour** (quitte la vidéo), titre et épisode.
+En bas : temps écoulé et durée, barre de temps (repères de chapitres, cliquable et déplaçable à la souris),
+⏮ épisode précédent · chapitre précédent · Lecture/Pause · chapitre suivant · ⏭ épisode suivant,
+**Audio** et **Sous-titres** à droite (menus des pistes : point blanc = piste active), heure de fin au centre.
+Les commandes se masquent après 3 s sans activité (sauf en pause ou menu ouvert).
+
+- Commandes masquées : ← → reculer / avancer de 10 s (sans rien afficher) · ↑ ↓ affichent les commandes,
+  barre de temps sélectionnée · Entrée les affiche sur Lecture/Pause · Échap/Retour arrière quitte la vidéo.
+- Barre de temps : ← → déplacer le curseur de 10 s · ↓ boutons (Lecture/Pause) · ↑ bouton Retour.
+- Boutons : ← → changer de bouton · Entrée activer · ↑ barre de temps · Échap masquer les commandes.
+- Menu des pistes : ↑ ↓ choisir · Entrée valider · Échap ou ← fermer.
+- Partout : Espace pause · `a` menu audio · `s` menu sous-titres · `f` ou F11 plein écran · `q` quitter la vidéo.
+- Souris : bouger affiche les commandes · clic sur la vidéo = pause · double-clic = plein écran.
 
 ## Diagnostic de la lecture
 
+- `turtlefin --test-video=chemin/vers/video.mkv` : essai du lecteur sans serveur.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log` : enregistre le journal détaillé de mpv (à lire avec `tail -n 80 /tmp/mpv.log`).
-- `TURTLEFIN_MPV_ARGS="--vo=x11 --hwdec=no"` : ajoute des options à mpv sans recompiler.
-- `TURTLEFIN_EMBED=0` : mpv dans sa propre fenêtre (pour savoir si le souci vient de l'intégration).
-- `TURTLEFIN_HWDEC=auto-safe` (ou autre valeur de `--hwdec`) force le décodage matériel. Par défaut : logiciel sur
-  Raspberry Pi / Linux ARM 64 bits (le décodage matériel V4L2 y donne un écran vide avec Vulkan), `auto-safe` ailleurs.
-- Son sous Linux : Turtlefin demande à mpv d'utiliser PipeWire/PulseAudio (puis ALSA) avec le périphérique « auto »,
-  ce qui prime sur un `ao=alsa` de `~/.config/mpv/mpv.conf`. `TURTLEFIN_AO=alsa` choisit un autre pilote ;
-  `TURTLEFIN_AO=` (vide) laisse la config de mpv décider.
-- Le cache réseau de mpv est plafonné (100 Mo en avant, 25 Mo en arrière) : sa RAM monte puis se stabilise.
+- `TURTLEFIN_MPV_ARGS="--hwdec=no --profile=fast"` : ajoute des options à mpv sans recompiler.
+- `TURTLEFIN_HWDEC=auto-copy` (ou autre valeur de `--hwdec`) force le décodage matériel. Par défaut : logiciel sur
+  Raspberry Pi / Linux ARM 64 bits (le décodage matériel V4L2 y donnait un écran vide), `auto-safe` ailleurs.
+- Son sous Linux : PipeWire/PulseAudio (puis ALSA) avec le périphérique « auto ». `TURTLEFIN_AO=alsa` choisit un
+  autre pilote ; `TURTLEFIN_AO=` (vide) laisse mpv décider. Le `mpv.conf` de l'utilisateur n'est pas lu.
+- Le cache réseau de mpv est plafonné (100 Mo en avant, 25 Mo en arrière).
 
 ## Ligne de commande
 
@@ -92,7 +96,7 @@ Fiche :
 ## Variables utiles
 
 - `TURTLEFIN_INSECURE=1` : accepte n'importe quel certificat (test uniquement)
-- `SLINT_BACKEND=winit-software` : force le rendu logiciel si le GPU pose problème
+- `SLINT_BACKEND=winit-software` : force le rendu logiciel si le GPU pose problème (la lecture vidéo devient alors impossible)
 
 ## Pas encore là
 

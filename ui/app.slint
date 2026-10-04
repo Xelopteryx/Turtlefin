@@ -1,4 +1,8 @@
 import { LineEdit, Button } from "std-widgets.slint";
+import { PlayerView, TrackData } from "player.slint";
+import { Theme } from "theme.slint";
+
+export { TrackData }
 
 export struct CardData {
     id: string,
@@ -41,16 +45,6 @@ export struct DetailData {
     has-next-image: bool,
     next-image: image,
     buttons: [ButtonData],
-}
-
-// Jetons de thème (équivalents de tes variables CSS --accent1-light / --accent2-light).
-global Theme {
-    out property <color> bg: #0b0e14;
-    out property <color> accent1: #a95bc2;
-    out property <color> accent2: #00a4db;
-    out property <color> text: #ffffffe6;
-    out property <color> muted: #ffffff99;
-    out property <length> radius: 10px;
 }
 
 component Card inherits Rectangle {
@@ -294,11 +288,30 @@ export component AppWindow inherits Window {
     in-out property <bool> overview-open: false;
     in-out property <bool> playing: false;
 
+    // Lecture (rempli par player.rs / video.rs)
+    in property <image> video-frame;
+    in property <bool> p-ready;
+    in property <string> p-title;
+    in property <string> p-subtitle;
+    in property <bool> p-paused;
+    in property <float> p-progress;
+    in property <string> p-pos-text;
+    in property <string> p-dur-text;
+    in property <string> p-end-text;
+    in property <[float]> p-chapters;
+    in property <int> p-chapter-count;
+    in property <bool> p-has-prev;
+    in property <bool> p-has-next;
+    in property <[TrackData]> audio-tracks;
+    in property <int> audio-current;
+    in property <[TrackData]> sub-tracks;
+    in property <int> sub-current;
+
     callback login(string, string, string); // serveur, utilisateur, mot de passe
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
-    callback player-cmd(string);            // pendant la lecture : "up", "enter", "audio", ...
+    callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
     property <length> card-w: root.tv-mode ? 230px : 170px;
@@ -313,7 +326,9 @@ export component AppWindow inherits Window {
     property <length> info-w: root.width - root.col-x - 32px - (root.detail.has-next ? root.next-w + 24px : 0px);
 
     // ------------------------------------------------------------ Connexion
-    if root.screen == "login": VerticalLayout {
+    // Pendant la lecture, aucun écran n'est instancié sous la vidéo : rien à redessiner à chaque
+    // image, et le clavier va au lecteur.
+    if root.screen == "login" && !root.playing: VerticalLayout {
         alignment: center;
         padding: 32px;
 
@@ -368,7 +383,7 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Chargement
-    if root.screen == "loading": Text {
+    if root.screen == "loading" && !root.playing: Text {
         text: "Chargement…";
         color: Theme.muted;
         font-size: 24px;
@@ -377,7 +392,7 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Accueil
-    if root.screen == "home": Rectangle {
+    if root.screen == "home" && !root.playing: Rectangle {
         Rectangle {
             y: 0px;
             height: 56px;
@@ -486,7 +501,7 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Fiche détail
-    if root.screen == "detail": Rectangle {
+    if root.screen == "detail" && !root.playing: Rectangle {
         // Réceptionne le clavier / la télécommande (sans taille : seul le focus compte).
         FocusScope {
             width: 0px;
@@ -497,35 +512,6 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
-                // Lecture en cours : les touches sont transmises à mpv (le lecteur décide
-                // selon qu'un menu de pistes est ouvert ou non). Valable aussi à la télécommande.
-                if (root.playing) {
-                    if (event.text == Key.Space) {
-                        root.player-cmd("space");
-                    } else if (event.text == Key.Return) {
-                        root.player-cmd("enter");
-                    } else if (event.text == Key.LeftArrow) {
-                        root.player-cmd("left");
-                    } else if (event.text == Key.RightArrow) {
-                        root.player-cmd("right");
-                    } else if (event.text == Key.UpArrow) {
-                        root.player-cmd("up");
-                    } else if (event.text == Key.DownArrow) {
-                        root.player-cmd("down");
-                    } else if (event.text == "a") {
-                        root.player-cmd("audio");
-                    } else if (event.text == "s") {
-                        root.player-cmd("sub");
-                    } else if (event.text == Key.F11 || event.text == "f") {
-                        root.full-screen = !root.full-screen;
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.player-cmd("escape");
-                    } else if (event.text == "q") {
-                        root.player-cmd("quit");
-                    }
-                    return EventResult.accept;
-                }
-
                 // Panneau « résumé complet » ouvert : il capte toutes les touches.
                 if (root.overview-open) {
                     if (event.text == Key.DownArrow) {
@@ -869,32 +855,38 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Lecture en cours dans mpv
-    if root.playing: Rectangle {
-        background: Theme.bg;
-
-        VerticalLayout {
-            alignment: center;
-            spacing: 10px;
-
-            Text {
-                text: "Lecture en cours dans mpv…";
-                color: Theme.text;
-                font-size: 28px;
-                font-weight: 700;
-                horizontal-alignment: center;
-            }
-            Text {
-                text: "Échap ou Q pour arrêter la lecture.";
-                color: Theme.muted;
-                font-size: 16px;
-                horizontal-alignment: center;
-            }
+    // ------------------------------------------------------------ Lecture
+    if root.playing: PlayerView {
+        width: parent.width;
+        height: parent.height;
+        k: root.k;
+        frame: root.video-frame;
+        ready: root.p-ready;
+        title: root.p-title;
+        subtitle: root.p-subtitle;
+        paused: root.p-paused;
+        progress: root.p-progress;
+        pos-text: root.p-pos-text;
+        dur-text: root.p-dur-text;
+        end-text: root.p-end-text;
+        chapters: root.p-chapters;
+        chapter-count: root.p-chapter-count;
+        has-prev: root.p-has-prev;
+        has-next: root.p-has-next;
+        audio-tracks: root.audio-tracks;
+        audio-current: root.audio-current;
+        sub-tracks: root.sub-tracks;
+        sub-current: root.sub-current;
+        command(c) => {
+            root.player-cmd(c);
+        }
+        toggle-fullscreen => {
+            root.full-screen = !root.full-screen;
         }
     }
 
     // Message d'état (accueil et fiche)
-    if root.screen == "home" || root.screen == "detail": Text {
+    if (root.screen == "home" || root.screen == "detail") && !root.playing: Text {
         x: 32px;
         y: parent.height - 32px;
         text: root.toast;

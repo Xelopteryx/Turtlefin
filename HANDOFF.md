@@ -1,7 +1,9 @@
 # Turtlefin : passation de projet (état au 4 octobre 2026)
 
 Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.3.1 (le menu des pistes a été ajouté depuis sans changer le numéro).
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.3.1.
+
+**Branches** : `main` (état d'origine), `interface-lua` (mpv en processus séparé + interface de lecture en script Lua), `libmpv` (lecteur intégré, voir ci-dessous). Le choix entre `interface-lua` et `libmpv` dépend de la mesure RAM/CPU sur le Pi (section 9).
 
 ## 1. Objectif
 
@@ -20,12 +22,14 @@ Cibles : Windows (développement et tests) et Linux (Raspberry Pi 5 « Prometheu
 |---|---|---|
 | Langage / UI | Rust + **Slint** (rendu 100 % Slint) | Pas de navigateur, léger, Windows + Linux. `build.rs` force le style `fluent-dark` pour ne jamais retomber sur le style « native » (dépend de Qt) |
 | Réseau | `reqwest` 0.13 (rustls, magasin de certificats du système), `tokio` | Un certificat mkcert installé sur la machine est accepté. `query` est une feature à activer en 0.13 |
-| Lecture | **mpv en processus séparé**, piloté par IPC JSON | Isolation : une fuite ou un crash de mpv ne touche pas l'UI. Flux en lecture directe (`/Videos/{id}/stream?static=true`) |
-| Intégration vidéo | mpv dessine **dans la fenêtre Turtlefin** via `--wid` (HWND Windows, XID X11) | Demande explicite de l'utilisateur. Impossible sous Wayland → repli sur une fenêtre mpv séparée (message affiché) |
-| Contrôles pendant la lecture | Turtlefin reçoit les touches et les envoie à mpv par IPC | Valable aussi avec une télécommande qui émule le clavier |
-| Interface de lecture | Script Lua `src/turtlefin_ui.lua` (inclus dans le binaire, écrit dans le dossier temporaire, chargé par `--script`, `--osc=no`) : barre de contrôle + menus des pistes en ASS, couleurs de `Style.css` | Rien de Slint ne peut s'afficher par-dessus la vidéo intégrée (fenêtre enfant). Turtlefin transmet les touches par `script-message-to turtlefin_ui key <nom>` ; le script gère aussi souris et touches reçues directement par mpv |
-| Décodage | `--hwdec=no` sur Linux ARM 64 bits ; `auto-safe` ailleurs | Pi 5 : le décodage matériel V4L2 sort du format Broadcom SAND que Vulkan ne sait pas importer (« Mapping hardware decoded surface failed », écran bleu) |
-| Audio Linux | `--ao=pipewire,pulse,alsa --audio-device=auto` | `~/.config/mpv/mpv.conf` impose `ao=alsa` / `plughw:1,0` qui échoue quand PipeWire occupe la sortie HDMI |
+| Lecture (branche `libmpv`) | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), API de rendu OpenGL : mpv dessine dans une texture que Slint affiche (`src/video.rs`, `BorrowedOpenGLTexture`), commandes en Slint par-dessus (`ui/player.slint`) | Demande de l'utilisateur : un lecteur « natif », pas une app qui en pilote une autre. Plus d'IPC ni de `--wid` (marche aussi sous Wayland). Contrepartie : plus d'isolation de processus ; le lecteur est détruit à chaque fin de lecture, donc sa mémoire reste bornée à une lecture. Flux en lecture directe (`/Videos/{id}/stream?static=true`) |
+| Rendu Slint | femtovg (OpenGL / GLES) imposé au démarrage par `BackendSelector`, sauf si `SLINT_BACKEND` est défini | La vidéo passe par une texture OpenGL ; le rendu logiciel ne peut pas l'afficher |
+| Création du rendu mpv | `video::attach` renvoie un signal ; la lecture attend que l'interface ait créé le contexte de rendu avant `loadfile` | Sinon mpv ouvre le fichier sans sortie vidéo (« No render context set ») |
+| Texture vidéo | Taille de la fenêtre en pixels physiques, origine `TopLeft`, état OpenGL sauvegardé/rétabli autour du rendu mpv | Constaté sur Windows : `BottomLeft` donne une image à l'envers |
+| Écrans pendant la lecture | Aucun écran (connexion, accueil, fiche) n'est instancié sous la vidéo | Rien à redessiner à chaque image, et le clavier va au `FocusScope` du lecteur (sinon l'accueil le lui prend) |
+| Navigation du lecteur | Commandes masquées : ← → ±10 s sans rien afficher, ↑ ↓ → barre de temps ; barre : ↓ boutons (Lecture/Pause), ↑ Retour ; boutons : ⏮ ép. · chapitre · ⏯ · chapitre · ⏭ ép., Audio / Sous-titres à droite ; heure de fin au centre | Spécification de l'utilisateur (4 octobre 2026) |
+| Décodage | `hwdec=no` sur Linux ARM 64 bits ; `auto-safe` ailleurs | Pi 5 : le décodage matériel V4L2 sort du format Broadcom SAND que Vulkan ne savait pas importer (écran bleu). Avec libmpv/OpenGL, `TURTLEFIN_HWDEC=auto-copy` est à essayer. Windows : `d3d11va-copy` (pas d'interop directe avec le GL de Slint), ~5 % d'un cœur de plus que mpv séparé |
+| Audio Linux | `ao=pipewire,pulse,alsa`, `audio-device=auto` ; libmpv ne lit pas `mpv.conf` (`config=no`) | `~/.config/mpv/mpv.conf` impose `ao=alsa` / `plughw:1,0` qui échoue quand PipeWire occupe la sortie HDMI |
 | Mémoire | Cache réseau mpv plafonné (100 MiB avant / 25 MiB arrière) ; images demandées à la bonne taille ; 16 éléments par rangée d'accueil | Le Pi a 4 Go |
 | Style | Pas de flou temps réel (backdrop-filter), pas d'ombres portées animées | C'était la cause principale des fps bas du thème web |
 | Fond (backdrop) de fiche | **Repoussé**, à faire plus tard comme **option**, avec logos transparents | Demande de l'utilisateur |
@@ -37,22 +41,25 @@ Préférences de travail de l'utilisateur :
 
 ## 3. Environnement de test
 
-- **PC Windows** : développement, compilation rapide. `mpv.exe` doit être à côté de `turtlefin.exe` ou dans le PATH.
+- **PC Windows** : développement, compilation rapide. Branche `libmpv` : `libmpv-2.dll` (build shinchiro, `mpv-dev-x86_64-*.7z`) à côté de `turtlefin.exe`. Branche `interface-lua` : `mpv.exe` dans le PATH (`C:\mpv`).
 - **Raspberry Pi 5 4 Go**, Raspberry Pi OS, hostname `Prometheus`, utilisateur `xelopteryx`, projet dans `/home/xelopteryx/turtlefin`. Affichage X11 (kiosque `.xinitrc`), son PipeWire (sortie HDMI). Lancement depuis SSH :
   `DISPLAY=:0 XAUTHORITY=/home/xelopteryx/.Xauthority ./target/release/turtlefin <user> --server=http://... --tv` (mot de passe via `TURTLEFIN_PASSWORD`).
 - **Serveur Jellyfin 10.11.11**, joint via Tailscale depuis le Pi (tailscaled monte à 100 % d'un cœur pendant la lecture : préférer l'adresse LAN quand c'est possible). Compte de test : `test`.
-- Dépendances Pi : `build-essential cmake pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev mpv`.
+- Dépendances Pi : `build-essential cmake pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev`, plus `libmpv2` (branche `libmpv`) ou `mpv` (branche `interface-lua`).
 
 ## 4. Structure du code
 
 ```
-Cargo.toml      deps : slint (+raw-window-handle-06), tokio, reqwest 0.13, serde, anyhow, directories 6, uuid, image
+Cargo.toml      deps : slint, tokio, reqwest 0.13, serde, anyhow, directories 6, uuid, image, libloading, glow, chrono
 build.rs        compile ui/app.slint avec le style fluent-dark
-ui/app.slint    tout l'UI : Theme, Card, SectionRow, ActionButton, OverviewPanel, AppWindow
-                (écrans : login, loading, home, detail ; overlay « Lecture en cours »)
-src/main.rs     CLI, état partagé App (Arc), flux login/accueil/fiche, navigation (pile), lecture, images
+ui/theme.slint  jetons de thème (Theme : accents, verre sombre de Style.css)
+ui/app.slint    Card, SectionRow, ActionButton, OverviewPanel, AppWindow (écrans : login, loading, home, detail, lecture)
+ui/player.slint écran de lecture : vidéo, barre de temps + chapitres, boutons, menus des pistes, navigation clavier
+src/main.rs     CLI (+ --test-video), état partagé App (Arc), flux login/accueil/fiche, navigation (pile), lecture, images
 src/api.rs      client Jellyfin REST : login, vues, reprise, à suivre, derniers ajouts, fiche, enfants, images (cache disque), rapports de lecture
-src/player.rs   lancement de mpv, IPC (socket Unix / pipe nommé Windows), rapports de lecture, menu des pistes
+src/mpv.rs      liaison minimale libmpv (chargement dynamique) : lecteur, propriétés observées, événements, rendu OpenGL
+src/video.rs    texture OpenGL de la vidéo, branchée sur le rappel de rendu de Slint
+src/player.rs   lecture : options mpv, rapports au serveur, pistes, chapitres, épisode précédent/suivant, enchaînement
 src/config.rs   session sauvegardée (serveur + jeton, jamais le mot de passe), chmod 0600 sous Unix
 README.md       usage, touches, variables d'environnement, diagnostics
 ```
@@ -68,36 +75,29 @@ Principes :
 ### Terminé et vu fonctionner par l'utilisateur
 - **M0** squelette, thème (jetons dans `Theme`), connexion serveur + utilisateur, jeton stocké.
 - **M1** accueil : rangée « Mes médias » (vignettes 16:9), « Reprendre », « À suivre », « Récemment ajouté » par bibliothèque, posters chargés en asynchrone, navigation clavier. (Validé sur capture d'écran Windows.)
-- **M3** lecture mpv : démarre, reprise, son et image OK sur le Pi après les correctifs hwdec/ao. Ligne de commande utilisée sur le Pi.
+- **M3** lecture mpv (processus séparé) : démarre, reprise, son et image OK sur le Pi après les correctifs hwdec/ao. Ligne de commande utilisée sur le Pi.
 - Test d'endurance Pi (14 min) : **Turtlefin stable à ≈ 112 Mo** ; mpv 395 → 440 Mo (voir « Problèmes connus »).
+- Menu des pistes au clavier (`a` / `s`, première version dessinée par mpv) : le changement de piste fonctionne.
 
-### Codé, compile (l'utilisateur dit « aucune erreur »), mais jamais confirmé visuellement
-- **M2** fiche détail série / saison / épisode / film : poster (épisode → poster de saison), logo (sinon titre), boutons dégradé violet→bleu (Lecture/Reprendre, Voir la saison, Voir la série, Retour), ligne année · classification · durée · note · langues audio, résumé dans un bloc translucide cliquable + panneau « voir plus » défilable, rangée saisons/épisodes/contenu, bloc « À suivre » à droite pour les séries, pile de navigation avec Échap/Retour arrière.
-- Bouton Lecture intelligent : série → prochain épisode (`NextUp`, sinon premier), saison → premier non vu, film/épisode → reprise.
-- Rapport de progression au serveur (à vérifier : après un arrêt en cours d'épisode, « Reprendre » doit être à jour sur l'accueil et dans Jellyfin Web).
-- Sous-titres externes (srt/ass/vtt) ajoutés via `--sub-file`.
-- Vidéo intégrée dans la fenêtre : testée sur le Pi (X11) avec image + son ; comportement Windows (scintillement au redimensionnement ?) à confirmer.
-
-### Validé : menu des pistes au clavier (première version, `a` / `s`)
-Le changement de piste audio / sous-titres fonctionne (confirmé par l'utilisateur le 4 octobre 2026).
-
-### Codé le 4 octobre 2026 : compile (`cargo check`), rendu vérifié dans mpv sur une vidéo de test, **pas testé dans Turtlefin**
-- **Interface de lecture** (`src/turtlefin_ui.lua`) qui remplace le menu clavier : barre en verre sombre (titre, temps,
-  progression cliquable à dégradé, boutons pilule Lecture/Pause, -10 s, +10 s, Audio, Sous-titres, Arrêter), panneaux de
-  pistes (élément actif en dégradé #a95bc2 → #00a4db, point blanc = piste en cours). Souris (survol, clic, molette),
-  clavier/télécommande (voir README). Masquage après 3 s ; sous-titres remontés pendant que la barre est visible.
-  `player.rs` ne fait plus que transmettre les touches au script (`q` = quitter directement).
-  À vérifier : souris dans la vidéo intégrée sous Windows et sur le Pi (X11), lisibilité en mode TV, Échap/Retour arrière.
+### Branche `libmpv` : vérifié par Claude sur le PC Windows le 4 octobre 2026 (captures d'écran), pas encore par l'utilisateur
+- **M2** fiche détail (vue sur capture : poster, logo, sous-titre, boutons, infos, résumé).
+- Lecture intégrée avec libmpv sur le vrai serveur (FMA S1E2, compte `test`) : image (4:3 avec bandes), chapitres réels sur la
+  barre, reprise, menus audio (FRE AC3 / JPN TrueHD) et sous-titres (Forced / Complet ASS), épisode suivant (S1E2 → S1E3 sans
+  quitter le lecteur), retour à la fiche après Échap, deux cycles lecture/arrêt sans fuite (≈ 240 Mo après arrêt).
+- Navigation clavier du lecteur (↓ barre, ↓ boutons, → chapitre suivant, Entrée = saut de chapitre ; `s` menu ; Échap).
+- Vidéo d'essai sans serveur : `turtlefin --test-video=fichier` (+ `TURTLEFIN_MPV_ARGS="--chapters-file=... --audio-files=... --sub-files=..."`).
+- Mesure sur le PC (même épisode, 20 s) : mpv séparé 420 Mo (Turtlefin 200 + mpv 224), 0,8 % d'un cœur ;
+  libmpv 399 Mo, 4,5 à 5,6 % d'un cœur (décodage `d3d11va-copy`). **Reste à mesurer sur le Pi**, où les deux décodent en logiciel.
+- Pas testé : souris réelle (clic, glisser la barre), mode TV (`--tv`, facteur 1,4), Linux/Pi (compilation comprise), Wayland,
+  enchaînement automatique en fin d'épisode, « Reprendre » à jour dans Jellyfin Web.
 
 ### Pas fait
 - **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
-- Enchaînement automatique des épisodes.
-- Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et passer `--alang` / `--slang` à mpv).
+- Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).
 - Grille de bibliothèque paginée (aujourd'hui : 60 premiers éléments d'une bibliothèque/collection).
 - Défilement à la molette, survol souris qui déplace le focus.
 - Écran de connexion « vrai » (sélecteur de profils avec avatars via `/Users/Public`, Quick Connect, clavier à l'écran pour la télé). La connexion en ligne de commande couvre le kiosque en attendant.
 - Fond (backdrop) en option, avec logos transparents.
-- Interface Slint par-dessus la vidéo = libmpv (gros chantier, seulement si nécessaire).
 - Passer l'intro (segments média Jellyfin 10.10+), avatar utilisateur dans l'en-tête, picker d'avatar (`Avatar_picker.js` du thème).
 - Passerelle XeLauncher ; démarrage automatique sur le Pi ; compilation/paquetage.
 
@@ -109,27 +109,29 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
 
 ## 7. Problèmes connus / limites
 
-1. **Wayland** : pas de `--wid`, mpv s'ouvre dans sa propre fenêtre (toast explicatif). `TURTLEFIN_EMBED=0` force ce mode partout.
-2. **Rien de Slint au-dessus de la vidéo intégrée** (fenêtre enfant) : d'où le menu de pistes dessiné par mpv.
+1. Branche `libmpv` : un plantage de mpv fait planter Turtlefin (même processus). Le lecteur est recréé à chaque lecture.
+2. Branche `libmpv` : la lecture exige le rendu OpenGL de Slint (`SLINT_BACKEND=winit-software` l'empêche).
 3. **Croissance RAM de mpv** (~3 Mo/min, par paliers, sur un épisode de FMA aux sous-titres ASS) : cause non élucidée (polices/glyphes libass probable). Test à faire avec `TURTLEFIN_MPV_ARGS="--sid=no"`. Borné à la durée d'une lecture puisque mpv est relancé à chaque vidéo.
 4. Cache d'images disque sans purge (`<cache>/turtlefin/img`).
-5. Jeton d'accès visible dans la ligne de commande de mpv et en clair dans `session.json` (0600 sous Unix).
+5. Jeton d'accès en clair dans `session.json` (0600 sous Unix) ; avec libmpv, il n'apparaît plus dans une ligne de commande.
 6. Le multi-ligne avec points de suspension du résumé dépend de la version de Slint (au pire coupure nette).
 7. Le `FocusScope` de taille nulle de la fiche : si les flèches ne répondent pas, regarder là.
 8. Le défilement mémorisé des rangées de l'accueil est perdu quand on revient de la fiche (l'écran est recréé).
-9. Décodage logiciel sur le Pi : peut peiner en 4K/HEVC lourd ; piste future : v4l2request / drm-copy ou un mpv/driver adapté au SAND de Broadcom.
+9. Décodage logiciel sur le Pi : peut peiner en 4K/HEVC lourd ; piste future : `TURTLEFIN_HWDEC=auto-copy` avec libmpv (copie en mémoire, évite l'import SAND), sinon v4l2request / drm-copy.
 
 ## 8. Variables d'environnement utiles
 
-`TURTLEFIN_PASSWORD`, `TURTLEFIN_MPV` (chemin de mpv), `TURTLEFIN_MPV_ARGS`, `TURTLEFIN_MPV_LOG`, `TURTLEFIN_EMBED=0`, `TURTLEFIN_HWDEC`, `TURTLEFIN_AO`, `TURTLEFIN_INSECURE=1` (test uniquement), `SLINT_BACKEND=winit-software`.
+`TURTLEFIN_PASSWORD`, `TURTLEFIN_LIBMPV` (chemin de libmpv), `TURTLEFIN_MPV_ARGS`, `TURTLEFIN_MPV_LOG`, `TURTLEFIN_HWDEC`, `TURTLEFIN_AO`, `TURTLEFIN_INSECURE=1` (test uniquement), `SLINT_BACKEND=winit-software`.
 
 ## 9. Ordre de travail proposé
 
-1. Compiler la version actuelle sur Windows, corriger les éventuelles erreurs du menu de pistes, tester : lecture, `a` / `s`, reprise, retour à l'accueil (« Reprendre » à jour), boutons de la fiche, bloc « À suivre ».
-2. Pousser sur GitHub, `git pull` + `cargo build --release` sur le Pi ; refaire un test d'endurance de 1 à 2 h (`ps -o rss` toutes les minutes).
-3. **M4a** : enchaînement automatique + langues préférées lues dans le profil Jellyfin.
-4. **M4b** : recherche avec cartes à poster, puis grille de bibliothèque paginée.
-5. **M5** : profils / Quick Connect / clavier à l'écran, backdrop optionnel.
-6. Passerelle XeLauncher, démarrage automatique, paquetage.
+1. L'utilisateur teste la branche `libmpv` sur Windows (souris, mode TV, ressenti).
+2. Pousser `interface-lua` et `libmpv` sur GitHub ; sur le Pi, compiler les deux (`CARGO_TARGET_DIR` différent) et mesurer RAM + CPU
+   sur le même épisode. Garder `libmpv` si elle est au moins aussi légère, sinon `interface-lua`.
+3. Fusionner la branche retenue dans `main`, puis test d'endurance de 1 à 2 h sur le Pi.
+4. **M4a** : langues audio / sous-titres préférées lues dans le profil Jellyfin.
+5. **M4b** : recherche avec cartes à poster, puis grille de bibliothèque paginée.
+6. **M5** : profils / Quick Connect / clavier à l'écran, backdrop optionnel.
+7. Passerelle XeLauncher, démarrage automatique, paquetage.
 
 À chaque étape : garder Turtlefin stable en mémoire (c'est la raison d'être du projet) et ne jamais réintroduire de flou temps réel ou d'animation de filtre.

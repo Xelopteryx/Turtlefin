@@ -5,9 +5,13 @@ edition = "2021"
 description = "Client Jellyfin natif (Rust + Slint), sans Qt ni navigateur embarqué"
 
 [dependencies]
-slint = { version = "1", features = ["raw-window-handle-06"] }
-raw-window-handle = "0.6"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "net", "io-util", "process"] }
+slint = "1"
+# Lecture : libmpv chargée à l'exécution, rendu OpenGL de la vidéo dans la fenêtre Slint.
+libloading = "0.8"
+glow = "0.17"
+# Heure locale (« Fin à 22:47 »).
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time"] }
 # reqwest 0.13 : rustls par défaut, avec le magasin de certificats du système
 # (un certificat mkcert installé sur la machine est donc accepté).
 # "query" est devenu une option dans la 0.13.

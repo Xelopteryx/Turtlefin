@@ -1,6 +1,8 @@
 mod api;
 mod config;
+mod mpv;
 mod player;
+mod video;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -22,17 +24,20 @@ struct Cli {
     pass: Option<String>,
     server: Option<String>,
     tv: bool,
+    /// Lecture d'essai sans serveur : --test-video=FICHIER_OU_URL.
+    test_video: Option<String>,
 }
 
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
-    let mut cli = Cli { user: None, pass: None, server: None, tv: false };
+    let mut cli = Cli { user: None, pass: None, server: None, tv: false, test_video: None };
 
     for a in std::env::args().skip(1) {
         match a.as_str() {
             "--tv" => cli.tv = true,
             "--desktop" => cli.tv = false,
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
+            s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -59,8 +64,6 @@ struct App {
     /// Numéro de la dernière fiche demandée : ignore les réponses périmées.
     gen: AtomicU64,
     device_id: String,
-    /// Mode TV : mpv démarre en plein écran.
-    tv: bool,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -599,50 +602,36 @@ async fn resolve_playable(client: &api::Client, item: api::Item) -> anyhow::Resu
     }
 }
 
-/// Identifiant natif de la fenêtre Turtlefin, pour que mpv y dessine.
-/// À appeler depuis le thread de l'interface. None sous Wayland (pas de --wid possible).
-fn native_wid(ui: &AppWindow) -> Option<i64> {
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    if std::env::var("TURTLEFIN_EMBED").map(|v| v == "0").unwrap_or(false) {
-        return None;
+async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) {
+    let client = app.client();
+    if client.is_none() && test_url.is_none() {
+        return;
     }
-    let wh = ui.window().window_handle();
-    let handle = wh.window_handle().ok()?;
-    match handle.as_raw() {
-        RawWindowHandle::Win32(w) => Some(w.hwnd.get() as i64),
-        RawWindowHandle::Xlib(x) => Some(x.window as i64),
-        RawWindowHandle::Xcb(x) => Some(x.window.get() as i64),
-        _ => None,
-    }
-}
-
-async fn play_flow(app: Arc<App>, id: String, wid: Option<i64>) {
-    let Some(client) = app.client() else { return };
     if app.playing.swap(true, Ordering::SeqCst) {
         return; // déjà en lecture
     }
     let ui = app.ui();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     *app.player_tx.lock().unwrap() = Some(tx);
-    let embedded = wid.is_some();
-    let _ = ui.upgrade_in_event_loop(move |u| {
-        // Si l'intégration est indisponible, on garde le message d'explication affiché.
-        if embedded {
-            u.set_toast("".into());
-        }
+    let _ = ui.upgrade_in_event_loop(|u| {
+        u.set_toast("".into());
         u.set_playing(true);
     });
 
-    let tv = app.tv;
     let result: anyhow::Result<()> = async {
-        let item = client.item(&id).await?;
-        let target = resolve_playable(&client, item).await?;
-        let start_secs = target
-            .user_data
-            .as_ref()
-            .map(|u| u.playback_position_ticks as f64 / 10_000_000.0)
-            .unwrap_or(0.0);
-        player::play(&client, player::PlayRequest { item: target, start_secs, fullscreen: tv, wid }, rx).await
+        let (item, start_secs) = match (&client, id) {
+            (Some(c), Some(id)) => {
+                let target = resolve_playable(c, c.item(&id).await?).await?;
+                let start = target
+                    .user_data
+                    .as_ref()
+                    .map(|u| u.playback_position_ticks as f64 / 10_000_000.0)
+                    .unwrap_or(0.0);
+                (Some(target), start)
+            }
+            _ => (None, 0.0),
+        };
+        player::play(client.clone(), player::PlayRequest { item, start_secs, test_url }, rx, ui.clone()).await
     }
     .await;
 
@@ -673,8 +662,23 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?;
 
+    // La vidéo passe par OpenGL : on demande le moteur de rendu femtovg (OpenGL / OpenGL ES),
+    // sauf si SLINT_BACKEND impose autre chose.
+    if std::env::var_os("SLINT_BACKEND").is_none() {
+        if let Err(e) = slint::BackendSelector::new().renderer_name("femtovg".into()).select() {
+            eprintln!("turtlefin : rendu OpenGL indisponible ({e}), lecture vidéo impossible");
+        }
+    }
+
     let saved = config::load();
     let ui = AppWindow::new()?;
+    let video_ok = match video::install(&ui) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("turtlefin : affichage vidéo indisponible ({e:?})");
+            false
+        }
+    };
     ui.set_tv_mode(cli.tv);
     if cli.tv {
         ui.window().set_fullscreen(true);
@@ -687,7 +691,6 @@ fn main() -> anyhow::Result<()> {
         stack: Mutex::new(Vec::new()),
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
-        tv: cli.tv,
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),
@@ -740,15 +743,14 @@ fn main() -> anyhow::Result<()> {
             } else if a == "play" {
                 let top = app.stack.lock().unwrap().last().cloned();
                 if let Some(id) = top {
-                    // Le handle natif doit être lu ici, sur le thread de l'interface.
-                    let wid = app.ui().upgrade().and_then(|u| native_wid(&u));
-                    if wid.is_none() {
+                    if !video_ok {
                         if let Some(u) = app.ui().upgrade() {
-                            u.set_toast("Lecture intégrée indisponible ici : mpv s'ouvre dans sa propre fenêtre.".into());
+                            u.set_toast("Lecture impossible : le rendu OpenGL n'est pas disponible (SLINT_BACKEND ?).".into());
                         }
+                        return;
                     }
                     let a2 = app.clone();
-                    app.rt.spawn(async move { play_flow(a2, id, wid).await });
+                    app.rt.spawn(async move { play_flow(a2, Some(id), None).await });
                 }
             } else if let Some(id) = a.strip_prefix("open:") {
                 push_detail(&app, id.to_string());
@@ -783,6 +785,12 @@ fn main() -> anyhow::Result<()> {
             }
             Err(e) => ui.set_error_text(format!("{e}").into()),
         }
+    }
+
+    // Essai du lecteur sans serveur : turtlefin --test-video=chemin/vers/video.mkv
+    if let Some(url) = cli.test_video.clone() {
+        let a = app.clone();
+        rt.spawn(async move { play_flow(a, None, Some(url)).await });
     }
 
     ui.run()?;
