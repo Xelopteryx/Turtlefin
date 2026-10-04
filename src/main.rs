@@ -82,6 +82,8 @@ struct App {
     /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
     /// pour y revenir au retour.
     lib_return: Mutex<Option<(String, usize)>>,
+    /// Page Seerr affichée.
+    seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
     can_download: AtomicBool,
     /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
@@ -506,6 +508,7 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
                                 subtitle: c.subtitle.clone().into(),
                                 progress: c.progress,
                                 rating: c.rating.clone().into(),
+                                seerr: c.seerr,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -606,6 +609,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                                 subtitle: c.subtitle.clone().into(),
                                 progress: c.progress,
                                 rating: c.rating.clone().into(),
+                                seerr: c.seerr,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -660,6 +664,159 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
             });
         }
     });
+}
+
+// ---------------------------------------------------------------------------
+// Page Seerr (média absent du serveur) : informations et bouton Demander
+// ---------------------------------------------------------------------------
+fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
+    let Some(client) = app.client() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_sr(SeerrPage { loading: true, ..Default::default() });
+        u.set_sr_cast(ModelRc::default());
+        u.set_sr_sel(0);
+        u.set_sr_scroll(0.0);
+        u.set_sr_open(true);
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let d = match client.seerr_details(tv, tmdb).await {
+            Ok(d) => d,
+            Err(e) => {
+                let msg = format!("Seerr : {e}");
+                let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                    u.set_sr_open(false);
+                    u.set_toast(msg.into());
+                });
+                return;
+            }
+        };
+        *app2.seerr_page.lock().unwrap() = Some(d.clone());
+        let (status_text, can_request) = match d.status {
+            5 => ("Disponible sur le serveur", false),
+            4 => ("Partiellement disponible", true),
+            3 => ("En cours de traitement", false),
+            2 => ("Demande en attente", false),
+            _ => ("", true),
+        };
+        let cast: Vec<api::CardInfo> = d
+            .cast
+            .iter()
+            .enumerate()
+            .map(|(i, (name, role, photo))| api::CardInfo {
+                id: format!("person:{i}"),
+                title: name.clone(),
+                subtitle: role.clone(),
+                img_id: photo.clone(),
+                img_tag: None,
+                thumbs: Vec::new(),
+                progress: 0.0,
+                rating: String::new(),
+                seerr: false,
+            })
+            .collect();
+        let jobs: Vec<ImageJob> = cast.iter().enumerate().filter_map(|(i, c)| ImageJob::for_card(0, i, c, false)).collect();
+        let d2 = d.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let d = d2;
+            let page = SeerrPage {
+                loading: false,
+                title: d.title.clone().into(),
+                year: d.year.clone().into(),
+                overview: d.overview.clone().into(),
+                genres: d.genres.clone().into(),
+                length: d.length.clone().into(),
+                rating: d.rating.clone().into(),
+                facts: ModelRc::new(VecModel::from(
+                    d.facts.iter().map(|(k, v)| FactData { label: k.clone().into(), value: v.clone().into() }).collect::<Vec<_>>(),
+                )),
+                status: status_text.into(),
+                can_request,
+                on_server: d.jellyfin_id.is_some(),
+                ..Default::default()
+            };
+            u.set_sr(page);
+            u.set_sr_cast(ModelRc::new(VecModel::from(cast.iter().map(card_data).collect::<Vec<_>>())));
+        });
+        // Affiche et fond.
+        for (url, is_bg) in [(d.poster.clone(), false), (d.backdrop.clone().or(d.poster.clone()), true)] {
+            let Some(url) = url else { continue };
+            let (c2, ui) = (client.clone(), app2.ui());
+            app2.rt.spawn(async move {
+                let Some(bytes) = c2.image_any(&[(url, "Url", None)], api::Size::Fill(0, 0)).await else { return };
+                let buf = tokio::task::spawn_blocking(move || {
+                    if is_bg { decode_backdrop(&bytes) } else { decode(&bytes, Some(Shape::card(270, 405, 150.0))) }
+                })
+                .await
+                .ok()
+                .flatten();
+                let Some(buf) = buf else { return };
+                let _ = ui.upgrade_in_event_loop(move |u| {
+                    let mut p = u.get_sr();
+                    if is_bg {
+                        p.backdrop = slint::Image::from_rgba8(buf);
+                        p.has_backdrop = true;
+                    } else {
+                        p.poster = slint::Image::from_rgba8(buf);
+                        p.has_poster = true;
+                    }
+                    u.set_sr(p);
+                });
+            });
+        }
+        let apply: Apply = Arc::new(|u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
+            let m = u.get_sr_cast();
+            if let Some(mut c) = m.row_data(job.b) {
+                if c.id.as_str() == job.item_id {
+                    c.image = slint::Image::from_rgba8(buf);
+                    c.has_image = true;
+                    m.set_row_data(job.b, c);
+                }
+            }
+        });
+        spawn_image_jobs(&app2, &client, jobs, api::Size::Fill(185, 278), Shape::card(185, 278, 110.0), apply);
+    });
+}
+
+/// Bouton de la page Seerr : demander, ou ouvrir la fiche si le média est sur le serveur.
+fn seerr_action(app: &Arc<App>) {
+    let Some(d) = app.seerr_page.lock().unwrap().clone() else { return };
+    if let Some(id) = d.jellyfin_id.clone() {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_sr_open(false);
+        }
+        push_detail(app, id);
+        return;
+    }
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r = client.seerr_request(d.tv, d.tmdb, &d.seasons).await;
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let mut p = u.get_sr();
+            match r {
+                Ok(()) => {
+                    p.status = "Demande envoyée".into();
+                    p.can_request = false;
+                }
+                Err(e) => p.status = format!("Demande impossible : {e}").into(),
+            }
+            u.set_sr(p);
+        });
+        app2.home_stale.store(true, Ordering::SeqCst);
+    });
+}
+
+fn card_data(c: &api::CardInfo) -> CardData {
+    CardData {
+        id: c.id.clone().into(),
+        title: c.title.clone().into(),
+        subtitle: c.subtitle.clone().into(),
+        progress: c.progress,
+        rating: c.rating.clone().into(),
+        seerr: c.seerr,
+        ..Default::default()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -733,6 +890,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                         subtitle: c.subtitle.clone().into(),
                         progress: c.progress,
                         rating: c.rating.clone().into(),
+                                seerr: c.seerr,
                         ..Default::default()
                     });
                 }
@@ -1013,6 +1171,11 @@ fn push_detail(app: &Arc<App>, id: String) {
     if id.starts_with("person:") {
         return;
     }
+    if let Some(rest) = id.strip_prefix("seerr:") {
+        let (kind, tmdb) = rest.split_once(':').unwrap_or(("movie", "0"));
+        open_seerr(app, kind == "tv", tmdb.parse().unwrap_or(0));
+        return;
+    }
     if id.is_empty() {
         if let Some(u) = app.ui().upgrade() {
             u.set_toast("Pas (encore) dans ta bibliothèque Jellyfin.".into());
@@ -1222,6 +1385,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                 subtitle: c.subtitle.clone().into(),
                 progress: c.progress,
                 rating: c.rating.clone().into(),
+                                seerr: c.seerr,
                 ..Default::default()
             })
             .collect();
@@ -1480,6 +1644,7 @@ fn main() -> anyhow::Result<()> {
         play_arg: Mutex::new(cli.play.clone()),
         play_start: Mutex::new(None),
         can_download: AtomicBool::new(false),
+        seerr_page: Mutex::new(None),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
         offline: AtomicBool::new(false),
@@ -1560,6 +1725,11 @@ fn main() -> anyhow::Result<()> {
         tick();
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
+
+    ui.on_seerr_action({
+        let app = app.clone();
+        move || seerr_action(&app)
+    });
 
     ui.on_dl_play({
         let app = app.clone();

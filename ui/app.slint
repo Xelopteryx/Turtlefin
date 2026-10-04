@@ -29,6 +29,29 @@ export struct ServerData {
     remote: string, // adresse distante (Tailscale ou autre), vide si inconnue
 }
 
+export struct FactData {
+    label: string,
+    value: string,
+}
+
+export struct SeerrPage {
+    loading: bool,
+    title: string,
+    year: string,
+    overview: string,
+    genres: string,
+    length: string,
+    rating: string,
+    facts: [FactData],
+    status: string,    // « Demande en attente »... vide si rien
+    can-request: bool,
+    on-server: bool,
+    poster: image,
+    has-poster: bool,
+    backdrop: image,
+    has-backdrop: bool,
+}
+
 export struct MenuEntry {
     label: string,
     action: string, // "home" | "requests" | "lib:<id>" | "server" | "settings" | "logout" | "quit"
@@ -111,6 +134,24 @@ component Card inherits Rectangle {
                 height: parent.height;
                 border-radius: parent.height / 2;
                 background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
+        }
+
+        // Absent du serveur, proposé par Seerr : badge en haut à gauche.
+        if root.data.seerr: Rectangle {
+            x: 7px * root.k;
+            y: 7px * root.k;
+            width: 52px * root.k;
+            height: 20px * root.k;
+            border-radius: 5px * root.k;
+            background: @linear-gradient(130deg, #6366f1 0%, #a855f7 100%);
+            Text {
+                text: "SEERR";
+                color: white;
+                font-size: 10px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
         }
 
@@ -662,6 +703,13 @@ export component AppWindow inherits Window {
     in property <string> addr-current;
     in-out property <int> set-sel;          // 0 préférence réseau · 1 changer de serveur
 
+    // Page Seerr (premier plan)
+    in-out property <bool> sr-open;
+    in property <SeerrPage> sr;
+    in property <[CardData]> sr-cast;
+    in-out property <int> sr-sel;           // 0 bouton Demander · 1 Fermer
+    in-out property <length> sr-scroll;
+
     // Téléchargements
     in property <[CardData]> dl-items;
     in property <string> dl-status;
@@ -732,6 +780,7 @@ export component AppWindow inherits Window {
     callback row-seen(int /* key */, int /* index sélectionné */);
     callback servers-search();
     callback dl-play(string);
+    callback seerr-action();
     callback dl-delete(string);
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
@@ -2534,6 +2583,270 @@ export component AppWindow inherits Window {
                             root.menu-sel = i;
                             root.close-menu();
                             root.menu-action(e.action);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Page Seerr (premier plan)
+    if root.sr-open && !root.playing: Rectangle {
+        background: #000000b3;
+
+        TouchArea {
+            clicked => {
+                root.sr-open = false;
+                root.refocus += 1;
+            }
+        }
+
+        sr-panel := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: 24px * root.k;
+            width: min(parent.width - 48px * root.k, 1180px * root.k);
+            height: parent.height - 48px * root.k;
+            border-radius: 16px;
+            clip: true;
+            background: #0f1626;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+
+            TouchArea { }
+
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.LeftArrow) {
+                        root.sr-sel = 0;
+                    } else if (event.text == Key.RightArrow) {
+                        root.sr-sel = 1;
+                    } else if (event.text == Key.DownArrow) {
+                        root.sr-scroll = min(root.sr-scroll + 160px * root.k, max(0px, 900px * root.k - sr-panel.height));
+                    } else if (event.text == Key.UpArrow) {
+                        root.sr-scroll = max(0px, root.sr-scroll - 160px * root.k);
+                    } else if (event.text == Key.Return) {
+                        if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
+                            root.seerr-action();
+                        } else {
+                            root.sr-open = false;
+                            root.refocus += 1;
+                        }
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.sr-open = false;
+                        root.refocus += 1;
+                    }
+                    return EventResult.accept;
+                }
+            }
+
+            // Fond (backdrop flouté une fois au chargement) et dégradé vers le panneau.
+            if root.sr.has-backdrop: Image {
+                y: 0px - root.sr-scroll;
+                width: parent.width;
+                height: 300px * root.k;
+                source: root.sr.backdrop;
+                image-fit: cover;
+            }
+            Rectangle {
+                y: 120px * root.k - root.sr-scroll;
+                height: 181px * root.k;
+                background: @linear-gradient(180deg, #0f162600 0%, #0f1626 100%);
+            }
+
+            if root.sr.loading: Text {
+                text: "Chargement…";
+                color: Theme.muted;
+                font-size: 20px * root.k;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            // Fermer
+            Rectangle {
+                x: parent.width - self.width - 20px * root.k;
+                y: 20px * root.k;
+                width: 44px * root.k;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: root.sr-sel == 1 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #000000a0;
+                Path {
+                    width: 16px * root.k;
+                    height: 16px * root.k;
+                    viewbox-width: 16;
+                    viewbox-height: 16;
+                    stroke: white;
+                    stroke-width: 2.4px * root.k;
+                    commands: "M 2 2 L 14 14 M 14 2 L 2 14";
+                }
+                TouchArea {
+                    clicked => {
+                        root.sr-open = false;
+                        root.refocus += 1;
+                    }
+                }
+            }
+
+            if !root.sr.loading: Rectangle {
+                y: 0px - root.sr-scroll;
+                animate y { duration: 160ms; easing: ease-out; }
+                height: 900px * root.k;
+                property <length> pad: 30px * root.k;
+                property <length> side-w: 340px * root.k;
+                property <length> main-w: self.width - 3 * self.pad - self.side-w;
+
+                // Affiche
+                Rectangle {
+                    x: parent.pad;
+                    y: 170px * root.k;
+                    width: 150px * root.k;
+                    height: 225px * root.k;
+                    border-radius: 10px;
+                    background: root.sr.has-poster ? transparent : #ffffff14;
+                    if root.sr.has-poster: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.sr.poster;
+                        image-fit: fill;
+                    }
+                }
+
+                // Titre (année), durée, genres, note, bouton
+                Text {
+                    x: parent.pad + 176px * root.k;
+                    y: 200px * root.k;
+                    width: parent.main-w - 176px * root.k;
+                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                    color: white;
+                    font-size: 32px * root.k;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    x: parent.pad + 176px * root.k;
+                    y: 250px * root.k;
+                    width: parent.main-w - 176px * root.k;
+                    text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
+                        + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                    color: #ffffffcc;
+                    font-size: 15px * root.k;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    x: parent.pad + 176px * root.k;
+                    y: 290px * root.k;
+                    height: 44px * root.k;
+                    spacing: 16px * root.k;
+                    alignment: start;
+
+                    if root.sr.can-request || root.sr.on-server: ActionButton {
+                        text: root.sr.on-server ? "Voir sur le serveur" : "Demander";
+                        font: 16px * root.k;
+                        focused: root.sr-sel == 0;
+                        clicked => {
+                            root.seerr-action();
+                        }
+                    }
+                    Text {
+                        text: root.sr.status;
+                        color: Theme.accent2;
+                        font-size: 15px * root.k;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Résumé
+                if root.sr.overview != "": Text {
+                    x: parent.pad;
+                    y: 420px * root.k;
+                    text: "Résumé";
+                    color: white;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    x: parent.pad;
+                    y: 452px * root.k;
+                    width: parent.main-w;
+                    height: 120px * root.k;
+                    text: root.sr.overview;
+                    color: #ffffffd9;
+                    font-size: 15px * root.k;
+                    wrap: word-wrap;
+                    overflow: elide;
+                }
+
+                // Distribution
+                if root.sr-cast.length > 0: Text {
+                    x: parent.pad;
+                    y: 585px * root.k;
+                    text: "Distribution";
+                    color: white;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Rectangle {
+                    x: parent.pad;
+                    y: 620px * root.k;
+                    width: parent.main-w;
+                    height: 110px * 1.5 * root.k + 60px * root.k;
+                    clip: true;
+
+                    for c[i] in root.sr-cast: Card {
+                        x: i * 122px * root.k;
+                        width: 110px * root.k;
+                        height: 110px * 1.5 * root.k + 56px * root.k;
+                        data: c;
+                        ratio: 1.5;
+                        k: root.k * 0.85;
+                        focused: false;
+                    }
+                }
+
+                // Informations
+                Rectangle {
+                    x: parent.width - parent.pad - parent.side-w;
+                    y: 170px * root.k;
+                    width: parent.side-w;
+                    height: 20px * root.k + root.sr.facts.length * 46px * root.k;
+                    border-radius: 12px;
+                    background: #ffffff0d;
+                    border-width: 1px;
+                    border-color: #ffffff1f;
+
+                    for f[i] in root.sr.facts: Rectangle {
+                        x: 18px * root.k;
+                        y: 10px * root.k + i * 46px * root.k;
+                        width: parent.width - 36px * root.k;
+                        height: 46px * root.k;
+                        Text {
+                            x: 0px;
+                            width: parent.width * 0.48;
+                            height: parent.height;
+                            text: f.label.to-uppercase();
+                            color: #ffffff99;
+                            font-size: 11px * root.k;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            x: parent.width * 0.48;
+                            width: parent.width * 0.52;
+                            height: parent.height;
+                            text: f.value;
+                            color: white;
+                            font-size: 14px * root.k;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        if i > 0: Rectangle {
+                            y: 0px;
+                            height: 1px;
+                            background: #ffffff14;
                         }
                     }
                 }

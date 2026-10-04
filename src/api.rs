@@ -142,6 +142,8 @@ pub struct CardInfo {
     pub progress: f32,
     /// Note de la communauté (« 7.7 »), vide si absente.
     pub rating: String,
+    /// Proposé par Seerr mais absent du serveur (badge, ouvre la page Seerr).
+    pub seerr: bool,
 }
 
 /// (id de l'élément portant l'image, étiquette de version de l'image)
@@ -150,6 +152,39 @@ pub type ImageRef = (String, Option<String>);
 /// (id de l'élément, type d'image : "Primary" / "Thumb" / "Backdrop", étiquette)
 /// Type "Url" : `id` est une adresse complète (images hors Jellyfin).
 pub type ImgCand = (String, &'static str, Option<String>);
+
+/// Identifiant de carte d'un média Seerr absent du serveur : « seerr:movie:603 », « seerr:tv:1399 ».
+pub fn seerr_id(tv: bool, tmdb: i64) -> String {
+    format!("seerr:{}:{tmdb}", if tv { "tv" } else { "movie" })
+}
+
+fn tmdb_img(path: Option<&str>, size: &str) -> Option<String> {
+    path.filter(|p| !p.is_empty()).map(|p| format!("https://image.tmdb.org/t/p/{size}{p}"))
+}
+
+/// Page Seerr d'un média (film ou série).
+#[derive(Clone, Debug, Default)]
+pub struct SeerrDetails {
+    pub tv: bool,
+    pub tmdb: i64,
+    pub title: String,
+    pub year: String,
+    pub overview: String,
+    pub poster: Option<String>,
+    pub backdrop: Option<String>,
+    pub genres: String,
+    /// « 24 min · 12 épisodes », « 1h55 »
+    pub length: String,
+    pub rating: String,
+    /// Lignes d'informations (libellé, valeur).
+    pub facts: Vec<(String, String)>,
+    /// 2 en attente · 3 en cours · 4 partiellement disponible · 5 disponible (0 : rien)
+    pub status: i64,
+    pub jellyfin_id: Option<String>,
+    pub seasons: Vec<i64>,
+    /// Distribution : (nom, personnage, photo)
+    pub cast: Vec<(String, String, Option<String>)>,
+}
 
 /// Une demande Seerr de l'utilisateur.
 #[derive(Clone, Debug)]
@@ -164,6 +199,7 @@ pub struct SeerrRequest {
     pub created: String,
     /// Élément Jellyfin correspondant, une fois le média disponible.
     pub jellyfin_id: Option<String>,
+    pub tmdb: i64,
     pub seasons: Vec<i64>,
 }
 
@@ -182,8 +218,8 @@ impl SeerrRequest {
             parts.push(format!("{d}/{m}"));
         }
         CardInfo {
-            // Disponible : on ouvre sa fiche Jellyfin ; sinon la carte ne mène nulle part.
-            id: self.jellyfin_id.clone().unwrap_or_default(),
+            // Disponible : sa fiche Jellyfin ; sinon la page Seerr.
+            id: self.jellyfin_id.clone().unwrap_or_else(|| seerr_id(self.tv, self.tmdb)),
             title: self.title.clone(),
             subtitle: parts.join(" · "),
             img_id: self.poster.clone(),
@@ -191,6 +227,7 @@ impl SeerrRequest {
             thumbs: Vec::new(),
             progress: 0.0,
             rating: String::new(),
+            seerr: self.jellyfin_id.is_none(),
         }
     }
 }
@@ -282,6 +319,7 @@ impl Item {
             thumbs: self.landscape_candidates(),
             progress: self.progress(),
             rating: self.rating(),
+            seerr: false,
         }
     }
 
@@ -313,6 +351,7 @@ impl Item {
             thumbs: tag.map(|t| (self.id.clone(), "Primary", Some(t))).into_iter().collect(),
             progress: self.progress(),
             rating: String::new(),
+            seerr: false,
         }
     }
 
@@ -432,6 +471,7 @@ impl Item {
                 thumbs: Vec::new(),
                 progress: 0.0,
                 rating: String::new(),
+                seerr: false,
             });
         }
         out
@@ -804,6 +844,106 @@ impl Client {
         self.send_flag(m, &format!("/UserPlayedItems/{id}")).await
     }
 
+    /// Seerr : page d'un film / d'une série.
+    pub async fn seerr_details(&self, tv: bool, tmdb: i64) -> Result<SeerrDetails> {
+        let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}", if tv { "tv" } else { "movie" });
+        let d: serde_json::Value = self.get(&path, &[]).await?;
+        let s = |k: &str| d[k].as_str().unwrap_or("").to_string();
+        let date = if tv { s("firstAirDate") } else { s("releaseDate") };
+        let names = |k: &str| {
+            d[k].as_array().into_iter().flatten().filter_map(|g| g["name"].as_str()).collect::<Vec<_>>().join(", ")
+        };
+        let mut length: Vec<String> = Vec::new();
+        if tv {
+            if let Some(r) = d["episodeRunTime"].as_array().and_then(|a| a.first()).and_then(|v| v.as_i64()) {
+                length.push(format!("{r} min"));
+            }
+            if let Some(n) = d["numberOfEpisodes"].as_i64() {
+                length.push(format!("{n} épisodes"));
+            }
+        } else if let Some(r) = d["runtime"].as_i64().filter(|r| *r > 0) {
+            length.push(if r >= 60 { format!("{}h{:02}", r / 60, r % 60) } else { format!("{r} min") });
+        }
+        let status_txt = match d["status"].as_str().unwrap_or("") {
+            "Ended" => "Terminée",
+            "Returning Series" => "En cours",
+            "Canceled" => "Annulée",
+            "In Production" => "En production",
+            "Released" => "Sorti",
+            "Post Production" => "Post-production",
+            "Planned" => "Prévu",
+            o => o,
+        };
+        let mut facts: Vec<(String, String)> = Vec::new();
+        let mut fact = |k: &str, v: String| {
+            if !v.is_empty() {
+                facts.push((k.to_string(), v));
+            }
+        };
+        fact("Statut", status_txt.to_string());
+        fact(if tv { "Première diffusion" } else { "Sortie" }, fr_date(&date));
+        if tv {
+            fact("Dernière diffusion", fr_date(&s("lastAirDate")));
+        }
+        fact("Langue originale", s("originalLanguage").to_uppercase());
+        fact(if tv { "Diffuseur" } else { "Studios" }, names(if tv { "networks" } else { "productionCompanies" }));
+        let cast = d["credits"]["cast"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .take(20)
+            .map(|c| {
+                (
+                    c["name"].as_str().unwrap_or("").to_string(),
+                    c["character"].as_str().unwrap_or("").to_string(),
+                    tmdb_img(c["profilePath"].as_str(), "w185"),
+                )
+            })
+            .collect();
+        Ok(SeerrDetails {
+            tv,
+            tmdb,
+            title: if tv { s("name") } else { s("title") },
+            year: date.chars().take(4).collect(),
+            overview: s("overview"),
+            poster: tmdb_img(d["posterPath"].as_str(), "w342"),
+            backdrop: tmdb_img(d["backdropPath"].as_str(), "w1280"),
+            genres: names("genres"),
+            length: length.join(" · "),
+            rating: d["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
+            facts,
+            status: d["mediaInfo"]["status"].as_i64().unwrap_or(0),
+            jellyfin_id: d["mediaInfo"]["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string),
+            seasons: d["seasons"].as_array().into_iter().flatten().filter_map(|x| x["seasonNumber"].as_i64()).filter(|n| *n > 0).collect(),
+            cast,
+        })
+    }
+
+    /// Seerr : demande d'un film, ou de toutes les saisons d'une série.
+    pub async fn seerr_request(&self, tv: bool, tmdb: i64, seasons: &[i64]) -> Result<()> {
+        let mut body = serde_json::json!({ "mediaType": if tv { "tv" } else { "movie" }, "mediaId": tmdb });
+        if tv {
+            body["seasons"] = serde_json::json!(seasons);
+        }
+        let resp = self
+            .http
+            .post(format!("{}/JellyfinEnhanced/jellyseerr/request", self.server))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            let code = resp.status();
+            let txt = resp.text().await.unwrap_or_default();
+            let msg = serde_json::from_str::<serde_json::Value>(&txt)
+                .ok()
+                .and_then(|v| v["message"].as_str().map(str::to_string))
+                .unwrap_or_else(|| code.to_string());
+            return Err(anyhow!("{msg}"));
+        }
+        Ok(())
+    }
+
     /// Seerr : « similar » ou « recommendations » d'un film / d'une série TMDB.
     pub async fn seerr_related(&self, tv: bool, tmdb: i64, kind: &str) -> Vec<CardInfo> {
         let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}/{kind}", if tv { "tv" } else { "movie" });
@@ -820,12 +960,15 @@ impl Client {
             let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
             let available = r["mediaInfo"]["status"].as_i64() == Some(5);
             let jf = r["mediaInfo"]["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string);
+            let on_server = jf.is_some();
+            let rid = r["id"].as_i64().unwrap_or(0);
+            let rtv = r["mediaType"].as_str().map(|m| m == "tv").unwrap_or(tv);
             let mut sub = vec![year];
             if available {
                 sub.push("disponible".into());
             }
             out.push(CardInfo {
-                id: jf.unwrap_or_default(),
+                id: jf.unwrap_or_else(|| seerr_id(rtv, rid)),
                 title,
                 subtitle: sub.into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
                 img_id: r["posterPath"].as_str().filter(|p| !p.is_empty()).map(|p| format!("https://image.tmdb.org/t/p/w342{p}")),
@@ -833,6 +976,7 @@ impl Client {
                 thumbs: Vec::new(),
                 progress: 0.0,
                 rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
+                seerr: !on_server,
             });
         }
         out
@@ -1034,6 +1178,7 @@ impl Client {
                 poster,
                 created: r["createdAt"].as_str().unwrap_or("").to_string(),
                 jellyfin_id: media["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string),
+                tmdb,
                 seasons: r["seasons"]
                     .as_array()
                     .map(|a| a.iter().filter_map(|s| s["seasonNumber"].as_i64()).collect())
@@ -1051,5 +1196,16 @@ impl Client {
             }
         }
         None
+    }
+}
+
+/// « 2020-07-08 » -> « 8 juillet 2020 ».
+fn fr_date(iso: &str) -> String {
+    const MOIS: [&str; 12] =
+        ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+    let p: Vec<&str> = iso.get(..10).unwrap_or("").split('-').collect();
+    match (p.first(), p.get(1).and_then(|m| m.parse::<usize>().ok()), p.get(2).and_then(|d| d.parse::<u32>().ok())) {
+        (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) => format!("{d} {} {y}", MOIS[m - 1]),
+        _ => String::new(),
     }
 }
