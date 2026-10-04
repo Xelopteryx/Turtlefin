@@ -55,6 +55,8 @@ struct ItemsResp {
 pub struct UserData {
     pub playback_position_ticks: i64,
     pub played: bool,
+    /// Avancement de la lecture en cours (0-100), absent si rien n'est commencé.
+    pub played_percentage: Option<f64>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -99,6 +101,11 @@ pub struct Item {
     pub parent_logo_item_id: Option<String>,
     pub parent_logo_image_tag: Option<String>,
     pub image_tags: Option<HashMap<String, String>>,
+    pub backdrop_image_tags: Option<Vec<String>>,
+    pub parent_thumb_item_id: Option<String>,
+    pub parent_thumb_image_tag: Option<String>,
+    pub parent_backdrop_item_id: Option<String>,
+    pub parent_backdrop_image_tags: Option<Vec<String>>,
     pub user_data: Option<UserData>,
     pub media_sources: Option<Vec<MediaSource>>,
 }
@@ -111,14 +118,65 @@ pub struct CardInfo {
     pub subtitle: String,
     pub img_id: Option<String>,
     pub img_tag: Option<String>,
+    /// Images pour une carte paysage (16:9), par ordre de préférence.
+    pub thumbs: Vec<ImgCand>,
+    /// Avancement de la lecture (0..1), 0 si rien n'est commencé.
+    pub progress: f32,
+    /// Note de la communauté (« 7.7 »), vide si absente.
+    pub rating: String,
 }
 
 /// (id de l'élément portant l'image, étiquette de version de l'image)
 pub type ImageRef = (String, Option<String>);
 
+/// (id de l'élément, type d'image : "Primary" / "Thumb" / "Backdrop", étiquette)
+pub type ImgCand = (String, &'static str, Option<String>);
+
 impl Item {
     fn primary_tag(&self) -> Option<String> {
         self.image_tags.as_ref()?.get("Primary").cloned()
+    }
+
+    /// Images 16:9 : vignette (Thumb) de la série pour un épisode, comme le client web,
+    /// sinon image propre, puis fond (Backdrop).
+    fn landscape_candidates(&self) -> Vec<ImgCand> {
+        let mut v: Vec<ImgCand> = Vec::new();
+        let own = |kind: &'static str| -> Option<ImgCand> {
+            let tag = self.image_tags.as_ref()?.get(kind)?.clone();
+            Some((self.id.clone(), kind, Some(tag)))
+        };
+        if self.kind == "Episode" {
+            if let (Some(id), Some(tag)) = (&self.parent_thumb_item_id, &self.parent_thumb_image_tag) {
+                v.push((id.clone(), "Thumb", Some(tag.clone())));
+            }
+            v.extend(own("Primary"));
+        } else {
+            v.extend(own("Thumb"));
+        }
+        if let Some(tag) = self.backdrop_image_tags.as_ref().and_then(|t| t.first()) {
+            v.push((self.id.clone(), "Backdrop", Some(tag.clone())));
+        } else if let (Some(id), Some(tag)) = (
+            &self.parent_backdrop_item_id,
+            self.parent_backdrop_image_tags.as_ref().and_then(|t| t.first()),
+        ) {
+            v.push((id.clone(), "Backdrop", Some(tag.clone())));
+        }
+        if self.kind != "Episode" {
+            v.extend(own("Primary"));
+        }
+        v
+    }
+
+    fn progress(&self) -> f32 {
+        let u = self.user_data.as_ref();
+        match u.and_then(|u| u.played_percentage) {
+            Some(p) if !u.map(|u| u.played).unwrap_or(false) => (p / 100.0).clamp(0.0, 1.0) as f32,
+            _ => 0.0,
+        }
+    }
+
+    fn rating(&self) -> String {
+        self.community_rating.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")).unwrap_or_default()
     }
 
     fn minutes(&self) -> Option<i64> {
@@ -152,7 +210,16 @@ impl Item {
             }
         };
 
-        CardInfo { id: self.id.clone(), title, subtitle, img_id, img_tag }
+        CardInfo {
+            id: self.id.clone(),
+            title,
+            subtitle,
+            img_id,
+            img_tag,
+            thumbs: self.landscape_candidates(),
+            progress: self.progress(),
+            rating: self.rating(),
+        }
     }
 
     /// Carte pour la rangée « enfants » d'une fiche (saisons, épisodes, contenu).
@@ -178,7 +245,11 @@ impl Item {
             title,
             subtitle: parts.join(" · "),
             img_id: tag.as_ref().map(|_| self.id.clone()),
-            img_tag: tag,
+            img_tag: tag.clone(),
+            // Un épisode dans sa saison : sa propre image 16:9 d'abord.
+            thumbs: tag.map(|t| (self.id.clone(), "Primary", Some(t))).into_iter().collect(),
+            progress: self.progress(),
+            rating: String::new(),
         }
     }
 
@@ -491,6 +562,25 @@ impl Client {
         Ok(r.items)
     }
 
+    /// Favoris de l'utilisateur (films, séries, saisons, épisodes...).
+    pub async fn favorites(&self) -> Result<Vec<Item>> {
+        let r: ItemsResp = self
+            .get(
+                "/Items",
+                &[
+                    ("userId", &self.user_id),
+                    ("Recursive", "true"),
+                    ("Filters", "IsFavorite"),
+                    ("IncludeItemTypes", "Movie,Series,Season,Episode,BoxSet,Video,MusicVideo"),
+                    ("SortBy", "SortName"),
+                    ("SortOrder", "Ascending"),
+                    ("Limit", "200"),
+                ],
+            )
+            .await?;
+        Ok(r.items)
+    }
+
     /// Prochain épisode à regarder d'une série.
     pub async fn next_up_for(&self, series_id: &str) -> Result<Option<Item>> {
         let r: ItemsResp = self
@@ -593,6 +683,16 @@ impl Client {
             let _ = tokio::fs::write(p, &bytes).await;
         }
         Ok(bytes)
+    }
+
+    /// Première image disponible parmi des candidats de types différents (Thumb, Backdrop...).
+    pub async fn image_any(&self, candidates: &[ImgCand], size: Size) -> Option<Vec<u8>> {
+        for (id, kind, tag) in candidates {
+            if let Ok(b) = self.image(id, kind, tag.as_deref(), size).await {
+                return Some(b);
+            }
+        }
+        None
     }
 
     /// Première image disponible parmi plusieurs candidats.

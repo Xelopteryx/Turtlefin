@@ -66,6 +66,8 @@ struct App {
     device_id: String,
     /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images).
     tv: bool,
+    /// Onglet de l'accueil affiché : "home" ou "favorites".
+    tab: Mutex<String>,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -112,17 +114,25 @@ struct Shape {
     h: u32,
     /// Rayon des coins, en fraction de la largeur (rayon affiché / largeur affichée).
     radius: f32,
+    /// Seulement les coins du haut (image en tête d'une carte, le bas est l'encadré du titre).
+    top_only: bool,
 }
 
 impl Shape {
     /// Image affichée sur `display_w` pixels logiques avec des coins de 10 px (Theme.radius).
     fn card(w: u32, h: u32, display_w: f32) -> Shape {
-        Shape { w, h, radius: 10.0 / display_w }
+        Shape { w, h, radius: 10.0 / display_w, top_only: false }
+    }
+
+    /// Image en tête de carte : coins du haut arrondis, ceux du bas droits.
+    fn card_top(w: u32, h: u32, display_w: f32) -> Shape {
+        Shape { top_only: true, ..Shape::card(w, h, display_w) }
     }
 }
 
-/// Rend transparents (avec lissage) les quatre coins arrondis de rayon `r` pixels.
-fn round_corners(img: &mut image::RgbaImage, r: f32) {
+/// Rend transparents (avec lissage) les coins arrondis de rayon `r` pixels (les deux du haut seulement
+/// si `top_only`).
+fn round_corners(img: &mut image::RgbaImage, r: f32, top_only: bool) {
     let (w, h) = img.dimensions();
     let n = (r.ceil() as u32).min(w / 2).min(h / 2);
     for y in 0..n {
@@ -135,7 +145,8 @@ fn round_corners(img: &mut image::RgbaImage, r: f32) {
             if coverage >= 1.0 {
                 continue;
             }
-            for (px, py) in [(x, y), (w - 1 - x, y), (x, h - 1 - y), (w - 1 - x, h - 1 - y)] {
+            let corners = [(x, y), (w - 1 - x, y), (x, h - 1 - y), (w - 1 - x, h - 1 - y)];
+            for &(px, py) in &corners[..if top_only { 2 } else { 4 }] {
                 let p = img.get_pixel_mut(px, py);
                 p[3] = (p[3] as f32 * coverage).round() as u8;
             }
@@ -149,13 +160,24 @@ fn decode(bytes: &[u8], shape: Option<Shape>) -> Option<SharedPixelBuffer<Rgba8P
         Some(s) => {
             // Recadrage au format exact (comme image-fit: cover), puis coins arrondis.
             let mut img = img.resize_to_fill(s.w, s.h, image::imageops::FilterType::Triangle).to_rgba8();
-            round_corners(&mut img, s.radius * s.w as f32);
+            round_corners(&mut img, s.radius * s.w as f32, s.top_only);
             img
         }
         None => img.to_rgba8(),
     };
     let (w, h) = img.dimensions();
     Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
+}
+
+/// Comme fetch_decoded, pour des candidats de types différents (Thumb, Backdrop, Primary).
+async fn fetch_any(
+    client: &api::Client,
+    candidates: Vec<api::ImgCand>,
+    size: api::Size,
+    shape: Option<Shape>,
+) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    let bytes = client.image_any(&candidates, size).await?;
+    tokio::task::spawn_blocking(move || decode(&bytes, shape)).await.ok().flatten()
 }
 
 /// Télécharge (ou lit en cache) puis décode la première image disponible.
@@ -178,8 +200,20 @@ struct ImageJob {
     a: usize, // rangée (accueil) ; inutilisé pour les enfants
     b: usize, // position dans la rangée
     item_id: String,
-    img_id: String,
-    tag: Option<String>,
+    /// Images possibles, par ordre de préférence.
+    cands: Vec<api::ImgCand>,
+}
+
+impl ImageJob {
+    /// Carte paysage : vignettes 16:9 ; sinon poster (Primary).
+    fn for_card(a: usize, b: usize, c: &api::CardInfo, landscape: bool) -> Option<ImageJob> {
+        let cands: Vec<api::ImgCand> = if landscape {
+            c.thumbs.clone()
+        } else {
+            c.img_id.clone().map(|id| (id, "Primary", c.img_tag.clone())).into_iter().collect()
+        };
+        (!cands.is_empty()).then(|| ImageJob { a, b, item_id: c.id.clone(), cands })
+    }
 }
 
 type Apply = Arc<dyn Fn(&AppWindow, &ImageJob, SharedPixelBuffer<Rgba8Pixel>) + Send + Sync>;
@@ -194,8 +228,7 @@ fn spawn_image_jobs(app: &Arc<App>, client: &api::Client, jobs: Vec<ImageJob>, s
         let apply = apply.clone();
         app.rt.spawn(async move {
             let _permit = permits.acquire().await.ok();
-            let cands = vec![(job.img_id.clone(), job.tag.clone())];
-            let Some(buf) = fetch_decoded(&client, cands, "Primary", size, Some(shape)).await else { return };
+            let Some(buf) = fetch_any(&client, job.cands.clone(), size, Some(shape)).await else { return };
             let _ = ui.upgrade_in_event_loop(move |u| (*apply)(&u, &job, buf));
         });
     }
@@ -258,20 +291,28 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
     }
 }
 
+/// Ouvre la session : accueil (onglet affiché) avec ce client.
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     app.stack.lock().unwrap().clear();
+    load_tab(app, client).await;
+}
+
+/// Charge l'onglet affiché (« Accueil » ou « Favoris ») et le présente.
+async fn load_tab(app: Arc<App>, client: api::Client) {
     let ui = app.ui();
     let _ = ui.upgrade_in_event_loop(|u| u.set_screen("loading".into()));
+    let tab = app.tab.lock().unwrap().clone();
+    let sections = if tab == "favorites" { favorite_sections(&client).await } else { home_sections(&client).await };
+    match sections {
+        Ok(s) => present_sections(&app, &client, s),
+        Err(e) => handle_error(&ui, e),
+    }
+}
 
+async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
     let (views, resume, next) = tokio::join!(client.views(), client.resume(), client.next_up());
-    let views = match views {
-        Ok(v) => v,
-        Err(e) => {
-            handle_error(&ui, e);
-            return;
-        }
-    };
+    let views = views?;
 
     let mut sections: Vec<SectionData> = Vec::new();
     // « Mes médias » en haut, en vignettes 16:9 (équivalent de l'addon horizontalMyMedia).
@@ -281,8 +322,9 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         .cloned()
         .collect();
     push_section(&mut sections, "Mes médias", true, Ok(my_media));
-    push_section(&mut sections, "Reprendre", false, resume);
-    push_section(&mut sections, "À suivre", false, next);
+    // « Reprendre » et « À suivre » en vignettes 16:9 avec avancement, comme JellySkin.
+    push_section(&mut sections, "Reprendre", true, resume);
+    push_section(&mut sections, "À suivre", true, next);
 
     for v in views.iter().filter(|v| {
         !matches!(v.collection_type.as_deref(), Some("playlists" | "livetv" | "boxsets"))
@@ -290,41 +332,56 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         let latest = client.latest(&v.id).await;
         push_section(&mut sections, &format!("Récemment ajouté · {}", v.name), false, latest);
     }
+    Ok(sections)
+}
 
-    let make_jobs = |landscape: bool| -> Vec<ImageJob> {
-        sections
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.landscape == landscape)
-            .flat_map(|(si, s)| {
-                s.cards.iter().enumerate().filter_map(move |(ci, c)| {
-                    c.img_id.clone().map(|img_id| ImageJob {
-                        a: si,
-                        b: ci,
-                        item_id: c.id.clone(),
-                        img_id,
-                        tag: c.img_tag.clone(),
-                    })
-                })
-            })
-            .collect()
-    };
-    let poster_jobs = make_jobs(false);
-    let thumb_jobs = make_jobs(true);
+async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
+    let items = client.favorites().await?;
+    let groups: [(&str, &[&str], bool); 5] = [
+        ("Films", &["Movie"], false),
+        ("Séries", &["Series"], false),
+        ("Saisons", &["Season"], false),
+        ("Épisodes", &["Episode"], true),
+        ("Autres", &["BoxSet", "Video", "MusicVideo"], false),
+    ];
+    let mut sections: Vec<SectionData> = Vec::new();
+    for (title, kinds, landscape) in groups {
+        let of_kind: Vec<api::Item> = items.iter().filter(|i| kinds.contains(&i.kind.as_str())).cloned().collect();
+        push_section(&mut sections, title, landscape, Ok(of_kind));
+    }
+    Ok(sections)
+}
+
+/// Affiche des rangées de cartes et lance le chargement de leurs images.
+fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>) {
+    let ui = app.ui();
+
+    // Dimensions : voir card-w et SectionRow dans app.slint (rangée = 132 px x k + image).
+    let k = if app.tv { 1.4_f32 } else { 1.0 };
+    let card_w = if app.tv { 230.0_f32 } else { 170.0 };
+    let row_h = move |landscape: bool| 132.0 * k + if landscape { card_w * 1.5 * 0.5625 } else { card_w * 1.5 };
+
+    let mut poster_jobs: Vec<ImageJob> = Vec::new();
+    let mut thumb_jobs: Vec<ImageJob> = Vec::new();
+    for (si, s) in sections.iter().enumerate() {
+        for (ci, c) in s.cards.iter().enumerate() {
+            let job = ImageJob::for_card(si, ci, c, s.landscape);
+            if s.landscape { thumb_jobs.extend(job) } else { poster_jobs.extend(job) }
+        }
+    }
 
     let user_name = client.user_name.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
-        // Position verticale cumulée, en « unités de rangée » (une rangée de posters = 1).
         let mut y = 0.0_f32;
         let rows: Vec<Section> = sections
             .iter()
             .map(|s| {
-                let rel_h = if s.landscape { 0.72_f32 } else { 1.0_f32 };
+                let h = row_h(s.landscape);
                 let row = Section {
                     title: s.title.clone().into(),
                     landscape: s.landscape,
-                    rel_y: y,
-                    rel_h,
+                    y_px: y,
+                    h_px: h,
                     items: ModelRc::new(VecModel::from(
                         s.cards
                             .iter()
@@ -332,20 +389,27 @@ async fn load_home(app: Arc<App>, client: api::Client) {
                                 id: c.id.clone().into(),
                                 title: c.title.clone().into(),
                                 subtitle: c.subtitle.clone().into(),
+                                progress: c.progress,
+                                rating: c.rating.clone().into(),
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
                     )),
                 };
-                y += rel_h;
+                y += h;
                 row
             })
             .collect();
 
+        let empty = rows.is_empty();
         u.set_sections(ModelRc::new(VecModel::from(rows)));
         u.set_user_name(user_name.into());
         u.set_sel_section(0);
         u.set_sel_item(0);
+        // Rien à afficher (aucun favori...) : la sélection reste dans l'en-tête.
+        if empty {
+            u.set_h_focus(true);
+        }
         u.set_toast("".into());
         u.set_busy(false);
         u.set_screen("home".into());
@@ -356,10 +420,8 @@ async fn load_home(app: Arc<App>, client: api::Client) {
             set_card_image(u, job.a, job.b, &job.item_id, buf)
         },
     );
-    // Largeurs affichées : voir card-w dans app.slint (170 px, 230 en mode TV ; x 1,5 en 16:9).
-    let card_w = if app.tv { 230.0 } else { 170.0 };
-    spawn_image_jobs(&app, &client, poster_jobs, api::Size::Fill(270, 405), Shape::card(270, 405, card_w), apply.clone());
-    spawn_image_jobs(&app, &client, thumb_jobs, api::Size::Fill(320, 180), Shape::card(320, 180, card_w * 1.5), apply);
+    spawn_image_jobs(app, client, poster_jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply.clone());
+    spawn_image_jobs(app, client, thumb_jobs, api::Size::Fill(400, 225), Shape::card_top(400, 225, card_w * 1.5), apply);
 }
 
 // ---------------------------------------------------------------------------
@@ -406,7 +468,7 @@ fn go_back(app: &Arc<App>) {
             if stale {
                 if let Some(client) = app.client() {
                     let a = app.clone();
-                    app.rt.spawn(async move { load_home(a, client).await });
+                    app.rt.spawn(async move { load_tab(a, client).await });
                 }
             }
         }
@@ -489,15 +551,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let child_jobs: Vec<ImageJob> = child_cards
         .iter()
         .enumerate()
-        .filter_map(|(ci, c)| {
-            c.img_id.clone().map(|img_id| ImageJob {
-                a: 0,
-                b: ci,
-                item_id: c.id.clone(),
-                img_id,
-                tag: c.img_tag.clone(),
-            })
-        })
+        .filter_map(|(ci, c)| ImageJob::for_card(0, ci, c, landscape))
         .collect();
 
     let expect_logo = logo.is_some();
@@ -530,6 +584,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                 id: c.id.clone().into(),
                 title: c.title.clone().into(),
                 subtitle: c.subtitle.clone().into(),
+                progress: c.progress,
+                rating: c.rating.clone().into(),
                 ..Default::default()
             })
             .collect();
@@ -616,10 +672,10 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     }
 
     // Vignettes des enfants : 16:9 pour les épisodes, posters sinon.
-    let size = if landscape { api::Size::Fill(320, 180) } else { api::Size::Fill(270, 405) };
+    let size = if landscape { api::Size::Fill(400, 225) } else { api::Size::Fill(270, 405) };
     // child-card-w dans app.slint : (240 px en 16:9, 120 sinon) x k.
     let k = if app.tv { 1.4 } else { 1.0 };
-    let shape = if landscape { Shape::card(320, 180, 240.0 * k) } else { Shape::card(270, 405, 120.0 * k) };
+    let shape = if landscape { Shape::card_top(400, 225, 240.0 * k) } else { Shape::card_top(270, 405, 120.0 * k) };
     let apply: Apply = Arc::new(
         |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
             set_child_image(u, job.b, &job.item_id, buf)
@@ -755,6 +811,7 @@ fn main() -> anyhow::Result<()> {
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
         tv: cli.tv,
+        tab: Mutex::new("home".to_string()),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),
@@ -781,9 +838,12 @@ fn main() -> anyhow::Result<()> {
         move || {
             config::clear_token();
             *app.client.lock().unwrap() = None;
+            *app.tab.lock().unwrap() = "home".to_string();
             app.stack.lock().unwrap().clear();
             app.gen.fetch_add(1, Ordering::SeqCst);
             if let Some(u) = app.ui().upgrade() {
+                u.set_tab("home".into());
+                u.set_h_focus(false);
                 u.set_sections(ModelRc::default());
                 u.set_detail(DetailData::default());
                 u.set_child_items(ModelRc::default());
@@ -792,6 +852,36 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
+
+    ui.on_select_tab({
+        let app = app.clone();
+        move |tab| {
+            *app.tab.lock().unwrap() = tab.to_string();
+            if let Some(u) = app.ui().upgrade() {
+                u.set_tab(tab.clone());
+                u.set_h_focus(false);
+            }
+            if let Some(client) = app.client() {
+                let a = app.clone();
+                app.rt.spawn(async move { load_tab(a, client).await });
+            }
+        }
+    });
+
+    // Horloge de l'en-tête (« 16:52 »), mise à jour toutes les 10 s.
+    let clock = slint::Timer::default();
+    {
+        let tick = {
+            let ui = ui.as_weak();
+            move || {
+                if let Some(u) = ui.upgrade() {
+                    u.set_clock(chrono::Local::now().format("%H:%M").to_string().into());
+                }
+            }
+        };
+        tick();
+        clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
+    }
 
     ui.on_open_item({
         let app = app.clone();

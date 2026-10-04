@@ -1,4 +1,9 @@
 import { LineEdit, Button } from "std-widgets.slint";
+// Montserrat, la police de JellySkin (licence OFL : ui/fonts/OFL.txt), intégrée au programme.
+import "fonts/Montserrat-Regular.ttf";
+import "fonts/Montserrat-Medium.ttf";
+import "fonts/Montserrat-SemiBold.ttf";
+import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme } from "theme.slint";
 
@@ -10,14 +15,16 @@ export struct CardData {
     subtitle: string,
     image: image,
     has-image: bool,
+    progress: float, // avancement de la lecture (0..1), 0 = rien de commencé
+    rating: string,  // note de la communauté (« 7.7 »), vide si absente
 }
 
 export struct Section {
     title: string,
     items: [CardData],
-    landscape: bool, // rangée de vignettes 16:9 (« Mes médias »)
-    rel-y: float,    // position verticale, en unités de rangée
-    rel-h: float,    // hauteur, en unités de rangée
+    landscape: bool, // rangée de vignettes 16:9 (« Mes médias », « Reprendre »...)
+    y-px: float,     // position verticale de la rangée, en pixels logiques (calculée en Rust)
+    h-px: float,     // hauteur de la rangée, en pixels logiques
 }
 
 export struct ButtonData {
@@ -47,54 +54,112 @@ export struct DetailData {
     buttons: [ButtonData],
 }
 
+// Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
+// intégrés à l'image au décodage), titre et sous-titre centrés dessous. Sélection : encadré plus
+// sombre et carte légèrement agrandie (simple mise à l'échelle, sans image intermédiaire).
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
     in property <float> ratio: 1.5;
+    in property <float> k: 1.0;
     callback clicked();
 
-    VerticalLayout {
-        spacing: 6px;
+    property <length> img-h: root.width * root.ratio;
 
-        // Pas de « clip » arrondi : sur le moteur OpenGL de Slint, chaque élément arrondi qui rogne
-        // son contenu est dessiné hors écran puis recollé, à chaque image (saccades sur le Pi).
-        // Les images arrivent déjà recadrées, avec les coins arrondis dans leurs pixels.
-        Rectangle {
-            height: root.width * root.ratio;
-            border-radius: Theme.radius;
-            background: root.data.has-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+    z: root.focused ? 1 : 0;
+    transform-scale: root.focused ? 1.06 : 1.0;
+    animate transform-scale { duration: 120ms; easing: ease-out; }
+    border-radius: Theme.radius;
+    background: root.focused ? #00000080 : #00000033;
 
-            if root.data.has-image: Image {
-                width: parent.width;
-                height: parent.height;
-                source: root.data.image;
-                image-fit: fill;
-            }
+    Rectangle {
+        y: 0px;
+        height: root.img-h;
+        border-top-left-radius: Theme.radius;
+        border-top-right-radius: Theme.radius;
+        background: root.data.has-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
-            // Anneau de focus (par-dessus l'image)
+        if root.data.has-image: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.data.image;
+            image-fit: fill;
+        }
+
+        // Avancement de la lecture (comme .itemProgressBar de JellySkin)
+        if root.data.progress > 0: Rectangle {
+            x: 14px * root.k;
+            y: parent.height - 16px * root.k;
+            width: parent.width - 28px * root.k - (root.data.rating != "" ? 50px * root.k : 0px);
+            height: 5px * root.k;
+            border-radius: self.height / 2;
+            background: #ffffff4d;
+
             Rectangle {
-                width: parent.width;
+                x: 0px;
+                width: parent.width * root.data.progress;
                 height: parent.height;
-                border-radius: Theme.radius;
-                border-width: root.focused ? 3px : 0px;
-                border-color: Theme.accent2;
+                border-radius: parent.height / 2;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
             }
         }
 
-        Text {
-            text: root.data.title;
-            color: Theme.text;
-            font-size: 15px;
-            font-weight: 600;
-            overflow: elide;
-        }
+        // Note de la communauté
+        if root.data.rating != "": Rectangle {
+            x: parent.width - self.width - 8px * root.k;
+            y: parent.height - self.height - 7px * root.k;
+            width: 44px * root.k;
+            height: 18px * root.k;
+            border-radius: 4px * root.k;
+            background: #000000b3;
 
-        Text {
-            text: root.data.subtitle;
-            color: Theme.muted;
-            font-size: 12px;
-            overflow: elide;
+            HorizontalLayout {
+                alignment: center;
+                spacing: 3px * root.k;
+
+                Text {
+                    text: "★";
+                    color: #f5c518;
+                    font-size: 11px * root.k;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.data.rating;
+                    color: white;
+                    font-size: 11px * root.k;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
         }
+    }
+
+    Text {
+        x: 8px * root.k;
+        // Sans sous-titre (bibliothèques), le titre est centré dans l'encadré.
+        y: root.img-h + (root.data.subtitle == "" ? (parent.height - root.img-h - self.height) / 2 : 8px * root.k);
+        width: parent.width - 16px * root.k;
+        height: 22px * root.k;
+        text: root.data.title;
+        color: Theme.text;
+        font-size: 15px * root.k;
+        font-weight: 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Text {
+        x: 8px * root.k;
+        y: root.img-h + 30px * root.k;
+        width: parent.width - 16px * root.k;
+        height: 18px * root.k;
+        text: root.data.subtitle;
+        color: Theme.muted;
+        font-size: 12px * root.k;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
     }
 
     TouchArea {
@@ -104,6 +169,8 @@ component Card inherits Rectangle {
     }
 }
 
+// Rangée titrée de cartes, défilant horizontalement.
+// Hauteur attendue : 132 px x k + hauteur d'image (titre 48, marges 10 + 18, texte 56).
 component SectionRow inherits Rectangle {
     in property <string> title;
     in property <[CardData]> items;
@@ -111,10 +178,13 @@ component SectionRow inherits Rectangle {
     in property <float> ratio: 1.5;
     in property <bool> active;
     in property <int> focus-index;
+    in property <float> k: 1.0;
     callback activated(int);
 
-    property <length> gap: 16px;
-    property <length> pad: 32px;
+    property <length> gap: 18px * root.k;
+    property <length> pad: 32px * root.k;
+    property <length> title-h: 48px * root.k;
+    property <length> text-h: 56px * root.k;
     // Chaque rangée garde son propre défilement quand elle n'est pas active.
     property <int> remembered: 0;
     property <int> idx: root.active ? root.focus-index : root.remembered;
@@ -128,20 +198,29 @@ component SectionRow inherits Rectangle {
         }
     }
 
-    Text {
+    // Titre précédé d'un trait (comme .sectionTitle:before de JellySkin)
+    Rectangle {
         x: root.pad;
+        y: root.title-h / 2 - 1px;
+        width: 22px * root.k;
+        height: 2px;
+        background: white;
+    }
+
+    Text {
+        x: root.pad + 32px * root.k;
         y: 0px;
-        height: 40px;
+        height: root.title-h;
         text: root.title;
-        color: Theme.text;
-        font-size: 20px;
-        font-weight: 700;
+        color: white;
+        font-size: 22px * root.k;
+        font-weight: 500;
         vertical-alignment: center;
     }
 
     Rectangle {
-        y: 40px;
-        height: root.height - 40px;
+        y: root.title-h;
+        height: root.height - root.title-h;
         clip: true;
 
         Rectangle {
@@ -151,16 +230,95 @@ component SectionRow inherits Rectangle {
 
             for card[i] in root.items: Card {
                 x: root.pad + i * (root.card-w + root.gap);
-                y: 6px;
+                y: 10px * root.k;
                 width: root.card-w;
-                height: root.card-w * root.ratio + 56px;
+                height: root.card-w * root.ratio + root.text-h;
                 data: card;
                 ratio: root.ratio;
+                k: root.k;
                 focused: root.active && i == root.focus-index;
                 clicked => {
                     root.activated(i);
                 }
             }
+        }
+    }
+}
+
+// Onglet de l'en-tête : blanc et gras quand il est actif, souligné en dégradé quand il est sélectionné.
+component Tab inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <bool> focused;
+    in property <float> k: 1.0;
+    callback clicked();
+
+    preferred-width: label.preferred-width + 8px * root.k;
+
+    label := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.text;
+        color: (root.active || root.focused || area.has-hover) ? white : #ffffffa6;
+        font-size: 18px * root.k;
+        font-weight: root.active ? 700 : 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    if root.focused: Rectangle {
+        y: parent.height / 2 + 16px * root.k;
+        height: 3px * root.k;
+        border-radius: self.height / 2;
+        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+    }
+
+    area := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Icône ronde de l'en-tête (recherche, profil).
+component HeaderIcon inherits Rectangle {
+    in property <string> icon;
+    in property <bool> focused;
+    in property <float> k: 1.0;
+    callback clicked();
+
+    width: 44px * root.k;
+    height: 44px * root.k;
+    border-radius: self.height / 2;
+    background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+
+    if root.icon == "search": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: white;
+        stroke-width: 2.4px * root.k;
+        commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
+    }
+
+    if root.icon == "profile": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 12 3 A 4.5 4.5 0 1 1 11.99 3 Z M 3.5 21.5 C 3.5 16.5 7.5 14 12 14 C 16.5 14 20.5 16.5 20.5 21.5 Z";
+    }
+
+    area := TouchArea {
+        clicked => {
+            root.clicked();
         }
     }
 }
@@ -263,12 +421,13 @@ component OverviewPanel inherits Rectangle {
 export component AppWindow inherits Window {
     title: "Turtlefin";
     background: Theme.bg;
+    default-font-family: "Montserrat";
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
     min-height: 400px;
 
-    in-out property <string> screen: "login"; // "login" | "loading" | "home" | "detail"
+    in-out property <string> screen: "login"; // "login" | "loading" | "home" | "detail" | "search" | "profile"
     in-out property <string> server;
     in-out property <string> user-name;
     in-out property <string> error-text;
@@ -280,6 +439,11 @@ export component AppWindow inherits Window {
     in-out property <[Section]> sections;
     in-out property <int> sel-section: 0;
     in-out property <int> sel-item: 0;
+    in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites"
+    in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
+    in-out property <int> h-sel: 0;          // 0 Accueil · 1 Favoris · 2 Recherche · 3 Profil
+    in property <string> clock;              // « 16:52 »
+    in-out property <int> prof-sel: 1;      // écran Profil : 0 Réglages · 1 Déconnexion
 
     // Fiche détail
     in-out property <DetailData> detail;
@@ -313,11 +477,31 @@ export component AppWindow inherits Window {
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
+    callback select-tab(string);            // "home" | "favorites"
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
     property <length> card-w: root.tv-mode ? 230px : 170px;
-    property <length> row-h: root.card-w * 1.5 + 40px + 56px + 6px + 24px;
+    property <length> header-h: 72px * root.k;
+    property <int> tab-count: 2;
+
+    function tab-index() -> int {
+        return root.tab == "favorites" ? 1 : 0;
+    }
+
+    // Onglets, puis Recherche, puis Profil.
+    function header-activate(i: int) {
+        if (i == 0) {
+            root.select-tab("home");
+        } else if (i == 1) {
+            root.select-tab("favorites");
+        } else if (i == root.tab-count) {
+            root.screen = "search";
+        } else {
+            root.prof-sel = 1;
+            root.screen = "profile";
+        }
+    }
 
     property <length> poster-w: 200px * root.k;
     property <length> col-x: 64px + root.poster-w;
@@ -393,54 +577,115 @@ export component AppWindow inherits Window {
         vertical-alignment: center;
     }
 
-    // ------------------------------------------------------------ Accueil
+    // ------------------------------------------------------------ Accueil / Favoris
     if root.screen == "home" && !root.playing: Rectangle {
+        // En-tête : nom, onglets au centre, recherche, profil et heure à droite.
         Rectangle {
             y: 0px;
-            height: 56px;
+            height: root.header-h;
 
             Text {
-                x: 32px;
+                x: 32px * root.k;
+                height: parent.height;
                 text: "Turtlefin";
                 color: Theme.accent2;
-                font-size: 24px;
-                font-weight: 800;
+                font-size: 26px * root.k;
+                font-weight: 700;
                 vertical-alignment: center;
             }
 
-            Text {
-                x: parent.width - 330px;
-                width: 180px;
-                text: root.user-name;
-                color: Theme.muted;
-                horizontal-alignment: right;
-                vertical-alignment: center;
-                overflow: elide;
+            HorizontalLayout {
+                width: parent.width;
+                height: parent.height;
+                alignment: center;
+                spacing: 36px * root.k;
+
+                Tab {
+                    text: "Accueil";
+                    k: root.k;
+                    active: root.tab == "home";
+                    focused: root.h-focus && root.h-sel == 0;
+                    clicked => {
+                        root.h-sel = 0;
+                        root.header-activate(0);
+                    }
+                }
+                Tab {
+                    text: "Favoris";
+                    k: root.k;
+                    active: root.tab == "favorites";
+                    focused: root.h-focus && root.h-sel == 1;
+                    clicked => {
+                        root.h-sel = 1;
+                        root.header-activate(1);
+                    }
+                }
             }
 
-            ActionButton {
-                x: parent.width - 150px;
-                y: 10px;
-                width: 126px;
-                height: 36px;
-                text: "Déconnexion";
-                font: 14px;
-                focused: false;
-                clicked => {
-                    root.logout();
+            HorizontalLayout {
+                width: parent.width;
+                height: parent.height;
+                alignment: end;
+                spacing: 12px * root.k;
+                padding-right: 32px * root.k;
+                padding-top: (root.header-h - 44px * root.k) / 2;
+                padding-bottom: (root.header-h - 44px * root.k) / 2;
+
+                HeaderIcon {
+                    icon: "search";
+                    k: root.k;
+                    focused: root.h-focus && root.h-sel == root.tab-count;
+                    clicked => {
+                        root.header-activate(root.tab-count);
+                    }
+                }
+                HeaderIcon {
+                    icon: "profile";
+                    k: root.k;
+                    focused: root.h-focus && root.h-sel == root.tab-count + 1;
+                    clicked => {
+                        root.header-activate(root.tab-count + 1);
+                    }
+                }
+                Text {
+                    text: root.clock;
+                    color: Theme.text;
+                    font-size: 18px * root.k;
+                    font-weight: 500;
+                    vertical-alignment: center;
                 }
             }
         }
 
         FocusScope {
-            y: 56px;
-            height: parent.height - 56px;
+            y: root.header-h;
+            height: parent.height - root.header-h;
 
             init => {
                 self.focus();
             }
 
             key-pressed(event) => {
+                // Sélection dans l'en-tête
+                if (root.h-focus) {
+                    if (event.text == Key.LeftArrow) {
+                        root.h-sel = max(0, root.h-sel - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.h-sel = min(root.tab-count + 1, root.h-sel + 1);
+                    } else if (event.text == Key.DownArrow) {
+                        if (root.sections.length > 0) {
+                            root.h-focus = false;
+                        }
+                    } else if (event.text == Key.Return) {
+                        root.header-activate(root.h-sel);
+                    }
+                    return EventResult.accept;
+                }
+                if (root.sections.length == 0) {
+                    root.h-focus = true;
+                    root.h-sel = root.tab-index();
+                    return EventResult.accept;
+                }
                 if (event.text == Key.RightArrow) {
                     if (root.sel-item < root.sections[root.sel-section].items.length - 1) {
                         root.sel-item += 1;
@@ -464,6 +709,10 @@ export component AppWindow inherits Window {
                     if (root.sel-section > 0) {
                         root.sel-section -= 1;
                         root.sel-item = min(root.sel-item, max(0, root.sections[root.sel-section].items.length - 1));
+                    } else {
+                        // Depuis la première rangée : on monte dans l'en-tête, sur l'onglet affiché.
+                        root.h-focus = true;
+                        root.h-sel = root.tab-index();
                     }
                     return EventResult.accept;
                 }
@@ -474,30 +723,145 @@ export component AppWindow inherits Window {
                 return EventResult.reject;
             }
 
+            if root.sections.length == 0: Text {
+                text: root.tab == "favorites" ? "Aucun favori pour l'instant." : "Rien à afficher.";
+                color: Theme.muted;
+                font-size: 20px * root.k;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
             Rectangle {
                 clip: true;
 
                 Rectangle {
-                    y: min(0px, 8px - root.sections[root.sel-section].rel-y * root.row-h);
+                    y: root.sections.length == 0 ? 0px
+                        : min(0px, 4px * root.k - root.sections[root.sel-section].y-px * 1px);
                     animate y { duration: 180ms; easing: ease-out; }
 
                     for section[si] in root.sections: SectionRow {
-                        y: section.rel-y * root.row-h;
+                        y: section.y-px * 1px;
                         width: parent.width;
-                        height: section.rel-h * root.row-h - 24px;
+                        height: section.h-px * 1px;
                         title: section.title;
                         items: section.items;
                         card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
                         ratio: section.landscape ? 0.5625 : 1.5;
-                        active: si == root.sel-section;
+                        k: root.k;
+                        active: !root.h-focus && si == root.sel-section;
                         focus-index: root.sel-item;
                         activated(i) => {
+                            root.h-focus = false;
                             root.sel-section = si;
                             root.sel-item = i;
                             root.open-item(section.items[i].id);
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Recherche (à venir)
+    if root.screen == "search" && !root.playing: Rectangle {
+        FocusScope {
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
+                    root.screen = "home";
+                }
+                return EventResult.accept;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 14px * root.k;
+
+            Text {
+                text: "Recherche";
+                color: Theme.text;
+                font-size: 34px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Bientôt disponible.";
+                color: Theme.muted;
+                font-size: 18px * root.k;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Échap ou Retour arrière pour revenir";
+                color: Theme.muted;
+                font-size: 14px * root.k;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Profil
+    if root.screen == "profile" && !root.playing: Rectangle {
+        FocusScope {
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.screen = "home";
+                } else if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                    root.prof-sel = 0;
+                } else if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                    root.prof-sel = 1;
+                } else if (event.text == Key.Return && root.prof-sel == 1) {
+                    root.logout();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 24px * root.k;
+
+            Text {
+                text: root.user-name;
+                color: Theme.text;
+                font-size: 34px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: 16px * root.k;
+                height: 44px * root.k;
+
+                ActionButton {
+                    text: "Réglages · bientôt";
+                    font: 16px * root.k;
+                    focused: root.prof-sel == 0;
+                    clicked => {
+                        root.prof-sel = 0;
+                    }
+                }
+                ActionButton {
+                    text: "Déconnexion";
+                    font: 16px * root.k;
+                    focused: root.prof-sel == 1;
+                    clicked => {
+                        root.logout();
+                    }
+                }
+            }
+
+            Text {
+                text: "Échap ou Retour arrière pour revenir";
+                color: Theme.muted;
+                font-size: 14px * root.k;
+                horizontal-alignment: center;
             }
         }
     }
@@ -828,11 +1192,12 @@ export component AppWindow inherits Window {
         if root.child-items.length > 0: SectionRow {
             y: 24px + 300px * root.k + 16px;
             width: parent.width;
-            height: root.child-card-w * root.child-ratio + 40px + 56px + 6px;
+            height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
             items: root.child-items;
             card-w: root.child-card-w;
             ratio: root.child-ratio;
+            k: root.k;
             active: root.d-zone == 2;
             focus-index: root.d-child;
             activated(i) => {
