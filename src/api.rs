@@ -202,7 +202,7 @@ impl Item {
 
     /// Images 16:9 : vignette (Thumb) de la série pour un épisode, comme le client web,
     /// sinon image propre, puis fond (Backdrop).
-    fn landscape_candidates(&self) -> Vec<ImgCand> {
+    pub fn landscape_candidates(&self) -> Vec<ImgCand> {
         let mut v: Vec<ImgCand> = Vec::new();
         let own = |kind: &'static str| -> Option<ImgCand> {
             let tag = self.image_tags.as_ref()?.get(kind)?.clone();
@@ -715,16 +715,54 @@ impl Client {
         Ok((r.items, total))
     }
 
-    /// Début du générique de fin (segment « Outro » de Jellyfin 10.10+), en secondes.
-    pub async fn outro_start(&self, id: &str) -> Option<f64> {
-        let v: serde_json::Value = self.get(&format!("/MediaSegments/{id}"), &[]).await.ok()?;
-        v["Items"]
-            .as_array()?
-            .iter()
-            .filter(|s| matches!(s["Type"].as_str(), Some("Outro") | Some("Credits")))
-            .filter_map(|s| s["StartTicks"].as_f64())
-            .map(|t| t / 1e7)
-            .reduce(f64::min)
+    /// Segments du média : (début et fin de l'intro, début du générique de fin), en secondes.
+    /// Segments Jellyfin 10.10+ (que remplit le plugin Intro Skipper), sinon l'ancienne API du plugin.
+    pub async fn segments(&self, id: &str) -> (Option<(f64, f64)>, Option<f64>) {
+        let mut intro: Option<(f64, f64)> = None;
+        let mut outro: Option<f64> = None;
+        if let Ok(v) = self.get::<serde_json::Value>(&format!("/MediaSegments/{id}"), &[]).await {
+            for s in v["Items"].as_array().into_iter().flatten() {
+                let (Some(a), Some(b)) = (s["StartTicks"].as_f64(), s["EndTicks"].as_f64()) else { continue };
+                match s["Type"].as_str() {
+                    Some("Intro") if intro.is_none() => intro = Some((a / 1e7, b / 1e7)),
+                    Some("Outro") | Some("Credits") => outro = Some(outro.map_or(a / 1e7, |o: f64| o.min(a / 1e7))),
+                    _ => {}
+                }
+            }
+        }
+        if intro.is_none() || outro.is_none() {
+            // Ancienne API d'Intro Skipper : {"Introduction": {...}, "Credits": {...}}.
+            if let Ok(v) = self.get::<serde_json::Value>(&format!("/Episode/{id}/IntroSkipperSegments"), &[]).await {
+                let pick = |o: &serde_json::Value| -> Option<(f64, f64)> {
+                    if o["Valid"].as_bool() == Some(false) {
+                        return None;
+                    }
+                    let a = o["Start"].as_f64().or(o["IntroStart"].as_f64())?;
+                    let b = o["End"].as_f64().or(o["IntroEnd"].as_f64())?;
+                    (b > a).then_some((a, b))
+                };
+                if intro.is_none() {
+                    intro = pick(&v["Introduction"]);
+                }
+                if outro.is_none() {
+                    outro = pick(&v["Credits"]).map(|c| c.0);
+                }
+            }
+        }
+        (intro, outro)
+    }
+
+    /// Image de fond d'un élément (Backdrop, sinon Thumb / Primary), pour l'écran de fin.
+    pub async fn backdrop(&self, item: &Item) -> Option<Vec<u8>> {
+        let mut c: Vec<ImgCand> = Vec::new();
+        if let Some(t) = item.backdrop_image_tags.as_ref().and_then(|t| t.first()) {
+            c.push((item.id.clone(), "Backdrop", Some(t.clone())));
+        }
+        if let (Some(id), Some(t)) = (&item.parent_backdrop_item_id, item.parent_backdrop_image_tags.as_ref().and_then(|t| t.first())) {
+            c.push((id.clone(), "Backdrop", Some(t.clone())));
+        }
+        c.extend(item.landscape_candidates());
+        self.image_any(&c, Size::Fill(640, 360)).await
     }
 
     /// « Plus de ce genre » (éléments similaires de la bibliothèque).
@@ -829,9 +867,15 @@ impl Client {
         )
     }
 
-    /// Fichier original à télécharger (lecture hors ligne).
+    /// Fichier original à télécharger (lecture hors ligne). Le jeton doit passer par l'en-tête
+    /// (voir `auth`) : ce point d'accès refuse `api_key` dans l'adresse (401).
     pub fn download_url(&self, item_id: &str) -> String {
-        format!("{}/Items/{}/Download?api_key={}", self.server, item_id, self.token)
+        format!("{}/Items/{}/Download", self.server, item_id)
+    }
+
+    /// Valeur de l'en-tête Authorization de la session.
+    pub fn auth(&self) -> String {
+        auth_header(&self.device_id, Some(&self.token))
     }
 
     /// Sous-titre externe, si son format est connu de mpv.

@@ -130,7 +130,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         .unwrap_or_else(|| "mkv".to_string());
     let media = format!("media.{ext}");
     let part = dir.join(format!("{media}.part"));
-    let mut resp = http.get(client.download_url(&item.id)).send().await?;
+    let mut resp = http.get(client.download_url(&item.id)).header("Authorization", client.auth()).send().await?;
     if !resp.status().is_success() {
         return Err(anyhow!("le serveur refuse le téléchargement ({})", resp.status()));
     }

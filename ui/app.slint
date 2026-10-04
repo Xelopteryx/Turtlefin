@@ -552,9 +552,10 @@ component NavBar inherits Rectangle {
     in property <bool> show-home;
     in property <string> title;
     in property <brush> title-color: Theme.text;
-    in property <int> sel: -1; // bouton sélectionné : 0 menu · 1 retour (ou accueil) · 2 accueil
+    in property <int> sel: -1; // bouton sélectionné, de gauche à droite : [retour] [accueil] menu
     callback activate(int);
 
+    property <int> n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
     height: 72px * root.k;
 
     HorizontalLayout {
@@ -564,28 +565,28 @@ component NavBar inherits Rectangle {
         padding-top: (root.height - 44px * root.k) / 2;
         padding-bottom: (root.height - 44px * root.k) / 2;
 
-        HeaderIcon {
-            icon: "menu";
+        if root.can-back: HeaderIcon {
+            icon: "back";
             k: root.k;
             focused: root.sel == 0;
             clicked => {
                 root.activate(0);
             }
         }
-        if root.can-back: HeaderIcon {
-            icon: "back";
-            k: root.k;
-            focused: root.sel == 1;
-            clicked => {
-                root.activate(1);
-            }
-        }
         if root.show-home: HeaderIcon {
             icon: "home";
             k: root.k;
-            focused: root.sel == (root.can-back ? 2 : 1);
+            focused: root.sel == (root.can-back ? 1 : 0);
             clicked => {
-                root.activate(root.can-back ? 2 : 1);
+                root.activate(root.can-back ? 1 : 0);
+            }
+        }
+        HeaderIcon {
+            icon: "menu";
+            k: root.k;
+            focused: root.sel == root.n - 1;
+            clicked => {
+                root.activate(root.n - 1);
             }
         }
         Text {
@@ -702,6 +703,10 @@ export component AppWindow inherits Window {
     in property <image> p-up-image;
     in property <bool> p-has-up-image;
     in property <[CardData]> p-picks;       // 3 suggestions
+    in property <string> p-up-button;       // « Passer à l'épisode suivant » / « … à la saison suivante »
+    in-out property <bool> p-skip-intro;    // bouton « Passer l'intro »
+    in property <image> p-bg;               // fond de l'écran de fin (image du média, floutée)
+    in property <bool> p-has-bg;
 
     callback login(string, string, string); // serveur, utilisateur, mot de passe
     callback open-item(string);
@@ -724,16 +729,16 @@ export component AppWindow inherits Window {
     property <length> card-w: root.tv-mode ? 230px : 170px;
     property <length> header-h: 72px * root.k;
     property <int> tab-count: root.has-requests ? 3 : 2;
-    // Boutons de la barre de navigation : menu, [retour], [accueil].
+    // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
     property <int> nav-n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
 
     function nav-activate(i: int) {
         root.h-focus = false;
-        if (i == 0) {
-            root.open-menu();
-        } else if (i == 1 && root.can-back) {
+        if (i == 0 && root.can-back) {
             root.run-action("back");
+        } else if (i == root.nav-n - 1) {
+            root.open-menu();
         } else {
             root.go-home();
         }
@@ -779,10 +784,10 @@ export component AppWindow inherits Window {
         return true;
     }
 
-    // Monte dans la barre de navigation, sur Retour s'il existe.
+    // Monte dans la barre de navigation, sur le premier bouton (Retour s'il existe).
     function nav-enter() {
         root.h-focus = true;
-        root.h-sel = root.can-back ? 1 : 0;
+        root.h-sel = 0;
     }
 
     function tab-index() -> int {
@@ -2325,7 +2330,7 @@ export component AppWindow inherits Window {
                     x: 20px * root.k;
                     width: parent.width - 120px * root.k;
                     height: parent.height;
-                    text: "Privilégier l'adresse distante (Tailscale…), même si l'adresse locale répond";
+                    text: "Privilégier l'adresse locale (si elle répond) plutôt que l'adresse distante (Tailscale…)";
                     color: Theme.text;
                     font-size: 15px * root.k;
                     vertical-alignment: center;
@@ -2336,10 +2341,10 @@ export component AppWindow inherits Window {
                     width: 56px * root.k;
                     height: 30px * root.k;
                     border-radius: self.height / 2;
-                    background: root.prefer-remote ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
+                    background: !root.prefer-remote ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
 
                     Rectangle {
-                        x: root.prefer-remote ? parent.width - self.width - 4px * root.k : 4px * root.k;
+                        x: !root.prefer-remote ? parent.width - self.width - 4px * root.k : 4px * root.k;
                         width: 22px * root.k;
                         height: 22px * root.k;
                         border-radius: self.height / 2;
@@ -2464,6 +2469,14 @@ export component AppWindow inherits Window {
                     background: !e.header && (i == root.menu-sel || row.has-hover)
                         ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
 
+                    if e.header && i > 0: Rectangle {
+                        x: 4px * root.k;
+                        y: 6px * root.k;
+                        width: parent.width - 8px * root.k;
+                        height: 1px;
+                        background: #ffffff38;
+                    }
+
                     Text {
                         x: (e.header ? 14px : 18px) * root.k;
                         width: parent.width - 28px * root.k;
@@ -2518,6 +2531,10 @@ export component AppWindow inherits Window {
         up-image: root.p-up-image;
         has-up-image: root.p-has-up-image;
         picks: root.p-picks;
+        up-button: root.p-up-button;
+        skip-intro: root.p-skip-intro;
+        bg: root.p-bg;
+        has-bg: root.p-has-bg;
         command(c) => {
             root.player-cmd(c);
         }

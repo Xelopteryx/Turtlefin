@@ -178,6 +178,9 @@ struct Current {
     chapter_titles: Vec<(f64, String)>,
     /// Début du générique de fin (segment Jellyfin), si connu.
     outro: Option<f64>,
+    /// Intro (début, fin) : bouton « Passer l'intro ».
+    intro: Option<(f64, f64)>,
+    intro_shown: bool,
     /// Propositions de fin déjà affichées pour ce fichier.
     up_shown: bool,
     /// Fin du fichier atteinte (mpv est au repos, en attente d'un choix).
@@ -306,6 +309,19 @@ pub async fn play(
                             if sec != last_sec {
                                 last_sec = sec;
                                 push_time(&ui, &cur);
+                                // Intro : bouton « Passer l'intro » 5 s au plus, dès qu'elle commence.
+                                if let Some((s, e)) = cur.intro {
+                                    if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 {
+                                        cur.intro_shown = true;
+                                        let _ = ui.upgrade_in_event_loop(|u| u.set_p_skip_intro(true));
+                                        let ui2 = ui.clone();
+                                        let hide_at = (5.0_f64).min(e - cur.pos);
+                                        tokio::spawn(async move {
+                                            tokio::time::sleep(Duration::from_secs_f64(hide_at.max(0.5))).await;
+                                            let _ = ui2.upgrade_in_event_loop(|u| u.set_p_skip_intro(false));
+                                        });
+                                    }
+                                }
                                 // Générique de fin : on propose la suite (une fois par fichier).
                                 if !cur.up_shown && !cur.ended && cur.dur > 120.0 && cur.pos >= cur.outro_at() && cur.pos < cur.dur - 2.0 {
                                     cur.up_shown = true;
@@ -404,6 +420,13 @@ pub async fn play(
                         player.command(&["seek", &format!("{pct:.3}"), "absolute-percent"])
                     }
                     "chapter" => player.command(&["add", "chapter", arg]),
+                    "skip-intro" => {
+                        let _ = ui.upgrade_in_event_loop(|u| u.set_p_skip_intro(false));
+                        match cur.intro {
+                            Some((_, e)) => player.command(&["seek", &format!("{e:.2}"), "absolute"]),
+                            None => Ok(()),
+                        }
+                    }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
                     "aid" => player.set_property("aid", arg),
                     "sid" => player.set_property("sid", arg),
@@ -499,13 +522,29 @@ pub async fn play(
 /// Par fichier : début du générique (segments Jellyfin) et épisodes de la saison (bandeau ↓).
 async fn prepare_extras(app: &Arc<App>, client: Option<&Client>, cur: &mut Current) {
     let (Some(c), Some(it)) = (client, cur.item.clone()) else { return };
-    cur.outro = c.outro_start(&it.id).await;
+    let (intro, outro) = c.segments(&it.id).await;
+    cur.intro = intro;
+    cur.outro = outro;
 
     let ui = app.ui();
     let _ = ui.upgrade_in_event_loop(|u| {
         u.set_p_episodes(ModelRc::default());
         u.set_p_up_mode("".into());
+        u.set_p_skip_intro(false);
+        u.set_p_has_bg(false);
     });
+    // Fond de l'écran de fin : image du média, floutée et assombrie une fois.
+    {
+        let (ui2, c2, it2) = (ui.clone(), c.clone(), it.clone());
+        app.rt.spawn(async move {
+            let Some(bytes) = c2.backdrop(&it2).await else { return };
+            let Some(buf) = tokio::task::spawn_blocking(move || crate::decode_backdrop(&bytes)).await.ok().flatten() else { return };
+            let _ = ui2.upgrade_in_event_loop(move |u| {
+                u.set_p_bg(slint::Image::from_rgba8(buf));
+                u.set_p_has_bg(true);
+            });
+        });
+    }
     if it.kind != "Episode" {
         return;
     }
@@ -559,6 +598,7 @@ fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, ne
             let Ok(n) = c.item(&next_id).await else { return };
             let new_season = n.parent_index_number != it.parent_index_number;
             let title = if new_season { "Saison suivante" } else { "Épisode suivant" };
+            let button = if new_season { "Passer à la saison suivante" } else { "Passer à l'épisode suivant" };
             let card = n.child_card();
             let sub = match (n.parent_index_number, n.index_number) {
                 (Some(s), Some(e)) => format!("S{s}E{e} · {}", n.name),
@@ -566,6 +606,7 @@ fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, ne
             };
             let _ = app2.ui().upgrade_in_event_loop(move |u| {
                 u.set_p_up_title(title.into());
+                u.set_p_up_button(button.into());
                 u.set_p_up_sub(sub.into());
                 u.set_p_has_up_image(false);
                 u.set_p_up_mode("next".into());
@@ -695,6 +736,8 @@ fn load(
         chapters: Vec::new(),
         chapter_titles: Vec::new(),
         outro: None,
+        intro: None,
+        intro_shown: false,
         up_shown: false,
         ended: false,
         subs,

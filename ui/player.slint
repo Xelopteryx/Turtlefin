@@ -269,6 +269,10 @@ export component PlayerView inherits Rectangle {
     in property <image> up-image;
     in property <bool> has-up-image;
     in property <[CardData]> picks;
+    in property <string> up-button;
+    in property <bool> skip-intro;
+    in property <image> bg;
+    in property <bool> has-bg;
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "stop"
     callback toggle-fullscreen();
@@ -288,6 +292,11 @@ export component PlayerView inherits Rectangle {
     property <int> ep-sel: 0;
     property <int> up-sel: 0;    // carte suivante : 0 lire · 1 continuer ; suggestions : 0 vidéo / accueil · 1..3
     property <bool> mini: root.up-mode == "pick";
+    // Les suggestions montent du bas de l'écran (activé juste après leur création, pour l'animation).
+    property <bool> picks-in;
+    changed picks => {
+        root.picks-in = false;
+    }
     property <length> ep-h: 190px * root.k; // hauteur du bandeau d'épisodes
     changed up-mode => {
         root.up-sel = root.up-mode == "next" ? 0 : root.up-mode == "" ? 0 : 1;
@@ -380,7 +389,7 @@ export component PlayerView inherits Rectangle {
         height: root.mini ? 225px * root.k : parent.height;
         source: root.frame;
         image-fit: fill;
-        animate x, y, width, height { duration: 250ms; easing: ease-out; }
+        animate x, y, width, height { duration: 450ms; easing: ease-in-out; }
     }
 
     if !root.ready: Text {
@@ -465,12 +474,18 @@ export component PlayerView inherits Rectangle {
                 return EventResult.accept;
             }
 
-            // Carte « Épisode suivant » (commandes masquées) : ← → choisir, Entrée, Échap.
+            // « Passer l'intro » affiché et commandes masquées : Entrée passe l'intro.
+            if (root.skip-intro && (!root.osd || root.zone == 0) && event.text == Key.Return) {
+                root.command("skip-intro");
+                return EventResult.accept;
+            }
+
+            // Carte « Épisode suivant » (commandes masquées) : ↑ ↓ choisir, Entrée, Échap.
             if (root.up-mode == "next" && (!root.osd || root.zone == 0)) {
-                if (event.text == Key.LeftArrow) {
+                if (event.text == Key.UpArrow) {
                     root.up-sel = 0;
                     return EventResult.accept;
-                } else if (event.text == Key.RightArrow) {
+                } else if (event.text == Key.DownArrow) {
                     root.up-sel = 1;
                     return EventResult.accept;
                 } else if (event.text == Key.Return) {
@@ -959,12 +974,32 @@ export component PlayerView inherits Rectangle {
         }
     }
 
+    // ------------------------------------------------------------ Passer l'intro
+    if root.skip-intro && root.up-mode == "": Rectangle {
+        x: parent.width - self.width - root.m;
+        y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
+        width: 190px * root.k;
+        height: 48px * root.k;
+
+        PlayerButton {
+            width: parent.width;
+            size: 48px * root.k;
+            font: 16px * root.k;
+            text: "Passer l'intro";
+            focused: !root.osd || root.zone == 0;
+            clicked => {
+                root.command("skip-intro");
+            }
+        }
+    }
+
     // ------------------------------------------------------------ Épisode suivant (générique)
     if root.up-mode == "next": Rectangle {
-        x: parent.width - self.width - root.m;
-        y: root.m + 60px * root.k;
-        width: 300px * root.k;
-        height: 300px * 0.5625 * root.k + 104px * root.k;
+        x: root.m;
+        y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
+        animate y { duration: 160ms; easing: ease-out; }
+        width: 340px * root.k;
+        height: 340px * 0.5625 * root.k + 150px * root.k;
         border-radius: 14px;
         background: Theme.glass;
         border-width: 1px;
@@ -1003,26 +1038,26 @@ export component PlayerView inherits Rectangle {
             font-weight: 600;
             overflow: elide;
         }
-        HorizontalLayout {
+        VerticalLayout {
             x: 14px * root.k;
-            y: parent.height - 48px * root.k;
+            y: parent.height - 92px * root.k;
             width: parent.width - 28px * root.k;
-            height: 36px * root.k;
-            spacing: 10px * root.k;
+            height: 82px * root.k;
+            spacing: 8px * root.k;
 
             PlayerButton {
-                size: 36px * root.k;
+                size: 37px * root.k;
                 font: 14px * root.k;
-                text: "Lire";
+                text: root.up-button;
                 focused: root.up-sel == 0;
                 clicked => {
                     root.command("up:play");
                 }
             }
             PlayerButton {
-                size: 36px * root.k;
+                size: 37px * root.k;
                 font: 14px * root.k;
-                text: "Continuer";
+                text: "Regarder la fin de celui-ci";
                 focused: root.up-sel == 1;
                 clicked => {
                     root.command("up:dismiss");
@@ -1032,10 +1067,23 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Suggestions / écran de fin
-    if root.up-mode == "pick" || root.up-mode == "end": Rectangle {
-        // Voile : la vidéo réduite reste visible en haut à gauche (mode « pick »).
+    if root.up-mode == "pick" || root.up-mode == "end": ups := Rectangle {
+        // Haut de la zone des suggestions : sous la vidéo réduite (« pick ») ou en haut (« end »).
+        property <length> top: root.up-mode == "pick" ? 32px * root.k + 225px * root.k + 44px * root.k : 60px * root.k;
+        // Bas : place pour « Retour à l'accueil » (« end »).
+        property <length> bottom: root.up-mode == "end" ? 90px * root.k : 24px * root.k;
+        // Largeur des affiches : tout doit tenir en hauteur (titre 50 px, textes sous l'affiche 56 px).
+        property <length> pw: min(170px * root.k, (self.height - self.top - self.bottom - 50px * root.k - 56px * root.k) / 1.5);
+
+        // Fond : image du média qui vient de se terminer, floutée et assombrie au chargement.
+        if root.has-bg: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg;
+            image-fit: cover;
+        }
         Rectangle {
-            background: root.up-mode == "end" ? #000000f0 : #000000c0;
+            background: root.has-bg ? @linear-gradient(180deg, #00000066 0%, #000000d9 100%) : #000000e6;
         }
 
         // Vidéo réduite, redessinée au-dessus du voile (même texture, aucun coût de décodage).
@@ -1066,42 +1114,42 @@ export component PlayerView inherits Rectangle {
         if root.up-mode == "pick": Text {
             x: 32px * root.k;
             y: 32px * root.k + 225px * root.k + 10px * root.k;
-            text: "Continuer à regarder";
+            text: "Regarder la fin";
             color: root.up-sel == 0 ? white : Theme.muted;
             font-size: 15px * root.k;
             font-weight: 600;
         }
 
         Text {
-            y: root.up-mode == "pick" ? 310px * root.k : 70px * root.k;
+            y: ups.top;
+            height: 50px * root.k;
             width: parent.width;
             text: root.up-mode == "pick" ? "À voir ensuite" : "C'est fini ! À voir ensuite";
             color: Theme.text;
             font-size: 26px * root.k;
             font-weight: 700;
             horizontal-alignment: center;
+            vertical-alignment: center;
         }
 
-        HorizontalLayout {
-            y: root.up-mode == "pick" ? 360px * root.k : 130px * root.k;
-            height: 160px * 1.5 * root.k + 56px * root.k;
-            width: parent.width;
-            alignment: center;
-            spacing: 28px * root.k;
-
-            for p[i] in root.picks: PickCard {
-                width: 160px * root.k;
-                data: p;
-                k: root.k;
-                focused: root.up-sel == i + 1;
-                clicked => {
-                    root.command("pick:" + p.id);
-                }
+        // Les 3 suggestions (films ou séries) montent du bas de l'écran, l'une après l'autre.
+        for p[i] in root.picks: PickCard {
+            x: (ups.width - (root.picks.length * (ups.pw + 28px * root.k) - 28px * root.k)) / 2
+                + i * (ups.pw + 28px * root.k);
+            y: root.picks-in ? ups.top + 50px * root.k : ups.height + 20px;
+            animate y { duration: 520ms; delay: 120ms + i * 110ms; easing: ease-out; }
+            width: ups.pw;
+            height: ups.pw * 1.5 + 56px * root.k;
+            data: p;
+            k: root.k;
+            focused: root.up-sel == i + 1;
+            clicked => {
+                root.command("pick:" + p.id);
             }
         }
 
         if root.up-mode == "end": HorizontalLayout {
-            y: 130px * root.k + 160px * 1.5 * root.k + 90px * root.k;
+            y: parent.height - 70px * root.k;
             width: parent.width;
             height: 48px * root.k;
             alignment: center;
@@ -1114,6 +1162,15 @@ export component PlayerView inherits Rectangle {
                 clicked => {
                     root.command("home");
                 }
+            }
+        }
+
+        // Déclenche l'animation d'entrée des suggestions juste après leur affichage.
+        Timer {
+            interval: 40ms;
+            running: !root.picks-in && root.picks.length > 0;
+            triggered => {
+                root.picks-in = true;
             }
         }
     }

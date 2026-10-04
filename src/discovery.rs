@@ -229,6 +229,11 @@ pub async fn resolve(input: &str) -> Vec<(String, String, String)> {
     out
 }
 
+/// Le serveur répond-il (quelques secondes au plus) ?
+pub async fn reachable(base: &str) -> bool {
+    probe(&http(), base).await.is_some()
+}
+
 /// Choisit l'adresse à utiliser : la préférée si elle répond, sinon l'autre (ou la préférée par défaut).
 pub async fn pick(local: &str, remote: &str, prefer_remote: bool) -> String {
     let (first, second) = if prefer_remote { (remote, local) } else { (local, remote) };

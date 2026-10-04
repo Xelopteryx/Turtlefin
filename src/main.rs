@@ -28,11 +28,13 @@ struct Cli {
     tv: bool,
     /// Lecture d'essai sans serveur : --test-video=FICHIER_OU_URL.
     test_video: Option<String>,
+    /// Lecture directe d'un élément du serveur (essais) : --play=ID[@SECONDES].
+    play: Option<String>,
 }
 
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
-    let mut cli = Cli { user: None, pass: None, server: None, tv: false, test_video: None };
+    let mut cli = Cli { user: None, pass: None, server: None, tv: false, test_video: None, play: None };
 
     for a in std::env::args().skip(1) {
         match a.as_str() {
@@ -40,6 +42,7 @@ fn parse_cli() -> Cli {
             "--desktop" => cli.tv = false,
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
+            s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -86,6 +89,9 @@ struct App {
     dl_current: Mutex<Option<(String, String, f32)>>,
     /// Pas de serveur joignable : seuls les téléchargements sont accessibles.
     offline: AtomicBool,
+    /// Essais : élément à lancer au démarrage (--play) et position de départ forcée.
+    play_arg: Mutex<Option<String>>,
+    play_start: Mutex<Option<f64>>,
     /// Serveurs trouvés par la dernière recherche.
     found: Mutex<Vec<discovery::Found>>,
     /// Serveur choisi, en attente de connexion : (adresse locale, adresse distante).
@@ -176,6 +182,19 @@ fn round_corners(img: &mut image::RgbaImage, r: f32, top_only: bool) {
             }
         }
     }
+}
+
+/// Fond d'écran : image réduite, floutée et assombrie une seule fois au décodage.
+fn decode_backdrop(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    let img = image::load_from_memory(bytes).ok()?.resize_to_fill(480, 270, image::imageops::FilterType::Triangle);
+    let mut img = image::imageops::blur(&img.to_rgba8(), 6.0);
+    for p in img.pixels_mut() {
+        for c in 0..3 {
+            p[c] = (p[c] as f32 * 0.45) as u8;
+        }
+    }
+    let (w, h) = img.dimensions();
+    Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
 }
 
 fn decode(bytes: &[u8], shape: Option<Shape>) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
@@ -343,6 +362,13 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     app.stack.lock().unwrap().clear();
+    // Essais : --play=ID[@SECONDES] lance directement la lecture.
+    if let Some(p) = app.play_arg.lock().unwrap().take() {
+        let (id, at) = p.split_once('@').map(|(i, t)| (i.to_string(), t.parse::<f64>().ok())).unwrap_or((p.clone(), None));
+        *app.play_start.lock().unwrap() = at;
+        let a = app.clone();
+        app.rt.spawn(async move { play_flow(a, Some(id), None).await });
+    }
     // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
     let seerr = client.seerr_user().await;
     *app.seerr_user.lock().unwrap() = seerr;
@@ -1372,11 +1398,9 @@ async fn play_flow_with(
         let (item, start_secs) = match (&client, id) {
             (Some(c), Some(id)) => {
                 let target = resolve_playable(c, c.item(&id).await?).await?;
-                let start = target
-                    .user_data
-                    .as_ref()
-                    .map(|u| u.playback_position_ticks as f64 / 10_000_000.0)
-                    .unwrap_or(0.0);
+                let start = app.play_start.lock().unwrap().take().unwrap_or_else(|| {
+                    target.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 10_000_000.0).unwrap_or(0.0)
+                });
                 (Some(target), start)
             }
             _ => (None, 0.0),
@@ -1453,6 +1477,8 @@ fn main() -> anyhow::Result<()> {
         lib_loading: AtomicBool::new(false),
         lib_return: Mutex::new(None),
         found: Mutex::new(Vec::new()),
+        play_arg: Mutex::new(cli.play.clone()),
+        play_start: Mutex::new(None),
         can_download: AtomicBool::new(false),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
@@ -1678,6 +1704,7 @@ fn main() -> anyhow::Result<()> {
             rt.spawn(async move { login_flow(a, s, user, pw).await });
         }
     } else if !saved.token.is_empty() && !saved.server.is_empty() {
+        ui.set_screen("loading".into());
         let a = app.clone();
         let mut saved = saved.clone();
         rt.spawn(async move {
@@ -1695,7 +1722,7 @@ fn main() -> anyhow::Result<()> {
             }
             config::save(&saved);
             // Serveur injoignable : téléchargements seulement (s'il y en a).
-            if discovery::probe(&reqwest::Client::new(), &saved.server).await.is_none() && !downloads::list().is_empty() {
+            if !discovery::reachable(&saved.server).await && !downloads::list().is_empty() {
                 go_offline(&a);
                 return;
             }
