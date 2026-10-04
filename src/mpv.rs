@@ -347,9 +347,113 @@ pub struct Render {
     _mpv: Arc<Mpv>,
 }
 
+// ---------------------------------------------------------------------------
+// Contournement d'un bug de mpv 0.40 / 0.41 : à chaque image, mpv crée une barrière OpenGL
+// (glFenceSync) qu'il ne libère qu'au « swap », que l'API libmpv n'appelle jamais. Elles
+// s'accumulent : sur le Pi, chacune occupe un fichier ouvert, et au bout de ~42 s (1024 fichiers)
+// le pilote échoue (« MESA: error: Export failed »). Corrigé dans mpv après la 0.41.
+//
+// En OpenGL ES, on cache à mpv les tampons persistants (glBufferStorageEXT, une option) : ses
+// seules barrières sont alors celles des images. Turtlefin note celles qu'il crée pendant le
+// dessin d'une image et libère, après coup, celles qu'il n'a pas libérées lui-même. Avec un mpv
+// corrigé, il n'y en a simplement aucune.
+// ---------------------------------------------------------------------------
+type FenceSyncFn = unsafe extern "system" fn(u32, u32) -> *mut c_void;
+type DeleteSyncFn = unsafe extern "system" fn(*mut c_void);
+
+struct FenceHooks {
+    real_fence: Option<FenceSyncFn>,
+    real_delete: Option<DeleteSyncFn>,
+    /// Barrières créées par mpv et pas encore libérées.
+    live: Vec<usize>,
+}
+
+// Le rendu se fait sur le seul thread de l'interface : le verrou n'est jamais disputé.
+static HOOKS: std::sync::Mutex<FenceHooks> =
+    std::sync::Mutex::new(FenceHooks { real_fence: None, real_delete: None, live: Vec::new() });
+
+unsafe extern "system" fn fence_sync_hook(condition: u32, flags: u32) -> *mut c_void {
+    let mut h = HOOKS.lock().unwrap();
+    let Some(real) = h.real_fence else { return std::ptr::null_mut() };
+    let sync = real(condition, flags);
+    if !sync.is_null() {
+        h.live.push(sync as usize);
+    }
+    sync
+}
+
+unsafe extern "system" fn delete_sync_hook(sync: *mut c_void) {
+    let real = {
+        let mut h = HOOKS.lock().unwrap();
+        h.live.retain(|s| *s != sync as usize);
+        h.real_delete
+    };
+    if let Some(real) = real {
+        real(sync);
+    }
+}
+
+/// Libère les barrières que mpv a laissées derrière lui pendant le dessin d'une image.
+fn release_leaked_fences() {
+    let (leaked, real) = {
+        let mut h = HOOKS.lock().unwrap();
+        (std::mem::take(&mut h.live), h.real_delete)
+    };
+    if let Some(real) = real {
+        for s in leaked {
+            // SAFETY : barrière créée par glFenceSync dans ce contexte, jamais libérée.
+            unsafe { real(s as *mut c_void) };
+        }
+    }
+}
+
+/// Ce que reçoit get_proc_trampoline : la fonction de Slint et l'état du contournement.
+struct ProcCtx<'a> {
+    get_proc_address: &'a dyn Fn(&CStr) -> *const c_void,
+    fence_workaround: bool,
+}
+
 unsafe extern "C" fn get_proc_trampoline(ctx: *mut c_void, name: *const c_char) -> *mut c_void {
-    let f = &*(ctx as *const &dyn Fn(&CStr) -> *const c_void);
-    f(CStr::from_ptr(name)) as *mut c_void
+    let c = &*(ctx as *const ProcCtx);
+    let name = CStr::from_ptr(name);
+    if c.fence_workaround {
+        match name.to_bytes() {
+            b"glBufferStorageEXT" | b"glBufferStorage" => return std::ptr::null_mut(),
+            b"glFenceSync" => {
+                let real = (c.get_proc_address)(name);
+                if real.is_null() {
+                    return std::ptr::null_mut();
+                }
+                HOOKS.lock().unwrap().real_fence = Some(std::mem::transmute::<*const c_void, FenceSyncFn>(real));
+                return fence_sync_hook as *mut c_void;
+            }
+            b"glDeleteSync" => {
+                let real = (c.get_proc_address)(name);
+                if real.is_null() {
+                    return std::ptr::null_mut();
+                }
+                HOOKS.lock().unwrap().real_delete = Some(std::mem::transmute::<*const c_void, DeleteSyncFn>(real));
+                return delete_sync_hook as *mut c_void;
+            }
+            _ => {}
+        }
+    }
+    (c.get_proc_address)(name) as *mut c_void
+}
+
+/// Le contexte OpenGL courant est-il OpenGL ES ?
+fn is_gles(get_proc_address: &dyn Fn(&CStr) -> *const c_void) -> bool {
+    const GL_VERSION: u32 = 0x1F02;
+    let p = get_proc_address(c"glGetString");
+    if p.is_null() {
+        return false;
+    }
+    // SAFETY : glGetString(GL_VERSION) avec le contexte courant ; chaîne statique du pilote.
+    unsafe {
+        let get_string = std::mem::transmute::<*const c_void, unsafe extern "system" fn(u32) -> *const c_char>(p);
+        let v = get_string(GL_VERSION);
+        !v.is_null() && CStr::from_ptr(v).to_bytes().starts_with(b"OpenGL ES")
+    }
 }
 
 unsafe extern "C" fn wake_trampoline(ctx: *mut c_void) {
@@ -367,9 +471,17 @@ impl Render {
     ) -> Result<Self> {
         let api = mpv.api;
         let api_type = cstr("opengl");
+        let fence_workaround = is_gles(get_proc_address);
+        {
+            let mut h = HOOKS.lock().unwrap();
+            h.live.clear();
+            h.real_fence = None;
+            h.real_delete = None;
+        }
+        let proc_ctx = ProcCtx { get_proc_address, fence_workaround };
         let mut init = OpenGlInitParams {
             get_proc_address: Some(get_proc_trampoline),
-            get_proc_address_ctx: &get_proc_address as *const &dyn Fn(&CStr) -> *const c_void as *mut c_void,
+            get_proc_address_ctx: &proc_ctx as *const ProcCtx as *mut c_void,
         };
         let mut params = [
             RenderParam { kind: RENDER_PARAM_API_TYPE, data: api_type.as_ptr() as *mut c_void },
@@ -408,6 +520,7 @@ impl Render {
             (self.api.render_update)(self.ctx);
             (self.api.render_render)(self.ctx, params.as_mut_ptr());
         }
+        release_leaked_fences();
     }
 }
 
@@ -418,5 +531,6 @@ impl Drop for Render {
             (self.api.render_set_update_callback)(self.ctx, None, std::ptr::null_mut());
             (self.api.render_free)(self.ctx);
         }
+        release_leaked_fences();
     }
 }

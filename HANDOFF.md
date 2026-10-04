@@ -111,6 +111,11 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
 
 1. Branche `libmpv` : un plantage de mpv fait planter Turtlefin (même processus). Le lecteur est recréé à chaque lecture.
 2. Branche `libmpv` : la lecture exige le rendu OpenGL de Slint (`SLINT_BACKEND=winit-software` l'empêche).
+2b. **Bug de mpv 0.40 / 0.41** (corrigé dans mpv le 23 janvier 2026, commit f74adc4, pas encore publié) : une barrière OpenGL
+   (glFenceSync) par image jamais libérée avec libmpv. Sur le Pi (mpv 0.40/0.41, pilote v3d) chacune occupe un fichier :
+   « MESA: error: Export failed » après ~42 s (limite de 1024). Contournement dans `src/mpv.rs` (OpenGL ES uniquement) :
+   tampons persistants cachés à mpv, barrières créées pendant le dessin d'une image notées et libérées si mpv ne l'a pas fait.
+   Diagnostic : `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` doit rester stable (~50) pendant la lecture.
 3. **Croissance RAM de mpv** (~3 Mo/min, par paliers, sur un épisode de FMA aux sous-titres ASS) : cause non élucidée (polices/glyphes libass probable). Test à faire avec `TURTLEFIN_MPV_ARGS="--sid=no"`. Borné à la durée d'une lecture puisque mpv est relancé à chaque vidéo.
 4. Cache d'images disque sans purge (`<cache>/turtlefin/img`).
 5. Jeton d'accès en clair dans `session.json` (0600 sous Unix) ; avec libmpv, il n'apparaît plus dans une ligne de commande.
