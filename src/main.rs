@@ -1604,6 +1604,47 @@ fn main() -> anyhow::Result<()> {
         move |p| set_prefer_remote(&app, p)
     });
 
+    // Navigation entre rangées : carte de la rangée cible dont le centre, avec le défilement
+    // actuel de cette rangée (celui de sa dernière sélection, comme SectionRow), est le plus
+    // proche de `x` : on arrive sur la carte visuellement au-dessus / en dessous.
+    let row_mem: Arc<Mutex<std::collections::HashMap<i32, i32>>> = Arc::default();
+    ui.on_row_seen({
+        let m = row_mem.clone();
+        move |key, idx| {
+            m.lock().unwrap().insert(key, idx);
+        }
+    });
+    ui.on_row_pick({
+        let m = row_mem.clone();
+        move |x, rw, n, w, gap, pad, key| {
+            if n <= 0 {
+                return 0;
+            }
+            let rem = m.lock().unwrap().get(&key).copied().unwrap_or(0).clamp(0, n - 1);
+            let strip = n as f32 * (w + gap) + 2.0 * pad;
+            let base = |i: i32| pad + i as f32 * (w + gap) + w / 2.0;
+            let offset = (rw - strip).max(rw / 2.0 - base(rem)).min(0.0);
+            (0..n).min_by(|a, b| (base(*a) + offset - x).abs().total_cmp(&(base(*b) + offset - x).abs())).unwrap_or(0)
+        }
+    });
+    // Nouvelles rangées (accueil rechargé, autre fiche) : défilements oubliés.
+    {
+        let m = row_mem.clone();
+        let weak = ui.as_weak();
+        let last: Arc<Mutex<(usize, String)>> = Arc::default();
+        let t = slint::Timer::default();
+        t.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(300), move || {
+            let Some(u) = weak.upgrade() else { return };
+            let now = (u.get_sections().row_count(), u.get_detail().id.to_string());
+            let mut l = last.lock().unwrap();
+            if *l != now {
+                *l = now;
+                m.lock().unwrap().clear();
+            }
+        });
+        std::mem::forget(t);
+    }
+
     ui.on_go_home({
         let app = app.clone();
         move || go_home(&app)

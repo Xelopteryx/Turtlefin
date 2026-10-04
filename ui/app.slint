@@ -621,6 +621,15 @@ export component AppWindow inherits Window {
     in-out property <[Section]> sections;
     in-out property <int> sel-section: 0;
     in-out property <int> sel-item: 0;
+    changed sel-item => {
+        root.row-seen(root.sel-section, root.sel-item);
+    }
+    changed d-x => {
+        root.row-seen(1000 + root.d-zone, root.d-x);
+    }
+    changed d-child => {
+        root.row-seen(1002, root.d-child);
+    }
     in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites" | "requests"
     in property <bool> has-requests;         // Seerr disponible : onglet Demandes
     in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
@@ -716,6 +725,11 @@ export component AppWindow inherits Window {
     callback go-home();
     callback menu-action(string);
     callback lib-more();                    // page suivante de la bibliothèque
+    // Navigation entre rangées : carte de la rangée cible (n cartes de largeur w) la plus proche
+    // du centre `x` à l'écran, une fois cette rangée défilée vers elle. Calcul fait en Rust.
+    // `key` désigne la rangée cible (son défilement actuel est mémorisé côté Rust par row-seen).
+    pure callback row-pick(float /* x */, float /* largeur de rangée */, int /* n */, float /* w */, float /* écart */, float /* marge */, int /* key */) -> int;
+    callback row-seen(int /* key */, int /* index sélectionné */);
     callback servers-search();
     callback dl-play(string);
     callback dl-delete(string);
@@ -729,6 +743,27 @@ export component AppWindow inherits Window {
     property <length> card-w: root.tv-mode ? 230px : 170px;
     property <length> header-h: 72px * root.k;
     property <int> tab-count: root.has-requests ? 3 : 2;
+
+    // Centre à l'écran de la carte i d'une rangée (même calcul de défilement que SectionRow).
+    pure function card-center(i: int, n: int, w: length, gap: length, pad: length, rw: length) -> length {
+        return pad + i * (w + gap) + w / 2
+            + min(0px, max(rw - (n * (w + gap) + pad * 2), rw / 2 - (pad + i * (w + gap) + w / 2)));
+    }
+    // Rangées de l'accueil.
+    pure function home-w(si: int) -> length {
+        return root.sections[si].landscape ? root.card-w * 1.5 : root.card-w;
+    }
+    pure function home-pick(from: int, to: int) -> int {
+        return root.row-pick(
+            root.card-center(root.sel-item, root.sections[from].items.length, root.home-w(from), 18px * root.k, 32px * root.k, root.width) / 1px,
+            root.width / 1px, root.sections[to].items.length, root.home-w(to) / 1px, 18 * root.k, 32 * root.k, to);
+    }
+    // Fiche : rangée d'enfants (zone 2) et rangées du bas (zones 4+), cartes de 140 px x k.
+    pure function detail-pick-down(from-x: int, from-n: int, from-w: length, to-row: int) -> int {
+        return root.row-pick(
+            root.card-center(from-x, from-n, from-w, 18px * root.k, 32px * root.k, root.width) / 1px,
+            root.width / 1px, root.detail-rows[to-row].items.length, 140 * root.k, 18 * root.k, 32 * root.k, 1004 + to-row);
+    }
     // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
     property <int> nav-n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
@@ -1039,15 +1074,15 @@ export component AppWindow inherits Window {
                 }
                 if (event.text == Key.DownArrow) {
                     if (root.sel-section < root.sections.length - 1) {
+                        root.sel-item = root.home-pick(root.sel-section, root.sel-section + 1);
                         root.sel-section += 1;
-                        root.sel-item = min(root.sel-item, max(0, root.sections[root.sel-section].items.length - 1));
                     }
                     return EventResult.accept;
                 }
                 if (event.text == Key.UpArrow) {
                     if (root.sel-section > 0) {
+                        root.sel-item = root.home-pick(root.sel-section, root.sel-section - 1);
                         root.sel-section -= 1;
-                        root.sel-item = min(root.sel-item, max(0, root.sections[root.sel-section].items.length - 1));
                     } else {
                         // Depuis la première rangée : on monte dans l'en-tête, sur l'onglet affiché.
                         root.h-focus = true;
@@ -1354,8 +1389,8 @@ export component AppWindow inherits Window {
                     }
                     if (event.text == Key.DownArrow) {
                         if (root.detail-rows.length > 0) {
+                            root.d-x = root.detail-pick-down(root.d-child, root.child-items.length, root.child-card-w, 0);
                             root.d-zone = 4;
-                            root.d-x = min(root.d-x, max(0, root.detail-rows[0].items.length - 1));
                         }
                         return EventResult.accept;
                     }
@@ -1377,14 +1412,19 @@ export component AppWindow inherits Window {
                         }
                     } else if (event.text == Key.DownArrow) {
                         if (root.d-zone - 4 < root.detail-rows.length - 1) {
+                            root.d-x = root.detail-pick-down(root.d-x, root.detail-rows[root.d-zone - 4].items.length, 140px * root.k, root.d-zone - 3);
                             root.d-zone += 1;
-                            root.d-x = min(root.d-x, max(0, root.detail-rows[root.d-zone - 4].items.length - 1));
                         }
                     } else if (event.text == Key.UpArrow) {
                         if (root.d-zone > 4) {
+                            root.d-x = root.detail-pick-down(root.d-x, root.detail-rows[root.d-zone - 4].items.length, 140px * root.k, root.d-zone - 5);
                             root.d-zone -= 1;
-                            root.d-x = min(root.d-x, max(0, root.detail-rows[root.d-zone - 4].items.length - 1));
                         } else {
+                            if (root.child-items.length > 0) {
+                                root.d-child = root.row-pick(
+                                    root.card-center(root.d-x, root.detail-rows[0].items.length, 140px * root.k, 18px * root.k, 32px * root.k, root.width) / 1px,
+                                    root.width / 1px, root.child-items.length, root.child-card-w / 1px, 18 * root.k, 32 * root.k, 1002);
+                            }
                             root.d-zone = root.child-items.length > 0 ? 2 : root.detail.overview != "" ? 1 : 0;
                         }
                     } else if (event.text == Key.Return) {
