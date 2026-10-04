@@ -46,7 +46,22 @@ struct State {
 pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     let weak = ui.as_weak();
     let mut state: Option<State> = None;
+    // Diagnostic : TURTLEFIN_DEBUG_FRAMES=1 signale chaque image affichée plus de 25 ms après la
+    // précédente (à 60 Hz, une image arrive toutes les 16,7 ms : au-delà, au moins une est sautée).
+    // À combiner avec SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console pour un rendu continu.
+    let debug_frames = std::env::var_os("TURTLEFIN_DEBUG_FRAMES").is_some();
+    let mut last_frame: Option<std::time::Instant> = None;
     ui.window().set_rendering_notifier(move |rs, api| {
+        if debug_frames && matches!(rs, slint::RenderingState::AfterRendering) {
+            let now = std::time::Instant::now();
+            if let Some(prev) = last_frame {
+                let ms = now.duration_since(prev).as_secs_f64() * 1000.0;
+                if ms > 25.0 {
+                    eprintln!("image lente : {ms:.1} ms");
+                }
+            }
+            last_frame = Some(now);
+        }
         let slint::GraphicsAPI::NativeOpenGL { get_proc_address } = api else { return };
         match rs {
             slint::RenderingState::RenderingSetup => {
