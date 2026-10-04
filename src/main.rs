@@ -78,6 +78,8 @@ struct App {
     /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
     /// pour y revenir au retour.
     lib_return: Mutex<Option<(String, usize)>>,
+    /// Le compte peut télécharger (bouton Télécharger des fiches).
+    can_download: AtomicBool,
     /// Serveurs trouvés par la dernière recherche.
     found: Mutex<Vec<discovery::Found>>,
     /// Serveur choisi, en attente de connexion : (adresse locale, adresse distante).
@@ -347,6 +349,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         set_menu(&app, &views);
     }
     complete_addresses(&app, &client);
+    app.can_download.store(client.can_download().await, Ordering::SeqCst);
     load_tab(app, client).await;
 }
 
@@ -497,6 +500,129 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
     );
     spawn_image_jobs(app, client, poster_jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply.clone());
     spawn_image_jobs(app, client, thumb_jobs, api::Size::Fill(400, 225), Shape::card_top(400, 225, card_w * 1.5), apply);
+}
+
+// ---------------------------------------------------------------------------
+// Fiche : rangées du bas (casting, plus de ce genre, Seerr) et boutons à bascule
+// ---------------------------------------------------------------------------
+fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
+    let (app2, client2, item) = (app.clone(), client.clone(), item.clone());
+    let seerr = *app.seerr_user.lock().unwrap();
+    app.rt.spawn(async move {
+        let mut rows: Vec<SectionData> = Vec::new();
+        let people = item.people_cards();
+        if !people.is_empty() {
+            rows.push(SectionData { title: "Casting et équipe".into(), landscape: false, cards: people });
+        }
+        // Épisode / saison : suggestions de la série.
+        let base = match item.kind.as_str() {
+            "Episode" | "Season" => match &item.series_id {
+                Some(sid) => client2.item(sid).await.unwrap_or_else(|_| item.clone()),
+                None => item.clone(),
+            },
+            _ => item.clone(),
+        };
+        if let Ok(sim) = client2.similar(&base.id).await {
+            push_section(&mut rows, "Plus de ce genre", false, Ok(sim));
+        }
+        if let (Some(_), Some(tmdb)) = (seerr, base.tmdb()) {
+            let tv = base.kind == "Series";
+            for (title, kind) in [("Similaires", "similar"), ("Recommandés", "recommendations")] {
+                let cards = client2.seerr_related(tv, tmdb, kind).await;
+                if !cards.is_empty() {
+                    rows.push(SectionData { title: title.into(), landscape: false, cards });
+                }
+            }
+        }
+        if rows.is_empty() {
+            return;
+        }
+
+        // Dimensions : cartes de 140 px x k (voir detail-rows dans app.slint).
+        let k = if app2.tv { 1.4_f32 } else { 1.0 };
+        let card_w = 140.0 * k;
+        let row_h = 132.0 * k + card_w * 1.5;
+        let item_id = item.id.clone();
+        let mut jobs: Vec<ImageJob> = Vec::new();
+        for (ri, r) in rows.iter().enumerate() {
+            jobs.extend(r.cards.iter().enumerate().filter_map(|(ci, c)| ImageJob::for_card(ri, ci, c, false)));
+        }
+        let id_check = item_id.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            if u.get_detail().id.as_str() != id_check {
+                return;
+            }
+            let sections: Vec<Section> = rows
+                .iter()
+                .enumerate()
+                .map(|(i, s)| Section {
+                    title: s.title.clone().into(),
+                    landscape: false,
+                    y_px: i as f32 * row_h,
+                    h_px: row_h,
+                    items: ModelRc::new(VecModel::from(
+                        s.cards
+                            .iter()
+                            .map(|c| CardData {
+                                id: c.id.clone().into(),
+                                title: c.title.clone().into(),
+                                subtitle: c.subtitle.clone().into(),
+                                progress: c.progress,
+                                rating: c.rating.clone().into(),
+                                ..Default::default()
+                            })
+                            .collect::<Vec<_>>(),
+                    )),
+                })
+                .collect();
+            u.set_detail_rows(ModelRc::new(VecModel::from(sections)));
+        });
+        let apply: Apply = Arc::new(move |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
+            let rows = u.get_detail_rows();
+            let Some(row) = rows.row_data(job.a) else { return };
+            let Some(mut card) = row.items.row_data(job.b) else { return };
+            if card.id.as_str() != job.item_id {
+                return;
+            }
+            card.image = slint::Image::from_rgba8(buf);
+            card.has_image = true;
+            row.items.set_row_data(job.b, card);
+        });
+        spawn_image_jobs(&app2, &client2, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply);
+    });
+}
+
+/// Favori / vu : bascule côté serveur, puis mise à jour du bouton (sans recharger la fiche).
+fn toggle_flag(app: &Arc<App>, action: &str) {
+    let Some(client) = app.client() else { return };
+    let Some(u) = app.ui().upgrade() else { return };
+    let d = u.get_detail();
+    let id = d.id.to_string();
+    let Some(idx) = (0..d.buttons.row_count()).find(|i| d.buttons.row_data(*i).map(|b| b.action == action).unwrap_or(false)) else {
+        return;
+    };
+    let on = !d.buttons.row_data(idx).map(|b| b.active).unwrap_or(false);
+    // Affichage immédiat ; on revient en arrière si le serveur refuse.
+    let set = move |u: &AppWindow, v: bool| {
+        let d = u.get_detail();
+        if let Some(mut b) = d.buttons.row_data(idx) {
+            b.active = v;
+            d.buttons.set_row_data(idx, b);
+        }
+    };
+    set(&u, on);
+    let (app2, action) = (app.clone(), action.to_string());
+    app.rt.spawn(async move {
+        let r = if action == "fav" { client.set_favorite(&id, on).await } else { client.set_played(&id, on).await };
+        app2.home_stale.store(true, Ordering::SeqCst);
+        if let Err(e) = r {
+            let msg = format!("Action impossible : {e}");
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                set(&u, !on);
+                u.set_toast(msg.into());
+            });
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -846,9 +972,12 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
 // Navigation : fiche détail
 // ---------------------------------------------------------------------------
 fn push_detail(app: &Arc<App>, id: String) {
+    if id.starts_with("person:") {
+        return;
+    }
     if id.is_empty() {
         if let Some(u) = app.ui().upgrade() {
-            u.set_toast("Pas encore disponible dans Jellyfin.".into());
+            u.set_toast("Pas (encore) dans ta bibliothèque Jellyfin.".into());
         }
         return;
     }
@@ -1001,7 +1130,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         None => Default::default(),
     };
     let has_next = next_card.is_some();
-    let buttons = item.buttons();
+    let buttons = item.buttons(app.can_download.load(Ordering::SeqCst));
     let misc = item.misc_line();
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
@@ -1032,7 +1161,12 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             buttons: ModelRc::new(VecModel::from(
                 buttons
                     .into_iter()
-                    .map(|(label, action)| ButtonData { label: label.into(), action: action.into() })
+                    .map(|(label, action, icon, active)| ButtonData {
+                        label: label.into(),
+                        action: action.into(),
+                        icon: icon.into(),
+                        active,
+                    })
                     .collect::<Vec<_>>(),
             )),
             ..Default::default()
@@ -1051,6 +1185,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
 
         u.set_detail(detail);
         u.set_child_items(ModelRc::new(VecModel::from(cards)));
+        u.set_detail_rows(ModelRc::default());
+        u.set_d_x(0);
         u.set_d_zone(0);
         u.set_d_button(0);
         u.set_d_child(0);
@@ -1129,6 +1265,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             });
         }
     }
+
+    spawn_detail_rows(&app, &client, &item);
 
     // Vignettes des enfants : 16:9 pour les épisodes, posters sinon.
     let size = if landscape { api::Size::Fill(400, 225) } else { api::Size::Fill(270, 405) };
@@ -1276,6 +1414,7 @@ fn main() -> anyhow::Result<()> {
         lib_loading: AtomicBool::new(false),
         lib_return: Mutex::new(None),
         found: Mutex::new(Vec::new()),
+        can_download: AtomicBool::new(false),
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
@@ -1452,6 +1591,10 @@ fn main() -> anyhow::Result<()> {
                     let a2 = app.clone();
                     app.rt.spawn(async move { play_flow(a2, Some(id), None).await });
                 }
+            } else if a == "fav" || a == "played" {
+                toggle_flag(&app, a);
+            } else if a == "download" {
+                start_download(&app);
             } else if let Some(id) = a.strip_prefix("open:") {
                 push_detail(&app, id.to_string());
             }
@@ -1509,4 +1652,11 @@ fn main() -> anyhow::Result<()> {
 
     ui.run()?;
     Ok(())
+}
+
+/// Téléchargement de l'élément affiché (mode hors ligne) : voir downloads.rs.
+fn start_download(app: &Arc<App>) {
+    if let Some(u) = app.ui().upgrade() {
+        u.set_toast("Téléchargement : bientôt.".into());
+    }
 }

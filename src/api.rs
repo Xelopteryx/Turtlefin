@@ -59,6 +59,18 @@ pub struct UserData {
     pub played: bool,
     /// Avancement de la lecture en cours (0-100), absent si rien n'est commencé.
     pub played_percentage: Option<f64>,
+    pub is_favorite: bool,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct Person {
+    pub id: String,
+    pub name: String,
+    pub role: Option<String>,
+    #[serde(rename = "Type")]
+    pub kind: Option<String>,
+    pub primary_image_tag: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -110,6 +122,8 @@ pub struct Item {
     pub parent_backdrop_image_tags: Option<Vec<String>>,
     pub user_data: Option<UserData>,
     pub media_sources: Option<Vec<MediaSource>>,
+    pub people: Option<Vec<Person>>,
+    pub provider_ids: Option<HashMap<String, String>>,
 }
 
 /// Ce dont l'interface a besoin pour afficher une carte.
@@ -364,28 +378,66 @@ impl Item {
         parts.join("  ·  ")
     }
 
-    /// Boutons de la fiche : (libellé, action). Actions : "play", "back", "open:<id>".
-    pub fn buttons(&self) -> Vec<(String, String)> {
-        let mut b: Vec<(String, String)> = Vec::new();
-        if matches!(self.kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
-            let resume = self
-                .user_data
-                .as_ref()
-                .map(|u| u.playback_position_ticks > 0)
-                .unwrap_or(false);
-            b.push((if resume { "Reprendre" } else { "Lecture" }.to_string(), "play".to_string()));
+    /// Boutons de la fiche : (libellé, action, icône, actif). Les boutons à icône n'ont pas de
+    /// libellé. Actions : "play", "fav", "played", "download", "open:<id>".
+    pub fn buttons(&self, can_download: bool) -> Vec<(String, String, String, bool)> {
+        let mut b: Vec<(String, String, String, bool)> = Vec::new();
+        let ud = self.user_data.clone().unwrap_or_default();
+        let playable = matches!(self.kind.as_str(), "Movie" | "Episode" | "Series" | "Season" | "Video" | "MusicVideo");
+        if playable {
+            b.push((String::new(), "play".into(), "play".into(), false));
+            b.push((String::new(), "fav".into(), "heart".into(), ud.is_favorite));
+            b.push((String::new(), "played".into(), "check".into(), ud.played));
+            if can_download {
+                b.push((String::new(), "download".into(), "download".into(), false));
+            }
         }
         if self.kind == "Episode" {
             if let Some(id) = &self.season_id {
-                b.push(("Voir la saison".to_string(), format!("open:{id}")));
+                b.push(("Voir la saison".into(), format!("open:{id}"), String::new(), false));
             }
         }
         if matches!(self.kind.as_str(), "Episode" | "Season") {
             if let Some(id) = &self.series_id {
-                b.push(("Voir la série".to_string(), format!("open:{id}")));
+                b.push(("Voir la série".into(), format!("open:{id}"), String::new(), false));
             }
         }
         b
+    }
+
+    /// Casting et équipe : cartes portrait (photo, nom, rôle).
+    pub fn people_cards(&self) -> Vec<CardInfo> {
+        let mut out = Vec::new();
+        for p in self.people.iter().flatten().take(30) {
+            let role = match (p.kind.as_deref(), p.role.as_deref().filter(|r| !r.is_empty())) {
+                (Some("Actor") | Some("GuestStar"), Some(r)) => r.to_string(),
+                (Some("Actor"), None) => "Acteur".into(),
+                (Some("GuestStar"), None) => "Invité".into(),
+                (Some("Director"), _) => "Réalisation".into(),
+                (Some("Writer"), _) => "Scénario".into(),
+                (Some("Producer"), _) => "Production".into(),
+                (Some("Composer"), _) => "Musique".into(),
+                (_, Some(r)) => r.to_string(),
+                _ => String::new(),
+            };
+            out.push(CardInfo {
+                // Pas encore de page « personne » : la carte ne mène nulle part.
+                id: format!("person:{}", p.id),
+                title: p.name.clone(),
+                subtitle: role,
+                img_id: p.primary_image_tag.as_ref().map(|_| p.id.clone()),
+                img_tag: p.primary_image_tag.clone(),
+                thumbs: Vec::new(),
+                progress: 0.0,
+                rating: String::new(),
+            });
+        }
+        out
+    }
+
+    /// Identifiant TMDB (pour Seerr).
+    pub fn tmdb(&self) -> Option<i64> {
+        self.provider_ids.as_ref()?.get("Tmdb")?.parse().ok()
     }
 
     /// Poster de la fiche, par ordre de préférence. Un épisode affiche le poster
@@ -659,6 +711,79 @@ impl Client {
         let r: ItemsResp = self.get("/Items", &q).await?;
         let total = r.total_record_count.unwrap_or(r.items.len() as u32);
         Ok((r.items, total))
+    }
+
+    /// « Plus de ce genre » (éléments similaires de la bibliothèque).
+    pub async fn similar(&self, id: &str) -> Result<Vec<Item>> {
+        let r: ItemsResp = self.get(&format!("/Items/{id}/Similar"), &[("userId", &self.user_id), ("limit", "16")]).await?;
+        Ok(r.items)
+    }
+
+    /// Le compte a-t-il le droit de télécharger ?
+    pub async fn can_download(&self) -> bool {
+        let v: serde_json::Value = match self.get(&format!("/Users/{}", self.user_id), &[]).await {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        v["Policy"]["EnableContentDownloading"].as_bool().unwrap_or(false)
+    }
+
+    async fn send_flag(&self, method: reqwest::Method, path: &str) -> Result<()> {
+        let resp = self
+            .http
+            .request(method, format!("{}{}", self.server, path))
+            .query(&[("userId", &self.user_id)])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("Le serveur a répondu {} sur {path}", resp.status()));
+        }
+        Ok(())
+    }
+
+    pub async fn set_favorite(&self, id: &str, on: bool) -> Result<()> {
+        let m = if on { reqwest::Method::POST } else { reqwest::Method::DELETE };
+        self.send_flag(m, &format!("/UserFavoriteItems/{id}")).await
+    }
+
+    pub async fn set_played(&self, id: &str, on: bool) -> Result<()> {
+        let m = if on { reqwest::Method::POST } else { reqwest::Method::DELETE };
+        self.send_flag(m, &format!("/UserPlayedItems/{id}")).await
+    }
+
+    /// Seerr : « similar » ou « recommendations » d'un film / d'une série TMDB.
+    pub async fn seerr_related(&self, tv: bool, tmdb: i64, kind: &str) -> Vec<CardInfo> {
+        let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}/{kind}", if tv { "tv" } else { "movie" });
+        let v: serde_json::Value = match self.get(&path, &[]).await {
+            Ok(v) => v,
+            Err(_) => return Vec::new(),
+        };
+        let mut out = Vec::new();
+        for r in v["results"].as_array().into_iter().flatten().take(16) {
+            let title = r["title"].as_str().or(r["name"].as_str()).unwrap_or("").to_string();
+            if title.is_empty() {
+                continue;
+            }
+            let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
+            let available = r["mediaInfo"]["status"].as_i64() == Some(5);
+            let jf = r["mediaInfo"]["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string);
+            let mut sub = vec![year];
+            if available {
+                sub.push("disponible".into());
+            }
+            out.push(CardInfo {
+                id: jf.unwrap_or_default(),
+                title,
+                subtitle: sub.into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
+                img_id: r["posterPath"].as_str().filter(|p| !p.is_empty()).map(|p| format!("https://image.tmdb.org/t/p/w342{p}")),
+                img_tag: None,
+                thumbs: Vec::new(),
+                progress: 0.0,
+                rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
+            });
+        }
+        out
     }
 
     /// Prochain épisode à regarder d'une série.
