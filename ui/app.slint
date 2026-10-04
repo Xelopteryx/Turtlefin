@@ -298,7 +298,7 @@ export component AppWindow inherits Window {
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
-    callback player-cmd(string);            // pendant la lecture : "pause", "seek-10", ...
+    callback player-cmd(string);            // pendant la lecture : "up", "enter", "audio", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
     property <length> card-w: root.tv-mode ? 230px : 170px;
@@ -497,26 +497,31 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
-                // Lecture en cours : les touches pilotent mpv (utile aussi à la télécommande).
+                // Lecture en cours : les touches sont transmises à mpv (le lecteur décide
+                // selon qu'un menu de pistes est ouvert ou non). Valable aussi à la télécommande.
                 if (root.playing) {
-                    if (event.text == Key.Space || event.text == Key.Return) {
-                        root.player-cmd("pause");
+                    if (event.text == Key.Space) {
+                        root.player-cmd("space");
+                    } else if (event.text == Key.Return) {
+                        root.player-cmd("enter");
                     } else if (event.text == Key.LeftArrow) {
-                        root.player-cmd("seek-10");
+                        root.player-cmd("left");
                     } else if (event.text == Key.RightArrow) {
-                        root.player-cmd("seek+10");
+                        root.player-cmd("right");
                     } else if (event.text == Key.UpArrow) {
-                        root.player-cmd("vol+5");
+                        root.player-cmd("up");
                     } else if (event.text == Key.DownArrow) {
-                        root.player-cmd("vol-5");
+                        root.player-cmd("down");
                     } else if (event.text == "a") {
                         root.player-cmd("audio");
                     } else if (event.text == "s") {
                         root.player-cmd("sub");
                     } else if (event.text == Key.F11 || event.text == "f") {
                         root.full-screen = !root.full-screen;
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == "q") {
-                        root.player-cmd("stop");
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.player-cmd("escape");
+                    } else if (event.text == "q") {
+                        root.player-cmd("quit");
                     }
                     return EventResult.accept;
                 }

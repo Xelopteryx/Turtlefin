@@ -4,7 +4,7 @@
 //! Turtlefin observe `time-pos`, `pause` et `duration` via l'IPC et fait le
 //! rapport de lecture au serveur (début, progression toutes les 10 s, fin).
 
-use std::{ffi::OsString, process::Stdio, time::Duration};
+use std::{ffi::OsString, path::PathBuf, process::Stdio, time::Duration};
 
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
@@ -25,19 +25,24 @@ pub struct PlayRequest {
     pub wid: Option<i64>,
 }
 
-/// Commandes envoyées par l'interface pendant la lecture (touches clavier / télécommande).
-fn command_json(cmd: &str) -> Option<Value> {
-    Some(match cmd {
-        "pause" => json!({ "command": ["cycle", "pause"] }),
-        "seek-10" => json!({ "command": ["seek", -10, "relative"] }),
-        "seek+10" => json!({ "command": ["seek", 10, "relative"] }),
-        "vol+5" => json!({ "command": ["add", "volume", 5] }),
-        "vol-5" => json!({ "command": ["add", "volume", -5] }),
-        "audio" => json!({ "command": ["cycle", "audio"] }),
-        "sub" => json!({ "command": ["cycle", "sub"] }),
-        "stop" => json!({ "command": ["quit"] }),
-        _ => return None,
-    })
+/// Interface de lecture (barre de contrôle, menus des pistes) dessinée par mpv dans la vidéo.
+/// Rien de Slint ne peut s'afficher par-dessus la vidéo intégrée : elle vit donc dans ce script Lua.
+const UI_SCRIPT: &str = include_str!("turtlefin_ui.lua");
+
+/// Nom sous lequel mpv connaît le script (nom du fichier sans extension).
+const UI_SCRIPT_NAME: &str = "turtlefin_ui";
+
+/// Envoie une commande JSON à mpv.
+async fn send<W: AsyncWriteExt + Unpin>(wr: &mut W, v: &Value) {
+    let _ = wr.write_all(format!("{v}
+").as_bytes()).await;
+}
+
+/// Écrit le script d'interface dans le dossier temporaire (mpv ne lit les scripts que depuis un fichier).
+fn ui_script_path() -> Option<PathBuf> {
+    let p = std::env::temp_dir().join(format!("{UI_SCRIPT_NAME}.lua"));
+    std::fs::write(&p, UI_SCRIPT).ok()?;
+    Some(p)
 }
 
 /// Cherche mpv : variable TURTLEFIN_MPV, puis à côté de l'exécutable, puis dans le PATH.
@@ -84,6 +89,21 @@ mod ipc {
     }
 }
 
+/// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
+/// Sur Raspberry Pi (Linux ARM 64 bits), le décodage matériel V4L2 produit des images au format
+/// Broadcom « SAND » que Vulkan ne sait pas importer dans mpv : résultat, un écran vide. On décode
+/// donc en logiciel par défaut. Ailleurs (Windows, PC Linux) : « auto-safe ».
+fn hwdec_mode() -> String {
+    if let Ok(v) = std::env::var("TURTLEFIN_HWDEC") {
+        return v;
+    }
+    if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "no".to_string()
+    } else {
+        "auto-safe".to_string()
+    }
+}
+
 fn ticks(secs: f64) -> i64 {
     (secs.max(0.0) * 10_000_000.0) as i64
 }
@@ -107,8 +127,19 @@ pub async fn play(
     let mut cmd = Command::new(mpv_path());
     cmd.arg(format!("--input-ipc-server={ipc_path}"))
         .arg(format!("--force-media-title={media_title}"))
-        .arg("--hwdec=auto-safe")
+        .arg(format!("--hwdec={}", hwdec_mode()))
         .arg("--keep-open=no");
+    // Notre interface remplace la barre de mpv (OSC).
+    match ui_script_path() {
+        Some(p) => {
+            cmd.arg("--osc=no").arg(format!("--script={}", p.display()));
+        }
+        None => eprintln!("turtlefin : impossible d'écrire le script d'interface, barre de mpv par défaut"),
+    }
+    // Pi : rendu simplifié (mise à l'échelle bilinéaire...) pour ménager le GPU.
+    if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        cmd.arg("--profile=fast");
+    }
     if let Some(wid) = req.wid {
         cmd.arg(format!("--wid={wid}"));
     } else if req.fullscreen {
@@ -122,6 +153,32 @@ pub async fn play(
             if let Some(u) = client.subtitle_url(&item.id, &ms_id, st) {
                 cmd.arg(format!("--sub-file={u}"));
             }
+        }
+    }
+    // Linux : sortie audio via PipeWire/PulseAudio (le serveur de son du système), ALSA en dernier
+    // recours. Écrase un « ao=alsa » + « audio-device=alsa/plughw:... » de ~/.config/mpv/mpv.conf, qui
+    // échoue quand PipeWire occupe déjà la sortie HDMI. TURTLEFIN_AO=alsa (par ex.) pour choisir autre
+    // chose, ou TURTLEFIN_AO= (vide) pour ne rien imposer et laisser la config de mpv décider.
+    #[cfg(target_os = "linux")]
+    match std::env::var("TURTLEFIN_AO") {
+        Ok(v) if v.is_empty() => {}
+        Ok(v) => {
+            cmd.arg(format!("--ao={v}")).arg("--audio-device=auto");
+        }
+        Err(_) => {
+            cmd.arg("--ao=pipewire,pulse,alsa").arg("--audio-device=auto");
+        }
+    }
+    // Plafonne le cache réseau (par défaut mpv peut approcher 200 Mo de plus que nécessaire).
+    cmd.arg("--demuxer-max-bytes=100MiB").arg("--demuxer-max-back-bytes=25MiB");
+    // Diagnostic : TURTLEFIN_MPV_LOG=/chemin/mpv.log enregistre le journal détaillé de mpv.
+    if let Ok(path) = std::env::var("TURTLEFIN_MPV_LOG") {
+        cmd.arg(format!("--log-file={path}")).arg("--msg-level=all=v");
+    }
+    // Essais : TURTLEFIN_MPV_ARGS="--vo=x11 --hwdec=no" ajoute des options à mpv sans recompiler.
+    if let Ok(extra) = std::env::var("TURTLEFIN_MPV_ARGS") {
+        for a in extra.split_whitespace() {
+            cmd.arg(a);
         }
     }
     cmd.arg("--").arg(&url);
@@ -183,6 +240,7 @@ pub async fn play(
             line = lines.next_line() => {
                 let Ok(Some(line)) = line else { break }; // mpv a fermé le canal
                 let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+
                 match v.get("event").and_then(Value::as_str) {
                     Some("property-change") => match v.get("name").and_then(Value::as_str) {
                         Some("time-pos") => {
@@ -217,24 +275,39 @@ pub async fn play(
                 let _ = client.report("/Sessions/Playing/Progress", &body(pos, paused)).await;
             }
             cmd = commands.recv(), if commands_open => {
-                match cmd {
-                    Some(c) => {
-                        if let Some(j) = command_json(&c) {
-                            let _ = wr.write_all(format!("{j}\n").as_bytes()).await;
-                        }
-                    }
-                    None => commands_open = false,
-                }
+                let Some(c) = cmd else {
+                    commands_open = false;
+                    continue;
+                };
+
+                // Les touches vont à l'interface dessinée par mpv, qui décide selon son état
+                // (barre affichée ou non, menu des pistes ouvert...). « q » quitte toujours.
+                let msg = if c == "quit" {
+                    json!({ "command": ["quit"] })
+                } else {
+                    json!({ "command": ["script-message-to", UI_SCRIPT_NAME, "key", c] })
+                };
+                send(&mut wr, &msg).await;
             }
         }
     }
 
-    let _ = child.wait().await;
+    let status = child.wait().await;
 
     // Fin de fichier atteinte : on rapporte la durée complète pour que le serveur marque « vu ».
     if reached_end && duration > 0.0 {
         pos = duration;
     }
     let _ = client.report("/Sessions/Playing/Stopped", &body(pos, false)).await;
+
+    // Un code de sortie non nul = mpv a échoué (sortie vidéo/audio impossible, flux illisible...).
+    if let Ok(st) = status {
+        if !st.success() {
+            return Err(anyhow!(
+                "mpv s'est terminé avec le code {:?} (relance avec TURTLEFIN_MPV_LOG=/tmp/mpv.log pour le détail)",
+                st.code()
+            ));
+        }
+    }
     Ok(())
 }

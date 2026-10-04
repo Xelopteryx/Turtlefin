@@ -30,13 +30,32 @@ Il rapporte au serveur le début, la progression (toutes les 10 s) et la fin de 
 - **Vidéo intégrée** : mpv dessine dans la fenêtre de Turtlefin (HWND sous Windows, XID sous X11).
   Sous Wayland ce n'est pas possible : mpv s'ouvre alors dans sa propre fenêtre (un message l'indique).
   `TURTLEFIN_EMBED=0` force l'ancien comportement (fenêtre mpv séparée).
-- Touches pendant la lecture (reçues par Turtlefin, donc valables aussi avec une télécommande) :
-  Espace/Entrée pause · ← → saut de 10 s · ↑ ↓ volume · `a` piste audio · `s` sous-titres ·
-  `f` ou F11 plein écran de la fenêtre Turtlefin · Échap/Retour arrière/`q` arrêter.
-  Si tu cliques sur la vidéo, mpv reçoit le clavier directement (ses touches habituelles marchent aussi).
-- Limite du mode intégré : rien de Turtlefin ne peut s'afficher PAR-DESSUS la vidéo (la barre de mpv fait office de commandes).
+- **Interface de lecture** dessinée dans la vidéo, aux couleurs du thème (`src/turtlefin_ui.lua`, chargé dans mpv) :
+  barre avec titre, temps, barre de progression cliquable, boutons Lecture/Pause, -10 s, +10 s, Audio, Sous-titres,
+  Arrêter ; menus des pistes audio / sous-titres (langue, titre, codec, canaux ; point blanc = piste active).
+  Elle apparaît au mouvement de la souris ou à une touche, et se masque après 3 s (sauf en pause ou menu ouvert).
+- Souris : survol + clic sur les boutons et les pistes, clic sur la vidéo = pause, molette = volume (ou défilement du menu).
+- Touches (reçues par Turtlefin ou par mpv, donc valables aussi avec une télécommande) :
+  - barre masquée : Entrée affiche la barre et sélectionne les boutons · Espace pause · ← → saut de 10 s ·
+    ↑ ↓ volume · `a` menu audio · `s` menu sous-titres · Échap/Retour arrière arrête la lecture ;
+  - boutons sélectionnés : ← → changer de bouton · Entrée activer · Échap masquer la barre ;
+  - menu de pistes : ↑ ↓ choisir · Entrée valider · Échap ou ← fermer.
+  - `f` ou F11 plein écran de la fenêtre · `q` quitter tout de suite.
+- Limite du mode intégré : rien de Slint ne peut s'afficher PAR-DESSUS la vidéo, d'où l'interface dessinée par mpv.
 - Les sous-titres externes (srt/ass/vtt) sont ajoutés automatiquement.
 - Le jeton d'accès figure dans la ligne de commande de mpv (visible des autres processus de la machine).
+
+## Diagnostic de la lecture
+
+- `TURTLEFIN_MPV_LOG=/tmp/mpv.log` : enregistre le journal détaillé de mpv (à lire avec `tail -n 80 /tmp/mpv.log`).
+- `TURTLEFIN_MPV_ARGS="--vo=x11 --hwdec=no"` : ajoute des options à mpv sans recompiler.
+- `TURTLEFIN_EMBED=0` : mpv dans sa propre fenêtre (pour savoir si le souci vient de l'intégration).
+- `TURTLEFIN_HWDEC=auto-safe` (ou autre valeur de `--hwdec`) force le décodage matériel. Par défaut : logiciel sur
+  Raspberry Pi / Linux ARM 64 bits (le décodage matériel V4L2 y donne un écran vide avec Vulkan), `auto-safe` ailleurs.
+- Son sous Linux : Turtlefin demande à mpv d'utiliser PipeWire/PulseAudio (puis ALSA) avec le périphérique « auto »,
+  ce qui prime sur un `ao=alsa` de `~/.config/mpv/mpv.conf`. `TURTLEFIN_AO=alsa` choisit un autre pilote ;
+  `TURTLEFIN_AO=` (vide) laisse la config de mpv décider.
+- Le cache réseau de mpv est plafonné (100 Mo en avant, 25 Mo en arrière) : sa RAM monte puis se stabilise.
 
 ## Ligne de commande
 
