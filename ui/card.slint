@@ -1,0 +1,10 @@
+// Données d'une carte (accueil, fiche, lecteur).
+export struct CardData {
+    id: string,
+    title: string,
+    subtitle: string,
+    image: image,
+    has-image: bool,
+    progress: float, // avancement de la lecture (0..1), 0 = rien de commencé
+    rating: string,  // note de la communauté (« 7.7 »), vide si absente
+}

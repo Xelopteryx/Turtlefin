@@ -713,6 +713,18 @@ impl Client {
         Ok((r.items, total))
     }
 
+    /// Début du générique de fin (segment « Outro » de Jellyfin 10.10+), en secondes.
+    pub async fn outro_start(&self, id: &str) -> Option<f64> {
+        let v: serde_json::Value = self.get(&format!("/MediaSegments/{id}"), &[]).await.ok()?;
+        v["Items"]
+            .as_array()?
+            .iter()
+            .filter(|s| matches!(s["Type"].as_str(), Some("Outro") | Some("Credits")))
+            .filter_map(|s| s["StartTicks"].as_f64())
+            .map(|t| t / 1e7)
+            .reduce(f64::min)
+    }
+
     /// « Plus de ce genre » (éléments similaires de la bibliothèque).
     pub async fn similar(&self, id: &str) -> Result<Vec<Item>> {
         let r: ItemsResp = self.get(&format!("/Items/{id}/Similar"), &[("userId", &self.user_id), ("limit", "16")]).await?;

@@ -1334,7 +1334,7 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
         u.set_playing(true);
     });
 
-    let result: anyhow::Result<()> = async {
+    let result: anyhow::Result<player::Exit> = async {
         let (item, start_secs) = match (&client, id) {
             (Some(c), Some(id)) => {
                 let target = resolve_playable(c, c.item(&id).await?).await?;
@@ -1347,7 +1347,7 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
             }
             _ => (None, 0.0),
         };
-        player::play(client.clone(), player::PlayRequest { item, start_secs, test_url }, rx, ui.clone()).await
+        player::play(app.clone(), client.clone(), player::PlayRequest { item, start_secs, test_url }, rx, ui.clone()).await
     }
     .await;
 
@@ -1355,13 +1355,17 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
     app.playing.store(false, Ordering::SeqCst);
     app.home_stale.store(true, Ordering::SeqCst);
 
+    let go_home_after = matches!(result, Ok(player::Exit::Home));
     let msg = result.err().map(|e| format!("Lecture impossible : {e}"));
     let top = app.stack.lock().unwrap().last().cloned();
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_playing(false);
-        // Recharge la fiche : l'état « Reprendre » / « vu » a pu changer.
-        if let Some(id) = top {
+        u.set_p_up_mode("".into());
+        if go_home_after {
+            go_home(&app2);
+        } else if let Some(id) = top {
+            // Recharge la fiche : l'état « Reprendre » / « vu » a pu changer.
             start_detail(&app2, id);
         }
         if let Some(m) = msg {

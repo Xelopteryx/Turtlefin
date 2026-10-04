@@ -6,18 +6,12 @@ import "fonts/Montserrat-SemiBold.ttf";
 import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme } from "theme.slint";
+import { CardData } from "card.slint";
+
+export { CardData }
 
 export { TrackData }
 
-export struct CardData {
-    id: string,
-    title: string,
-    subtitle: string,
-    image: image,
-    has-image: bool,
-    progress: float, // avancement de la lecture (0..1), 0 = rien de commencé
-    rating: string,  // note de la communauté (« 7.7 »), vide si absente
-}
 
 export struct Section {
     title: string,
@@ -693,6 +687,14 @@ export component AppWindow inherits Window {
     in property <int> audio-current;
     in property <[TrackData]> sub-tracks;
     in property <int> sub-current;
+    in property <[CardData]> p-episodes;    // épisodes de la saison (bandeau ↓)
+    in property <int> p-ep-current;
+    in-out property <string> p-up-mode;     // "" | "next" | "pick" | "end" (propositions de fin)
+    in property <string> p-up-title;
+    in property <string> p-up-sub;
+    in property <image> p-up-image;
+    in property <bool> p-has-up-image;
+    in property <[CardData]> p-picks;       // 3 suggestions
 
     callback login(string, string, string); // serveur, utilisateur, mot de passe
     callback open-item(string);
@@ -2312,6 +2314,14 @@ export component AppWindow inherits Window {
         audio-current: root.audio-current;
         sub-tracks: root.sub-tracks;
         sub-current: root.sub-current;
+        episodes: root.p-episodes;
+        ep-current: root.p-ep-current;
+        up-mode: root.p-up-mode;
+        up-title: root.p-up-title;
+        up-sub: root.p-up-sub;
+        up-image: root.p-up-image;
+        has-up-image: root.p-has-up-image;
+        picks: root.p-picks;
         command(c) => {
             root.player-cmd(c);
         }

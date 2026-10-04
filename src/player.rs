@@ -10,11 +10,19 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
-use slint::{ModelRc, VecModel};
+use slint::{Model, ModelRc, VecModel};
 
 use crate::api::{Client, Item};
 use crate::mpv::{Event, Mpv};
-use crate::{video, AppWindow, TrackData};
+use crate::{api, video, App, AppWindow, CardData, TrackData};
+
+/// Comment la lecture s'est terminée.
+pub enum Exit {
+    /// Retour à l'écran précédent (fiche).
+    Back,
+    /// « Retour à l'accueil » demandé depuis l'écran de fin.
+    Home,
+}
 
 pub struct PlayRequest {
     /// Élément Jellyfin à lire (None : fichier de test local, voir `test_url`).
@@ -162,12 +170,36 @@ struct Current {
     dur: f64,
     paused: bool,
     chapters: Vec<f64>,
+    /// Titres des chapitres (repérage du générique de fin à défaut de segment).
+    chapter_titles: Vec<(f64, String)>,
+    /// Début du générique de fin (segment Jellyfin), si connu.
+    outro: Option<f64>,
+    /// Propositions de fin déjà affichées pour ce fichier.
+    up_shown: bool,
+    /// Fin du fichier atteinte (mpv est au repos, en attente d'un choix).
+    ended: bool,
     /// Sous-titres externes à ajouter une fois le fichier chargé : (url, langue).
     subs: Vec<(String, String)>,
     reported_stop: bool,
 }
 
 impl Current {
+    /// Moment où proposer la suite : segment « Outro », sinon chapitre de générique, sinon
+    /// les 3 dernières % de la durée (au moins 40 s).
+    fn outro_at(&self) -> f64 {
+        if let Some(o) = self.outro {
+            return o;
+        }
+        let credits = ["ending", "credit", "générique", "generique", "outro", "end title"];
+        if let Some((t, _)) = self.chapter_titles.iter().find(|(t, name)| {
+            let n = name.to_lowercase();
+            *t > self.dur * 0.5 && (credits.iter().any(|c| n.contains(c)) || n == "ed" || n.starts_with("ed "))
+        }) {
+            return *t;
+        }
+        self.dur - (self.dur * 0.03).max(40.0)
+    }
+
     fn body(&self, pos: f64) -> Option<Value> {
         let item = self.item.as_ref()?;
         Some(json!({
@@ -188,13 +220,25 @@ async fn report(client: Option<&Client>, endpoint: &str, body: Option<Value>) {
     }
 }
 
+/// Liste des épisodes de la série (pour précédent / suivant et l'enchaînement).
+async fn series_episodes(client: Option<&Client>, item: Option<&Item>) -> Vec<String> {
+    match (client, item) {
+        (Some(c), Some(it)) if it.kind == "Episode" => match it.series_id.as_deref() {
+            Some(sid) => c.episodes(sid, None).await.map(|v| v.into_iter().map(|e| e.id).collect()).unwrap_or_default(),
+            None => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
 /// Lance la lecture et rend la main quand l'utilisateur la quitte.
 pub async fn play(
+    app: Arc<App>,
     client: Option<Client>,
     req: PlayRequest,
     mut commands: tokio::sync::mpsc::UnboundedReceiver<String>,
     ui: slint::Weak<AppWindow>,
-) -> Result<()> {
+) -> Result<Exit> {
     let player = new_player()?;
     let client = client.as_ref();
 
@@ -217,14 +261,7 @@ pub async fn play(
     }
     let render_ready = video::attach(&ui, Some(player.clone()));
 
-    // Liste des épisodes de la série, pour « épisode précédent / suivant » et l'enchaînement.
-    let episodes: Vec<String> = match (client, req.item.as_ref()) {
-        (Some(c), Some(it)) if it.kind == "Episode" => match it.series_id.as_deref() {
-            Some(sid) => c.episodes(sid, None).await.map(|v| v.into_iter().map(|e| e.id).collect()).unwrap_or_default(),
-            None => Vec::new(),
-        },
-        _ => Vec::new(),
-    };
+    let mut episodes = series_episodes(client, req.item.as_ref()).await;
 
     // mpv doit avoir son rendu (créé par l'interface au prochain affichage) avant d'ouvrir le fichier.
     if tokio::time::timeout(Duration::from_secs(5), render_ready).await.is_err() {
@@ -232,17 +269,20 @@ pub async fn play(
     }
 
     let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
+    prepare_extras(&app, client, &mut cur).await;
     report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
 
     let mut tick = tokio::time::interval(Duration::from_secs(10));
     tick.tick().await; // le premier tick est immédiat : on le consomme
     let mut last_sec: i64 = -1;
     let mut switching = false;
-    let mut result: Result<()> = Ok(());
+    let mut result: Result<Exit> = Ok(Exit::Back);
 
     loop {
         // Changement d'épisode demandé (bouton, ou fin de fichier) : Some(décalage).
         let mut go_episode: Option<i64> = None;
+        // Autre élément à lire (épisode choisi dans la saison, suggestion de fin).
+        let mut go_item: Option<String> = None;
 
         tokio::select! {
             ev = events.recv() => {
@@ -255,6 +295,12 @@ pub async fn play(
                             if sec != last_sec {
                                 last_sec = sec;
                                 push_time(&ui, &cur);
+                                // Générique de fin : on propose la suite (une fois par fichier).
+                                if !cur.up_shown && !cur.ended && cur.dur > 120.0 && cur.pos >= cur.outro_at() && cur.pos < cur.dur - 2.0 {
+                                    cur.up_shown = true;
+                                    let next = neighbour(&episodes, cur.item.as_ref(), 1);
+                                    show_up_next(&app, client, cur.item.as_ref(), next, false);
+                                }
                             }
                         }
                         "duration" => {
@@ -271,7 +317,14 @@ pub async fn play(
                             let _ = ui.upgrade_in_event_loop(move |u| u.set_p_paused(p));
                         }
                         "chapter-list" => {
-                            cur.chapters = v.as_array().into_iter().flatten().filter_map(|c| c["time"].as_f64()).collect();
+                            let list: Vec<(f64, String)> = v
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|c| Some((c["time"].as_f64()?, c["title"].as_str().unwrap_or("").to_string())))
+                                .collect();
+                            cur.chapters = list.iter().map(|(t, _)| *t).collect();
+                            cur.chapter_titles = list;
                             push_chapters(&ui, &cur);
                         }
                         "track-list" => {
@@ -294,19 +347,26 @@ pub async fn play(
                     }
                     Event::EndFile { eof, error } => {
                         if switching {
-                            // Fin de l'ancien fichier, provoquée par le changement d'épisode.
+                            // Fin de l'ancien fichier, provoquée par le changement d'élément.
                             switching = false;
                         } else if let Some(e) = error {
                             result = Err(anyhow!("mpv n'a pas pu lire ce média ({e})"));
                             break;
                         } else if eof {
-                            // Fin atteinte : on rapporte la durée complète (le serveur marque « vu »),
-                            // puis épisode suivant s'il y en a un.
+                            // Fin atteinte : on rapporte la durée complète (le serveur marque « vu »).
                             let end = if cur.dur > 0.0 { cur.dur } else { cur.pos };
                             report(client, "/Sessions/Playing/Stopped", cur.body(end)).await;
                             cur.reported_stop = true;
+                            cur.ended = true;
                             if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
+                                // Épisode suivant (ou premier de la saison suivante).
                                 go_episode = Some(1);
+                            } else if cur.up_shown {
+                                // Suggestions déjà chargées pendant le générique : écran de fin tout de suite.
+                                let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("end".into()));
+                            } else if client.is_some() && cur.item.is_some() {
+                                // Fin de série ou de film : écran de fin (suggestions, retour à l'accueil).
+                                show_up_next(&app, client, cur.item.as_ref(), None, true);
                             } else {
                                 break;
                             }
@@ -318,7 +378,9 @@ pub async fn play(
                 }
             }
             _ = tick.tick() => {
-                report(client, "/Sessions/Playing/Progress", cur.body(cur.pos)).await;
+                if !cur.ended {
+                    report(client, "/Sessions/Playing/Progress", cur.body(cur.pos)).await;
+                }
             }
             cmd = commands.recv() => {
                 let Some(c) = cmd else { break };
@@ -338,6 +400,27 @@ pub async fn play(
                         go_episode = arg.parse().ok();
                         Ok(())
                     }
+                    // Propositions de fin : lire la suite, ou continuer à regarder (générique).
+                    "up" if arg == "play" => {
+                        go_episode = Some(1);
+                        Ok(())
+                    }
+                    "up" => {
+                        let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("".into()));
+                        if cur.ended {
+                            // Plus rien à regarder : on quitte.
+                            break;
+                        }
+                        Ok(())
+                    }
+                    "goto" | "pick" => {
+                        go_item = Some(arg.to_string());
+                        Ok(())
+                    }
+                    "home" => {
+                        result = Ok(Exit::Home);
+                        break;
+                    }
                     "stop" => break,
                     _ => Ok(()),
                 };
@@ -347,30 +430,45 @@ pub async fn play(
             }
         }
 
-        if let Some(d) = go_episode {
-            let Some(next_id) = neighbour(&episodes, cur.item.as_ref(), d) else { continue };
-            let Some(c) = client else { continue };
+        // Élément suivant à lire : épisode voisin, ou élément choisi.
+        let next: Option<Result<Item>> = match (go_episode, go_item, client) {
+            (Some(d), _, Some(c)) => match neighbour(&episodes, cur.item.as_ref(), d) {
+                Some(id) => Some(c.item(&id).await.map_err(|e| anyhow!("épisode suivant introuvable ({e})"))),
+                None => None,
+            },
+            (None, Some(id), Some(c)) => Some(match c.item(&id).await {
+                Ok(it) => crate::resolve_playable(c, it).await,
+                Err(e) => Err(anyhow!("élément introuvable ({e})")),
+            }),
+            _ => None,
+        };
+        if let Some(next) = next {
+            let next = match next {
+                Ok(n) => n,
+                Err(e) => {
+                    result = Err(e);
+                    break;
+                }
+            };
             if !cur.reported_stop {
                 report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
             }
-            match c.item(&next_id).await {
-                Ok(next) => {
-                    let start = next.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
-                    switching = true;
-                    match load(&player, client, Some(next), start, None, &episodes, &ui) {
-                        Ok(n) => {
-                            cur = n;
-                            last_sec = -1;
-                            report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
-                        }
-                        Err(e) => {
-                            result = Err(e);
-                            break;
-                        }
-                    }
+            // Autre série (suggestion) : nouvelle liste d'épisodes.
+            if !episodes.contains(&next.id) {
+                episodes = series_episodes(client, Some(&next)).await;
+            }
+            let start = next.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
+            // L'ancien fichier se terminera (« stop ») sauf s'il était déjà fini.
+            switching = !cur.ended;
+            match load(&player, client, Some(next), start, None, &episodes, &ui) {
+                Ok(n) => {
+                    cur = n;
+                    last_sec = -1;
+                    prepare_extras(&app, client, &mut cur).await;
+                    report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
                 }
                 Err(e) => {
-                    result = Err(anyhow!("épisode suivant introuvable ({e})"));
+                    result = Err(e);
                     break;
                 }
             }
@@ -385,6 +483,137 @@ pub async fn play(
     let _ = player.command(&["quit"]);
     let _ = video::attach(&ui, None);
     result
+}
+
+/// Par fichier : début du générique (segments Jellyfin) et épisodes de la saison (bandeau ↓).
+async fn prepare_extras(app: &Arc<App>, client: Option<&Client>, cur: &mut Current) {
+    let (Some(c), Some(it)) = (client, cur.item.clone()) else { return };
+    cur.outro = c.outro_start(&it.id).await;
+
+    let ui = app.ui();
+    let _ = ui.upgrade_in_event_loop(|u| {
+        u.set_p_episodes(ModelRc::default());
+        u.set_p_up_mode("".into());
+    });
+    if it.kind != "Episode" {
+        return;
+    }
+    let (Some(sid), Some(season)) = (it.series_id.clone(), it.season_id.clone()) else { return };
+    let (app2, c2) = (app.clone(), c.clone());
+    app.rt.spawn(async move {
+        let eps = c2.episodes(&sid, Some(&season)).await.unwrap_or_default();
+        let cur_idx = eps.iter().position(|e| e.id == it.id).unwrap_or(0) as i32;
+        let cards: Vec<api::CardInfo> = eps.iter().map(|e| e.child_card()).collect();
+        let jobs: Vec<crate::ImageJob> =
+            cards.iter().enumerate().filter_map(|(i, c)| crate::ImageJob::for_card(0, i, c, true)).collect();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_p_episodes(ModelRc::new(VecModel::from(cards.iter().map(card_data).collect::<Vec<_>>())));
+            u.set_p_ep_current(cur_idx);
+        });
+        let k = if app2.tv { 1.4 } else { 1.0 };
+        let apply: crate::Apply = Arc::new(|u: &AppWindow, job: &crate::ImageJob, buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
+            let model = u.get_p_episodes();
+            if let Some(mut card) = model.row_data(job.b) {
+                if card.id.as_str() == job.item_id {
+                    card.image = slint::Image::from_rgba8(buf);
+                    card.has_image = true;
+                    model.set_row_data(job.b, card);
+                }
+            }
+        });
+        crate::spawn_image_jobs(&app2, &c2, jobs, api::Size::Fill(400, 225), crate::Shape::card_top(400, 225, 220.0 * k), apply);
+    });
+}
+
+fn card_data(c: &api::CardInfo) -> CardData {
+    CardData {
+        id: c.id.clone().into(),
+        title: c.title.clone().into(),
+        subtitle: c.subtitle.clone().into(),
+        progress: c.progress,
+        rating: c.rating.clone().into(),
+        ..Default::default()
+    }
+}
+
+/// Propositions de fin :
+/// - un épisode suit : « Épisode suivant » (ou « Saison suivante » s'il ouvre une autre saison) ;
+/// - sinon (fin de série, film) : 3 titres au hasard parmi « Plus de ce genre », la vidéo réduite
+///   en haut à gauche ; à la fin du fichier (`ended`), écran de fin avec « Retour à l'accueil ».
+fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, next: Option<String>, ended: bool) {
+    let (Some(c), Some(it)) = (client.cloned(), item.cloned()) else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        if let Some(next_id) = next {
+            let Ok(n) = c.item(&next_id).await else { return };
+            let new_season = n.parent_index_number != it.parent_index_number;
+            let title = if new_season { "Saison suivante" } else { "Épisode suivant" };
+            let card = n.child_card();
+            let sub = match (n.parent_index_number, n.index_number) {
+                (Some(s), Some(e)) => format!("S{s}E{e} · {}", n.name),
+                _ => n.name.clone(),
+            };
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                u.set_p_up_title(title.into());
+                u.set_p_up_sub(sub.into());
+                u.set_p_has_up_image(false);
+                u.set_p_up_mode("next".into());
+            });
+            if let Some(job) = crate::ImageJob::for_card(0, 0, &card, true) {
+                let apply: crate::Apply = Arc::new(|u: &AppWindow, _job: &crate::ImageJob, buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
+                    u.set_p_up_image(slint::Image::from_rgba8(buf));
+                    u.set_p_has_up_image(true);
+                });
+                let k = if app2.tv { 1.4 } else { 1.0 };
+                crate::spawn_image_jobs(&app2, &c, vec![job], api::Size::Fill(400, 225), crate::Shape::card(400, 225, 260.0 * k), apply);
+            }
+            return;
+        }
+
+        // Suggestions : 3 au hasard parmi « Plus de ce genre » (de la série pour un épisode).
+        let base = match (&*it.kind, &it.series_id) {
+            ("Episode" | "Season", Some(sid)) => sid.clone(),
+            _ => it.id.clone(),
+        };
+        let mut sim = c.similar(&base).await.unwrap_or_default();
+        shuffle(&mut sim);
+        sim.truncate(3);
+        if sim.is_empty() {
+            if ended {
+                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_p_up_mode("end".into()));
+            }
+            return;
+        }
+        let cards: Vec<api::CardInfo> = sim.iter().map(|i| i.card()).collect();
+        let jobs: Vec<crate::ImageJob> =
+            cards.iter().enumerate().filter_map(|(i, c)| crate::ImageJob::for_card(0, i, c, false)).collect();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_p_picks(ModelRc::new(VecModel::from(cards.iter().map(card_data).collect::<Vec<_>>())));
+            u.set_p_up_mode(if ended { "end" } else { "pick" }.into());
+        });
+        let k = if app2.tv { 1.4 } else { 1.0 };
+        let apply: crate::Apply = Arc::new(|u: &AppWindow, job: &crate::ImageJob, buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
+            let model = u.get_p_picks();
+            if let Some(mut card) = model.row_data(job.b) {
+                if card.id.as_str() == job.item_id {
+                    card.image = slint::Image::from_rgba8(buf);
+                    card.has_image = true;
+                    model.set_row_data(job.b, card);
+                }
+            }
+        });
+        crate::spawn_image_jobs(&app2, &c, jobs, api::Size::Fill(270, 405), crate::Shape::card_top(270, 405, 200.0 * k), apply);
+    });
+}
+
+/// Mélange simple (pas besoin d'un générateur aléatoire de qualité pour choisir 3 suggestions).
+fn shuffle<T>(v: &mut [T]) {
+    let mut seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
+    for i in (1..v.len()).rev() {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let j = ((seed >> 33) as usize) % (i + 1);
+        v.swap(i, j);
+    }
 }
 
 /// Épisode voisin (décalage -1 / +1) dans la liste de la série.
@@ -453,6 +682,10 @@ fn load(
         dur: 0.0,
         paused: false,
         chapters: Vec::new(),
+        chapter_titles: Vec::new(),
+        outro: None,
+        up_shown: false,
+        ended: false,
         subs,
         reported_stop: false,
     })

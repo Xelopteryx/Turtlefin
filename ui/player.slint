@@ -1,13 +1,17 @@
 // Écran de lecture : la vidéo (texture dessinée par libmpv) et les commandes par-dessus.
 //
 // Navigation (clavier / télécommande) :
-//   commandes masquées : ← → reculer / avancer de 10 s sans rien afficher ; ↑ ↓ affichent les
-//   commandes sur la barre de temps ; Entrée ou Espace = pause, sélection sur Lecture/Pause ; Échap quitte la vidéo.
-//   barre de temps : ← → déplacer le curseur ; ↓ boutons (Lecture/Pause) ; ↑ bouton Retour.
-//   boutons : ← → changer de bouton ; Entrée activer ; ↑ barre de temps.
+//   commandes masquées : ← → reculer / avancer de 10 s sans rien afficher ; ↑ ↓ Entrée Espace
+//   affichent les commandes, sélection sur Lecture/Pause (Espace / Entrée : pause) ; Échap quitte.
+//   boutons : ← → changer de bouton ; Entrée activer ; ↑ barre de temps ; ↓ épisodes de la saison.
+//   barre de temps : ← → déplacer le curseur ; ↓ boutons ; ↑ bouton Retour.
+//   épisodes de la saison : ← → choisir ; Entrée lire ; ↑ ou Échap revenir aux boutons.
 //   menu des pistes : ↑ ↓ choisir ; Entrée valider ; Échap ou ← fermer.
+// Fin d'un épisode (générique) : carte « Épisode suivant » ; fin de série / film : 3 suggestions,
+// la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Theme } from "theme.slint";
+import { CardData } from "card.slint";
 
 export struct TrackData {
     id: string,    // identifiant mpv ("no" = sous-titres désactivés)
@@ -128,6 +132,116 @@ component PlayerButton inherits Rectangle {
     }
 }
 
+// Épisode du bandeau ↓ : vignette 16:9, numéro et titre ; l'épisode en cours est signalé.
+component EpisodeCard inherits Rectangle {
+    in property <CardData> data;
+    in property <bool> focused;
+    in property <bool> current;
+    in property <float> k: 1.0;
+    callback clicked();
+
+    z: root.focused ? 1 : 0;
+    transform-scale: root.focused ? 1.06 : 1.0;
+    animate transform-scale { duration: 120ms; easing: ease-out; }
+    border-radius: 10px;
+    background: root.focused ? #000000cc : #00000099;
+    border-width: root.current ? 2px : 0px;
+    border-color: Theme.accent2;
+
+    Rectangle {
+        height: root.width * 0.5625;
+        y: 0px;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        background: root.data.has-image ? transparent : #ffffff14;
+        if root.data.has-image: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.data.image;
+            image-fit: fill;
+        }
+    }
+    Text {
+        x: 8px * root.k;
+        y: root.width * 0.5625 + 6px * root.k;
+        width: parent.width - 16px * root.k;
+        text: root.data.title;
+        color: white;
+        font-size: 13px * root.k;
+        font-weight: 600;
+        overflow: elide;
+    }
+    Text {
+        x: 8px * root.k;
+        y: root.width * 0.5625 + 26px * root.k;
+        width: parent.width - 16px * root.k;
+        text: root.current ? "En cours" : root.data.subtitle;
+        color: root.current ? Theme.accent2 : Theme.muted;
+        font-size: 11px * root.k;
+        overflow: elide;
+    }
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Suggestion de fin : affiche, titre, année.
+component PickCard inherits Rectangle {
+    in property <CardData> data;
+    in property <bool> focused;
+    in property <float> k: 1.0;
+    callback clicked();
+
+    transform-scale: root.focused ? 1.08 : 1.0;
+    animate transform-scale { duration: 120ms; easing: ease-out; }
+    border-radius: 10px;
+    background: root.focused ? #ffffff26 : #ffffff0f;
+    border-width: root.focused ? 3px : 0px;
+    border-color: Theme.accent2;
+
+    Rectangle {
+        y: 0px;
+        height: root.width * 1.5;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        background: root.data.has-image ? transparent : #ffffff14;
+        if root.data.has-image: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.data.image;
+            image-fit: fill;
+        }
+    }
+    Text {
+        x: 8px * root.k;
+        y: root.width * 1.5 + 8px * root.k;
+        width: parent.width - 16px * root.k;
+        text: root.data.title;
+        color: white;
+        font-size: 14px * root.k;
+        font-weight: 600;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: 8px * root.k;
+        y: root.width * 1.5 + 30px * root.k;
+        width: parent.width - 16px * root.k;
+        text: root.data.subtitle;
+        color: Theme.muted;
+        font-size: 12px * root.k;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 export component PlayerView inherits Rectangle {
     in property <float> k: 1.0;
     in property <image> frame;
@@ -147,13 +261,21 @@ export component PlayerView inherits Rectangle {
     in property <int> audio-current;
     in property <[TrackData]> sub-tracks;
     in property <int> sub-current;
+    in property <[CardData]> episodes;
+    in property <int> ep-current;
+    in property <string> up-mode;
+    in property <string> up-title;
+    in property <string> up-sub;
+    in property <image> up-image;
+    in property <bool> has-up-image;
+    in property <[CardData]> picks;
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "stop"
     callback toggle-fullscreen();
 
     property <bool> osd: true;   // commandes affichées
     property <int> idle: 0;      // secondes sans activité
-    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour
+    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes
     property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 audio · 6 sous-titres
     property <string> menu: "";  // "" | "audio" | "sub"
     property <int> menu-sel: 0;
@@ -163,6 +285,13 @@ export component PlayerView inherits Rectangle {
     property <bool> dragging;
     property <float> drag-frac;
     property <length> m: 24px * root.k;
+    property <int> ep-sel: 0;
+    property <int> up-sel: 0;    // carte suivante : 0 lire · 1 continuer ; suggestions : 0 vidéo / accueil · 1..3
+    property <bool> mini: root.up-mode == "pick";
+    property <length> ep-h: 190px * root.k; // hauteur du bandeau d'épisodes
+    changed up-mode => {
+        root.up-sel = root.up-mode == "next" ? 0 : root.up-mode == "" ? 0 : 1;
+    }
 
     // Sous-titres remontés au-dessus du panneau tant qu'il est affiché (marge mpv : unités sur 720 de haut).
     function sub-margin() {
@@ -245,10 +374,13 @@ export component PlayerView inherits Rectangle {
 
     // Vidéo : la texture a la taille de la fenêtre, mpv y gère lui-même le format d'image.
     Image {
-        width: parent.width;
-        height: parent.height;
+        x: root.mini ? 32px * root.k : 0px;
+        y: root.mini ? 32px * root.k : 0px;
+        width: root.mini ? 400px * root.k : parent.width;
+        height: root.mini ? 225px * root.k : parent.height;
         source: root.frame;
         image-fit: fill;
+        animate x, y, width, height { duration: 250ms; easing: ease-out; }
     }
 
     if !root.ready: Text {
@@ -286,7 +418,7 @@ export component PlayerView inherits Rectangle {
         running: root.osd;
         triggered => {
             root.idle += 1;
-            if (root.idle >= 3 && !root.paused && root.menu == "" && !root.dragging) {
+            if (root.idle >= 3 && !root.paused && root.menu == "" && !root.dragging && root.zone != 5) {
                 root.hide();
             }
         }
@@ -304,6 +436,50 @@ export component PlayerView inherits Rectangle {
             if (event.text == Key.F11 || event.text == "f") {
                 root.toggle-fullscreen();
                 return EventResult.accept;
+            }
+
+            // Suggestions de fin / écran de fin : elles prennent toutes les touches.
+            if (root.up-mode == "pick" || root.up-mode == "end") {
+                if (event.text == Key.LeftArrow) {
+                    if (root.up-sel > 1) {
+                        root.up-sel -= 1;
+                    }
+                } else if (event.text == Key.RightArrow) {
+                    root.up-sel = min(root.picks.length, max(1, root.up-sel + 1));
+                } else if (event.text == Key.UpArrow) {
+                    root.up-sel = 0;
+                } else if (event.text == Key.DownArrow) {
+                    if (root.up-sel == 0 && root.picks.length > 0) {
+                        root.up-sel = 1;
+                    }
+                } else if (event.text == Key.Return) {
+                    if (root.up-sel == 0) {
+                        // Vidéo réduite : on continue à regarder ; écran de fin : retour à l'accueil.
+                        root.command(root.up-mode == "pick" ? "up:dismiss" : "home");
+                    } else {
+                        root.command("pick:" + root.picks[root.up-sel - 1].id);
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.command(root.up-mode == "pick" ? "up:dismiss" : "stop");
+                }
+                return EventResult.accept;
+            }
+
+            // Carte « Épisode suivant » (commandes masquées) : ← → choisir, Entrée, Échap.
+            if (root.up-mode == "next" && (!root.osd || root.zone == 0)) {
+                if (event.text == Key.LeftArrow) {
+                    root.up-sel = 0;
+                    return EventResult.accept;
+                } else if (event.text == Key.RightArrow) {
+                    root.up-sel = 1;
+                    return EventResult.accept;
+                } else if (event.text == Key.Return) {
+                    root.command(root.up-sel == 0 ? "up:play" : "up:dismiss");
+                    return EventResult.accept;
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.command("up:dismiss");
+                    return EventResult.accept;
+                }
             }
             if (event.text == "q") {
                 root.command("stop");
@@ -344,7 +520,9 @@ export component PlayerView inherits Rectangle {
                 } else if (event.text == Key.RightArrow) {
                     root.command("seek:10");
                 } else if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
-                    root.zone = 1;
+                    // Commandes affichées, sélection sur Lecture/Pause.
+                    root.zone = 2;
+                    root.btn = 2;
                     root.show();
                 } else if (event.text == Key.Return) {
                     root.toggle-pause();
@@ -359,7 +537,11 @@ export component PlayerView inherits Rectangle {
             }
 
             if (event.text == Key.Escape || event.text == Key.Backspace) {
-                root.hide();
+                if (root.zone == 5) {
+                    root.zone = 2;
+                } else {
+                    root.hide();
+                }
                 return EventResult.accept;
             }
 
@@ -385,8 +567,27 @@ export component PlayerView inherits Rectangle {
                     root.btn = min(6, root.btn + 1);
                 } else if (event.text == Key.UpArrow) {
                     root.zone = 1;
+                } else if (event.text == Key.DownArrow) {
+                    if (root.episodes.length > 0) {
+                        root.zone = 5;
+                        root.ep-sel = root.ep-current;
+                    }
                 } else if (event.text == Key.Return) {
                     root.activate(root.btn);
+                }
+            } else if (root.zone == 5) {
+                // Épisodes de la saison
+                if (event.text == Key.LeftArrow) {
+                    root.ep-sel = max(0, root.ep-sel - 1);
+                } else if (event.text == Key.RightArrow) {
+                    root.ep-sel = min(root.episodes.length - 1, root.ep-sel + 1);
+                } else if (event.text == Key.UpArrow) {
+                    root.zone = 2;
+                } else if (event.text == Key.Return) {
+                    if (root.ep-sel != root.ep-current) {
+                        root.command("goto:" + root.episodes[root.ep-sel].id);
+                    }
+                    root.zone = 2;
                 }
             } else if (root.zone == 3) {
                 // Bouton Retour
@@ -452,7 +653,8 @@ export component PlayerView inherits Rectangle {
             x: root.m;
             width: parent.width - 2 * root.m;
             height: 160px * root.k;
-            y: parent.height - self.height - root.m;
+            y: parent.height - self.height - root.m - (root.zone == 5 ? root.ep-h : 0px);
+            animate y { duration: 160ms; easing: ease-out; }
             border-radius: 16px;
             background: Theme.glass;
             border-width: 1px;
@@ -722,6 +924,195 @@ export component PlayerView inherits Rectangle {
                         root.apply-menu();
                         root.show();
                     }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Épisodes de la saison (↓)
+    if root.osd && root.zone == 5: Rectangle {
+        x: root.m;
+        y: parent.height - root.ep-h - root.m / 2;
+        width: parent.width - 2 * root.m;
+        height: root.ep-h;
+        clip: true;
+
+        property <length> cw: 220px * root.k;
+        property <length> gap: 16px * root.k;
+        property <length> strip-x: min(0px, max(self.width - root.episodes.length * (self.cw + self.gap),
+            self.width / 2 - (root.ep-sel * (self.cw + self.gap) + self.cw / 2)));
+
+        for e[i] in root.episodes: EpisodeCard {
+            x: parent.strip-x + i * (parent.cw + parent.gap);
+            y: 8px * root.k;
+            width: parent.cw;
+            height: parent.cw * 0.5625 + 50px * root.k;
+            data: e;
+            k: root.k;
+            focused: i == root.ep-sel;
+            current: i == root.ep-current;
+            clicked => {
+                if (i != root.ep-current) {
+                    root.command("goto:" + e.id);
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Épisode suivant (générique)
+    if root.up-mode == "next": Rectangle {
+        x: parent.width - self.width - root.m;
+        y: root.m + 60px * root.k;
+        width: 300px * root.k;
+        height: 300px * 0.5625 * root.k + 104px * root.k;
+        border-radius: 14px;
+        background: Theme.glass;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+
+        Text {
+            x: 14px * root.k;
+            y: 10px * root.k;
+            text: root.up-title;
+            color: Theme.accent2;
+            font-size: 14px * root.k;
+            font-weight: 700;
+        }
+        Rectangle {
+            x: 14px * root.k;
+            y: 34px * root.k;
+            width: parent.width - 28px * root.k;
+            height: self.width * 0.5625;
+            border-radius: 10px;
+            background: root.has-up-image ? transparent : #ffffff14;
+
+            if root.has-up-image: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.up-image;
+                image-fit: fill;
+            }
+        }
+        Text {
+            x: 14px * root.k;
+            y: 34px * root.k + (parent.width - 28px * root.k) * 0.5625 + 6px * root.k;
+            width: parent.width - 28px * root.k;
+            text: root.up-sub;
+            color: Theme.text;
+            font-size: 14px * root.k;
+            font-weight: 600;
+            overflow: elide;
+        }
+        HorizontalLayout {
+            x: 14px * root.k;
+            y: parent.height - 48px * root.k;
+            width: parent.width - 28px * root.k;
+            height: 36px * root.k;
+            spacing: 10px * root.k;
+
+            PlayerButton {
+                size: 36px * root.k;
+                font: 14px * root.k;
+                text: "Lire";
+                focused: root.up-sel == 0;
+                clicked => {
+                    root.command("up:play");
+                }
+            }
+            PlayerButton {
+                size: 36px * root.k;
+                font: 14px * root.k;
+                text: "Continuer";
+                focused: root.up-sel == 1;
+                clicked => {
+                    root.command("up:dismiss");
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Suggestions / écran de fin
+    if root.up-mode == "pick" || root.up-mode == "end": Rectangle {
+        // Voile : la vidéo réduite reste visible en haut à gauche (mode « pick »).
+        Rectangle {
+            background: root.up-mode == "end" ? #000000f0 : #000000c0;
+        }
+
+        // Vidéo réduite, redessinée au-dessus du voile (même texture, aucun coût de décodage).
+        if root.up-mode == "pick": Image {
+            x: 32px * root.k;
+            y: 32px * root.k;
+            width: 400px * root.k;
+            height: 225px * root.k;
+            source: root.frame;
+            image-fit: fill;
+        }
+
+        // Cadre de sélection de la vidéo réduite : sélectionnable pour rester jusqu'au bout.
+        if root.up-mode == "pick": Rectangle {
+            x: 32px * root.k - 4px;
+            y: 32px * root.k - 4px;
+            width: 400px * root.k + 8px;
+            height: 225px * root.k + 8px;
+            border-radius: 6px;
+            border-width: root.up-sel == 0 ? 4px : 0px;
+            border-color: Theme.accent2;
+            TouchArea {
+                clicked => {
+                    root.command("up:dismiss");
+                }
+            }
+        }
+        if root.up-mode == "pick": Text {
+            x: 32px * root.k;
+            y: 32px * root.k + 225px * root.k + 10px * root.k;
+            text: "Continuer à regarder";
+            color: root.up-sel == 0 ? white : Theme.muted;
+            font-size: 15px * root.k;
+            font-weight: 600;
+        }
+
+        Text {
+            y: root.up-mode == "pick" ? 310px * root.k : 70px * root.k;
+            width: parent.width;
+            text: root.up-mode == "pick" ? "À voir ensuite" : "C'est fini ! À voir ensuite";
+            color: Theme.text;
+            font-size: 26px * root.k;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+
+        HorizontalLayout {
+            y: root.up-mode == "pick" ? 360px * root.k : 130px * root.k;
+            height: 160px * 1.5 * root.k + 56px * root.k;
+            width: parent.width;
+            alignment: center;
+            spacing: 28px * root.k;
+
+            for p[i] in root.picks: PickCard {
+                width: 160px * root.k;
+                data: p;
+                k: root.k;
+                focused: root.up-sel == i + 1;
+                clicked => {
+                    root.command("pick:" + p.id);
+                }
+            }
+        }
+
+        if root.up-mode == "end": HorizontalLayout {
+            y: 130px * root.k + 160px * 1.5 * root.k + 90px * root.k;
+            width: parent.width;
+            height: 48px * root.k;
+            alignment: center;
+
+            PlayerButton {
+                size: 48px * root.k;
+                font: 16px * root.k;
+                text: "Retour à l'accueil";
+                focused: root.up-sel == 0;
+                clicked => {
+                    root.command("home");
                 }
             }
         }
