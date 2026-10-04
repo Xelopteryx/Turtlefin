@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod discovery;
 mod mpv;
 mod player;
 mod video;
@@ -77,6 +78,12 @@ struct App {
     /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
     /// pour y revenir au retour.
     lib_return: Mutex<Option<(String, usize)>>,
+    /// Serveurs trouvés par la dernière recherche.
+    found: Mutex<Vec<discovery::Found>>,
+    /// Serveur choisi, en attente de connexion : (adresse locale, adresse distante).
+    pending_server: Mutex<Option<(String, String)>>,
+    /// Saisie manuelle en cours : adresses déjà validées et celle qui attend un choix http/https.
+    manual: Mutex<(Option<String>, Option<String>, Vec<String>)>,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -300,7 +307,24 @@ fn push_section(out: &mut Vec<SectionData>, title: &str, landscape: bool, items:
 async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
         Ok(client) => {
-            config::save(&client.to_saved());
+            let old = config::load();
+            let mut saved = client.to_saved();
+            saved.prefer_remote = old.prefer_remote;
+            // Adresses du serveur : celles choisies à l'écran des serveurs, sinon déduites de l'adresse saisie.
+            match app.pending_server.lock().unwrap().take() {
+                Some((local, remote)) => {
+                    saved.server_local = local;
+                    saved.server_remote = remote;
+                }
+                None => {
+                    if discovery::is_local_url(&client.server) {
+                        saved.server_local = client.server.clone();
+                    } else {
+                        saved.server_remote = client.server.clone();
+                    }
+                }
+            }
+            config::save(&saved);
             load_home(app, client).await;
         }
         Err(e) => show_login_error(&app.ui(), format!("{e}")),
@@ -322,6 +346,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     if let Ok(views) = client.views().await {
         set_menu(&app, &views);
     }
+    complete_addresses(&app, &client);
     load_tab(app, client).await;
 }
 
@@ -570,6 +595,220 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
 }
 
 // ---------------------------------------------------------------------------
+// Serveurs : recherche (local + Tailscale), saisie manuelle, paramètres réseau
+// ---------------------------------------------------------------------------
+fn open_servers(app: &Arc<App>) {
+    if let Some(u) = app.ui().upgrade() {
+        u.set_srv_sel(0);
+        u.set_manual_open(false);
+        u.set_choice_a("".into());
+        u.set_choice_b("".into());
+        u.set_h_focus(false);
+        u.set_screen("servers".into());
+    }
+    search_servers(app);
+}
+
+fn search_servers(app: &Arc<App>) {
+    let ui = app.ui();
+    let _ = ui.upgrade_in_event_loop(|u| u.set_srv_searching(true));
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let found = discovery::discover().await;
+        *app2.found.lock().unwrap() = found.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let rows: Vec<ServerData> = found
+                .iter()
+                .map(|f| ServerData {
+                    id: f.id.clone().into(),
+                    name: f.name.clone().into(),
+                    version: f.version.clone().into(),
+                    local: f.local.clone().unwrap_or_default().into(),
+                    remote: f.remote.clone().unwrap_or_default().into(),
+                })
+                .collect();
+            let n = rows.len() as i32;
+            u.set_servers(ModelRc::new(VecModel::from(rows)));
+            u.set_srv_searching(false);
+            // Rien trouvé : sélection sur « Saisir une adresse ».
+            u.set_srv_sel(if n == 0 { 1 } else { 0 });
+        });
+    });
+}
+
+/// Serveur choisi : écran de connexion sur la meilleure adresse.
+fn choose_server(app: &Arc<App>, local: String, remote: String) {
+    let prefer_remote = config::load().prefer_remote;
+    *app.pending_server.lock().unwrap() = Some((local.clone(), remote.clone()));
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let best = discovery::pick(&local, &remote, prefer_remote).await;
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_server(best.into());
+            u.set_manual_open(false);
+            u.set_choice_a("".into());
+            u.set_error_text("".into());
+            u.set_busy(false);
+            u.set_screen("login".into());
+        });
+    });
+}
+
+/// Saisie manuelle : chaque adresse est vérifiée (http et https si non précisé). Si les deux
+/// répondent, l'utilisateur choisit ; sinon l'adresse qui répond est retenue.
+fn manual_submit(app: &Arc<App>, local: String, remote: String) {
+    let app2 = app.clone();
+    let _ = app.ui().upgrade_in_event_loop(|u| u.set_manual_busy(true));
+    app.rt.spawn(async move {
+        let mut chosen: Vec<Option<String>> = Vec::new();
+        let mut ids: Vec<String> = Vec::new();
+        for input in [&local, &remote] {
+            if input.trim().is_empty() {
+                chosen.push(None);
+                continue;
+            }
+            let hits = discovery::resolve(input).await;
+            match hits.len() {
+                0 => {
+                    let msg = format!("Aucun serveur Jellyfin ne répond à « {} ».", input.trim());
+                    let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                        u.set_manual_busy(false);
+                        u.set_manual_error(msg.into());
+                    });
+                    return;
+                }
+                1 => {
+                    ids.push(hits[0].1.clone());
+                    chosen.push(Some(hits[0].0.clone()));
+                }
+                _ => {
+                    // Deux réponses (http et https) : on demande, puis on reprendra là.
+                    ids.push(hits[0].1.clone());
+                    chosen.push(None);
+                    let (a, b) = (hits[0].0.clone(), hits[1].0.clone());
+                    *app2.manual.lock().unwrap() = (
+                        chosen.first().cloned().flatten(),
+                        None,
+                        vec![local.clone(), remote.clone(), (chosen.len() - 1).to_string()],
+                    );
+                    let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                        u.set_manual_busy(false);
+                        u.set_choice_a(a.into());
+                        u.set_choice_b(b.into());
+                    });
+                    return;
+                }
+            }
+        }
+        if ids.len() == 2 && ids[0] != ids[1] {
+            let _ = app2.ui().upgrade_in_event_loop(|u| {
+                u.set_manual_busy(false);
+                u.set_manual_error("Les deux adresses mènent à deux serveurs différents.".into());
+            });
+            return;
+        }
+        let (l, r) = (chosen[0].clone().unwrap_or_default(), chosen[1].clone().unwrap_or_default());
+        if l.is_empty() && r.is_empty() {
+            let _ = app2.ui().upgrade_in_event_loop(|u| {
+                u.set_manual_busy(false);
+                u.set_manual_error("Indique au moins une adresse.".into());
+            });
+            return;
+        }
+        let _ = app2.ui().upgrade_in_event_loop(|u| u.set_manual_busy(false));
+        choose_server(&app2, l, r);
+    });
+}
+
+/// Réponse au choix http / https : on fixe l'adresse concernée et on termine la saisie.
+fn manual_choice(app: &Arc<App>, url: String) {
+    let (first, _, ctx) = app.manual.lock().unwrap().clone();
+    if let Some(u) = app.ui().upgrade() {
+        u.set_choice_a("".into());
+        u.set_choice_b("".into());
+    }
+    if url.is_empty() || ctx.len() < 3 {
+        return;
+    }
+    let (local, remote, which) = (ctx[0].clone(), ctx[1].clone(), ctx[2].clone());
+    if which == "0" {
+        // L'adresse locale était ambiguë : on la remplace par le choix et on vérifie la distante.
+        manual_submit(app, url, remote);
+    } else {
+        // La distante était ambiguë ; la locale était déjà validée.
+        manual_submit(app, first.unwrap_or(local), url);
+    }
+}
+
+/// Une des deux adresses du serveur est inconnue : recherche discrète en arrière-plan du même
+/// serveur (même identifiant) pour la compléter, puis passage sur l'adresse préférée.
+fn complete_addresses(app: &Arc<App>, client: &api::Client) {
+    let saved = config::load();
+    if !saved.server_local.is_empty() && !saved.server_remote.is_empty() {
+        return;
+    }
+    let (app2, base) = (app.clone(), client.server.clone());
+    app.rt.spawn(async move {
+        let http = reqwest::Client::new();
+        let Some((id, ..)) = discovery::probe(&http, &base).await else { return };
+        let Some(f) = discovery::discover().await.into_iter().find(|f| f.id == id) else { return };
+        let mut s = config::load();
+        if s.server_local.is_empty() {
+            s.server_local = f.local.unwrap_or_default();
+        }
+        if s.server_remote.is_empty() {
+            s.server_remote = f.remote.unwrap_or_default();
+        }
+        let best = discovery::pick(&s.server_local, &s.server_remote, s.prefer_remote).await;
+        if !best.is_empty() && best != base {
+            s.server = best.clone();
+            if let Some(c) = app2.client.lock().unwrap().as_mut() {
+                c.set_server(&best);
+            }
+        }
+        config::save(&s);
+    });
+}
+
+fn open_settings(app: &Arc<App>) {
+    let saved = config::load();
+    let current = app.client().map(|c| c.server).unwrap_or_default();
+    if let Some(u) = app.ui().upgrade() {
+        u.set_prefer_remote(saved.prefer_remote);
+        u.set_addr_local(saved.server_local.into());
+        u.set_addr_remote(saved.server_remote.into());
+        u.set_addr_current(current.into());
+        u.set_set_sel(0);
+        u.set_h_focus(false);
+        u.set_screen("settings".into());
+    }
+}
+
+/// Préférence réseau : enregistrée, puis la meilleure adresse est choisie tout de suite.
+fn set_prefer_remote(app: &Arc<App>, prefer: bool) {
+    let mut saved = config::load();
+    saved.prefer_remote = prefer;
+    config::save(&saved);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_prefer_remote(prefer);
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let best = discovery::pick(&saved.server_local, &saved.server_remote, prefer).await;
+        if best.is_empty() {
+            return;
+        }
+        if let Some(c) = app2.client.lock().unwrap().as_mut() {
+            c.set_server(&best);
+        }
+        let mut s = config::load();
+        s.server = best.clone();
+        config::save(&s);
+        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_addr_current(best.into()));
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Menu latéral : bibliothèques, demandes, compte
 // ---------------------------------------------------------------------------
 fn set_menu(app: &Arc<App>, views: &[api::Item]) {
@@ -634,6 +873,12 @@ fn sync_can_back(app: &Arc<App>) {
 
 /// Retour direct à l'accueil (bouton Accueil, menu).
 fn go_home(app: &Arc<App>) {
+    if app.client().is_none() {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_screen("login".into());
+        }
+        return;
+    }
     app.stack.lock().unwrap().clear();
     sync_can_back(app);
     app.gen.fetch_add(1, Ordering::SeqCst);
@@ -1030,6 +1275,9 @@ fn main() -> anyhow::Result<()> {
         library: Mutex::new(None),
         lib_loading: AtomicBool::new(false),
         lib_return: Mutex::new(None),
+        found: Mutex::new(Vec::new()),
+        pending_server: Mutex::new(None),
+        manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),
@@ -1106,6 +1354,36 @@ fn main() -> anyhow::Result<()> {
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
 
+    ui.on_servers_search({
+        let app = app.clone();
+        move || search_servers(&app)
+    });
+
+    ui.on_server_pick({
+        let app = app.clone();
+        move |i| {
+            let f = app.found.lock().unwrap().get(i as usize).cloned();
+            if let Some(f) = f {
+                choose_server(&app, f.local.unwrap_or_default(), f.remote.unwrap_or_default());
+            }
+        }
+    });
+
+    ui.on_manual_submit({
+        let app = app.clone();
+        move |local, remote| manual_submit(&app, local.to_string(), remote.to_string())
+    });
+
+    ui.on_manual_choice({
+        let app = app.clone();
+        move |url| manual_choice(&app, url.to_string())
+    });
+
+    ui.on_set_prefer_remote({
+        let app = app.clone();
+        move |p| set_prefer_remote(&app, p)
+    });
+
     ui.on_go_home({
         let app = app.clone();
         move || go_home(&app)
@@ -1138,11 +1416,10 @@ fn main() -> anyhow::Result<()> {
                 app.stack.lock().unwrap().clear();
                 push_detail(&app, id.to_string());
             } else if a == "settings" {
-                if let Some(u) = app.ui().upgrade() {
-                    u.set_soon_title("Paramètres".into());
-                    u.set_screen("soon".into());
-                }
-            } else if a == "server" || a == "logout" {
+                open_settings(&app);
+            } else if a == "server" {
+                open_servers(&app);
+            } else if a == "logout" {
                 if let Some(u) = app.ui().upgrade() {
                     u.invoke_logout();
                 }
@@ -1201,13 +1478,27 @@ fn main() -> anyhow::Result<()> {
             rt.spawn(async move { login_flow(a, s, user, pw).await });
         }
     } else if !saved.token.is_empty() && !saved.server.is_empty() {
-        match api::Client::from_saved(&saved) {
-            Ok(client) => {
-                let a = app.clone();
-                rt.spawn(async move { load_home(a, client).await });
+        let a = app.clone();
+        let mut saved = saved.clone();
+        rt.spawn(async move {
+            // Ancienne session (une seule adresse) : on la range côté local ou distant.
+            if saved.server_local.is_empty() && saved.server_remote.is_empty() {
+                if discovery::is_local_url(&saved.server) {
+                    saved.server_local = saved.server.clone();
+                } else {
+                    saved.server_remote = saved.server.clone();
+                }
             }
-            Err(e) => ui.set_error_text(format!("{e}").into()),
-        }
+            let best = discovery::pick(&saved.server_local, &saved.server_remote, saved.prefer_remote).await;
+            if !best.is_empty() {
+                saved.server = best;
+            }
+            config::save(&saved);
+            match api::Client::from_saved(&saved) {
+                Ok(client) => load_home(a, client).await,
+                Err(e) => show_login_error(&a.ui(), format!("{e}")),
+            }
+        });
     }
 
     // Essai du lecteur sans serveur : turtlefin --test-video=chemin/vers/video.mkv

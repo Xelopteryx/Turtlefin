@@ -7,7 +7,14 @@ use std::path::PathBuf;
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
 pub struct Saved {
+    /// Adresse utilisée pour la session en cours.
     pub server: String,
+    /// Adresse du serveur sur le réseau local (vide si inconnue).
+    pub server_local: String,
+    /// Adresse distante du même serveur : Tailscale ou autre (vide si inconnue).
+    pub server_remote: String,
+    /// Paramètres réseau : passer par l'adresse distante même si la locale répond.
+    pub prefer_remote: bool,
     pub user_name: String,
     pub user_id: String,
     pub token: String,

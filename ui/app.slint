@@ -27,6 +27,14 @@ export struct Section {
     h-px: float,     // hauteur de la rangée, en pixels logiques
 }
 
+export struct ServerData {
+    id: string,
+    name: string,
+    version: string,
+    local: string,  // adresse sur le réseau local, vide si inconnue
+    remote: string, // adresse distante (Tailscale ou autre), vide si inconnue
+}
+
 export struct MenuEntry {
     label: string,
     action: string, // "home" | "requests" | "lib:<id>" | "server" | "settings" | "logout" | "quit"
@@ -550,6 +558,23 @@ export component AppWindow inherits Window {
     in-out property <string> soon-title: "Recherche"; // écran « bientôt disponible »
     in-out property <int> refocus;          // incrémenté : l'écran affiché reprend le clavier
 
+    // Choix du serveur
+    in property <[ServerData]> servers;
+    in property <bool> srv-searching;
+    in-out property <int> srv-sel;
+    in-out property <bool> manual-open;
+    in property <string> manual-error;
+    in property <bool> manual-busy;
+    in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
+    in property <string> choice-b;
+
+    // Paramètres
+    in property <bool> prefer-remote;
+    in property <string> addr-local;
+    in property <string> addr-remote;
+    in property <string> addr-current;
+    in-out property <int> set-sel;          // 0 préférence réseau · 1 changer de serveur
+
     // Bibliothèque (grille)
     in property <string> lib-title;
     in-out property <[CardData]> lib-items;
@@ -592,6 +617,11 @@ export component AppWindow inherits Window {
     callback go-home();
     callback menu-action(string);
     callback lib-more();                    // page suivante de la bibliothèque
+    callback servers-search();
+    callback server-pick(int);
+    callback manual-submit(string, string); // adresse locale, adresse distante
+    callback manual-choice(string);
+    callback set-prefer-remote(bool);
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
@@ -1556,8 +1586,441 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ------------------------------------------------------------ Choix du serveur
+    if root.screen == "servers" && !root.playing: srv := Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
+        property <int> n: root.servers.length;
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (root.manual-open || root.choice-a != "") {
+                    return EventResult.reject;
+                }
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                // Serveurs trouvés, puis « Rechercher à nouveau » et « Saisir une adresse ».
+                if (event.text == Key.UpArrow) {
+                    if (root.srv-sel == 0) {
+                        root.nav-enter();
+                    } else if (root.srv-sel > srv.n) {
+                        root.srv-sel = max(0, srv.n - 1);
+                    } else {
+                        root.srv-sel -= 1;
+                    }
+                } else if (event.text == Key.DownArrow) {
+                    root.srv-sel = min(srv.n, root.srv-sel + 1);
+                } else if (event.text == Key.LeftArrow && root.srv-sel == srv.n + 1) {
+                    root.srv-sel = srv.n;
+                } else if (event.text == Key.RightArrow && root.srv-sel == srv.n) {
+                    root.srv-sel = srv.n + 1;
+                } else if (event.text == Key.Return) {
+                    if (root.srv-sel < srv.n) {
+                        root.server-pick(root.srv-sel);
+                    } else if (root.srv-sel == srv.n) {
+                        root.servers-search();
+                    } else {
+                        root.manual-open = true;
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.go-home();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        VerticalLayout {
+            alignment: start;
+            padding-top: 8px * root.k;
+            spacing: 14px * root.k;
+
+            Text {
+                text: "Choisir un serveur";
+                color: Theme.text;
+                font-size: 30px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: root.srv-searching ? "Recherche sur le réseau local et Tailscale…"
+                    : root.servers.length == 0 ? "Aucun serveur trouvé. Saisis son adresse."
+                    : "Serveurs trouvés sur le réseau local et Tailscale";
+                color: Theme.muted;
+                font-size: 15px * root.k;
+                horizontal-alignment: center;
+            }
+
+            for s[i] in root.servers: HorizontalLayout {
+                alignment: center;
+                height: 86px * root.k;
+
+                Rectangle {
+                    width: 620px * root.k;
+                    border-radius: 14px * root.k;
+                    background: i == root.srv-sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                        : (srv-area.has-hover ? #ffffff26 : #ffffff14);
+
+                    Text {
+                        x: 22px * root.k;
+                        y: 12px * root.k;
+                        text: s.name + (s.version != "" ? "  ·  " + s.version : "");
+                        color: white;
+                        font-size: 19px * root.k;
+                        font-weight: 700;
+                    }
+                    Text {
+                        x: 22px * root.k;
+                        y: 40px * root.k;
+                        text: "Local : " + (s.local != "" ? s.local : "—");
+                        color: #ffffffcc;
+                        font-size: 13px * root.k;
+                    }
+                    Text {
+                        x: 22px * root.k;
+                        y: 60px * root.k;
+                        text: "Distante : " + (s.remote != "" ? s.remote : "—");
+                        color: #ffffffcc;
+                        font-size: 13px * root.k;
+                    }
+                    srv-area := TouchArea {
+                        clicked => {
+                            root.srv-sel = i;
+                            root.server-pick(i);
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: 16px * root.k;
+                height: 44px * root.k;
+
+                ActionButton {
+                    text: root.srv-searching ? "Recherche…" : "Rechercher à nouveau";
+                    font: 16px * root.k;
+                    focused: root.srv-sel == root.servers.length;
+                    clicked => {
+                        root.servers-search();
+                    }
+                }
+                ActionButton {
+                    text: "Saisir une adresse";
+                    font: 16px * root.k;
+                    focused: root.srv-sel == root.servers.length + 1;
+                    clicked => {
+                        root.manual-open = true;
+                    }
+                }
+            }
+        }
+
+        // Saisie manuelle : deux adresses possibles pour le même serveur.
+        if root.manual-open: Rectangle {
+            background: #000000b3;
+
+            TouchArea { }
+
+            Rectangle {
+                width: 600px * root.k;
+                height: 360px * root.k;
+                border-radius: 16px;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+
+                VerticalLayout {
+                    padding: 26px * root.k;
+                    spacing: 10px * root.k;
+
+                    Text {
+                        text: "Adresse du serveur";
+                        color: Theme.text;
+                        font-size: 22px * root.k;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "Sans « http:// » ni « https:// », les deux sont essayés.";
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                    }
+                    Text {
+                        text: "Réseau local";
+                        color: Theme.text;
+                        font-size: 14px * root.k;
+                    }
+                    local-in := LineEdit {
+                        placeholder-text: "192.168.1.32:8097";
+                        init => {
+                            self.focus();
+                        }
+                        accepted => {
+                            remote-in.focus();
+                        }
+                    }
+                    Text {
+                        text: "Adresse distante (Tailscale ou autre), facultative";
+                        color: Theme.text;
+                        font-size: 14px * root.k;
+                    }
+                    remote-in := LineEdit {
+                        placeholder-text: "100.111.157.87:8097";
+                        accepted => {
+                            root.manual-submit(local-in.text, remote-in.text);
+                        }
+                    }
+                    Text {
+                        text: root.manual-busy ? "Vérification…" : root.manual-error;
+                        color: root.manual-busy ? Theme.muted : #ff6b6b;
+                        font-size: 13px * root.k;
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 12px * root.k;
+                        height: 40px * root.k;
+
+                        ActionButton {
+                            text: "Annuler";
+                            font: 15px * root.k;
+                            focused: false;
+                            clicked => {
+                                root.manual-open = false;
+                                root.refocus += 1;
+                            }
+                        }
+                        ActionButton {
+                            text: "Valider";
+                            font: 15px * root.k;
+                            focused: true;
+                            clicked => {
+                                root.manual-submit(local-in.text, remote-in.text);
+                            }
+                        }
+                    }
+                }
+
+                FocusScope {
+                    width: 0px;
+                    height: 0px;
+                    key-pressed(event) => {
+                        if (event.text == Key.Escape) {
+                            root.manual-open = false;
+                            root.refocus += 1;
+                            return EventResult.accept;
+                        }
+                        return EventResult.reject;
+                    }
+                }
+            }
+        }
+
+        // http et https répondent tous deux : l'utilisateur choisit.
+        if root.choice-a != "": Rectangle {
+            background: #000000c0;
+
+            TouchArea { }
+
+            choice := Rectangle {
+                width: 600px * root.k;
+                height: 190px * root.k;
+                border-radius: 16px;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+
+                property <int> pick: 0;
+
+                FocusScope {
+                    init => {
+                        self.focus();
+                    }
+                    key-pressed(event) => {
+                        if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                            choice.pick = 0;
+                        } else if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                            choice.pick = 1;
+                        } else if (event.text == Key.Return) {
+                            root.manual-choice(choice.pick == 0 ? root.choice-a : root.choice-b);
+                        } else if (event.text == Key.Escape) {
+                            root.manual-choice("");
+                        }
+                        return EventResult.accept;
+                    }
+                }
+
+                VerticalLayout {
+                    padding: 24px * root.k;
+                    spacing: 18px * root.k;
+
+                    Text {
+                        text: "Deux adresses répondent. Laquelle utiliser ?";
+                        color: Theme.text;
+                        font-size: 18px * root.k;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 14px * root.k;
+                        height: 44px * root.k;
+
+                        ActionButton {
+                            text: root.choice-a;
+                            font: 15px * root.k;
+                            focused: choice.pick == 0;
+                            clicked => {
+                                root.manual-choice(root.choice-a);
+                            }
+                        }
+                        ActionButton {
+                            text: root.choice-b;
+                            font: 15px * root.k;
+                            focused: choice.pick == 1;
+                            clicked => {
+                                root.manual-choice(root.choice-b);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Paramètres
+    if root.screen == "settings" && !root.playing: Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    if (root.set-sel == 0) {
+                        root.nav-enter();
+                    } else {
+                        root.set-sel -= 1;
+                    }
+                } else if (event.text == Key.DownArrow) {
+                    root.set-sel = min(1, root.set-sel + 1);
+                } else if (event.text == Key.Return) {
+                    if (root.set-sel == 0) {
+                        root.set-prefer-remote(!root.prefer-remote);
+                    } else {
+                        root.menu-action("server");
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.go-home();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        VerticalLayout {
+            x: 64px * root.k;
+            width: min(parent.width - 128px * root.k, 760px * root.k);
+            alignment: start;
+            spacing: 14px * root.k;
+
+            Text {
+                text: "Paramètres";
+                color: Theme.text;
+                font-size: 30px * root.k;
+                font-weight: 700;
+            }
+            Text {
+                text: "RÉSEAU";
+                color: Theme.muted;
+                font-size: 13px * root.k;
+                font-weight: 700;
+            }
+
+            // Interrupteur : privilégier l'adresse distante
+            Rectangle {
+                height: 64px * root.k;
+                border-radius: 14px * root.k;
+                background: root.set-sel == 0 ? #ffffff26 : #ffffff14;
+                border-width: root.set-sel == 0 ? 2px : 0px;
+                border-color: Theme.accent2;
+
+                Text {
+                    x: 20px * root.k;
+                    width: parent.width - 120px * root.k;
+                    height: parent.height;
+                    text: "Privilégier l'adresse distante (Tailscale…), même si l'adresse locale répond";
+                    color: Theme.text;
+                    font-size: 15px * root.k;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                }
+                Rectangle {
+                    x: parent.width - self.width - 20px * root.k;
+                    width: 56px * root.k;
+                    height: 30px * root.k;
+                    border-radius: self.height / 2;
+                    background: root.prefer-remote ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
+
+                    Rectangle {
+                        x: root.prefer-remote ? parent.width - self.width - 4px * root.k : 4px * root.k;
+                        width: 22px * root.k;
+                        height: 22px * root.k;
+                        border-radius: self.height / 2;
+                        background: white;
+                        animate x { duration: 120ms; }
+                    }
+                }
+                TouchArea {
+                    clicked => {
+                        root.set-sel = 0;
+                        root.set-prefer-remote(!root.prefer-remote);
+                    }
+                }
+            }
+
+            Text {
+                text: "Adresse locale : " + (root.addr-local != "" ? root.addr-local : "inconnue")
+                    + "\nAdresse distante : " + (root.addr-remote != "" ? root.addr-remote : "inconnue")
+                    + "\nUtilisée : " + root.addr-current;
+                color: Theme.muted;
+                font-size: 14px * root.k;
+            }
+
+            HorizontalLayout {
+                alignment: start;
+                height: 44px * root.k;
+
+                ActionButton {
+                    text: "Changer de serveur";
+                    font: 16px * root.k;
+                    focused: root.set-sel == 1;
+                    clicked => {
+                        root.menu-action("server");
+                    }
+                }
+            }
+        }
+    }
+
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
-    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile")
+    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile"
+        || root.screen == "servers" || root.screen == "settings")
         && !root.playing: NavBar {
         y: 0px;
         width: parent.width;

@@ -499,7 +499,13 @@ impl Client {
             user_id: self.user_id.clone(),
             token: self.token.clone(),
             device_id: self.device_id.clone(),
+            ..Default::default()
         }
+    }
+
+    /// Change l'adresse utilisée (même serveur joint autrement : local / distant).
+    pub fn set_server(&mut self, server: &str) {
+        self.server = normalize_server(server);
     }
 
     pub async fn login(server: &str, user: &str, pw: &str, device_id: &str) -> Result<Self> {
