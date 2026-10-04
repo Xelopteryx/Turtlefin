@@ -135,6 +135,21 @@ Principes :
   **Pas testé** : le transfert réel (le compte `test` n'a pas le droit de télécharger) et le démarrage hors ligne.
   Pas fait : synchroniser la progression / « vu » des lectures hors ligne au retour en ligne.
 
+### Lots du 4 octobre 2026 (soir) : vérifiés sur le PC (compte `test`), watch party entre PC et Pi
+1. Téléchargements : jeton dans l'en-tête (`/Items/{id}/Download` refuse `api_key`, 401) — transfert réel vérifié,
+   démarrage hors ligne vérifié. « Passer l'intro » (segments Intro Skipper), carte « épisode suivant » en bas à
+   gauche, écran de fin (fond = image floutée, animations), barre ← ⌂ ☰, séparateurs du menu. Option `--play=ID@SECONDES`.
+2. Navigation entre rangées : carte visuellement au-dessus / en dessous (`row-pick` / `row-seen` en Rust).
+3. Seerr : badge SEERR (seulement si absent du serveur), page Seerr au premier plan, bouton Demander
+   (`POST /JellyfinEnhanced/jellyseerr/request`, **non testé** : pas de vraie demande créée).
+4. Fiche : boutons Audio / Sous-titres, préférence par série (`config/tracks.json`), appliquée via alang/slang/sid.
+5. Recherche (bibliothèque + Seerr), dé « au hasard » (non vu), clavier à l'écran en mode TV (`ui/osk.slint`).
+6. Paramètres : Profil (avatars GetAvatar : `/GetAvatar/Avatars`, `/GetAvatar/Image/{id}`, `POST /GetAvatar/SetAvatar`),
+   Lecture (préférences du compte Jellyfin), Réseau, Compte. Avatar dans l'en-tête (GIF de 2 Mo : lent à charger).
+7. Watch party (`src/syncplay.rs`, WebSocket `/socket` avec le jeton dans l'en-tête — `api_key` refusé, 403) :
+   créer / rejoindre / quitter vérifiés entre `test` (Pi) et `test2` (PC) ; lancement synchronisé et pause / reprise
+   communes vérifiés (même image des deux côtés). **Saut synchronisé non vérifié** (tests clavier ratés).
+
 ### Pas fait
 - **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
 - Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).
