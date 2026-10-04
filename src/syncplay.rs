@@ -80,8 +80,11 @@ pub fn connect(client: Client, state: Shared, tx: tokio::sync::mpsc::UnboundedSe
 
 async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>) -> Result<()> {
     let base = client.server.replacen("http", "ws", 1);
-    let url = format!("{base}/socket?api_key={}&deviceId={}", client.token, client.device_id);
-    let (ws, _) = tokio_tungstenite::connect_async(url.as_str()).await?;
+    // Le jeton passe par l'en-tête (le serveur refuse `api_key` dans l'adresse : 403).
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let mut req = format!("{base}/socket?deviceId={}", client.device_id).into_client_request()?;
+    req.headers_mut().insert("Authorization", client.auth().parse()?);
+    let (ws, _) = tokio_tungstenite::connect_async(req).await?;
     let (mut write, mut read) = ws.split();
     let mut keepalive = tokio::time::interval(Duration::from_secs(30));
     loop {
