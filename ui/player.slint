@@ -2,7 +2,7 @@
 //
 // Navigation (clavier / télécommande) :
 //   commandes masquées : ← → reculer / avancer de 10 s sans rien afficher ; ↑ ↓ affichent les
-//   commandes sur la barre de temps ; Entrée les affiche sur Lecture/Pause ; Échap quitte la vidéo.
+//   commandes sur la barre de temps ; Entrée ou Espace = pause, sélection sur Lecture/Pause ; Échap quitte la vidéo.
 //   barre de temps : ← → déplacer le curseur ; ↓ boutons (Lecture/Pause) ; ↑ bouton Retour.
 //   boutons : ← → changer de bouton ; Entrée activer ; ↑ barre de temps.
 //   menu des pistes : ↑ ↓ choisir ; Entrée valider ; Échap ou ← fermer.
@@ -201,6 +201,15 @@ export component PlayerView inherits Rectangle {
         root.menu = "";
     }
 
+    // Pause / lecture par une simple touche : commandes affichées, sélection sur le bouton Lecture/Pause.
+    function toggle-pause() {
+        root.command("pause");
+        root.menu = "";
+        root.zone = 2;
+        root.btn = 2;
+        root.show();
+    }
+
     function activate(i: int) {
         if (i == 0) {
             if (root.has-prev) {
@@ -305,8 +314,7 @@ export component PlayerView inherits Rectangle {
                 return EventResult.accept;
             }
             if (event.text == Key.Space) {
-                root.command("pause");
-                root.show();
+                root.toggle-pause();
                 return EventResult.accept;
             }
 
@@ -335,9 +343,7 @@ export component PlayerView inherits Rectangle {
                     root.zone = 1;
                     root.show();
                 } else if (event.text == Key.Return) {
-                    root.zone = 2;
-                    root.btn = 2;
-                    root.show();
+                    root.toggle-pause();
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
                     if (root.osd) {
                         root.hide();
@@ -365,7 +371,7 @@ export component PlayerView inherits Rectangle {
                 } else if (event.text == Key.UpArrow) {
                     root.zone = 3;
                 } else if (event.text == Key.Return) {
-                    root.command("pause");
+                    root.toggle-pause();
                 }
             } else if (root.zone == 2) {
                 // Boutons

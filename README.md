@@ -43,11 +43,11 @@ En bas : temps écoulé et durée, barre de temps (repères de chapitres, cliqua
 Les commandes se masquent après 3 s sans activité (sauf en pause ou menu ouvert).
 
 - Commandes masquées : ← → reculer / avancer de 10 s (sans rien afficher) · ↑ ↓ affichent les commandes,
-  barre de temps sélectionnée · Entrée les affiche sur Lecture/Pause · Échap/Retour arrière quitte la vidéo.
-- Barre de temps : ← → déplacer le curseur de 10 s · ↓ boutons (Lecture/Pause) · ↑ bouton Retour.
+  barre de temps sélectionnée · Entrée = pause, sélection sur Lecture/Pause · Échap/Retour arrière quitte la vidéo.
+- Barre de temps : ← → déplacer le curseur de 10 s · ↓ boutons (Lecture/Pause) · ↑ bouton Retour · Entrée = pause.
 - Boutons : ← → changer de bouton · Entrée activer · ↑ barre de temps · Échap masquer les commandes.
 - Menu des pistes : ↑ ↓ choisir · Entrée valider · Échap ou ← fermer.
-- Partout : Espace pause · `a` menu audio · `s` menu sous-titres · `f` ou F11 plein écran · `q` quitter la vidéo.
+- Partout : Espace = pause (sélection sur Lecture/Pause) · `a` menu audio · `s` menu sous-titres · `f` ou F11 plein écran · `q` quitter la vidéo.
 - Souris : bouger affiche les commandes · clic sur la vidéo = pause · double-clic = plein écran.
 
 ## Diagnostic de la lecture
