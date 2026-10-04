@@ -12,6 +12,7 @@ glow = "0.17"
 # Watch party (SyncPlay) : connexion WebSocket au serveur.
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+base64 = "0.22"
 # Heure locale (« Fin à 22:47 »).
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time"] }

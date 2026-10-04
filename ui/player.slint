@@ -996,7 +996,7 @@ export component PlayerView inherits Rectangle {
 
     // ------------------------------------------------------------ Épisode suivant (générique)
     if root.up-mode == "next": Rectangle {
-        x: root.m;
+        x: parent.width - self.width - root.m;
         y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
         animate y { duration: 160ms; easing: ease-out; }
         width: 340px * root.k;

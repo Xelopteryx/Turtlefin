@@ -32,6 +32,8 @@ pub struct State {
     pub participants: Vec<String>,
     /// Élément de la file en cours (pour Ready / Buffering).
     pub playlist_item: String,
+    /// État du groupe : Idle, Waiting, Paused, Playing.
+    pub state: String,
 }
 
 pub type Shared = Arc<Mutex<State>>;
@@ -141,6 +143,10 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
         }
         "GroupLeft" | "NotInGroup" | "GroupDoesNotExist" => {
             *state.lock().unwrap() = State::default();
+            let _ = tx.send(Event::Group);
+        }
+        "StateUpdate" => {
+            state.lock().unwrap().state = data["State"].as_str().unwrap_or("").to_string();
             let _ = tx.send(Event::Group);
         }
         "PlayQueue" => {

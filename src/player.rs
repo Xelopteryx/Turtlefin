@@ -718,6 +718,8 @@ fn card_data(c: &api::CardInfo) -> CardData {
         progress: c.progress,
         rating: c.rating.clone().into(),
                                 seerr: c.seerr,
+                                status: c.status,
+                                count: c.count,
         ..Default::default()
     }
 }

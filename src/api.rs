@@ -60,6 +60,8 @@ pub struct UserData {
     /// Avancement de la lecture en cours (0-100), absent si rien n'est commencé.
     pub played_percentage: Option<f64>,
     pub is_favorite: bool,
+    /// Séries / saisons : épisodes pas encore vus.
+    pub unplayed_item_count: Option<i64>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -146,6 +148,10 @@ pub struct CardInfo {
     pub rating: String,
     /// Proposé par Seerr mais absent du serveur (badge, ouvre la page Seerr).
     pub seerr: bool,
+    /// État d'une demande Seerr : 0 aucun · 1 en attente · 2 acceptée · 3 refusée · 4 disponible · 5 échec
+    pub status: i32,
+    /// Épisodes restant à voir (séries, saisons), 0 sinon.
+    pub count: i32,
 }
 
 /// (id de l'élément portant l'image, étiquette de version de l'image)
@@ -202,6 +208,8 @@ pub struct SeerrRequest {
     /// Élément Jellyfin correspondant, une fois le média disponible.
     pub jellyfin_id: Option<String>,
     pub tmdb: i64,
+    /// Média disponible sur le serveur (Seerr : statut média 5).
+    pub available: bool,
     pub seasons: Vec<i64>,
 }
 
@@ -229,7 +237,20 @@ impl SeerrRequest {
             thumbs: Vec::new(),
             progress: 0.0,
             rating: String::new(),
-            seerr: self.jellyfin_id.is_none(),
+            seerr: false,
+            status: if self.available {
+                4
+            } else {
+                match self.status {
+                    1 => 1,
+                    2 => 2,
+                    3 => 3,
+                    4 => 5,
+                    5 => 4,
+                    _ => 0,
+                }
+            },
+            count: 0,
         }
     }
 }
@@ -322,6 +343,11 @@ impl Item {
             progress: self.progress(),
             rating: self.rating(),
             seerr: false,
+            status: 0,
+            count: match self.kind.as_str() {
+                "Series" | "Season" => self.user_data.as_ref().and_then(|u| u.unplayed_item_count).unwrap_or(0) as i32,
+                _ => 0,
+            },
         }
     }
 
@@ -354,6 +380,8 @@ impl Item {
             progress: self.progress(),
             rating: String::new(),
             seerr: false,
+            status: 0,
+            count: 0,
         }
     }
 
@@ -474,6 +502,8 @@ impl Item {
                 progress: 0.0,
                 rating: String::new(),
                 seerr: false,
+                status: 0,
+                count: 0,
             });
         }
         out
@@ -809,6 +839,33 @@ impl Client {
             .collect()
     }
 
+    /// Secours quand le plugin GetAvatar échoue : l'image de l'avatar proposé est envoyée comme
+    /// image de profil par l'API de Jellyfin (corps en base64).
+    pub async fn upload_avatar(&self, avatar_id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .get(format!("{}/GetAvatar/Image/{avatar_id}", self.server))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?;
+        let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("image/png").to_string();
+        let bytes = resp.bytes().await?;
+        use base64::Engine;
+        let body = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let resp = self
+            .http
+            .post(format!("{}/UserImage?userId={}", self.server, self.user_id))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .header("Content-Type", ct)
+            .body(body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+        }
+        Ok(())
+    }
+
     pub async fn set_avatar(&self, avatar_id: &str) -> Result<()> {
         let resp = self
             .http
@@ -887,6 +944,8 @@ impl Client {
                 progress: 0.0,
                 rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
                 seerr: true,
+                status: 0,
+                count: 0,
             });
         }
         out
@@ -1161,6 +1220,8 @@ impl Client {
                 progress: 0.0,
                 rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
                 seerr: !on_server,
+                status: 0,
+                count: 0,
             });
         }
         out
@@ -1363,6 +1424,7 @@ impl Client {
                 created: r["createdAt"].as_str().unwrap_or("").to_string(),
                 jellyfin_id: media["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()).map(str::to_string),
                 tmdb,
+                available: matches!(media["status"].as_i64(), Some(5)),
                 seasons: r["seasons"]
                     .as_array()
                     .map(|a| a.iter().filter_map(|s| s["seasonNumber"].as_i64()).collect())

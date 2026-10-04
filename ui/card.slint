@@ -8,4 +8,6 @@ export struct CardData {
     progress: float, // avancement de la lecture (0..1), 0 = rien de commencé
     rating: string,  // note de la communauté (« 7.7 »), vide si absente
     seerr: bool,     // proposé par Seerr, absent du serveur (badge)
+    status: int,     // demande Seerr : 0 · 1 en attente · 2 acceptée · 3 refusée · 4 disponible · 5 échec
+    count: int,      // épisodes restant à voir (séries, saisons)
 }

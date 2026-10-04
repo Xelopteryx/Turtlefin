@@ -44,6 +44,7 @@ fn parse_cli() -> Cli {
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
+            s if s.starts_with("--open=") => cli.play = Some(format!("open:{}", &s["--open=".len()..])),
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -377,7 +378,16 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     app.stack.lock().unwrap().clear();
     // Essais : --play=ID[@SECONDES] lance directement la lecture.
-    if let Some(p) = app.play_arg.lock().unwrap().take() {
+    let arg = app.play_arg.lock().unwrap().take();
+    if let Some(id) = arg.as_deref().and_then(|p| p.strip_prefix("open:")) {
+        // Essais : --open=ID ouvre directement une fiche (après l'accueil).
+        let (a, id) = (app.clone(), id.to_string());
+        app.rt.spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            let a2 = a.clone();
+            let _ = a.ui().upgrade_in_event_loop(move |_| push_detail(&a2, id));
+        });
+    } else if let Some(p) = arg {
         let (id, at) = p.split_once('@').map(|(i, t)| (i.to_string(), t.parse::<f64>().ok())).unwrap_or((p.clone(), None));
         *app.play_start.lock().unwrap() = at;
         let a = app.clone();
@@ -475,11 +485,12 @@ async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionDa
 async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Result<Vec<SectionData>> {
     let mut reqs = client.seerr_requests(seerr_user).await?;
     reqs.sort_by(|a, b| b.created.cmp(&a.created)); // plus récentes d'abord
-    let groups: [(&str, &[i64]); 4] =
-        [("En attente", &[1]), ("Acceptées", &[2, 5]), ("Refusées", &[3]), ("En échec", &[4])];
+    // Rangées par état de carte (voir SeerrRequest::card) : disponibles d'abord.
+    let groups: [(&str, &[i32]); 5] =
+        [("Disponibles", &[4]), ("En attente", &[1]), ("Acceptées", &[2]), ("Refusées", &[3]), ("En échec", &[5])];
     let mut sections: Vec<SectionData> = Vec::new();
     for (title, states) in groups {
-        let cards: Vec<api::CardInfo> = reqs.iter().filter(|r| states.contains(&r.status)).map(|r| r.card()).collect();
+        let cards: Vec<api::CardInfo> = reqs.iter().map(|r| r.card()).filter(|c| states.contains(&c.status)).collect();
         if !cards.is_empty() {
             sections.push(SectionData { title: title.to_string(), landscape: false, cards });
         }
@@ -532,6 +543,8 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
                                 progress: c.progress,
                                 rating: c.rating.clone().into(),
                                 seerr: c.seerr,
+                                status: c.status,
+                                count: c.count,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -641,6 +654,8 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                                 progress: c.progress,
                                 rating: c.rating.clone().into(),
                                 seerr: c.seerr,
+                                status: c.status,
+                                count: c.count,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -822,9 +837,15 @@ fn start_syncplay(app: &Arc<App>, client: &api::Client) {
 
 /// Écran Watch party : groupe actuel ou liste des groupes.
 fn refresh_party(app: &Arc<App>) {
-    let (group, people) = {
+    let (group, people, state) = {
         let s = app.sp.lock().unwrap();
-        (s.group.clone(), s.participants.clone())
+        let st = match s.state.as_str() {
+            "Playing" => "En lecture",
+            "Paused" => "En pause",
+            "Waiting" => "En attente des participants",
+            _ => "Prêt : lance un film ou un épisode",
+        };
+        (s.group.clone(), s.participants.clone(), st.to_string())
     };
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
@@ -834,6 +855,7 @@ fn refresh_party(app: &Arc<App>) {
             u.set_sp_active(group.is_some());
             u.set_sp_name(group.map(|g| g.1).unwrap_or_default().into());
             u.set_sp_people(people.join(", ").into());
+            u.set_sp_state(state.into());
             let rows: Vec<MenuEntry> = groups
                 .into_iter()
                 .map(|(id, name, p)| MenuEntry { label: format!("{name}  ·  {}", p.join(", ")).into(), action: id.into(), header: false })
@@ -990,6 +1012,8 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 progress: 0.0,
                 rating: String::new(),
                 seerr: false,
+                status: 0,
+                count: 0,
             })
             .collect();
         let jobs: Vec<ImageJob> = cast.iter().enumerate().filter_map(|(i, c)| ImageJob::for_card(0, i, c, false)).collect();
@@ -1092,6 +1116,8 @@ fn card_data(c: &api::CardInfo) -> CardData {
         progress: c.progress,
         rating: c.rating.clone().into(),
         seerr: c.seerr,
+        status: c.status,
+        count: c.count,
         ..Default::default()
     }
 }
@@ -1168,6 +1194,8 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                         progress: c.progress,
                         rating: c.rating.clone().into(),
                                 seerr: c.seerr,
+                                status: c.status,
+                                count: c.count,
                         ..Default::default()
                     });
                 }
@@ -1525,7 +1553,11 @@ fn set_avatar(app: &Arc<App>, id: String) {
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let msg = match client.set_avatar(&id).await {
+        let r = match client.set_avatar(&id).await {
+            Ok(()) => Ok(()),
+            Err(_) => client.upload_avatar(&id).await,
+        };
+        let msg = match r {
             Ok(()) => {
                 load_header_avatar(&app2, &client);
                 "Avatar modifié.".to_string()
@@ -1877,6 +1909,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             next_id: next_id.into(),
             next_title: next_title.into(),
             next_subtitle: next_sub.into(),
+            icon_count: buttons.iter().filter(|b| !b.2.is_empty()).count() as i32,
             buttons: ModelRc::new(VecModel::from(
                 buttons
                     .into_iter()
@@ -1899,6 +1932,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                 progress: c.progress,
                 rating: c.rating.clone().into(),
                                 seerr: c.seerr,
+                                status: c.status,
+                                count: c.count,
                 ..Default::default()
             })
             .collect();
@@ -2216,6 +2251,16 @@ fn main() -> anyhow::Result<()> {
     ui.on_logout({
         let app = app.clone();
         move || {
+            // Déconnexion : on quitte la watch party avant d'oublier la session.
+            if app.sp.lock().unwrap().group.is_some() {
+                if let Some(c) = app.client() {
+                    app.rt.spawn(async move {
+                        let _ = syncplay::leave(&c).await;
+                    });
+                }
+                *app.sp.lock().unwrap() = syncplay::State::default();
+                refresh_party(&app);
+            }
             config::clear_token();
             *app.client.lock().unwrap() = None;
             *app.tab.lock().unwrap() = "home".to_string();
@@ -2539,7 +2584,22 @@ fn main() -> anyhow::Result<()> {
     }
 
     ui.run()?;
+    // Fermeture : on quitte la watch party (sinon le serveur garde une session fantôme dans le groupe).
+    leave_party_blocking(&app, &rt);
     Ok(())
+}
+
+/// Quitte la watch party en cours, en attendant la réponse du serveur (2 s au plus).
+fn leave_party_blocking(app: &Arc<App>, rt: &tokio::runtime::Runtime) {
+    if app.sp.lock().unwrap().group.is_none() {
+        return;
+    }
+    if let Some(c) = app.client() {
+        rt.block_on(async {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), syncplay::leave(&c)).await;
+        });
+    }
+    *app.sp.lock().unwrap() = syncplay::State::default();
 }
 
 // ---------------------------------------------------------------------------

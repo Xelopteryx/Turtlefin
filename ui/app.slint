@@ -94,6 +94,7 @@ export struct DetailData {
     has-next-image: bool,
     next-image: image,
     buttons: [ButtonData],
+    icon-count: int, // boutons à icône (ligne du haut), les autres sont des pastilles
 }
 
 // Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
@@ -161,6 +162,63 @@ component Card inherits Rectangle {
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+        }
+
+        // Épisodes restant à voir (comme JellySkin)
+        if root.data.count > 0: Rectangle {
+            x: parent.width - self.width - 7px * root.k;
+            y: 7px * root.k;
+            width: max(26px * root.k, cnt.preferred-width + 12px * root.k);
+            height: 26px * root.k;
+            border-radius: self.height / 2;
+            background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+            cnt := Text {
+                text: root.data.count;
+                color: white;
+                font-size: 13px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // État d'une demande Seerr
+        if root.data.status > 0: Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: parent.height - self.height - 8px * root.k;
+            width: st-row.preferred-width + 18px * root.k;
+            height: 24px * root.k;
+            border-radius: self.height / 2;
+            background: root.data.status == 1 ? #d97706 : root.data.status == 2 ? #15803d
+                : root.data.status == 3 ? #dc2626 : root.data.status == 4 ? #4ade80 : #7f1d1d;
+            st-row := HorizontalLayout {
+                alignment: center;
+                spacing: 5px * root.k;
+                padding-left: 9px * root.k;
+                padding-right: 9px * root.k;
+                Path {
+                    width: 12px * root.k;
+                    height: 12px * root.k;
+                    y: (24px * root.k - self.height) / 2;
+                    viewbox-width: 12;
+                    viewbox-height: 12;
+                    fill: transparent;
+                    stroke: root.data.status == 4 ? #052e16 : white;
+                    stroke-width: 2px * root.k;
+                    // en attente : sablier · acceptée / disponible : coche · refusée / échec : croix
+                    commands: root.data.status == 1 ? "M 2 1 L 10 1 L 2 11 L 10 11 Z"
+                        : root.data.status == 2 || root.data.status == 4 ? "M 1.5 6.5 L 4.5 9.5 L 10.5 2.5"
+                        : "M 2 2 L 10 10 M 10 2 L 2 10";
+                }
+                Text {
+                    text: root.data.status == 1 ? "En attente" : root.data.status == 2 ? "Acceptée"
+                        : root.data.status == 3 ? "Refusée" : root.data.status == 4 ? "Disponible" : "Échec";
+                    color: root.data.status == 4 ? #052e16 : white;
+                    font-size: 11px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
             }
         }
 
@@ -344,6 +402,7 @@ component Tab inherits Rectangle {
 component HeaderIcon inherits Rectangle {
     in property <string> icon;
     in property <bool> focused;
+    in property <bool> on; // état actif (watch party en cours) : anneau d'accent
     in property <float> k: 1.0;
     callback clicked();
 
@@ -351,6 +410,8 @@ component HeaderIcon inherits Rectangle {
     height: 44px * root.k;
     border-radius: self.height / 2;
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+    border-width: root.on && !root.focused ? 2px * root.k : 0px;
+    border-color: Theme.accent2;
 
     if root.icon == "search": Path {
         x: (parent.width - self.width) / 2;
@@ -398,6 +459,17 @@ component HeaderIcon inherits Rectangle {
         viewbox-height: 24;
         fill: white;
         commands: "M 12 3 L 21.5 11.5 L 19 11.5 L 19 20.5 L 14.5 20.5 L 14.5 15 L 9.5 15 L 9.5 20.5 L 5 20.5 L 5 11.5 L 2.5 11.5 Z";
+    }
+
+    if root.icon == "party": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px * root.k;
+        height: 24px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: white;
+        commands: "M 8 4 A 3.5 3.5 0 1 1 7.99 4 Z M 1 19 C 1 14.5 4 12.5 8 12.5 C 12 12.5 15 14.5 15 19 Z M 17 5.5 A 3 3 0 1 1 16.99 5.5 Z M 16.2 12.6 C 20 12.4 23 14.2 23 18 L 16.6 18 C 16.6 15.8 16.5 14 16.2 12.6 Z";
     }
 
     if root.icon == "dice": Rectangle {
@@ -475,8 +547,11 @@ component DetailButton inherits Rectangle {
 
     property <bool> lit: root.focused || area.has-hover;
 
-    preferred-width: root.icon != "" ? self.height : label.preferred-width + 40px * root.k;
-    border-radius: 10px;
+    in property <bool> chip; // pastille compacte (saison, série, pistes)
+    preferred-width: root.icon != "" ? self.height : label.preferred-width + (root.chip ? 24px : 40px) * root.k;
+    min-width: self.preferred-width;
+    horizontal-stretch: 0;
+    border-radius: root.chip ? self.height / 2 : 10px;
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
 
@@ -532,7 +607,7 @@ component DetailButton inherits Rectangle {
         height: parent.height;
         text: root.text;
         color: white;
-        font-size: 16px * root.k;
+        font-size: (root.chip ? 13px : 16px) * root.k;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -668,6 +743,75 @@ component NavBar inherits Rectangle {
     }
 }
 
+// Droite de la barre du haut, sur toutes les pages : watch party, au hasard, recherche, compte, heure.
+component HeaderRight inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <int> sel: -1; // 0 watch party · 1 au hasard · 2 recherche · 3 compte
+    in property <bool> party-on;
+    in property <bool> has-avatar;
+    in property <image> avatar;
+    in property <string> clock;
+    in property <bool> offline;
+    callback activate(int);
+
+    HorizontalLayout {
+        alignment: end;
+        spacing: 12px * root.k;
+        padding-right: 32px * root.k;
+        padding-top: (root.height - 44px * root.k) / 2;
+        padding-bottom: (root.height - 44px * root.k) / 2;
+
+        if !root.offline: HeaderIcon {
+            icon: "party";
+            k: root.k;
+            on: root.party-on;
+            focused: root.sel == 0;
+            clicked => {
+                root.activate(0);
+            }
+        }
+        if !root.offline: HeaderIcon {
+            icon: "dice";
+            k: root.k;
+            focused: root.sel == 1;
+            clicked => {
+                root.activate(1);
+            }
+        }
+        if !root.offline: HeaderIcon {
+            icon: "search";
+            k: root.k;
+            focused: root.sel == 2;
+            clicked => {
+                root.activate(2);
+            }
+        }
+        HeaderIcon {
+            icon: root.has-avatar ? "" : "profile";
+            k: root.k;
+            focused: root.sel == 3;
+            clicked => {
+                root.activate(3);
+            }
+            if root.has-avatar: Image {
+                x: 4px * root.k;
+                y: 4px * root.k;
+                width: parent.width - 8px * root.k;
+                height: parent.height - 8px * root.k;
+                source: root.avatar;
+                image-fit: fill;
+            }
+        }
+        Text {
+            text: root.clock;
+            color: Theme.text;
+            font-size: 18px * root.k;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "Turtlefin";
     background: Theme.bg;
@@ -735,6 +879,7 @@ export component AppWindow inherits Window {
     in property <bool> has-getavatar;
     in property <image> avatar;
     in property <bool> has-avatar;
+    in property <bool> offline;             // pas de serveur : téléchargements seulement
 
     // Page Seerr (premier plan)
     in-out property <bool> sr-open;
@@ -754,6 +899,7 @@ export component AppWindow inherits Window {
     in property <bool> sp-active;
     in property <string> sp-name;
     in property <string> sp-people;
+    in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
     in-out property <int> sp-sel;
 
@@ -920,11 +1066,15 @@ export component AppWindow inherits Window {
         if (t == Key.LeftArrow) {
             root.h-sel = max(0, root.h-sel - 1);
         } else if (t == Key.RightArrow) {
-            root.h-sel = min(root.nav-n - 1, root.h-sel + 1);
+            root.h-sel = min(root.right-base + 3, root.h-sel + 1);
         } else if (t == Key.DownArrow || t == Key.Escape) {
             root.h-focus = false;
         } else if (t == Key.Return) {
-            root.nav-activate(root.h-sel);
+            if (root.h-sel < root.nav-n) {
+                root.nav-activate(root.h-sel);
+            } else {
+                root.right-activate(root.h-sel - root.right-base);
+            }
         }
         return true;
     }
@@ -947,9 +1097,18 @@ export component AppWindow inherits Window {
             root.select-tab("favorites");
         } else if (i == 2 && root.has-requests) {
             root.select-tab("requests");
-        } else if (i == root.tab-count) {
+        }
+    }
+
+    // Icônes de droite de la barre du haut (toutes les pages).
+    property <int> right-base: root.screen == "home" ? root.nav-n + root.tab-count : root.nav-n;
+    function right-activate(i: int) {
+        root.h-focus = false;
+        if (i == 0) {
+            root.menu-action("party");
+        } else if (i == 1) {
             root.random-pick();
-        } else if (i == root.tab-count + 1) {
+        } else if (i == 2) {
             root.search-open();
         } else {
             root.menu-action("settings");
@@ -962,7 +1121,7 @@ export component AppWindow inherits Window {
     property <length> child-card-w: (root.detail.children-landscape ? 240px : 120px) * root.k;
     property <length> next-w: 260px * root.k;
     // Haut de la rangée d'enfants, et des rangées du bas (sous les enfants s'il y en a).
-    property <length> d-children-y: 24px + 300px * root.k + 16px;
+    property <length> d-children-y: 24px + 316px * root.k + 16px;
     property <length> d-extra-y: root.d-children-y
         + (root.child-items.length > 0 ? root.child-card-w * root.child-ratio + 132px * root.k : 0px);
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
@@ -1097,53 +1256,18 @@ export component AppWindow inherits Window {
                 }
             }
 
-            HorizontalLayout {
+            HeaderRight {
                 width: parent.width;
                 height: parent.height;
-                alignment: end;
-                spacing: 12px * root.k;
-                padding-right: 32px * root.k;
-                padding-top: (root.header-h - 44px * root.k) / 2;
-                padding-bottom: (root.header-h - 44px * root.k) / 2;
-
-                HeaderIcon {
-                    icon: "dice";
-                    k: root.k;
-                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count;
-                    clicked => {
-                        root.header-activate(root.tab-count);
-                    }
-                }
-                HeaderIcon {
-                    icon: "search";
-                    k: root.k;
-                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 1;
-                    clicked => {
-                        root.header-activate(root.tab-count + 1);
-                    }
-                }
-                HeaderIcon {
-                    icon: root.has-avatar ? "" : "profile";
-                    k: root.k;
-                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 2;
-                    clicked => {
-                        root.header-activate(root.tab-count + 2);
-                    }
-                    if root.has-avatar: Image {
-                        x: 4px * root.k;
-                        y: 4px * root.k;
-                        width: parent.width - 8px * root.k;
-                        height: parent.height - 8px * root.k;
-                        source: root.avatar;
-                        image-fit: fill;
-                    }
-                }
-                Text {
-                    text: root.clock;
-                    color: Theme.text;
-                    font-size: 18px * root.k;
-                    font-weight: 500;
-                    vertical-alignment: center;
+                k: root.k;
+                sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
+                party-on: root.sp-active;
+                has-avatar: root.has-avatar;
+                avatar: root.avatar;
+                clock: root.clock;
+                offline: root.offline;
+                activate(i) => {
+                    root.right-activate(i);
                 }
             }
         }
@@ -1167,7 +1291,7 @@ export component AppWindow inherits Window {
                     if (event.text == Key.LeftArrow) {
                         root.h-sel = max(0, root.h-sel - 1);
                     } else if (event.text == Key.RightArrow) {
-                        root.h-sel = min(root.nav-n + root.tab-count + 2, root.h-sel + 1);
+                        root.h-sel = min(root.right-base + 3, root.h-sel + 1);
                     } else if (event.text == Key.DownArrow) {
                         if (root.sections.length > 0) {
                             root.h-focus = false;
@@ -1175,8 +1299,10 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.Return) {
                         if (root.h-sel < root.nav-n) {
                             root.nav-activate(root.h-sel);
-                        } else {
+                        } else if (root.h-sel < root.right-base) {
                             root.header-activate(root.h-sel - root.nav-n);
+                        } else {
+                            root.right-activate(root.h-sel - root.right-base);
                         }
                     }
                     return EventResult.accept;
@@ -1325,6 +1451,12 @@ export component AppWindow inherits Window {
                 color: Theme.muted;
                 font-size: 15px * root.k;
                 wrap: word-wrap;
+            }
+            if root.sp-active: Text {
+                text: "État : " + root.sp-state;
+                color: Theme.text;
+                font-size: 16px * root.k;
+                font-weight: 600;
             }
             if root.sp-active: Text {
                 text: "Participants : " + root.sp-people;
@@ -1776,14 +1908,19 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
 
-                // Zone 0 : boutons (↑ : barre de navigation)
+                // Zone 0 : boutons (↑ : pastilles -> icônes -> barre de navigation)
                 if (root.d-zone == 0) {
                     if (event.text == Key.UpArrow) {
-                        root.nav-enter();
+                        if (root.d-button >= root.detail.icon-count) {
+                            root.d-button = 0;
+                        } else {
+                            root.nav-enter();
+                        }
                         return EventResult.accept;
                     }
+                    let on-icons = root.d-button < root.detail.icon-count;
                     if (event.text == Key.RightArrow) {
-                        if (root.d-button < root.detail.buttons.length - 1) {
+                        if (root.d-button < (on-icons ? root.detail.icon-count : root.detail.buttons.length) - 1) {
                             root.d-button += 1;
                         } else if (root.detail.has-next) {
                             root.d-zone = 3;
@@ -1791,9 +1928,13 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     if (event.text == Key.LeftArrow) {
-                        if (root.d-button > 0) {
+                        if (root.d-button > (on-icons ? 0 : root.detail.icon-count)) {
                             root.d-button -= 1;
                         }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.DownArrow && on-icons && root.detail.buttons.length > root.detail.icon-count) {
+                        root.d-button = root.detail.icon-count;
                         return EventResult.accept;
                     }
                     if (event.text == Key.DownArrow) {
@@ -1989,21 +2130,48 @@ export component AppWindow inherits Window {
             overflow: elide;
         }
 
-        // Boutons
+        // Boutons : icônes (lecture, favori, vu, téléchargement)…
         HorizontalLayout {
             x: root.col-x;
-            y: 24px + 120px * root.k;
+            y: 24px + 118px * root.k;
             width: root.info-w;
             height: 40px * root.k;
-            spacing: 12px;
+            spacing: 10px * root.k;
             alignment: start;
 
             for b[i] in root.detail.buttons: DetailButton {
+                visible: i < root.detail.icon-count;
+                width: i < root.detail.icon-count ? self.height : 0px;
                 text: b.label;
                 icon: b.icon;
                 active: b.active;
                 k: root.k;
-                focused: root.d-zone == 0 && root.d-button == i;
+                focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
+                clicked => {
+                    root.d-zone = 0;
+                    root.d-button = i;
+                    root.run-action(b.action);
+                }
+            }
+        }
+        // … puis pastilles compactes (saison, série, langue audio, sous-titres).
+        HorizontalLayout {
+            // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
+            x: root.col-x - root.detail.icon-count * 8px * root.k;
+            y: 24px + 166px * root.k;
+            width: root.info-w;
+            height: 30px * root.k;
+            spacing: 8px * root.k;
+            alignment: start;
+
+            for b[i] in root.detail.buttons: DetailButton {
+                visible: i >= root.detail.icon-count;
+                width: i >= root.detail.icon-count ? self.preferred-width : 0px;
+                chip: true;
+                text: b.label;
+                icon: "";
+                k: root.k;
+                focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
                 clicked => {
                     root.d-zone = 0;
                     root.d-button = i;
@@ -2015,7 +2183,7 @@ export component AppWindow inherits Window {
         // Année · classification · durée · note
         Text {
             x: root.col-x;
-            y: 24px + 168px * root.k;
+            y: 24px + 202px * root.k;
             width: root.info-w;
             height: 24px * root.k;
             text: root.detail.misc;
@@ -2028,12 +2196,12 @@ export component AppWindow inherits Window {
         // Résumé (bloc « verre » cliquable)
         if root.detail.overview != "": Rectangle {
             x: root.col-x;
-            y: 24px + 200px * root.k;
+            y: 24px + 232px * root.k;
             width: root.info-w;
-            height: 100px * root.k;
+            height: 80px * root.k;
             border-radius: 14px;
-            background: root.d-zone == 1 ? #ffffff3d : #ffffff21;
-            border-width: root.d-zone == 1 ? 2px : 0px;
+            background: !root.h-focus && root.d-zone == 1 ? #ffffff3d : #ffffff21;
+            border-width: !root.h-focus && root.d-zone == 1 ? 2px : 0px;
             border-color: Theme.accent2;
 
             Text {
@@ -2090,7 +2258,7 @@ export component AppWindow inherits Window {
                     width: parent.width;
                     height: parent.height;
                     border-radius: Theme.radius;
-                    border-width: root.d-zone == 3 ? 3px : 0px;
+                    border-width: !root.h-focus && root.d-zone == 3 ? 3px : 0px;
                     border-color: Theme.accent2;
                 }
             }
@@ -2132,7 +2300,7 @@ export component AppWindow inherits Window {
             card-w: root.child-card-w;
             ratio: root.child-ratio;
             k: root.k;
-            active: root.d-zone == 2;
+            active: !root.h-focus && root.d-zone == 2;
             focus-index: root.d-child;
             activated(i) => {
                 root.d-zone = 2;
@@ -2151,7 +2319,7 @@ export component AppWindow inherits Window {
             card-w: 140px * root.k;
             ratio: 1.5;
             k: root.k;
-            active: root.d-zone == 4 + ri;
+            active: !root.h-focus && root.d-zone == 4 + ri;
             focus-index: root.d-x;
             activated(i) => {
                 root.d-zone = 4 + ri;
@@ -3109,9 +3277,9 @@ export component AppWindow inherits Window {
     }
 
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
-    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile" || root.screen == "search" || root.screen == "party"
-        || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads")
-        && !root.playing: NavBar {
+    property <bool> bar-screen: root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile"
+        || root.screen == "search" || root.screen == "party" || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads";
+    if root.bar-screen && !root.playing: NavBar {
         y: 0px;
         width: parent.width;
         k: root.k;
@@ -3119,9 +3287,25 @@ export component AppWindow inherits Window {
         show-home: true;
         title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : root.screen == "search" ? "Recherche"
             : root.screen == "party" ? "Watch party" : "";
-        sel: root.h-focus ? root.h-sel : -1;
+        sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);
+        }
+    }
+    if root.bar-screen && !root.playing: HeaderRight {
+        x: parent.width / 2;
+        y: 0px;
+        width: parent.width / 2;
+        height: root.header-h;
+        k: root.k;
+        sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
+        party-on: root.sp-active;
+        has-avatar: root.has-avatar;
+        avatar: root.avatar;
+        clock: root.clock;
+        offline: root.offline;
+        activate(i) => {
+            root.right-activate(i);
         }
     }
 
