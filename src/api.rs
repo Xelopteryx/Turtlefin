@@ -89,6 +89,8 @@ pub struct MediaStream {
 pub struct MediaSource {
     pub id: String,
     pub media_streams: Vec<MediaStream>,
+    /// Format du fichier (« mkv », « mov,mp4,m4a »...).
+    pub container: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -825,6 +827,11 @@ impl Client {
             "{}/Videos/{}/stream?static=true&mediaSourceId={}&deviceId={}&api_key={}",
             self.server, item_id, media_source_id, self.device_id, self.token
         )
+    }
+
+    /// Fichier original à télécharger (lecture hors ligne).
+    pub fn download_url(&self, item_id: &str) -> String {
+        format!("{}/Items/{}/Download?api_key={}", self.server, item_id, self.token)
     }
 
     /// Sous-titre externe, si son format est connu de mpv.

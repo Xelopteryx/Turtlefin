@@ -116,6 +116,25 @@ Principes :
 - « À suivre » n'affiche plus les épisodes commencés (`enableResumable=false` + exclusion de ceux de « Reprendre »).
 - Onglet Demandes vérifié avec de vraies demandes (compte `test`).
 
+### Serveurs, fiche enrichie, lecteur, téléchargements (4 octobre 2026, vérifié sur le PC, compte `test`)
+- **Serveurs** (`src/discovery.rs`) : découverte UDP Jellyfin + sondage du /24 local et des appareils Tailscale en
+  ligne (`tailscale status --json`), ports 8096 / 8097 / 8920, regroupement par identifiant de serveur. Le serveur
+  de l'utilisateur (Chulak, Jellyfin 12.1, conteneur) ne répond pas en UDP mais est trouvé par sondage :
+  local http://192.168.1.32:8097, Tailscale http://100.111.157.87:8097. Saisie manuelle (locale + distante) :
+  sans schéma, http et https essayés, choix demandé si les deux répondent. `Saved` : `server_local`,
+  `server_remote`, `prefer_remote` (Paramètres > Réseau) ; adresse manquante complétée en arrière-plan.
+- **Fiche** : boutons ▶ ♥ ✓ ⬇ (⬇ si `Policy.EnableContentDownloading`), rangées Casting et équipe, Plus de ce
+  genre (`/Items/{id}/Similar`), Similaires / Recommandés de Seerr (`/JellyfinEnhanced/jellyseerr/{movie|tv}/{tmdb}/…`).
+- **Lecteur** : ↑↓ → Pause sélectionné ; ↓ depuis les boutons → épisodes de la saison ; au générique
+  (`/MediaSegments/{id}` Outro, sinon chapitre « Ending… », sinon 3 % de la durée, min 40 s) : « Épisode suivant »
+  / « Saison suivante », ou 3 suggestions au hasard de « Plus de ce genre » avec la vidéo réduite (sélectionnable) ;
+  écran de fin avec « Retour à l'accueil » (`player::Exit::Home`).
+- **Téléchargements** (`src/downloads.rs`) : `/Items/{id}/Download` dans `<données>/turtlefin/downloads/<id>/`
+  (+ affiche, vignette, sous-titres externes, `info.json`), file d'attente un par un, écran Téléchargements
+  (Lire / Supprimer), lecture locale sans rapport au serveur, démarrage hors ligne si le serveur est injoignable.
+  **Pas testé** : le transfert réel (le compte `test` n'a pas le droit de télécharger) et le démarrage hors ligne.
+  Pas fait : synchroniser la progression / « vu » des lectures hors ligne au retour en ligne.
+
 ### Pas fait
 - **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
 - Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).

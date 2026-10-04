@@ -1,6 +1,7 @@
 mod api;
 mod config;
 mod discovery;
+mod downloads;
 mod mpv;
 mod player;
 mod video;
@@ -80,6 +81,11 @@ struct App {
     lib_return: Mutex<Option<(String, usize)>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
     can_download: AtomicBool,
+    /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
+    dl_queue: Mutex<std::collections::VecDeque<(String, String)>>,
+    dl_current: Mutex<Option<(String, String, f32)>>,
+    /// Pas de serveur joignable : seuls les téléchargements sont accessibles.
+    offline: AtomicBool,
     /// Serveurs trouvés par la dernière recherche.
     found: Mutex<Vec<discovery::Found>>,
     /// Serveur choisi, en attente de connexion : (adresse locale, adresse distante).
@@ -365,7 +371,12 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
         _ => home_sections(&client).await,
     };
     match sections {
-        Ok(s) => present_sections(&app, &client, s),
+        Ok(s) => {
+            app.offline.store(false, Ordering::SeqCst);
+            present_sections(&app, &client, s)
+        }
+        // Serveur injoignable (pas un refus d'accès) : on bascule sur les téléchargements.
+        Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() && !downloads::list().is_empty() => go_offline(&app),
         Err(e) => handle_error(&ui, e),
     }
 }
@@ -946,6 +957,7 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
     if has_requests {
         e.push(("Demandes".into(), "requests".into(), false));
     }
+    e.push(("Téléchargements".into(), "downloads".into(), false));
     e.push(("Bibliothèques".into(), String::new(), true));
     for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
         e.push((v.name.clone(), format!("lib:{}", v.id), false));
@@ -1130,7 +1142,12 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         None => Default::default(),
     };
     let has_next = next_card.is_some();
-    let buttons = item.buttons(app.can_download.load(Ordering::SeqCst));
+    let mut buttons = item.buttons(app.can_download.load(Ordering::SeqCst));
+    if downloads::exists(&item.id) {
+        for b in buttons.iter_mut().filter(|b| b.1 == "download") {
+            b.3 = true;
+        }
+    }
     let misc = item.misc_line();
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
@@ -1318,8 +1335,25 @@ async fn resolve_playable(client: &api::Client, item: api::Item) -> anyhow::Resu
     }
 }
 
+async fn play_local(app: Arc<App>, e: downloads::Entry) {
+    let subs = e.subs.iter().map(|(f, l)| (e.dir().join(f).to_string_lossy().into_owned(), l.clone())).collect();
+    let url = e.media_path().to_string_lossy().into_owned();
+    play_flow_with(app, None, Some(url), Some((e.title.clone(), e.subtitle.clone())), subs).await;
+}
+
 async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) {
-    let client = app.client();
+    play_flow_with(app, id, test_url, None, Vec::new()).await;
+}
+
+async fn play_flow_with(
+    app: Arc<App>,
+    id: Option<String>,
+    test_url: Option<String>,
+    local_title: Option<(String, String)>,
+    local_subs: Vec<(String, String)>,
+) {
+    // Lecture locale (téléchargement) : pas de rapport au serveur, même connecté.
+    let client = if test_url.is_some() { None } else { app.client() };
     if client.is_none() && test_url.is_none() {
         return;
     }
@@ -1347,7 +1381,8 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
             }
             _ => (None, 0.0),
         };
-        player::play(app.clone(), client.clone(), player::PlayRequest { item, start_secs, test_url }, rx, ui.clone()).await
+        let req = player::PlayRequest { item, start_secs, test_url, local_title, local_subs };
+        player::play(app.clone(), client.clone(), req, rx, ui.clone()).await
     }
     .await;
 
@@ -1419,6 +1454,9 @@ fn main() -> anyhow::Result<()> {
         lib_return: Mutex::new(None),
         found: Mutex::new(Vec::new()),
         can_download: AtomicBool::new(false),
+        dl_queue: Mutex::new(std::collections::VecDeque::new()),
+        dl_current: Mutex::new(None),
+        offline: AtomicBool::new(false),
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
@@ -1497,6 +1535,19 @@ fn main() -> anyhow::Result<()> {
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
 
+    ui.on_dl_play({
+        let app = app.clone();
+        move |id| play_download(&app, &id)
+    });
+
+    ui.on_dl_delete({
+        let app = app.clone();
+        move |id| {
+            downloads::remove(&id);
+            refresh_downloads(&app);
+        }
+    });
+
     ui.on_servers_search({
         let app = app.clone();
         move || search_servers(&app)
@@ -1560,6 +1611,8 @@ fn main() -> anyhow::Result<()> {
                 push_detail(&app, id.to_string());
             } else if a == "settings" {
                 open_settings(&app);
+            } else if a == "downloads" {
+                open_downloads(&app);
             } else if a == "server" {
                 open_servers(&app);
             } else if a == "logout" {
@@ -1641,6 +1694,11 @@ fn main() -> anyhow::Result<()> {
                 saved.server = best;
             }
             config::save(&saved);
+            // Serveur injoignable : téléchargements seulement (s'il y en a).
+            if discovery::probe(&reqwest::Client::new(), &saved.server).await.is_none() && !downloads::list().is_empty() {
+                go_offline(&a);
+                return;
+            }
             match api::Client::from_saved(&saved) {
                 Ok(client) => load_home(a, client).await,
                 Err(e) => show_login_error(&a.ui(), format!("{e}")),
@@ -1658,9 +1716,160 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Téléchargement de l'élément affiché (mode hors ligne) : voir downloads.rs.
+// ---------------------------------------------------------------------------
+// Téléchargements (lecture hors ligne)
+// ---------------------------------------------------------------------------
+
+/// Bouton Télécharger de la fiche : film / épisode, ou tous les épisodes d'une saison / série.
 fn start_download(app: &Arc<App>) {
-    if let Some(u) = app.ui().upgrade() {
-        u.set_toast("Téléchargement : bientôt.".into());
+    let Some(client) = app.client() else { return };
+    let Some(id) = app.ui().upgrade().map(|u| u.get_detail().id.to_string()) else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let Ok(item) = client.item(&id).await else { return };
+        let list: Vec<api::Item> = match item.kind.as_str() {
+            "Series" => client.episodes(&item.id, None).await.unwrap_or_default(),
+            "Season" => match &item.series_id {
+                Some(sid) => client.episodes(sid, Some(&item.id)).await.unwrap_or_default(),
+                None => Vec::new(),
+            },
+            _ => vec![item],
+        };
+        let mut added = 0;
+        {
+            let mut q = app2.dl_queue.lock().unwrap();
+            let current = app2.dl_current.lock().unwrap().as_ref().map(|c| c.0.clone());
+            for it in list {
+                let already = downloads::exists(&it.id) || q.iter().any(|(i, _)| *i == it.id) || current.as_deref() == Some(it.id.as_str());
+                if !already {
+                    let (t, s) = it.titles();
+                    q.push_back((it.id.clone(), if s.is_empty() { t } else { format!("{t} · {s}") }));
+                    added += 1;
+                }
+            }
+        }
+        let msg = if added == 0 { "Déjà téléchargé.".to_string() } else { format!("Ajouté aux téléchargements ({added}).") };
+        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        run_downloads(&app2, &client);
+    });
+}
+
+/// Traite la file, un élément à la fois (rien si un transfert est déjà en cours).
+fn run_downloads(app: &Arc<App>, client: &api::Client) {
+    if app.dl_current.lock().unwrap().is_some() {
+        return;
     }
+    let Some((id, title)) = app.dl_queue.lock().unwrap().pop_front() else {
+        push_dl_status(app);
+        return;
+    };
+    *app.dl_current.lock().unwrap() = Some((id.clone(), title.clone(), 0.0));
+    push_dl_status(app);
+    let (app2, client2) = (app.clone(), client.clone());
+    app.rt.spawn(async move {
+        let app3 = app2.clone();
+        let r = downloads::download(&client2, &id, move |p| {
+            if let Some(c) = app3.dl_current.lock().unwrap().as_mut() {
+                c.2 = p;
+            }
+            push_dl_status(&app3);
+        })
+        .await;
+        *app2.dl_current.lock().unwrap() = None;
+        if let Err(e) = r {
+            let msg = format!("Téléchargement impossible ({title}) : {e}");
+            let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+        refresh_downloads(&app2);
+        run_downloads(&app2, &client2);
+    });
+}
+
+fn push_dl_status(app: &Arc<App>) {
+    let waiting = app.dl_queue.lock().unwrap().len();
+    let status = match app.dl_current.lock().unwrap().clone() {
+        Some((_, title, p)) => {
+            let mut s = format!("Téléchargement : {title} — {:.0} %", p * 100.0);
+            if waiting > 0 {
+                s.push_str(&format!(" · {waiting} en attente"));
+            }
+            s
+        }
+        None => String::new(),
+    };
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_dl_status(status.into()));
+}
+
+/// Grille de l'écran Téléchargements (affiches lues sur le disque).
+fn refresh_downloads(app: &Arc<App>) {
+    let entries = downloads::list();
+    let k = if app.tv { 1.4 } else { 1.0 };
+    let card_w = if app.tv { 230.0 } else { 170.0 };
+    let _ = k;
+    let ui = app.ui();
+    let cards: Vec<(String, String, String)> = entries.iter().map(|e| (e.id.clone(), e.title.clone(), e.subtitle.clone())).collect();
+    let _ = ui.upgrade_in_event_loop(move |u| {
+        let rows: Vec<CardData> = cards
+            .iter()
+            .map(|(id, t, s)| CardData { id: id.clone().into(), title: t.clone().into(), subtitle: s.clone().into(), ..Default::default() })
+            .collect();
+        u.set_dl_items(ModelRc::new(VecModel::from(rows)));
+        let n = u.get_dl_items().row_count() as i32;
+        if u.get_dl_sel() >= n {
+            u.set_dl_sel((n - 1).max(0));
+        }
+    });
+    for (i, e) in entries.into_iter().enumerate() {
+        let ui = app.ui();
+        app.rt.spawn(async move {
+            let path = e.poster_path();
+            let buf = tokio::task::spawn_blocking(move || {
+                let bytes = std::fs::read(path).ok()?;
+                decode(&bytes, Some(Shape::card_top(270, 405, card_w)))
+            })
+            .await
+            .ok()
+            .flatten();
+            let Some(buf) = buf else { return };
+            let id = e.id.clone();
+            let _ = ui.upgrade_in_event_loop(move |u| {
+                let model = u.get_dl_items();
+                if let Some(mut c) = model.row_data(i) {
+                    if c.id.as_str() == id {
+                        c.image = slint::Image::from_rgba8(buf);
+                        c.has_image = true;
+                        model.set_row_data(i, c);
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// Mode hors ligne : écran Téléchargements, avec un message.
+fn go_offline(app: &Arc<App>) {
+    app.offline.store(true, Ordering::SeqCst);
+    let a = app.clone();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        open_downloads(&a);
+        u.set_toast("Serveur injoignable : mode hors ligne (téléchargements).".into());
+    });
+}
+
+fn open_downloads(app: &Arc<App>) {
+    refresh_downloads(app);
+    push_dl_status(app);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_dl_sel(0);
+        u.set_dl_dialog(false);
+        u.set_h_focus(false);
+        u.set_screen("downloads".into());
+    }
+}
+
+/// Lecture d'un téléchargement (fonctionne sans serveur).
+fn play_download(app: &Arc<App>, id: &str) {
+    let Some(e) = downloads::get(id) else { return };
+    let a = app.clone();
+    app.rt.spawn(async move { play_local(a, e).await });
 }

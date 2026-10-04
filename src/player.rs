@@ -28,8 +28,12 @@ pub struct PlayRequest {
     /// Élément Jellyfin à lire (None : fichier de test local, voir `test_url`).
     pub item: Option<Item>,
     pub start_secs: f64,
-    /// Lecture d'essai sans serveur (option --test-video).
+    /// Lecture sans serveur : fichier local (téléchargement, ou option --test-video).
     pub test_url: Option<String>,
+    /// Titre et sous-titre d'un fichier local.
+    pub local_title: Option<(String, String)>,
+    /// Sous-titres externes d'un fichier local : (chemin, langue).
+    pub local_subs: Vec<(String, String)>,
 }
 
 /// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
@@ -269,6 +273,13 @@ pub async fn play(
     }
 
     let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
+    if let Some((t, s)) = req.local_title {
+        let _ = ui.upgrade_in_event_loop(move |u| {
+            u.set_p_title(t.into());
+            u.set_p_subtitle(s.into());
+        });
+    }
+    cur.subs.extend(req.local_subs);
     prepare_extras(&app, client, &mut cur).await;
     report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
 
