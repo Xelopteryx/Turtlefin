@@ -88,7 +88,7 @@ Principes :
 - Vidéo d'essai sans serveur : `turtlefin --test-video=fichier` (+ `TURTLEFIN_MPV_ARGS="--chapters-file=... --audio-files=... --sub-files=..."`).
 - Mesure sur le PC (même épisode, 20 s) : mpv séparé 420 Mo (Turtlefin 200 + mpv 224), 0,8 % d'un cœur ;
   libmpv 399 Mo, 4,5 à 5,6 % d'un cœur (décodage `d3d11va-copy`). **Reste à mesurer sur le Pi**, où les deux décodent en logiciel.
-- Pas testé : souris réelle (clic, glisser la barre), mode TV (`--tv`, facteur 1,4), Linux/Pi (compilation comprise), Wayland,
+- Vérifié par l'utilisateur sur le Pi : compilation, lecture fluide, mode TV. Pas testé : souris réelle (clic, glisser la barre), Wayland,
   enchaînement automatique en fin d'épisode, « Reprendre » à jour dans Jellyfin Web.
 
 ### Pas fait
@@ -124,6 +124,9 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
 6. Le multi-ligne avec points de suspension du résumé dépend de la version de Slint (au pire coupure nette).
 7. Le `FocusScope` de taille nulle de la fiche : si les flèches ne répondent pas, regarder là.
 8. Le défilement mémorisé des rangées de l'accueil est perdu quand on revient de la fiche (l'écran est recréé).
+10. **Saccades au défilement des menus sur le Pi** (accueil, rangées de cartes ; signalé le 4 octobre 2026). La lecture, elle,
+   est fluide. Pistes à examiner : synchronisation verticale (intervalle de swap) avec femtovg sous X11, coût des cartes
+   arrondies avec `clip: true` (pochoir OpenGL) et des posters redimensionnés à chaque image, animations `animate x/y`.
 9. Décodage logiciel sur le Pi : peut peiner en 4K/HEVC lourd ; piste future : `TURTLEFIN_HWDEC=auto-copy` avec libmpv (copie en mémoire, évite l'import SAND), sinon v4l2request / drm-copy.
 
 ## 8. Variables d'environnement utiles
