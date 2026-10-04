@@ -84,6 +84,10 @@ struct App {
     lib_return: Mutex<Option<(String, usize)>>,
     /// Fiche affichée : clé de préférences et pistes (langue, libellé) audio / sous-titres.
     detail_streams: Mutex<(String, Vec<(String, String)>, Vec<(String, String)>)>,
+    /// Configuration du compte Jellyfin (Paramètres > Lecture).
+    user_cfg: Mutex<serde_json::Value>,
+    /// Avatars GetAvatar proposés : (id, nom).
+    avatars: Mutex<Vec<(String, String)>>,
     /// Dernière recherche lancée (les réponses plus anciennes sont ignorées).
     search_gen: AtomicU64,
     /// Page Seerr affichée.
@@ -387,6 +391,11 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         set_menu(&app, &views);
     }
     complete_addresses(&app, &client);
+    if let Ok(cfg) = client.user_config().await {
+        apply_user_defaults(&cfg);
+        *app.user_cfg.lock().unwrap() = cfg;
+    }
+    load_header_avatar(&app, &client);
     app.can_download.store(client.can_download().await, Ordering::SeqCst);
     load_tab(app, client).await;
 }
@@ -1256,17 +1265,231 @@ fn complete_addresses(app: &Arc<App>, client: &api::Client) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Paramètres : Profil (avatar), Lecture, Réseau, Compte
+// ---------------------------------------------------------------------------
+const LANGS: [(&str, &str); 9] = [
+    ("", "Aucune préférence"),
+    ("fre", "Français"),
+    ("eng", "Anglais"),
+    ("jpn", "Japonais"),
+    ("ger", "Allemand"),
+    ("spa", "Espagnol"),
+    ("ita", "Italien"),
+    ("kor", "Coréen"),
+    ("chi", "Chinois"),
+];
+const SUB_MODES: [(&str, &str); 5] = [
+    ("Default", "Par défaut"),
+    ("Smart", "Intelligent"),
+    ("OnlyForced", "Forcés uniquement"),
+    ("Always", "Toujours"),
+    ("None", "Aucun"),
+];
+
+fn apply_user_defaults(cfg: &serde_json::Value) {
+    config::set_user_defaults(
+        cfg["AudioLanguagePreference"].as_str().unwrap_or(""),
+        cfg["SubtitleLanguagePreference"].as_str().unwrap_or(""),
+        cfg["SubtitleMode"].as_str().unwrap_or("Default"),
+    );
+}
+
+fn label_of<'a>(list: &[(&'a str, &'a str)], v: &str) -> &'a str {
+    list.iter().find(|(k, _)| *k == v).map(|(_, l)| *l).unwrap_or(list[0].1)
+}
+
+/// Lignes de la catégorie affichée : (clé, libellé, valeur, type « toggle » / « choice » / « action » / « info »).
+fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
+    let row = |key: &str, label: &str, value: String, kind: &str, on: bool| SettingRow {
+        key: key.into(),
+        label: label.into(),
+        value: value.into(),
+        kind: kind.into(),
+        on,
+    };
+    match cat {
+        1 => {
+            let c = app.user_cfg.lock().unwrap().clone();
+            let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
+            vec![
+                row("alang", "Langue audio préférée", label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
+                row("defaudio", "Lire la piste audio par défaut du fichier", String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
+                row("slang", "Langue des sous-titres préférée", label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
+                row("submode", "Sous-titres", label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
+                row("info", "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire.", String::new(), "info", false),
+            ]
+        }
+        2 => {
+            let saved = config::load();
+            let current = app.client().map(|c| c.server).unwrap_or_default();
+            vec![
+                row("prefer_local", "Privilégier l'adresse locale (si elle répond) plutôt que l'adresse distante", String::new(), "toggle", !saved.prefer_remote),
+                row("info", &format!("Adresse locale : {}", if saved.server_local.is_empty() { "inconnue" } else { &saved.server_local }), String::new(), "info", false),
+                row("info", &format!("Adresse distante : {}", if saved.server_remote.is_empty() { "inconnue" } else { &saved.server_remote }), String::new(), "info", false),
+                row("info", &format!("Utilisée : {current}"), String::new(), "info", false),
+                row("server", "Sélectionner un serveur", String::new(), "action", false),
+            ]
+        }
+        3 => vec![
+            row("logout", "Se déconnecter", String::new(), "action", false),
+            row("quit", "Fermer l'application", String::new(), "action", false),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn refresh_settings(app: &Arc<App>) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let rows = settings_rows(app, u.get_set_cat());
+    u.set_set_rows(ModelRc::new(VecModel::from(rows)));
+}
+
 fn open_settings(app: &Arc<App>) {
-    let saved = config::load();
-    let current = app.client().map(|c| c.server).unwrap_or_default();
     if let Some(u) = app.ui().upgrade() {
-        u.set_prefer_remote(saved.prefer_remote);
-        u.set_addr_local(saved.server_local.into());
-        u.set_addr_remote(saved.server_remote.into());
-        u.set_addr_current(current.into());
+        u.set_set_cat(0);
         u.set_set_sel(0);
+        u.set_set_in(false);
         u.set_h_focus(false);
         u.set_screen("settings".into());
+    }
+    refresh_settings(app);
+    load_avatars(app);
+}
+
+/// Avatars proposés par GetAvatar (images décodées une fois, GIF compris : première image).
+fn load_avatars(app: &Arc<App>) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let list = client.avatars().await;
+        *app2.avatars.lock().unwrap() = list.clone();
+        let names: Vec<(String, String)> = list.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let rows: Vec<CardData> = names.iter().map(|(id, n)| CardData { id: id.clone().into(), title: n.clone().into(), ..Default::default() }).collect();
+            u.set_avatar_items(ModelRc::new(VecModel::from(rows)));
+            u.set_has_getavatar(!names.is_empty());
+        });
+        for (i, (id, _)) in list.into_iter().enumerate() {
+            let (c, ui) = (client.clone(), app2.ui());
+            app2.rt.spawn(async move {
+                let Ok(bytes) = c.get_bytes(&format!("/GetAvatar/Image/{id}")).await else { return };
+                let Some(buf) = tokio::task::spawn_blocking(move || decode(&bytes, Some(Shape { w: 160, h: 160, radius: 0.5, top_only: false })))
+                    .await
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let _ = ui.upgrade_in_event_loop(move |u| {
+                    let m = u.get_avatar_items();
+                    if let Some(mut card) = m.row_data(i) {
+                        if card.id.as_str() == id {
+                            card.image = slint::Image::from_rgba8(buf);
+                            card.has_image = true;
+                            m.set_row_data(i, card);
+                        }
+                    }
+                });
+            });
+        }
+    });
+}
+
+/// Avatar du compte, rond, dans l'en-tête et les paramètres.
+fn load_header_avatar(app: &Arc<App>, client: &api::Client) {
+    let (c, ui) = (client.clone(), app.ui());
+    app.rt.spawn(async move {
+        let Some(bytes) = c.user_avatar().await else {
+            let _ = ui.upgrade_in_event_loop(|u| u.set_has_avatar(false));
+            return;
+        };
+        let Some(buf) = tokio::task::spawn_blocking(move || decode(&bytes, Some(Shape { w: 160, h: 160, radius: 0.5, top_only: false })))
+            .await
+            .ok()
+            .flatten()
+        else {
+            return;
+        };
+        let _ = ui.upgrade_in_event_loop(move |u| {
+            u.set_avatar(slint::Image::from_rgba8(buf));
+            u.set_has_avatar(true);
+        });
+    });
+}
+
+fn set_avatar(app: &Arc<App>, id: String) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let msg = match client.set_avatar(&id).await {
+            Ok(()) => {
+                load_header_avatar(&app2, &client);
+                "Avatar modifié.".to_string()
+            }
+            Err(e) => format!("Avatar impossible : {e}"),
+        };
+        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+    });
+}
+
+/// Ligne de paramètre activée (Entrée / clic).
+fn settings_activate(app: &Arc<App>, key: &str) {
+    let cycle = |list: &[(&str, &str)], cur: &str| -> String {
+        let i = list.iter().position(|(k, _)| *k == cur).unwrap_or(0);
+        list[(i + 1) % list.len()].0.to_string()
+    };
+    match key {
+        "alang" | "slang" | "submode" | "defaudio" => {
+            let mut cfg = app.user_cfg.lock().unwrap().clone();
+            if !cfg.is_object() {
+                return;
+            }
+            match key {
+                "alang" => {
+                    let n = cycle(&LANGS, cfg["AudioLanguagePreference"].as_str().unwrap_or(""));
+                    cfg["AudioLanguagePreference"] = n.into();
+                }
+                "slang" => {
+                    let n = cycle(&LANGS, cfg["SubtitleLanguagePreference"].as_str().unwrap_or(""));
+                    cfg["SubtitleLanguagePreference"] = n.into();
+                }
+                "submode" => {
+                    let n = cycle(&SUB_MODES, cfg["SubtitleMode"].as_str().unwrap_or("Default"));
+                    cfg["SubtitleMode"] = n.into();
+                }
+                _ => {
+                    let v = cfg["PlayDefaultAudioTrack"].as_bool().unwrap_or(true);
+                    cfg["PlayDefaultAudioTrack"] = (!v).into();
+                }
+            }
+            apply_user_defaults(&cfg);
+            *app.user_cfg.lock().unwrap() = cfg.clone();
+            refresh_settings(app);
+            if let Some(client) = app.client() {
+                let app2 = app.clone();
+                app.rt.spawn(async move {
+                    if let Err(e) = client.set_user_config(&cfg).await {
+                        let msg = format!("Réglage non enregistré : {e}");
+                        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                    }
+                });
+            }
+        }
+        "prefer_local" => {
+            let now_remote = config::load().prefer_remote;
+            set_prefer_remote(app, !now_remote);
+        }
+        "server" => open_servers(app),
+        "logout" => {
+            if let Some(u) = app.ui().upgrade() {
+                u.invoke_logout();
+            }
+        }
+        "quit" => {
+            let _ = slint::quit_event_loop();
+        }
+        _ => {}
     }
 }
 
@@ -1275,9 +1498,7 @@ fn set_prefer_remote(app: &Arc<App>, prefer: bool) {
     let mut saved = config::load();
     saved.prefer_remote = prefer;
     config::save(&saved);
-    if let Some(u) = app.ui().upgrade() {
-        u.set_prefer_remote(prefer);
-    }
+    refresh_settings(app);
     let app2 = app.clone();
     app.rt.spawn(async move {
         let best = discovery::pick(&saved.server_local, &saved.server_remote, prefer).await;
@@ -1290,7 +1511,9 @@ fn set_prefer_remote(app: &Arc<App>, prefer: bool) {
         let mut s = config::load();
         s.server = best.clone();
         config::save(&s);
-        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_addr_current(best.into()));
+        let a3 = app2.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |_| refresh_settings(&a3));
+        let _ = best;
     });
 }
 
@@ -1832,6 +2055,8 @@ fn main() -> anyhow::Result<()> {
         can_download: AtomicBool::new(false),
         seerr_page: Mutex::new(None),
         search_gen: AtomicU64::new(0),
+        user_cfg: Mutex::new(serde_json::Value::Null),
+        avatars: Mutex::new(Vec::new()),
         detail_streams: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
@@ -1984,9 +2209,19 @@ fn main() -> anyhow::Result<()> {
         move |url| manual_choice(&app, url.to_string())
     });
 
-    ui.on_set_prefer_remote({
+    ui.on_settings_activate({
         let app = app.clone();
-        move |p| set_prefer_remote(&app, p)
+        move |k| settings_activate(&app, &k)
+    });
+
+    ui.on_settings_category({
+        let app = app.clone();
+        move || refresh_settings(&app)
+    });
+
+    ui.on_avatar_pick({
+        let app = app.clone();
+        move |id| set_avatar(&app, id.to_string())
     });
 
     // Navigation entre rangées : carte de la rangée cible dont le centre, avec le défilement

@@ -106,3 +106,15 @@ pub fn set_track_pref(key: &str, audio: Option<&str>, sub: Option<&str>) {
         let _ = std::fs::write(p, t);
     }
 }
+
+/// Préférences de lecture du compte Jellyfin (audio, sous-titres), utilisées quand rien n'est
+/// choisi pour la série : (langue audio, langue des sous-titres, mode des sous-titres).
+static USER_DEFAULTS: std::sync::Mutex<(String, String, String)> = std::sync::Mutex::new((String::new(), String::new(), String::new()));
+
+pub fn set_user_defaults(audio: &str, sub: &str, mode: &str) {
+    *USER_DEFAULTS.lock().unwrap() = (audio.to_string(), sub.to_string(), mode.to_string());
+}
+
+pub fn user_defaults() -> (String, String, String) {
+    USER_DEFAULTS.lock().unwrap().clone()
+}

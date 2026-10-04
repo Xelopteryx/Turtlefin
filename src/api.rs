@@ -738,6 +738,73 @@ impl Client {
         Ok(r.items)
     }
 
+    /// Configuration du compte (préférences de lecture...).
+    pub async fn user_config(&self) -> Result<serde_json::Value> {
+        let v: serde_json::Value = self.get(&format!("/Users/{}", self.user_id), &[]).await?;
+        Ok(v["Configuration"].clone())
+    }
+
+    pub async fn set_user_config(&self, cfg: &serde_json::Value) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{}/Users/{}/Configuration", self.server, self.user_id))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(cfg)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+        }
+        Ok(())
+    }
+
+    /// Contenu brut d'une adresse du serveur (avec la connexion).
+    pub async fn get_bytes(&self, path: &str) -> Result<Vec<u8>> {
+        let resp = self
+            .http
+            .get(format!("{}{}", self.server, path))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{path} : {}", resp.status()));
+        }
+        Ok(resp.bytes().await?.to_vec())
+    }
+
+    /// Avatar du compte (image Primary de l'utilisateur), si défini.
+    pub async fn user_avatar(&self) -> Option<Vec<u8>> {
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        self.get_bytes(&format!("/Users/{}/Images/Primary?maxWidth=200&t={t}", self.user_id)).await.ok()
+    }
+
+    /// Plugin GetAvatar : avatars proposés (id, nom). Vide si le plugin est absent.
+    pub async fn avatars(&self) -> Vec<(String, String)> {
+        let v: serde_json::Value = match self.get("/GetAvatar/Avatars", &[]).await {
+            Ok(v) => v,
+            Err(_) => return Vec::new(),
+        };
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|a| Some((a["Id"].as_str()?.to_string(), a["Name"].as_str().unwrap_or("").to_string())))
+            .collect()
+    }
+
+    pub async fn set_avatar(&self, avatar_id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{}/GetAvatar/SetAvatar", self.server))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&serde_json::json!({ "AvatarId": avatar_id }))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+        }
+        Ok(())
+    }
+
     /// Recherche dans la bibliothèque (films, séries, épisodes).
     pub async fn search(&self, term: &str) -> Result<Vec<Item>> {
         let r: ItemsResp = self

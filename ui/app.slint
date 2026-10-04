@@ -53,6 +53,14 @@ export struct SeerrPage {
     has-backdrop: bool,
 }
 
+export struct SettingRow {
+    key: string,
+    label: string,
+    value: string,
+    kind: string, // "toggle" | "choice" | "action" | "info"
+    on: bool,
+}
+
 export struct MenuEntry {
     label: string,
     action: string, // "home" | "requests" | "lib:<id>" | "server" | "settings" | "logout" | "quit"
@@ -718,12 +726,15 @@ export component AppWindow inherits Window {
     in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
     in property <string> choice-b;
 
-    // Paramètres
-    in property <bool> prefer-remote;
-    in property <string> addr-local;
-    in property <string> addr-remote;
-    in property <string> addr-current;
-    in-out property <int> set-sel;          // 0 préférence réseau · 1 changer de serveur
+    // Paramètres : catégories à gauche (0 Profil · 1 Lecture · 2 Réseau · 3 Compte), lignes à droite
+    in-out property <int> set-cat;
+    in-out property <int> set-sel;
+    in-out property <bool> set-in;           // sélection dans le panneau de droite
+    in property <[SettingRow]> set-rows;
+    in property <[CardData]> avatar-items;
+    in property <bool> has-getavatar;
+    in property <image> avatar;
+    in property <bool> has-avatar;
 
     // Page Seerr (premier plan)
     in-out property <bool> sr-open;
@@ -825,7 +836,9 @@ export component AppWindow inherits Window {
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
     callback manual-choice(string);
-    callback set-prefer-remote(bool);
+    callback settings-activate(string);
+    callback settings-category();
+    callback avatar-pick(string);
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
@@ -931,8 +944,7 @@ export component AppWindow inherits Window {
         } else if (i == root.tab-count + 1) {
             root.search-open();
         } else {
-            root.prof-sel = 1;
-            root.screen = "profile";
+            root.menu-action("settings");
         }
     }
 
@@ -1103,11 +1115,19 @@ export component AppWindow inherits Window {
                     }
                 }
                 HeaderIcon {
-                    icon: "profile";
+                    icon: root.has-avatar ? "" : "profile";
                     k: root.k;
                     focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 2;
                     clicked => {
                         root.header-activate(root.tab-count + 2);
+                    }
+                    if root.has-avatar: Image {
+                        x: 4px * root.k;
+                        y: 4px * root.k;
+                        width: parent.width - 8px * root.k;
+                        height: parent.height - 8px * root.k;
+                        source: root.avatar;
+                        image-fit: fill;
                     }
                 }
                 Text {
@@ -2702,9 +2722,16 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Paramètres
-    if root.screen == "settings" && !root.playing: Rectangle {
+    if root.screen == "settings" && !root.playing: sets := Rectangle {
         y: root.header-h;
         height: parent.height - root.header-h;
+
+        property <[string]> cats: ["Profil", "Lecture", "Réseau", "Compte"];
+        property <length> left-w: 260px * root.k;
+        property <length> av: 96px * root.k;
+        property <int> av-cols: max(1, floor((self.width - self.left-w - 120px * root.k) / (self.av + 18px * root.k)));
+        // Profil : les lignes sont les avatars ; autres catégories : les lignes de réglage.
+        property <int> n: root.set-cat == 0 ? root.avatar-items.length : root.set-rows.length;
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -2718,106 +2745,246 @@ export component AppWindow inherits Window {
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    if (root.set-in) {
+                        root.set-in = false;
+                    } else {
+                        root.go-home();
+                    }
+                    return EventResult.accept;
+                }
+                if (!root.set-in) {
+                    // Colonne des catégories
+                    if (event.text == Key.UpArrow) {
+                        if (root.set-cat == 0) {
+                            root.nav-enter();
+                        } else {
+                            root.set-cat -= 1;
+                            root.settings-category();
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        root.set-cat = min(3, root.set-cat + 1);
+                        root.settings-category();
+                    } else if (event.text == Key.RightArrow || event.text == Key.Return) {
+                        if (sets.n > 0) {
+                            root.set-in = true;
+                            root.set-sel = 0;
+                        }
+                    }
+                    return EventResult.accept;
+                }
+                if (root.set-cat == 0) {
+                    // Grille d'avatars
+                    if (event.text == Key.RightArrow) {
+                        root.set-sel = min(sets.n - 1, root.set-sel + 1);
+                    } else if (event.text == Key.LeftArrow) {
+                        if (mod(root.set-sel, sets.av-cols) == 0) {
+                            root.set-in = false;
+                        } else {
+                            root.set-sel -= 1;
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        root.set-sel = min(sets.n - 1, root.set-sel + sets.av-cols);
+                    } else if (event.text == Key.UpArrow) {
+                        root.set-sel = max(0, root.set-sel - sets.av-cols);
+                    } else if (event.text == Key.Return) {
+                        root.avatar-pick(root.avatar-items[root.set-sel].id);
+                    }
+                    return EventResult.accept;
+                }
                 if (event.text == Key.UpArrow) {
-                    if (root.set-sel == 0) {
-                        root.nav-enter();
-                    } else {
-                        root.set-sel -= 1;
-                    }
+                    root.set-sel = max(0, root.set-sel - 1);
                 } else if (event.text == Key.DownArrow) {
-                    root.set-sel = min(1, root.set-sel + 1);
+                    root.set-sel = min(sets.n - 1, root.set-sel + 1);
+                } else if (event.text == Key.LeftArrow) {
+                    root.set-in = false;
                 } else if (event.text == Key.Return) {
-                    if (root.set-sel == 0) {
-                        root.set-prefer-remote(!root.prefer-remote);
-                    } else {
-                        root.menu-action("server");
-                    }
-                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    root.settings-activate(root.set-rows[root.set-sel].key);
                 }
                 return EventResult.accept;
             }
         }
 
-        VerticalLayout {
-            x: 64px * root.k;
-            width: min(parent.width - 128px * root.k, 760px * root.k);
-            alignment: start;
-            spacing: 14px * root.k;
-
+        // Catégories
+        for c[i] in sets.cats: Rectangle {
+            x: 32px * root.k;
+            y: 64px * root.k + i * 52px * root.k;
+            width: sets.left-w - 32px * root.k;
+            height: 46px * root.k;
+            border-radius: 10px * root.k;
+            background: (!root.set-in && !root.h-focus && i == root.set-cat) || cat-area.has-hover
+                ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                : i == root.set-cat ? #ffffff1f : transparent;
             Text {
-                text: "Paramètres";
-                color: Theme.text;
-                font-size: 30px * root.k;
-                font-weight: 700;
+                x: 18px * root.k;
+                height: parent.height;
+                text: c;
+                color: white;
+                font-size: 17px * root.k;
+                font-weight: i == root.set-cat ? 700 : 500;
+                vertical-alignment: center;
             }
-            Text {
-                text: "RÉSEAU";
-                color: Theme.muted;
-                font-size: 13px * root.k;
-                font-weight: 700;
-            }
-
-            // Interrupteur : privilégier l'adresse distante
-            Rectangle {
-                height: 64px * root.k;
-                border-radius: 14px * root.k;
-                background: root.set-sel == 0 ? #ffffff26 : #ffffff14;
-                border-width: root.set-sel == 0 ? 2px : 0px;
-                border-color: Theme.accent2;
-
-                Text {
-                    x: 20px * root.k;
-                    width: parent.width - 120px * root.k;
-                    height: parent.height;
-                    text: "Privilégier l'adresse locale (si elle répond) plutôt que l'adresse distante (Tailscale…)";
-                    color: Theme.text;
-                    font-size: 15px * root.k;
-                    vertical-alignment: center;
-                    wrap: word-wrap;
+            cat-area := TouchArea {
+                clicked => {
+                    root.set-cat = i;
+                    root.set-in = false;
+                    root.settings-category();
                 }
+            }
+        }
+
+        Text {
+            x: 32px * root.k;
+            y: 8px * root.k;
+            height: 44px * root.k;
+            text: "Paramètres";
+            color: Theme.text;
+            font-size: 28px * root.k;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        // Panneau de droite
+        Rectangle {
+            x: sets.left-w + 32px * root.k;
+            y: 64px * root.k;
+            width: parent.width - self.x - 32px * root.k;
+            height: parent.height - self.y - 24px * root.k;
+            clip: true;
+
+            // Profil : nom, avatar actuel, avatars proposés
+            if root.set-cat == 0: Rectangle {
                 Rectangle {
-                    x: parent.width - self.width - 20px * root.k;
-                    width: 56px * root.k;
-                    height: 30px * root.k;
-                    border-radius: self.height / 2;
-                    background: !root.prefer-remote ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
-
+                    width: 72px * root.k;
+                    height: self.width;
+                    x: 0px;
+                    y: 0px;
+                    border-radius: self.width / 2;
+                    background: #ffffff1f;
+                    if root.has-avatar: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.avatar;
+                        image-fit: fill;
+                    }
+                }
+                Text {
+                    x: 90px * root.k;
+                    y: 8px * root.k;
+                    text: root.user-name;
+                    color: white;
+                    font-size: 24px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 90px * root.k;
+                    y: 42px * root.k;
+                    text: root.has-getavatar ? "Choisis un avatar parmi ceux proposés par le serveur."
+                        : "Aucun avatar proposé (plugin GetAvatar absent ou vide).";
+                    color: Theme.muted;
+                    font-size: 14px * root.k;
+                }
+                for a[i] in root.avatar-items: Rectangle {
+                    x: mod(i, sets.av-cols) * (sets.av + 18px * root.k);
+                    y: 100px * root.k + floor(i / sets.av-cols) * (sets.av + 40px * root.k);
+                    width: sets.av;
+                    height: sets.av + 30px * root.k;
                     Rectangle {
-                        x: !root.prefer-remote ? parent.width - self.width - 4px * root.k : 4px * root.k;
-                        width: 22px * root.k;
-                        height: 22px * root.k;
-                        border-radius: self.height / 2;
-                        background: white;
-                        animate x { duration: 120ms; }
+                        width: sets.av;
+                        height: sets.av;
+                        y: 0px;
+                        border-radius: self.width / 2;
+                        background: #ffffff14;
+                        border-width: (root.set-in && i == root.set-sel) || av-area.has-hover ? 4px * root.k : 0px;
+                        border-color: Theme.accent2;
+                        if a.has-image: Image {
+                            x: 6px * root.k;
+                            y: 6px * root.k;
+                            width: parent.width - 12px * root.k;
+                            height: parent.height - 12px * root.k;
+                            source: a.image;
+                            image-fit: fill;
+                        }
                     }
-                }
-                TouchArea {
-                    clicked => {
-                        root.set-sel = 0;
-                        root.set-prefer-remote(!root.prefer-remote);
+                    Text {
+                        y: sets.av + 6px * root.k;
+                        width: parent.width;
+                        text: a.title;
+                        color: Theme.muted;
+                        font-size: 12px * root.k;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    av-area := TouchArea {
+                        clicked => {
+                            root.set-in = true;
+                            root.set-sel = i;
+                            root.avatar-pick(a.id);
+                        }
                     }
                 }
             }
 
-            Text {
-                text: "Adresse locale : " + (root.addr-local != "" ? root.addr-local : "inconnue")
-                    + "\nAdresse distante : " + (root.addr-remote != "" ? root.addr-remote : "inconnue")
-                    + "\nUtilisée : " + root.addr-current;
-                color: Theme.muted;
-                font-size: 14px * root.k;
-            }
-
-            HorizontalLayout {
+            // Autres catégories : lignes de réglage
+            if root.set-cat != 0: VerticalLayout {
                 alignment: start;
-                height: 44px * root.k;
+                spacing: 10px * root.k;
 
-                ActionButton {
-                    text: "Changer de serveur";
-                    font: 16px * root.k;
-                    focused: root.set-sel == 1;
-                    clicked => {
-                        root.menu-action("server");
+                for r[i] in root.set-rows: Rectangle {
+                    height: r.kind == "info" ? 30px * root.k : 60px * root.k;
+                    border-radius: 12px * root.k;
+                    property <bool> sel: root.set-in && i == root.set-sel;
+                    background: r.kind == "info" ? transparent
+                        : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                        : self.sel ? #ffffff2e : #ffffff12;
+                    border-width: self.sel && r.kind != "action" ? 2px : 0px;
+                    border-color: Theme.accent2;
+
+                    Text {
+                        x: 20px * root.k;
+                        width: parent.width - 260px * root.k;
+                        height: parent.height;
+                        text: r.label;
+                        color: r.kind == "info" ? Theme.muted : white;
+                        font-size: (r.kind == "info" ? 13px : 16px) * root.k;
+                        font-weight: r.kind == "action" ? 600 : 400;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                    if r.kind == "choice": Text {
+                        x: parent.width - 240px * root.k;
+                        width: 220px * root.k;
+                        height: parent.height;
+                        text: "‹  " + r.value + "  ›";
+                        color: Theme.accent2;
+                        font-size: 16px * root.k;
+                        font-weight: 600;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                    if r.kind == "toggle": Rectangle {
+                        x: parent.width - self.width - 20px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 56px * root.k;
+                        height: 30px * root.k;
+                        border-radius: self.height / 2;
+                        background: r.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
+                        Rectangle {
+                            x: r.on ? parent.width - self.width - 4px * root.k : 4px * root.k;
+                            width: 22px * root.k;
+                            height: 22px * root.k;
+                            border-radius: self.height / 2;
+                            background: white;
+                            animate x { duration: 120ms; }
+                        }
+                    }
+                    row-area := TouchArea {
+                        enabled: r.kind != "info";
+                        clicked => {
+                            root.set-in = true;
+                            root.set-sel = i;
+                            root.settings-activate(r.key);
+                        }
                     }
                 }
             }

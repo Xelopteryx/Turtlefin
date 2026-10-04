@@ -738,8 +738,18 @@ fn load(
     // Pistes préférées de la série / du film (langue audio, sous-titres).
     if let Some(it) = &item {
         let pref = crate::config::track_pref(&it.pref_key());
-        let _ = player.set_property("alang", &pref.audio);
-        match pref.sub.as_str() {
+        // Rien de choisi pour la série : préférences du compte Jellyfin.
+        let (d_audio, d_sub, d_mode) = crate::config::user_defaults();
+        let audio = if pref.audio.is_empty() { d_audio } else { pref.audio.clone() };
+        let sub = if !pref.sub.is_empty() {
+            pref.sub.clone()
+        } else if d_mode == "None" {
+            "off".to_string()
+        } else {
+            d_sub
+        };
+        let _ = player.set_property("alang", &audio);
+        match sub.as_str() {
             "off" => {
                 let _ = player.set_property("sid", "no");
             }
