@@ -56,17 +56,19 @@ component Card inherits Rectangle {
     VerticalLayout {
         spacing: 6px;
 
+        // Pas de « clip » arrondi : sur le moteur OpenGL de Slint, chaque élément arrondi qui rogne
+        // son contenu est dessiné hors écran puis recollé, à chaque image (saccades sur le Pi).
+        // Les images arrivent déjà recadrées, avec les coins arrondis dans leurs pixels.
         Rectangle {
             height: root.width * root.ratio;
             border-radius: Theme.radius;
-            clip: true;
-            background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+            background: root.data.has-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
             if root.data.has-image: Image {
                 width: parent.width;
                 height: parent.height;
                 source: root.data.image;
-                image-fit: cover;
+                image-fit: fill;
             }
 
             // Anneau de focus (par-dessus l'image)
@@ -640,14 +642,14 @@ export component AppWindow inherits Window {
             width: root.poster-w;
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
-            clip: true;
-            background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+            background: root.detail.has-poster ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
+            // Image déjà recadrée et arrondie (voir Card).
             if root.detail.has-poster: Image {
                 width: parent.width;
                 height: parent.height;
                 source: root.detail.poster;
-                image-fit: cover;
+                image-fit: fill;
             }
         }
 
@@ -732,7 +734,6 @@ export component AppWindow inherits Window {
             width: root.info-w;
             height: 100px * root.k;
             border-radius: 14px;
-            clip: true;
             background: root.d-zone == 1 ? #ffffff3d : #ffffff21;
             border-width: root.d-zone == 1 ? 2px : 0px;
             border-color: Theme.accent2;
@@ -777,14 +778,14 @@ export component AppWindow inherits Window {
                 y: 24px * root.k;
                 height: root.next-w * 0.5625;
                 border-radius: Theme.radius;
-                clip: true;
-                background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+                background: root.detail.has-next-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
+                // Image déjà recadrée et arrondie (voir Card).
                 if root.detail.has-next-image: Image {
                     width: parent.width;
                     height: parent.height;
                     source: root.detail.next-image;
-                    image-fit: cover;
+                    image-fit: fill;
                 }
 
                 Rectangle {

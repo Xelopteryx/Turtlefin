@@ -18,13 +18,14 @@ export struct TrackData {
 // Icônes tracées (24 x 24) : aucune police d'icônes à installer.
 component Icon inherits Rectangle {
     in property <string> name;
+    in property <color> tint: white;
 
     if root.name == "play": Path {
         width: parent.width;
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 7 4 L 20 12 L 7 20 Z";
     }
     if root.name == "pause": Path {
@@ -32,7 +33,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 6 4 L 10 4 L 10 20 L 6 20 Z M 14 4 L 18 4 L 18 20 L 14 20 Z";
     }
     if root.name == "prev-ep": Path {
@@ -40,7 +41,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 5 5 L 8 5 L 8 19 L 5 19 Z M 19 5 L 19 19 L 9 12 Z";
     }
     if root.name == "next-ep": Path {
@@ -48,7 +49,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 16 5 L 19 5 L 19 19 L 16 19 Z M 5 5 L 15 12 L 5 19 Z";
     }
     if root.name == "prev-chap": Path {
@@ -56,7 +57,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 12 6 L 12 18 L 3 12 Z M 21 6 L 21 18 L 12 12 Z";
     }
     if root.name == "next-chap": Path {
@@ -64,7 +65,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 3 6 L 12 12 L 3 18 Z M 12 6 L 21 12 L 12 18 Z";
     }
     if root.name == "back": Path {
@@ -72,7 +73,7 @@ component Icon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.tint;
         commands: "M 13.5 4 L 15.5 6 L 9.5 12 L 15.5 18 L 13.5 20 L 5.5 12 Z";
     }
 }
@@ -88,6 +89,9 @@ component PlayerButton inherits Rectangle {
     callback clicked();
 
     property <bool> lit: root.enabled && (root.focused || area.has-hover);
+    // Bouton inactif estompé par la couleur, pas par « opacity » : une opacité partielle sur un
+    // élément qui a des enfants le fait dessiner hors écran à chaque image.
+    property <color> ink: root.enabled ? white : #ffffff59;
 
     width: root.text == "" ? root.size : label.preferred-width + root.size;
     height: root.size;
@@ -95,7 +99,6 @@ component PlayerButton inherits Rectangle {
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
     border-width: root.lit ? 0px : 1px;
     border-color: #ffffff40;
-    opacity: root.enabled ? 1 : 0.35;
 
     if root.icon != "": Icon {
         width: root.size * 0.5;
@@ -103,13 +106,14 @@ component PlayerButton inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         name: root.icon;
+        tint: root.ink;
     }
 
     label := Text {
         width: parent.width;
         height: parent.height;
         text: root.text;
-        color: white;
+        color: root.ink;
         font-size: root.font;
         font-weight: 600;
         horizontal-alignment: center;

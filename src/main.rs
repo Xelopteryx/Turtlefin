@@ -64,6 +64,8 @@ struct App {
     /// Numéro de la dernière fiche demandée : ignore les réponses périmées.
     gen: AtomicU64,
     device_id: String,
+    /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images).
+    tv: bool,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
@@ -99,8 +101,59 @@ fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
     show_login_error(ui, format!("{e}"));
 }
 
-fn decode(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
-    let img = image::load_from_memory(bytes).ok()?.to_rgba8();
+/// Forme finale d'une image de carte : taille exacte et coins arrondis intégrés aux pixels.
+///
+/// Sur le moteur OpenGL de Slint (femtovg), un élément arrondi qui rogne son contenu est dessiné
+/// hors écran puis recollé, à chaque image : avec des dizaines de cartes, le défilement saccade
+/// sur le Pi. Les images sont donc préparées une fois pour toutes au décodage.
+#[derive(Clone, Copy)]
+struct Shape {
+    w: u32,
+    h: u32,
+    /// Rayon des coins, en fraction de la largeur (rayon affiché / largeur affichée).
+    radius: f32,
+}
+
+impl Shape {
+    /// Image affichée sur `display_w` pixels logiques avec des coins de 10 px (Theme.radius).
+    fn card(w: u32, h: u32, display_w: f32) -> Shape {
+        Shape { w, h, radius: 10.0 / display_w }
+    }
+}
+
+/// Rend transparents (avec lissage) les quatre coins arrondis de rayon `r` pixels.
+fn round_corners(img: &mut image::RgbaImage, r: f32) {
+    let (w, h) = img.dimensions();
+    let n = (r.ceil() as u32).min(w / 2).min(h / 2);
+    for y in 0..n {
+        for x in 0..n {
+            let (dx, dy) = (r - (x as f32 + 0.5), r - (y as f32 + 0.5));
+            if dx <= 0.0 || dy <= 0.0 {
+                continue;
+            }
+            let coverage = (r - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0);
+            if coverage >= 1.0 {
+                continue;
+            }
+            for (px, py) in [(x, y), (w - 1 - x, y), (x, h - 1 - y), (w - 1 - x, h - 1 - y)] {
+                let p = img.get_pixel_mut(px, py);
+                p[3] = (p[3] as f32 * coverage).round() as u8;
+            }
+        }
+    }
+}
+
+fn decode(bytes: &[u8], shape: Option<Shape>) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let img = match shape {
+        Some(s) => {
+            // Recadrage au format exact (comme image-fit: cover), puis coins arrondis.
+            let mut img = img.resize_to_fill(s.w, s.h, image::imageops::FilterType::Triangle).to_rgba8();
+            round_corners(&mut img, s.radius * s.w as f32);
+            img
+        }
+        None => img.to_rgba8(),
+    };
     let (w, h) = img.dimensions();
     Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
 }
@@ -111,9 +164,10 @@ async fn fetch_decoded(
     candidates: Vec<api::ImageRef>,
     kind: &'static str,
     size: api::Size,
+    shape: Option<Shape>,
 ) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
     let bytes = client.image_first(&candidates, kind, size).await?;
-    tokio::task::spawn_blocking(move || decode(&bytes)).await.ok().flatten()
+    tokio::task::spawn_blocking(move || decode(&bytes, shape)).await.ok().flatten()
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +185,7 @@ struct ImageJob {
 type Apply = Arc<dyn Fn(&AppWindow, &ImageJob, SharedPixelBuffer<Rgba8Pixel>) + Send + Sync>;
 
 /// 6 téléchargements à la fois, décodage hors du thread de l'interface.
-fn spawn_image_jobs(app: &Arc<App>, client: &api::Client, jobs: Vec<ImageJob>, size: api::Size, apply: Apply) {
+fn spawn_image_jobs(app: &Arc<App>, client: &api::Client, jobs: Vec<ImageJob>, size: api::Size, shape: Shape, apply: Apply) {
     let permits = Arc::new(tokio::sync::Semaphore::new(6));
     for job in jobs {
         let client = client.clone();
@@ -141,7 +195,7 @@ fn spawn_image_jobs(app: &Arc<App>, client: &api::Client, jobs: Vec<ImageJob>, s
         app.rt.spawn(async move {
             let _permit = permits.acquire().await.ok();
             let cands = vec![(job.img_id.clone(), job.tag.clone())];
-            let Some(buf) = fetch_decoded(&client, cands, "Primary", size).await else { return };
+            let Some(buf) = fetch_decoded(&client, cands, "Primary", size, Some(shape)).await else { return };
             let _ = ui.upgrade_in_event_loop(move |u| (*apply)(&u, &job, buf));
         });
     }
@@ -302,8 +356,10 @@ async fn load_home(app: Arc<App>, client: api::Client) {
             set_card_image(u, job.a, job.b, &job.item_id, buf)
         },
     );
-    spawn_image_jobs(&app, &client, poster_jobs, api::Size::Fill(270, 405), apply.clone());
-    spawn_image_jobs(&app, &client, thumb_jobs, api::Size::Fill(320, 180), apply);
+    // Largeurs affichées : voir card-w dans app.slint (170 px, 230 en mode TV ; x 1,5 en 16:9).
+    let card_w = if app.tv { 230.0 } else { 170.0 };
+    spawn_image_jobs(&app, &client, poster_jobs, api::Size::Fill(270, 405), Shape::card(270, 405, card_w), apply.clone());
+    spawn_image_jobs(&app, &client, thumb_jobs, api::Size::Fill(320, 180), Shape::card(320, 180, card_w * 1.5), apply);
 }
 
 // ---------------------------------------------------------------------------
@@ -493,8 +549,10 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let ui = app.ui();
         let id = item_id.clone();
         let cands = item.poster_candidates();
+        // poster-w dans app.slint : 200 px x k (k = 1,4 en mode TV).
+        let shape = Shape::card(400, 600, if app.tv { 280.0 } else { 200.0 });
         app.rt.spawn(async move {
-            if let Some(buf) = fetch_decoded(&client, cands, "Primary", api::Size::Fill(400, 600)).await {
+            if let Some(buf) = fetch_decoded(&client, cands, "Primary", api::Size::Fill(400, 600), Some(shape)).await {
                 let _ = ui.upgrade_in_event_loop(move |u| {
                     let mut d = u.get_detail();
                     if d.id.as_str() != id {
@@ -514,7 +572,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let ui = app.ui();
         let id = item_id.clone();
         app.rt.spawn(async move {
-            let buf = fetch_decoded(&client, vec![logo_ref], "Logo", api::Size::MaxWidth(700)).await;
+            let buf = fetch_decoded(&client, vec![logo_ref], "Logo", api::Size::MaxWidth(700), None).await;
             let _ = ui.upgrade_in_event_loop(move |u| {
                 let mut d = u.get_detail();
                 if d.id.as_str() != id {
@@ -539,8 +597,10 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             let ui = app.ui();
             let id = item_id.clone();
             let tag = card.img_tag;
+            // next-w dans app.slint : 260 px x k.
+            let shape = Shape::card(320, 180, if app.tv { 364.0 } else { 260.0 });
             app.rt.spawn(async move {
-                if let Some(buf) = fetch_decoded(&client, vec![(img_id, tag)], "Primary", api::Size::Fill(320, 180)).await {
+                if let Some(buf) = fetch_decoded(&client, vec![(img_id, tag)], "Primary", api::Size::Fill(320, 180), Some(shape)).await {
                     let _ = ui.upgrade_in_event_loop(move |u| {
                         let mut d = u.get_detail();
                         if d.id.as_str() != id {
@@ -557,12 +617,15 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
 
     // Vignettes des enfants : 16:9 pour les épisodes, posters sinon.
     let size = if landscape { api::Size::Fill(320, 180) } else { api::Size::Fill(270, 405) };
+    // child-card-w dans app.slint : (240 px en 16:9, 120 sinon) x k.
+    let k = if app.tv { 1.4 } else { 1.0 };
+    let shape = if landscape { Shape::card(320, 180, 240.0 * k) } else { Shape::card(270, 405, 120.0 * k) };
     let apply: Apply = Arc::new(
         |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
             set_child_image(u, job.b, &job.item_id, buf)
         },
     );
-    spawn_image_jobs(&app, &client, child_jobs, size, apply);
+    spawn_image_jobs(&app, &client, child_jobs, size, shape, apply);
 }
 
 // ---------------------------------------------------------------------------
@@ -691,6 +754,7 @@ fn main() -> anyhow::Result<()> {
         stack: Mutex::new(Vec::new()),
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
+        tv: cli.tv,
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         player_tx: Mutex::new(None),
