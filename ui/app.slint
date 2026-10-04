@@ -7,6 +7,7 @@ import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme } from "theme.slint";
 import { CardData } from "card.slint";
+import { Osk } from "osk.slint";
 
 export { CardData }
 
@@ -391,6 +392,24 @@ component HeaderIcon inherits Rectangle {
         commands: "M 12 3 L 21.5 11.5 L 19 11.5 L 19 20.5 L 14.5 20.5 L 14.5 15 L 9.5 15 L 9.5 20.5 L 5 20.5 L 5 11.5 L 2.5 11.5 Z";
     }
 
+    if root.icon == "dice": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 22px * root.k;
+        height: 22px * root.k;
+        border-radius: 5px * root.k;
+        border-width: 2.2px * root.k;
+        border-color: white;
+        for p in [[0.28, 0.28], [0.72, 0.28], [0.5, 0.5], [0.28, 0.72], [0.72, 0.72]]: Rectangle {
+            x: parent.width * p[0] - 2px * root.k;
+            y: parent.height * p[1] - 2px * root.k;
+            width: 4px * root.k;
+            height: 4px * root.k;
+            border-radius: 2px * root.k;
+            background: white;
+        }
+    }
+
     if root.icon == "profile": Path {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
@@ -671,6 +690,9 @@ export component AppWindow inherits Window {
     changed d-child => {
         root.row-seen(1002, root.d-child);
     }
+    changed s-item => {
+        root.row-seen(2000 + root.s-section, root.s-item);
+    }
     in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites" | "requests"
     in property <bool> has-requests;         // Seerr disponible : onglet Demandes
     in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
@@ -716,6 +738,14 @@ export component AppWindow inherits Window {
     in-out property <int> dl-sel;
     in-out property <bool> dl-dialog;       // Lire / Supprimer / Annuler
     in-out property <int> dl-dsel;
+
+    // Recherche
+    in-out property <string> search-text;
+    in property <[Section]> search-sections;
+    in property <bool> search-busy;
+    in-out property <int> s-section;
+    in-out property <int> s-item;
+    in-out property <bool> s-osk;            // sélection sur le clavier (mode TV) / le champ
 
     // Bibliothèque (grille)
     in property <string> lib-title;
@@ -786,6 +816,11 @@ export component AppWindow inherits Window {
     callback dl-play(string);
     callback seerr-action();
     callback track-pick(string, string, string); // type, langue ("" défaut, "off"), libellé
+    callback search-open();
+    callback search-changed(string);
+    callback random-pick();
+    // Effacement : le clavier à l'écran envoie "\u{8}" + texte ; le dernier caractère est retiré en Rust.
+    pure callback text-backspace(string) -> string;
     callback dl-delete(string);
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
@@ -892,8 +927,9 @@ export component AppWindow inherits Window {
         } else if (i == 2 && root.has-requests) {
             root.select-tab("requests");
         } else if (i == root.tab-count) {
-            root.soon-title = "Recherche";
-            root.screen = "soon";
+            root.random-pick();
+        } else if (i == root.tab-count + 1) {
+            root.search-open();
         } else {
             root.prof-sel = 1;
             root.screen = "profile";
@@ -1051,7 +1087,7 @@ export component AppWindow inherits Window {
                 padding-bottom: (root.header-h - 44px * root.k) / 2;
 
                 HeaderIcon {
-                    icon: "search";
+                    icon: "dice";
                     k: root.k;
                     focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count;
                     clicked => {
@@ -1059,11 +1095,19 @@ export component AppWindow inherits Window {
                     }
                 }
                 HeaderIcon {
-                    icon: "profile";
+                    icon: "search";
                     k: root.k;
                     focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 1;
                     clicked => {
                         root.header-activate(root.tab-count + 1);
+                    }
+                }
+                HeaderIcon {
+                    icon: "profile";
+                    k: root.k;
+                    focused: root.h-focus && root.h-sel == root.nav-n + root.tab-count + 2;
+                    clicked => {
+                        root.header-activate(root.tab-count + 2);
                     }
                 }
                 Text {
@@ -1095,7 +1139,7 @@ export component AppWindow inherits Window {
                     if (event.text == Key.LeftArrow) {
                         root.h-sel = max(0, root.h-sel - 1);
                     } else if (event.text == Key.RightArrow) {
-                        root.h-sel = min(root.nav-n + root.tab-count + 1, root.h-sel + 1);
+                        root.h-sel = min(root.nav-n + root.tab-count + 2, root.h-sel + 1);
                     } else if (event.text == Key.DownArrow) {
                         if (root.sections.length > 0) {
                             root.h-focus = false;
@@ -1185,6 +1229,230 @@ export component AppWindow inherits Window {
                             root.sel-item = i;
                             root.open-item(section.items[i].id);
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Recherche
+    if root.screen == "search" && !root.playing: srch := Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
+        property <length> box-h: 52px * root.k;
+        property <length> osk-h: root.tv-mode ? 7 * 48px * root.k + 16px * root.k : 0px;
+        property <length> res-y: 16px * root.k + self.box-h + 16px * root.k + (root.s-osk ? self.osk-h : 0px);
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                if (root.tv-mode) {
+                    self.focus();
+                } else {
+                    s-input.focus();
+                }
+            }
+            key-pressed(event) => {
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.Escape) {
+                    root.go-home();
+                    return EventResult.accept;
+                }
+                // Clavier à l'écran (mode TV)
+                if (root.tv-mode && root.s-osk) {
+                    if (osk.key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    return EventResult.reject;
+                }
+                if (root.search-sections.length == 0) {
+                    if (event.text == Key.UpArrow) {
+                        if (root.tv-mode) {
+                            root.s-osk = true;
+                        } else {
+                            s-input.focus();
+                        }
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.RightArrow) {
+                    root.s-item = min(root.search-sections[root.s-section].items.length - 1, root.s-item + 1);
+                } else if (event.text == Key.LeftArrow) {
+                    root.s-item = max(0, root.s-item - 1);
+                } else if (event.text == Key.DownArrow) {
+                    if (root.s-section < root.search-sections.length - 1) {
+                        root.s-item = root.row-pick(
+                            root.card-center(root.s-item, root.search-sections[root.s-section].items.length,
+                                root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w, 18px * root.k, 32px * root.k, root.width) / 1px,
+                            root.width / 1px, root.search-sections[root.s-section + 1].items.length,
+                            (root.search-sections[root.s-section + 1].landscape ? root.card-w * 1.5 : root.card-w) / 1px, 18 * root.k, 32 * root.k, 2001 + root.s-section);
+                        root.s-section += 1;
+                    }
+                } else if (event.text == Key.UpArrow) {
+                    if (root.s-section > 0) {
+                        root.s-item = root.row-pick(
+                            root.card-center(root.s-item, root.search-sections[root.s-section].items.length,
+                                root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w, 18px * root.k, 32px * root.k, root.width) / 1px,
+                            root.width / 1px, root.search-sections[root.s-section - 1].items.length,
+                            (root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w) / 1px, 18 * root.k, 32 * root.k, 1999 + root.s-section);
+                        root.s-section -= 1;
+                    } else if (root.tv-mode) {
+                        root.s-osk = true;
+                    } else {
+                        s-input.focus();
+                    }
+                } else if (event.text == Key.Return) {
+                    root.open-item(root.search-sections[root.s-section].items[root.s-item].id);
+                } else if (event.text == Key.Backspace) {
+                    root.go-home();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        // Champ de recherche
+        Rectangle {
+            x: 32px * root.k;
+            y: 16px * root.k;
+            width: parent.width - 64px * root.k;
+            height: parent.box-h;
+            border-radius: self.height / 2;
+            background: #ffffff14;
+            border-width: (root.tv-mode && root.s-osk) || s-input.has-focus ? 2px : 1px;
+            border-color: (root.tv-mode && root.s-osk) || s-input.has-focus ? Theme.accent2 : #ffffff33;
+
+            Path {
+                x: 18px * root.k;
+                y: (parent.height - self.height) / 2;
+                width: 22px * root.k;
+                height: 22px * root.k;
+                viewbox-width: 24;
+                viewbox-height: 24;
+                fill: transparent;
+                stroke: #ffffffb3;
+                stroke-width: 2.4px * root.k;
+                commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
+            }
+            // Mode TV : texte tapé au clavier à l'écran ; sinon, champ classique.
+            if root.tv-mode: Text {
+                x: 54px * root.k;
+                width: parent.width - 70px * root.k;
+                height: parent.height;
+                text: root.search-text == "" ? "Titre d'un film, d'une série, d'un épisode…" : root.search-text + "│";
+                color: root.search-text == "" ? Theme.muted : white;
+                font-size: 18px * root.k;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            s-input := TextInput {
+                x: 54px * root.k;
+                width: parent.width - 70px * root.k;
+                height: parent.height;
+                visible: !root.tv-mode;
+                enabled: !root.tv-mode;
+                text <=> root.search-text;
+                color: white;
+                font-size: 18px * root.k;
+                vertical-alignment: center;
+                single-line: true;
+                edited => {
+                    root.search-changed(self.text);
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.DownArrow || event.text == Key.Return) {
+                        root.refocus += 1;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.UpArrow) {
+                        root.nav-enter();
+                        root.refocus += 1;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        root.go-home();
+                        return EventResult.accept;
+                    }
+                    return EventResult.reject;
+                }
+            }
+            if !root.tv-mode && root.search-text == "": Text {
+                x: 54px * root.k;
+                height: parent.height;
+                text: "Titre d'un film, d'une série, d'un épisode…";
+                color: Theme.muted;
+                font-size: 18px * root.k;
+                vertical-alignment: center;
+            }
+        }
+
+        // Clavier à l'écran (mode TV)
+        osk := Osk {
+            x: max(32px * root.k, (parent.width - 900px * root.k) / 2);
+            y: 16px * root.k + parent.box-h + 16px * root.k;
+            width: min(parent.width - 64px * root.k, 900px * root.k);
+            visible: root.tv-mode && root.s-osk;
+            k: root.k;
+            active: root.s-osk;
+            text: root.search-text;
+            edited(t) => {
+                root.search-text = t.starts-with("\u{8}") ? root.text-backspace(t) : t;
+                root.search-changed(root.search-text);
+            }
+            done => {
+                if (root.search-sections.length > 0) {
+                    root.s-osk = false;
+                }
+            }
+            leave-up => {
+                root.nav-enter();
+            }
+            leave-down => {
+                if (root.search-sections.length > 0) {
+                    root.s-osk = false;
+                }
+            }
+        }
+
+        // Résultats
+        Rectangle {
+            y: parent.res-y;
+            height: parent.height - parent.res-y;
+            clip: true;
+
+            if root.search-sections.length == 0: Text {
+                text: root.search-busy ? "Recherche…" : root.search-text.character-count >= 2 ? "Aucun résultat." : "";
+                color: Theme.muted;
+                font-size: 18px * root.k;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                y: root.search-sections.length == 0 ? 0px
+                    : min(0px, 4px * root.k - root.search-sections[root.s-section].y-px * 1px);
+                animate y { duration: 180ms; easing: ease-out; }
+
+                for section[si] in root.search-sections: SectionRow {
+                    y: section.y-px * 1px;
+                    width: parent.width;
+                    height: section.h-px * 1px;
+                    title: section.title;
+                    items: section.items;
+                    card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
+                    ratio: section.landscape ? 0.5625 : 1.5;
+                    k: root.k;
+                    active: !root.h-focus && !root.s-osk && si == root.s-section;
+                    focus-index: root.s-item;
+                    activated(i) => {
+                        root.s-section = si;
+                        root.s-item = i;
+                        root.open-item(section.items[i].id);
                     }
                 }
             }
@@ -2557,7 +2825,7 @@ export component AppWindow inherits Window {
     }
 
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
-    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile"
+    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile" || root.screen == "search"
         || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads")
         && !root.playing: NavBar {
         y: 0px;
@@ -2565,7 +2833,7 @@ export component AppWindow inherits Window {
         k: root.k;
         can-back: root.can-back;
         show-home: true;
-        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : "";
+        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : root.screen == "search" ? "Recherche" : "";
         sel: root.h-focus ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);

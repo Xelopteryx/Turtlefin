@@ -738,6 +738,75 @@ impl Client {
         Ok(r.items)
     }
 
+    /// Recherche dans la bibliothèque (films, séries, épisodes).
+    pub async fn search(&self, term: &str) -> Result<Vec<Item>> {
+        let r: ItemsResp = self
+            .get(
+                "/Items",
+                &[
+                    ("userId", &self.user_id),
+                    ("Recursive", "true"),
+                    ("searchTerm", term),
+                    ("IncludeItemTypes", "Movie,Series,Episode,BoxSet"),
+                    ("Limit", "60"),
+                ],
+            )
+            .await?;
+        Ok(r.items)
+    }
+
+    /// Un film ou une série pas encore vu, au hasard.
+    pub async fn random_unwatched(&self) -> Result<Option<Item>> {
+        let r: ItemsResp = self
+            .get(
+                "/Items",
+                &[
+                    ("userId", &self.user_id),
+                    ("Recursive", "true"),
+                    ("IncludeItemTypes", "Movie,Series"),
+                    ("IsPlayed", "false"),
+                    ("SortBy", "Random"),
+                    ("Limit", "1"),
+                ],
+            )
+            .await?;
+        Ok(r.items.into_iter().next())
+    }
+
+    /// Seerr : résultats absents du serveur (ceux présents sont déjà dans la recherche Jellyfin).
+    pub async fn seerr_search(&self, term: &str) -> Vec<CardInfo> {
+        let v: serde_json::Value = match self.get("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await {
+            Ok(v) => v,
+            Err(_) => return Vec::new(),
+        };
+        let mut out = Vec::new();
+        for r in v["results"].as_array().into_iter().flatten() {
+            let tv = match r["mediaType"].as_str() {
+                Some("tv") => true,
+                Some("movie") => false,
+                _ => continue,
+            };
+            if r["mediaInfo"]["jellyfinMediaId"].as_str().is_some_and(|s| !s.is_empty()) {
+                continue;
+            }
+            let Some(id) = r["id"].as_i64() else { continue };
+            let title = r["title"].as_str().or(r["name"].as_str()).unwrap_or("").to_string();
+            let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
+            out.push(CardInfo {
+                id: seerr_id(tv, id),
+                title,
+                subtitle: [if tv { "Série" } else { "Film" }.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
+                img_id: tmdb_img(r["posterPath"].as_str(), "w342"),
+                img_tag: None,
+                thumbs: Vec::new(),
+                progress: 0.0,
+                rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
+                seerr: true,
+            });
+        }
+        out
+    }
+
     /// Favoris de l'utilisateur (films, séries, saisons, épisodes...).
     pub async fn favorites(&self) -> Result<Vec<Item>> {
         let r: ItemsResp = self

@@ -1,0 +1,116 @@
+// Clavier à l'écran (mode TV) : lettres AZERTY, chiffres, accents et ponctuation du français.
+// Flèches : se déplacer ; Entrée : taper la touche ; « EFFACER » efface ; « OK » valide.
+
+import { Theme } from "theme.slint";
+
+export component Osk inherits Rectangle {
+    in property <float> k: 1.0;
+    in-out property <string> text;
+    // Le clavier a la sélection (sinon, ses touches ne réagissent qu'à la souris).
+    in property <bool> active;
+    callback edited(string);
+    callback done();
+    // Flèche ↑ sur la première ligne / ↓ sur la dernière : la sélection quitte le clavier.
+    callback leave-up();
+    callback leave-down();
+
+    property <[[string]]> keys: [
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "'"],
+        ["a", "z", "e", "r", "t", "y", "u", "i", "o", "p", "^", "¨"],
+        ["q", "s", "d", "f", "g", "h", "j", "k", "l", "m", "ù", "*"],
+        ["w", "x", "c", "v", "b", "n", ",", ".", ":", "/", "?", "!"],
+        ["é", "è", "ê", "ë", "à", "â", "ç", "î", "ï", "ô", "û", "œ"],
+        ["@", "_", "&", "(", ")", "\"", "+", "=", "€", "#", "%", "æ"],
+        ["MAJ", "ESPACE", "EFFACER", "OK"],
+    ];
+    property <int> r: 1;
+    property <int> c: 0;
+    property <bool> shift;
+    property <length> kw: (self.width - 11 * 6px * root.k) / 12;
+    property <length> kh: 42px * root.k;
+
+    public function press() {
+        if (root.r == 6) {
+            if (root.c == 0) {
+                root.shift = !root.shift;
+            } else if (root.c == 1) {
+                root.text += " ";
+                root.edited(root.text);
+            } else if (root.c == 2) {
+                // Effacement du dernier caractère (Slint n'a pas de « sous-chaîne » : on le fait en Rust).
+                root.edited("\u{8}" + root.text);
+            } else {
+                root.done();
+            }
+            return;
+        }
+        root.text += root.shift ? root.keys[root.r][root.c].to-uppercase() : root.keys[root.r][root.c];
+        root.edited(root.text);
+    }
+
+    public function key(t: string) -> bool {
+        if (t == Key.LeftArrow) {
+            root.c = max(0, root.c - 1);
+        } else if (t == Key.RightArrow) {
+            root.c = min(root.keys[root.r].length - 1, root.c + 1);
+        } else if (t == Key.UpArrow) {
+            if (root.r == 0) {
+                root.leave-up();
+            } else {
+                // Dernière ligne (4 grosses touches) <-> lignes de 12 touches : même position horizontale.
+                root.c = root.r == 6 ? min(11, root.c * 3 + 1) : root.c;
+                root.r -= 1;
+            }
+        } else if (t == Key.DownArrow) {
+            if (root.r == 6) {
+                root.leave-down();
+            } else {
+                root.r += 1;
+                root.c = root.r == 6 ? min(3, floor(root.c / 3)) : root.c;
+            }
+        } else if (t == Key.Return) {
+            root.press();
+        } else if (t == Key.Backspace) {
+            root.edited("\u{8}" + root.text);
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    height: 7 * (self.kh + 6px * root.k);
+    background: transparent;
+
+    for row[ri] in root.keys: Rectangle {
+        y: ri * (root.kh + 6px * root.k);
+        height: root.kh;
+
+        property <length> w: ri == 6 ? (parent.width - 3 * 6px * root.k) / 4 : root.kw;
+
+        for key[ci] in row: Rectangle {
+            x: ci * (parent.w + 6px * root.k);
+            width: parent.w;
+            height: root.kh;
+            border-radius: 8px * root.k;
+            property <bool> lit: (root.active && ri == root.r && ci == root.c) || ka.has-hover;
+            background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                : (ri == 6 && ci == 0 && root.shift) ? #ffffff40 : #ffffff17;
+
+            Text {
+                text: ri < 6 && root.shift ? key.to-uppercase() : key;
+                color: white;
+                font-size: (ri == 6 ? 14px : 18px) * root.k;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            ka := TouchArea {
+                clicked => {
+                    root.r = ri;
+                    root.c = ci;
+                    root.press();
+                }
+            }
+        }
+    }
+}

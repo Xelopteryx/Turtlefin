@@ -84,6 +84,8 @@ struct App {
     lib_return: Mutex<Option<(String, usize)>>,
     /// Fiche affichée : clé de préférences et pistes (langue, libellé) audio / sous-titres.
     detail_streams: Mutex<(String, Vec<(String, String)>, Vec<(String, String)>)>,
+    /// Dernière recherche lancée (les réponses plus anciennes sont ignorées).
+    search_gen: AtomicU64,
     /// Page Seerr affichée.
     seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
@@ -289,8 +291,8 @@ fn spawn_image_jobs(app: &Arc<App>, client: &api::Client, jobs: Vec<ImageJob>, s
 }
 
 /// Accueil. À appeler depuis le thread de l'interface uniquement.
-fn set_card_image(ui: &AppWindow, si: usize, ci: usize, expected_id: &str, buf: SharedPixelBuffer<Rgba8Pixel>) {
-    let sections = ui.get_sections();
+/// Image d'une carte dans des rangées (accueil, recherche).
+fn set_row_image(sections: &ModelRc<Section>, si: usize, ci: usize, expected_id: &str, buf: SharedPixelBuffer<Rgba8Pixel>) {
     let Some(section) = sections.row_data(si) else { return };
     let Some(mut card) = section.items.row_data(ci) else { return };
     // Si l'accueil a été rechargé entre-temps, on n'écrit pas sur la mauvaise carte.
@@ -473,6 +475,11 @@ async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Resu
 
 /// Affiche des rangées de cartes et lance le chargement de leurs images.
 fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>) {
+    present_rows(app, client, sections, false);
+}
+
+/// Rangées de cartes de l'accueil (`search` = false) ou des résultats de recherche.
+fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>, search: bool) {
     let ui = app.ui();
 
     // Dimensions : voir card-w et SectionRow dans app.slint (rangée = 132 px x k + image).
@@ -521,6 +528,13 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
             })
             .collect();
 
+        if search {
+            u.set_search_sections(ModelRc::new(VecModel::from(rows)));
+            u.set_s_section(0);
+            u.set_s_item(0);
+            u.set_search_busy(false);
+            return;
+        }
         let empty = rows.is_empty();
         u.set_sections(ModelRc::new(VecModel::from(rows)));
         u.set_user_name(user_name.into());
@@ -536,8 +550,9 @@ fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
     });
 
     let apply: Apply = Arc::new(
-        |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
-            set_card_image(u, job.a, job.b, &job.item_id, buf)
+        move |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
+            let rows = if search { u.get_search_sections() } else { u.get_sections() };
+            set_row_image(&rows, job.a, job.b, &job.item_id, buf)
         },
     );
     spawn_image_jobs(app, client, poster_jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply.clone());
@@ -740,6 +755,78 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
                 set(&u, !on);
                 u.set_toast(msg.into());
             });
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Recherche (bibliothèque + Seerr) et média au hasard
+// ---------------------------------------------------------------------------
+fn open_search(app: &Arc<App>) {
+    if let Some(u) = app.ui().upgrade() {
+        u.set_h_focus(false);
+        u.set_s_osk(u.get_tv_mode());
+        u.set_screen("search".into());
+    }
+}
+
+/// Texte de recherche modifié : recherche après une courte pause de frappe.
+fn search_changed(app: &Arc<App>, text: String) {
+    let my = app.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    let Some(client) = app.client() else { return };
+    let term = text.trim().to_string();
+    if term.chars().count() < 2 {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_search_sections(ModelRc::default());
+            u.set_search_busy(false);
+        }
+        return;
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_search_busy(true);
+    }
+    let app2 = app.clone();
+    let seerr = app.seerr_user.lock().unwrap().is_some();
+    app.rt.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
+        if app2.search_gen.load(Ordering::SeqCst) != my {
+            return;
+        }
+        let (found, from_seerr) = tokio::join!(client.search(&term), async {
+            if seerr { client.seerr_search(&term).await } else { Vec::new() }
+        });
+        if app2.search_gen.load(Ordering::SeqCst) != my {
+            return;
+        }
+        let items = found.unwrap_or_default();
+        let mut sections: Vec<SectionData> = Vec::new();
+        for (title, kinds, landscape) in [
+            ("Films", &["Movie", "BoxSet"][..], false),
+            ("Séries", &["Series"][..], false),
+            ("Épisodes", &["Episode"][..], true),
+        ] {
+            let of: Vec<api::Item> = items.iter().filter(|i| kinds.contains(&i.kind.as_str())).cloned().collect();
+            push_section(&mut sections, title, landscape, Ok(of));
+        }
+        if !from_seerr.is_empty() {
+            sections.push(SectionData { title: "À demander (Seerr)".into(), landscape: false, cards: from_seerr });
+        }
+        present_rows(&app2, &client, sections, true);
+    });
+}
+
+fn random_pick(app: &Arc<App>) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        match client.random_unwatched().await {
+            Ok(Some(it)) => {
+                let a = app2.clone();
+                let _ = app2.ui().upgrade_in_event_loop(move |_| push_detail(&a, it.id));
+            }
+            _ => {
+                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast("Plus rien à découvrir : tout a été vu !".into()));
+            }
         }
     });
 }
@@ -1744,6 +1831,7 @@ fn main() -> anyhow::Result<()> {
         play_start: Mutex::new(None),
         can_download: AtomicBool::new(false),
         seerr_page: Mutex::new(None),
+        search_gen: AtomicU64::new(0),
         detail_streams: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
@@ -1825,6 +1913,28 @@ fn main() -> anyhow::Result<()> {
         tick();
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
+
+    ui.on_search_open({
+        let app = app.clone();
+        move || open_search(&app)
+    });
+
+    ui.on_search_changed({
+        let app = app.clone();
+        move |t| search_changed(&app, t.to_string())
+    });
+
+    // Effacement du dernier caractère (clavier à l'écran : "\u{8}" + texte).
+    ui.on_text_backspace(|t| {
+        let mut s = t.trim_start_matches('\u{8}').to_string();
+        s.pop();
+        s.into()
+    });
+
+    ui.on_random_pick({
+        let app = app.clone();
+        move || random_pick(&app)
+    });
 
     ui.on_track_pick({
         let app = app.clone();
