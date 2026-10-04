@@ -1,0 +1,899 @@
+import { LineEdit, Button } from "std-widgets.slint";
+
+export struct CardData {
+    id: string,
+    title: string,
+    subtitle: string,
+    image: image,
+    has-image: bool,
+}
+
+export struct Section {
+    title: string,
+    items: [CardData],
+    landscape: bool, // rangée de vignettes 16:9 (« Mes médias »)
+    rel-y: float,    // position verticale, en unités de rangée
+    rel-h: float,    // hauteur, en unités de rangée
+}
+
+export struct ButtonData {
+    label: string,
+    action: string, // "play" | "back" | "open:<id>"
+}
+
+export struct DetailData {
+    id: string,
+    title: string,
+    subtitle: string,
+    misc: string,
+    overview: string,
+    expect-logo: bool,
+    has-logo: bool,
+    logo: image,
+    has-poster: bool,
+    poster: image,
+    children-title: string,
+    children-landscape: bool,
+    has-next: bool,       // bloc « À suivre » (séries)
+    next-id: string,
+    next-title: string,
+    next-subtitle: string,
+    has-next-image: bool,
+    next-image: image,
+    buttons: [ButtonData],
+}
+
+// Jetons de thème (équivalents de tes variables CSS --accent1-light / --accent2-light).
+global Theme {
+    out property <color> bg: #0b0e14;
+    out property <color> accent1: #a95bc2;
+    out property <color> accent2: #00a4db;
+    out property <color> text: #ffffffe6;
+    out property <color> muted: #ffffff99;
+    out property <length> radius: 10px;
+}
+
+component Card inherits Rectangle {
+    in property <CardData> data;
+    in property <bool> focused;
+    in property <float> ratio: 1.5;
+    callback clicked();
+
+    VerticalLayout {
+        spacing: 6px;
+
+        Rectangle {
+            height: root.width * root.ratio;
+            border-radius: Theme.radius;
+            clip: true;
+            background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+
+            if root.data.has-image: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.data.image;
+                image-fit: cover;
+            }
+
+            // Anneau de focus (par-dessus l'image)
+            Rectangle {
+                width: parent.width;
+                height: parent.height;
+                border-radius: Theme.radius;
+                border-width: root.focused ? 3px : 0px;
+                border-color: Theme.accent2;
+            }
+        }
+
+        Text {
+            text: root.data.title;
+            color: Theme.text;
+            font-size: 15px;
+            font-weight: 600;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.data.subtitle;
+            color: Theme.muted;
+            font-size: 12px;
+            overflow: elide;
+        }
+    }
+
+    TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component SectionRow inherits Rectangle {
+    in property <string> title;
+    in property <[CardData]> items;
+    in property <length> card-w;
+    in property <float> ratio: 1.5;
+    in property <bool> active;
+    in property <int> focus-index;
+    callback activated(int);
+
+    property <length> gap: 16px;
+    property <length> pad: 32px;
+    // Chaque rangée garde son propre défilement quand elle n'est pas active.
+    property <int> remembered: 0;
+    property <int> idx: root.active ? root.focus-index : root.remembered;
+    property <length> strip-w: root.items.length * (root.card-w + root.gap) + root.pad * 2;
+    property <length> target-x: min(0px, max(root.width - root.strip-w,
+        root.width / 2 - (root.pad + root.idx * (root.card-w + root.gap) + root.card-w / 2)));
+
+    changed focus-index => {
+        if (root.active) {
+            root.remembered = root.focus-index;
+        }
+    }
+
+    Text {
+        x: root.pad;
+        y: 0px;
+        height: 40px;
+        text: root.title;
+        color: Theme.text;
+        font-size: 20px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        y: 40px;
+        height: root.height - 40px;
+        clip: true;
+
+        Rectangle {
+            x: root.target-x;
+            width: root.strip-w;
+            animate x { duration: 160ms; easing: ease-out; }
+
+            for card[i] in root.items: Card {
+                x: root.pad + i * (root.card-w + root.gap);
+                y: 6px;
+                width: root.card-w;
+                height: root.card-w * root.ratio + 56px;
+                data: card;
+                ratio: root.ratio;
+                focused: root.active && i == root.focus-index;
+                clicked => {
+                    root.activated(i);
+                }
+            }
+        }
+    }
+}
+
+// Bouton de la fiche : dégradé violet -> bleu au focus/survol (comme .mainDetailButtons).
+component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> focused;
+    in property <length> font: 16px;
+    callback clicked();
+
+    preferred-width: label.preferred-width + 40px;
+    border-radius: 10px;
+    background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
+
+    label := Text {
+        text: root.text;
+        color: white;
+        font-size: root.font;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    area := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Panneau « résumé complet » : fond assombri uni (pas de flou, trop coûteux sur Pi).
+component OverviewPanel inherits Rectangle {
+    in property <string> text;
+    in property <length> font: 20px;
+    callback close();
+
+    property <length> scroll: 0px;
+
+    public function scroll-by(d: length) {
+        root.scroll = clamp(root.scroll + d, 0px, max(0px, txt.height - view.height));
+    }
+    public function reset() {
+        root.scroll = 0px;
+    }
+
+    background: #000000b8;
+
+    TouchArea {
+        clicked => {
+            root.close();
+        }
+    }
+
+    Rectangle {
+        width: min(parent.width - 64px, 900px);
+        height: min(parent.height - 96px, parent.height * 0.8);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: 16px;
+        background: #181820f5;
+        border-width: 1px;
+        border-color: #ffffff24;
+
+        // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau).
+        TouchArea { }
+
+        view := Rectangle {
+            x: 28px;
+            y: 24px;
+            width: parent.width - 56px;
+            height: parent.height - 24px - 56px;
+            clip: true;
+
+            VerticalLayout {
+                y: 0px - root.scroll;
+                alignment: start;
+
+                txt := Text {
+                    text: root.text;
+                    wrap: word-wrap;
+                    color: Theme.text;
+                    font-size: root.font;
+                }
+            }
+        }
+
+        Text {
+            y: parent.height - 38px;
+            width: parent.width;
+            text: "Échap pour fermer  ·  ↑ ↓ pour défiler";
+            color: Theme.muted;
+            font-size: 13px;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Turtlefin";
+    background: Theme.bg;
+    preferred-width: 1280px;
+    preferred-height: 720px;
+    min-width: 640px;
+    min-height: 400px;
+
+    in-out property <string> screen: "login"; // "login" | "loading" | "home" | "detail"
+    in-out property <string> server;
+    in-out property <string> user-name;
+    in-out property <string> error-text;
+    in-out property <string> toast;
+    in-out property <bool> busy;
+    in property <bool> tv-mode;
+
+    // Accueil
+    in-out property <[Section]> sections;
+    in-out property <int> sel-section: 0;
+    in-out property <int> sel-item: 0;
+
+    // Fiche détail
+    in-out property <DetailData> detail;
+    in-out property <[CardData]> child-items;
+    in-out property <int> d-zone: 0;   // 0 boutons · 1 résumé · 2 enfants
+    in-out property <int> d-button: 0;
+    in-out property <int> d-child: 0;
+    in-out property <bool> overview-open: false;
+    in-out property <bool> playing: false;
+
+    callback login(string, string, string); // serveur, utilisateur, mot de passe
+    callback open-item(string);
+    callback run-action(string);            // "play" | "back" | "open:<id>"
+    callback logout();
+    callback player-cmd(string);            // pendant la lecture : "pause", "seek-10", ...
+
+    property <float> k: root.tv-mode ? 1.4 : 1.0;
+    property <length> card-w: root.tv-mode ? 230px : 170px;
+    property <length> row-h: root.card-w * 1.5 + 40px + 56px + 6px + 24px;
+
+    property <length> poster-w: 200px * root.k;
+    property <length> col-x: 64px + root.poster-w;
+    property <float> child-ratio: root.detail.children-landscape ? 0.5625 : 1.5;
+    property <length> child-card-w: (root.detail.children-landscape ? 240px : 120px) * root.k;
+    property <length> next-w: 260px * root.k;
+    // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
+    property <length> info-w: root.width - root.col-x - 32px - (root.detail.has-next ? root.next-w + 24px : 0px);
+
+    // ------------------------------------------------------------ Connexion
+    if root.screen == "login": VerticalLayout {
+        alignment: center;
+        padding: 32px;
+
+        HorizontalLayout {
+            alignment: center;
+
+            VerticalLayout {
+                width: 420px;
+                spacing: 12px;
+
+                Text {
+                    text: "Turtlefin";
+                    color: Theme.text;
+                    font-size: 40px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                }
+
+                server-input := LineEdit {
+                    placeholder-text: "Serveur (ex. 192.168.1.10:8096)";
+                    text: root.server;
+                }
+
+                user-input := LineEdit {
+                    placeholder-text: "Utilisateur";
+                }
+
+                pass-input := LineEdit {
+                    placeholder-text: "Mot de passe";
+                    input-type: InputType.password;
+                    accepted => {
+                        root.login(server-input.text, user-input.text, pass-input.text);
+                    }
+                }
+
+                Text {
+                    text: root.error-text;
+                    color: #ff6b6b;
+                    wrap: word-wrap;
+                }
+
+                Button {
+                    text: root.busy ? "Connexion…" : "Se connecter";
+                    enabled: !root.busy;
+                    primary: true;
+                    clicked => {
+                        root.login(server-input.text, user-input.text, pass-input.text);
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Chargement
+    if root.screen == "loading": Text {
+        text: "Chargement…";
+        color: Theme.muted;
+        font-size: 24px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    // ------------------------------------------------------------ Accueil
+    if root.screen == "home": Rectangle {
+        Rectangle {
+            y: 0px;
+            height: 56px;
+
+            Text {
+                x: 32px;
+                text: "Turtlefin";
+                color: Theme.accent2;
+                font-size: 24px;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+
+            Text {
+                x: parent.width - 330px;
+                width: 180px;
+                text: root.user-name;
+                color: Theme.muted;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            ActionButton {
+                x: parent.width - 150px;
+                y: 10px;
+                width: 126px;
+                height: 36px;
+                text: "Déconnexion";
+                font: 14px;
+                focused: false;
+                clicked => {
+                    root.logout();
+                }
+            }
+        }
+
+        FocusScope {
+            y: 56px;
+            height: parent.height - 56px;
+
+            init => {
+                self.focus();
+            }
+
+            key-pressed(event) => {
+                if (event.text == Key.RightArrow) {
+                    if (root.sel-item < root.sections[root.sel-section].items.length - 1) {
+                        root.sel-item += 1;
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.LeftArrow) {
+                    if (root.sel-item > 0) {
+                        root.sel-item -= 1;
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.DownArrow) {
+                    if (root.sel-section < root.sections.length - 1) {
+                        root.sel-section += 1;
+                        root.sel-item = min(root.sel-item, max(0, root.sections[root.sel-section].items.length - 1));
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    if (root.sel-section > 0) {
+                        root.sel-section -= 1;
+                        root.sel-item = min(root.sel-item, max(0, root.sections[root.sel-section].items.length - 1));
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.Return) {
+                    root.open-item(root.sections[root.sel-section].items[root.sel-item].id);
+                    return EventResult.accept;
+                }
+                return EventResult.reject;
+            }
+
+            Rectangle {
+                clip: true;
+
+                Rectangle {
+                    y: min(0px, 8px - root.sections[root.sel-section].rel-y * root.row-h);
+                    animate y { duration: 180ms; easing: ease-out; }
+
+                    for section[si] in root.sections: SectionRow {
+                        y: section.rel-y * root.row-h;
+                        width: parent.width;
+                        height: section.rel-h * root.row-h - 24px;
+                        title: section.title;
+                        items: section.items;
+                        card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
+                        ratio: section.landscape ? 0.5625 : 1.5;
+                        active: si == root.sel-section;
+                        focus-index: root.sel-item;
+                        activated(i) => {
+                            root.sel-section = si;
+                            root.sel-item = i;
+                            root.open-item(section.items[i].id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Fiche détail
+    if root.screen == "detail": Rectangle {
+        // Réceptionne le clavier / la télécommande (sans taille : seul le focus compte).
+        FocusScope {
+            width: 0px;
+            height: 0px;
+
+            init => {
+                self.focus();
+            }
+
+            key-pressed(event) => {
+                // Lecture en cours : les touches pilotent mpv (utile aussi à la télécommande).
+                if (root.playing) {
+                    if (event.text == Key.Space || event.text == Key.Return) {
+                        root.player-cmd("pause");
+                    } else if (event.text == Key.LeftArrow) {
+                        root.player-cmd("seek-10");
+                    } else if (event.text == Key.RightArrow) {
+                        root.player-cmd("seek+10");
+                    } else if (event.text == Key.UpArrow) {
+                        root.player-cmd("vol+5");
+                    } else if (event.text == Key.DownArrow) {
+                        root.player-cmd("vol-5");
+                    } else if (event.text == "a") {
+                        root.player-cmd("audio");
+                    } else if (event.text == "s") {
+                        root.player-cmd("sub");
+                    } else if (event.text == Key.F11 || event.text == "f") {
+                        root.full-screen = !root.full-screen;
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == "q") {
+                        root.player-cmd("stop");
+                    }
+                    return EventResult.accept;
+                }
+
+                // Panneau « résumé complet » ouvert : il capte toutes les touches.
+                if (root.overview-open) {
+                    if (event.text == Key.DownArrow) {
+                        ov-panel.scroll-by(80px);
+                    } else if (event.text == Key.UpArrow) {
+                        ov-panel.scroll-by(-80px);
+                    } else if (event.text == Key.PageDown) {
+                        ov-panel.scroll-by(300px);
+                    } else if (event.text == Key.PageUp) {
+                        ov-panel.scroll-by(-300px);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
+                        root.overview-open = false;
+                        ov-panel.reset();
+                    }
+                    return EventResult.accept;
+                }
+
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.run-action("back");
+                    return EventResult.accept;
+                }
+
+                // Zone 0 : boutons
+                if (root.d-zone == 0) {
+                    if (event.text == Key.RightArrow) {
+                        if (root.d-button < root.detail.buttons.length - 1) {
+                            root.d-button += 1;
+                        } else if (root.detail.has-next) {
+                            root.d-zone = 3;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.LeftArrow) {
+                        if (root.d-button > 0) {
+                            root.d-button -= 1;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.DownArrow) {
+                        if (root.detail.overview != "") {
+                            root.d-zone = 1;
+                        } else if (root.child-items.length > 0) {
+                            root.d-zone = 2;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Return) {
+                        root.run-action(root.detail.buttons[root.d-button].action);
+                        return EventResult.accept;
+                    }
+                }
+
+                // Zone 1 : résumé
+                if (root.d-zone == 1) {
+                    if (event.text == Key.UpArrow) {
+                        root.d-zone = 0;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.RightArrow) {
+                        if (root.detail.has-next) {
+                            root.d-zone = 3;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.DownArrow) {
+                        if (root.child-items.length > 0) {
+                            root.d-zone = 2;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Return) {
+                        root.overview-open = true;
+                        return EventResult.accept;
+                    }
+                }
+
+                // Zone 2 : saisons / épisodes
+                if (root.d-zone == 2) {
+                    if (event.text == Key.RightArrow) {
+                        if (root.d-child < root.child-items.length - 1) {
+                            root.d-child += 1;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.LeftArrow) {
+                        if (root.d-child > 0) {
+                            root.d-child -= 1;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.UpArrow) {
+                        root.d-zone = root.detail.overview != "" ? 1 : 0;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Return) {
+                        root.open-item(root.child-items[root.d-child].id);
+                        return EventResult.accept;
+                    }
+                }
+
+                // Zone 3 : bloc « À suivre »
+                if (root.d-zone == 3) {
+                    if (event.text == Key.LeftArrow) {
+                        root.d-zone = 0;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.DownArrow) {
+                        if (root.child-items.length > 0) {
+                            root.d-zone = 2;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Return) {
+                        root.open-item(root.detail.next-id);
+                        return EventResult.accept;
+                    }
+                }
+                return EventResult.reject;
+            }
+        }
+
+        // Poster (portrait)
+        Rectangle {
+            x: 32px;
+            y: 24px;
+            width: root.poster-w;
+            height: root.poster-w * 1.5;
+            border-radius: Theme.radius;
+            clip: true;
+            background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+
+            if root.detail.has-poster: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.detail.poster;
+                image-fit: cover;
+            }
+        }
+
+        // Logo, ou titre en texte à défaut
+        Rectangle {
+            x: root.col-x;
+            y: 24px;
+            width: root.info-w;
+            height: 84px * root.k;
+
+            if root.detail.has-logo: Image {
+                x: 0px;
+                width: min(parent.width, 420px * root.k);
+                height: parent.height;
+                source: root.detail.logo;
+                image-fit: contain;
+            }
+
+            if !root.detail.has-logo && !root.detail.expect-logo: Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.detail.title;
+                color: Theme.text;
+                font-size: 34px * root.k;
+                font-weight: 800;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            x: root.col-x;
+            y: 24px + 88px * root.k;
+            width: root.info-w;
+            height: 24px * root.k;
+            text: root.detail.subtitle;
+            color: Theme.accent2;
+            font-size: 18px * root.k;
+            font-weight: 600;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        // Boutons
+        HorizontalLayout {
+            x: root.col-x;
+            y: 24px + 120px * root.k;
+            width: root.info-w;
+            height: 40px * root.k;
+            spacing: 12px;
+            alignment: start;
+
+            for b[i] in root.detail.buttons: ActionButton {
+                text: b.label;
+                font: 16px * root.k;
+                focused: root.d-zone == 0 && root.d-button == i;
+                clicked => {
+                    root.d-zone = 0;
+                    root.d-button = i;
+                    root.run-action(b.action);
+                }
+            }
+        }
+
+        // Année · classification · durée · note
+        Text {
+            x: root.col-x;
+            y: 24px + 168px * root.k;
+            width: root.info-w;
+            height: 24px * root.k;
+            text: root.detail.misc;
+            color: Theme.muted;
+            font-size: 15px * root.k;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        // Résumé (bloc « verre » cliquable)
+        if root.detail.overview != "": Rectangle {
+            x: root.col-x;
+            y: 24px + 200px * root.k;
+            width: root.info-w;
+            height: 100px * root.k;
+            border-radius: 14px;
+            clip: true;
+            background: root.d-zone == 1 ? #ffffff3d : #ffffff21;
+            border-width: root.d-zone == 1 ? 2px : 0px;
+            border-color: Theme.accent2;
+
+            Text {
+                x: 14px;
+                y: 10px;
+                width: parent.width - 28px;
+                height: parent.height - 20px;
+                text: root.detail.overview;
+                wrap: word-wrap;
+                overflow: elide;
+                color: Theme.text;
+                font-size: 15px * root.k;
+            }
+
+            TouchArea {
+                clicked => {
+                    root.d-zone = 1;
+                    root.overview-open = true;
+                }
+            }
+        }
+
+        // Bloc « À suivre » (séries) : colonne resserrée à droite, comme .nextUpSection
+        if root.detail.has-next: Rectangle {
+            x: parent.width - 32px - root.next-w;
+            y: 24px;
+            width: root.next-w;
+            height: 214px * root.k;
+
+            Text {
+                height: 20px * root.k;
+                text: "À SUIVRE";
+                color: Theme.muted;
+                font-size: 12px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                y: 24px * root.k;
+                height: root.next-w * 0.5625;
+                border-radius: Theme.radius;
+                clip: true;
+                background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+
+                if root.detail.has-next-image: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.detail.next-image;
+                    image-fit: cover;
+                }
+
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: Theme.radius;
+                    border-width: root.d-zone == 3 ? 3px : 0px;
+                    border-color: Theme.accent2;
+                }
+            }
+
+            Text {
+                y: 24px * root.k + root.next-w * 0.5625 + 6px;
+                height: 22px * root.k;
+                text: root.detail.next-title;
+                color: Theme.text;
+                font-size: 14px * root.k;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            Text {
+                y: 24px * root.k + root.next-w * 0.5625 + 6px + 22px * root.k;
+                height: 18px * root.k;
+                text: root.detail.next-subtitle;
+                color: Theme.muted;
+                font-size: 12px * root.k;
+                overflow: elide;
+            }
+
+            TouchArea {
+                clicked => {
+                    root.d-zone = 3;
+                    root.open-item(root.detail.next-id);
+                }
+            }
+        }
+
+        // Saisons / épisodes / contenu
+        if root.child-items.length > 0: SectionRow {
+            y: 24px + 300px * root.k + 16px;
+            width: parent.width;
+            height: root.child-card-w * root.child-ratio + 40px + 56px + 6px;
+            title: root.detail.children-title;
+            items: root.child-items;
+            card-w: root.child-card-w;
+            ratio: root.child-ratio;
+            active: root.d-zone == 2;
+            focus-index: root.d-child;
+            activated(i) => {
+                root.d-zone = 2;
+                root.d-child = i;
+                root.open-item(root.child-items[i].id);
+            }
+        }
+
+        // Panneau du résumé complet (toujours instancié, affiché à la demande)
+        ov-panel := OverviewPanel {
+            width: parent.width;
+            height: parent.height;
+            visible: root.overview-open;
+            text: root.detail.overview;
+            font: 20px * root.k;
+            close => {
+                root.overview-open = false;
+                ov-panel.reset();
+            }
+        }
+    }
+
+    // Lecture en cours dans mpv
+    if root.playing: Rectangle {
+        background: Theme.bg;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 10px;
+
+            Text {
+                text: "Lecture en cours dans mpv…";
+                color: Theme.text;
+                font-size: 28px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Échap ou Q pour arrêter la lecture.";
+                color: Theme.muted;
+                font-size: 16px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // Message d'état (accueil et fiche)
+    if root.screen == "home" || root.screen == "detail": Text {
+        x: 32px;
+        y: parent.height - 32px;
+        text: root.toast;
+        color: Theme.muted;
+        font-size: 13px;
+    }
+}

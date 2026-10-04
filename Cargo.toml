@@ -1,0 +1,29 @@
+[package]
+name = "turtlefin"
+version = "0.3.1"
+edition = "2021"
+description = "Client Jellyfin natif (Rust + Slint), sans Qt ni navigateur embarqué"
+
+[dependencies]
+slint = { version = "1", features = ["raw-window-handle-06"] }
+raw-window-handle = "0.6"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "net", "io-util", "process"] }
+# reqwest 0.13 : rustls par défaut, avec le magasin de certificats du système
+# (un certificat mkcert installé sur la machine est donc accepté).
+# "query" est devenu une option dans la 0.13.
+reqwest = { version = "0.13", features = ["json", "query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+directories = "6"
+uuid = { version = "1", features = ["v4"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+
+[build-dependencies]
+slint-build = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
