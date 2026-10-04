@@ -3411,263 +3411,203 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Page Seerr (premier plan)
-    if root.sr-open && !root.playing: Rectangle {
-        background: #000000b3;
+    // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible.
+    if root.sr-open && !root.playing: srp := Rectangle {
+        background: #0b1220;
 
-        TouchArea {
-            clicked => {
-                root.sr-open = false;
-                root.refocus += 1;
+        property <length> u: min(self.height / 720px, self.width / 1280px) * 1px; // unité : 1 px sur un écran 1280x720
+        property <length> pad: 40 * self.u;
+        property <length> poster-h: 300 * self.u;
+
+        TouchArea { }
+
+        FocusScope {
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (event.text == Key.LeftArrow) {
+                    root.sr-sel = 0;
+                } else if (event.text == Key.RightArrow) {
+                    root.sr-sel = 1;
+                } else if (event.text == Key.Return) {
+                    if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
+                        root.seerr-action();
+                    } else {
+                        root.sr-open = false;
+                        root.refocus += 1;
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.sr-open = false;
+                    root.refocus += 1;
+                }
+                return EventResult.accept;
             }
         }
 
-        sr-panel := Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: 24px * root.k;
-            width: min(parent.width - 48px * root.k, 1180px * root.k);
-            height: parent.height - 48px * root.k;
-            border-radius: 16px;
-            clip: true;
-            background: #0f1626;
-            border-width: 1px;
-            border-color: Theme.glass-border;
+        // Fond : image du média floutée (préparée une fois), puis voile vers le bas.
+        if root.sr.has-backdrop: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.sr.backdrop;
+            image-fit: cover;
+        }
+        Rectangle {
+            background: @linear-gradient(180deg, #0b122066 0%, #0b1220d9 55%, #0b1220 100%);
+        }
 
-            TouchArea { }
+        if root.sr.loading: Text {
+            text: "Chargement…";
+            color: Theme.muted;
+            font-size: 22 * srp.u;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
 
-            FocusScope {
-                init => {
-                    self.focus();
-                }
-                key-pressed(event) => {
-                    if (event.text == Key.LeftArrow) {
-                        root.sr-sel = 0;
-                    } else if (event.text == Key.RightArrow) {
-                        root.sr-sel = 1;
-                    } else if (event.text == Key.DownArrow) {
-                        root.sr-scroll = min(root.sr-scroll + 160px * root.k, max(0px, 900px * root.k - sr-panel.height));
-                    } else if (event.text == Key.UpArrow) {
-                        root.sr-scroll = max(0px, root.sr-scroll - 160px * root.k);
-                    } else if (event.text == Key.Return) {
-                        if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
-                            root.seerr-action();
-                        } else {
-                            root.sr-open = false;
-                            root.refocus += 1;
-                        }
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.sr-open = false;
-                        root.refocus += 1;
-                    }
-                    return EventResult.accept;
-                }
-            }
-
-            // Fond (backdrop flouté une fois au chargement) et dégradé vers le panneau.
-            if root.sr.has-backdrop: Image {
-                y: 0px - root.sr-scroll;
-                width: parent.width;
-                height: 300px * root.k;
-                source: root.sr.backdrop;
-                image-fit: cover;
-            }
+        if !root.sr.loading: Rectangle {
+            // Affiche
             Rectangle {
-                y: 120px * root.k - root.sr-scroll;
-                height: 181px * root.k;
-                background: @linear-gradient(180deg, #0f162600 0%, #0f1626 100%);
-            }
-
-            if root.sr.loading: Text {
-                text: "Chargement…";
-                color: Theme.muted;
-                font-size: 20px * root.k;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-
-            // Fermer
-            Rectangle {
-                x: parent.width - self.width - 20px * root.k;
-                y: 20px * root.k;
-                width: 44px * root.k;
-                height: self.width;
-                border-radius: self.width / 2;
-                background: root.sr-sel == 1 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #000000a0;
-                Path {
-                    width: 16px * root.k;
-                    height: 16px * root.k;
-                    viewbox-width: 16;
-                    viewbox-height: 16;
-                    stroke: white;
-                    stroke-width: 2.4px * root.k;
-                    commands: "M 2 2 L 14 14 M 14 2 L 2 14";
-                }
-                TouchArea {
-                    clicked => {
-                        root.sr-open = false;
-                        root.refocus += 1;
-                    }
+                x: srp.pad;
+                y: srp.pad;
+                width: srp.poster-h / 1.5;
+                height: srp.poster-h;
+                border-radius: 12 * srp.u;
+                background: root.sr.has-poster ? transparent : #ffffff14;
+                if root.sr.has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.sr.poster;
+                    image-fit: fill;
                 }
             }
 
-            if !root.sr.loading: Rectangle {
-                y: 0px - root.sr-scroll;
-                animate y { duration: 160ms; easing: ease-out; }
-                height: 900px * root.k;
-                property <length> pad: 30px * root.k;
-                property <length> side-w: 340px * root.k;
-                property <length> main-w: self.width - 3 * self.pad - self.side-w;
+            // Titre, informations, état, boutons
+            VerticalLayout {
+                x: srp.pad + srp.poster-h / 1.5 + 32 * srp.u;
+                y: srp.pad;
+                width: parent.width - self.x - srp.pad;
+                height: srp.poster-h;
+                spacing: 12 * srp.u;
+                alignment: center;
 
-                // Affiche
-                Rectangle {
-                    x: parent.pad;
-                    y: 170px * root.k;
-                    width: 150px * root.k;
-                    height: 225px * root.k;
-                    border-radius: 10px;
-                    background: root.sr.has-poster ? transparent : #ffffff14;
-                    if root.sr.has-poster: Image {
-                        width: parent.width;
-                        height: parent.height;
-                        source: root.sr.poster;
-                        image-fit: fill;
-                    }
-                }
-
-                // Titre (année), durée, genres, note, bouton
                 Text {
-                    x: parent.pad + 176px * root.k;
-                    y: 200px * root.k;
-                    width: parent.main-w - 176px * root.k;
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
                     color: white;
-                    font-size: 32px * root.k;
+                    font-size: 38 * srp.u;
                     font-weight: 700;
                     overflow: elide;
                 }
                 Text {
-                    x: parent.pad + 176px * root.k;
-                    y: 250px * root.k;
-                    width: parent.main-w - 176px * root.k;
                     text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
                         + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
-                    color: #ffffffcc;
-                    font-size: 15px * root.k;
+                    color: #ffffffd0;
+                    font-size: 18 * srp.u;
                     overflow: elide;
                 }
+                // Informations clés en pastilles (statut, sortie, langue, studio)
                 HorizontalLayout {
-                    x: parent.pad + 176px * root.k;
-                    y: 290px * root.k;
-                    height: 44px * root.k;
-                    spacing: 16px * root.k;
                     alignment: start;
-
+                    spacing: 10 * srp.u;
+                    height: 30 * srp.u;
+                    for f in root.sr.facts: Rectangle {
+                        border-radius: self.height / 2;
+                        background: #ffffff1a;
+                        width: fact-t.preferred-width + 24 * srp.u;
+                        fact-t := Text {
+                            text: f.label + " : " + f.value;
+                            color: #ffffffe0;
+                            font-size: 13 * srp.u;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                if root.sr.status != "": Text {
+                    text: root.sr.status;
+                    color: Theme.accent2;
+                    font-size: 18 * srp.u;
+                    font-weight: 700;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 16 * srp.u;
+                    height: 50 * srp.u;
                     if root.sr.can-request || root.sr.on-server: ActionButton {
                         text: root.sr.on-server ? "Voir sur le serveur" : "Demander";
-                        font: 16px * root.k;
+                        font: 18 * srp.u;
                         focused: root.sr-sel == 0;
                         clicked => {
                             root.seerr-action();
                         }
                     }
+                    ActionButton {
+                        text: "Fermer";
+                        font: 18 * srp.u;
+                        focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
+                        clicked => {
+                            root.sr-open = false;
+                            root.refocus += 1;
+                        }
+                    }
+                }
+            }
+
+            // Résumé (coupé proprement s'il est trop long)
+            Text {
+                x: srp.pad;
+                y: srp.pad + srp.poster-h + 28 * srp.u;
+                width: parent.width - 2 * srp.pad;
+                height: 100 * srp.u;
+                text: root.sr.overview;
+                color: #ffffffd9;
+                font-size: 17 * srp.u;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+
+            // Distribution : photos rondes sur une ligne (autant qu'il en tient)
+            Rectangle {
+                x: srp.pad;
+                y: min(parent.height - self.height - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
+                width: parent.width - 2 * srp.pad;
+                height: 140 * srp.u;
+                clip: true;
+                for c[i] in root.sr-cast: Rectangle {
+                    x: i * 118 * srp.u;
+                    width: 104 * srp.u;
+                    Rectangle {
+                        x: (parent.width - self.width) / 2;
+                        y: 0px;
+                        width: 84 * srp.u;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: #ffffff1a;
+                        clip: false;
+                        if c.has-image: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: c.image;
+                            image-fit: fill;
+                        }
+                    }
                     Text {
-                        text: root.sr.status;
-                        color: Theme.accent2;
-                        font-size: 15px * root.k;
+                        y: 92 * srp.u;
+                        width: parent.width;
+                        text: c.title;
+                        color: white;
+                        font-size: 12 * srp.u;
                         font-weight: 600;
-                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                        overflow: elide;
                     }
-                }
-
-                // Résumé
-                if root.sr.overview != "": Text {
-                    x: parent.pad;
-                    y: 420px * root.k;
-                    text: "Résumé";
-                    color: white;
-                    font-size: 20px * root.k;
-                    font-weight: 700;
-                }
-                Text {
-                    x: parent.pad;
-                    y: 452px * root.k;
-                    width: parent.main-w;
-                    height: 120px * root.k;
-                    text: root.sr.overview;
-                    color: #ffffffd9;
-                    font-size: 15px * root.k;
-                    wrap: word-wrap;
-                    overflow: elide;
-                }
-
-                // Distribution
-                if root.sr-cast.length > 0: Text {
-                    x: parent.pad;
-                    y: 585px * root.k;
-                    text: "Distribution";
-                    color: white;
-                    font-size: 20px * root.k;
-                    font-weight: 700;
-                }
-                Rectangle {
-                    x: parent.pad;
-                    y: 620px * root.k;
-                    width: parent.main-w;
-                    height: 110px * 1.5 * root.k + 60px * root.k;
-                    clip: true;
-
-                    for c[i] in root.sr-cast: Card {
-                        x: i * 122px * root.k;
-                        width: 110px * root.k;
-                        height: 110px * 1.5 * root.k + 56px * root.k;
-                        data: c;
-                        ratio: 1.5;
-                        k: root.k * 0.85;
-                        focused: false;
-                    }
-                }
-
-                // Informations
-                Rectangle {
-                    x: parent.width - parent.pad - parent.side-w;
-                    y: 170px * root.k;
-                    width: parent.side-w;
-                    height: 20px * root.k + root.sr.facts.length * 46px * root.k;
-                    border-radius: 12px;
-                    background: #ffffff0d;
-                    border-width: 1px;
-                    border-color: #ffffff1f;
-
-                    for f[i] in root.sr.facts: Rectangle {
-                        x: 18px * root.k;
-                        y: 10px * root.k + i * 46px * root.k;
-                        width: parent.width - 36px * root.k;
-                        height: 46px * root.k;
-                        Text {
-                            x: 0px;
-                            width: parent.width * 0.48;
-                            height: parent.height;
-                            text: f.label.to-uppercase();
-                            color: #ffffff99;
-                            font-size: 11px * root.k;
-                            font-weight: 700;
-                            vertical-alignment: center;
-                        }
-                        Text {
-                            x: parent.width * 0.48;
-                            width: parent.width * 0.52;
-                            height: parent.height;
-                            text: f.value;
-                            color: white;
-                            font-size: 14px * root.k;
-                            horizontal-alignment: right;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
-                        if i > 0: Rectangle {
-                            y: 0px;
-                            height: 1px;
-                            background: #ffffff14;
-                        }
+                    Text {
+                        y: 110 * srp.u;
+                        width: parent.width;
+                        text: c.subtitle;
+                        color: Theme.muted;
+                        font-size: 11 * srp.u;
+                        horizontal-alignment: center;
+                        overflow: elide;
                     }
                 }
             }

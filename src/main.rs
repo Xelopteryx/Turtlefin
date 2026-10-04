@@ -1075,7 +1075,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 }
             }
         });
-        spawn_image_jobs(&app2, &client, jobs, api::Size::Fill(185, 278), Shape::card(185, 278, 110.0), apply);
+        spawn_image_jobs(&app2, &client, jobs, api::Size::Fill(160, 160), Shape { w: 160, h: 160, radius: 0.5, top_only: false }, apply);
     });
 }
 
