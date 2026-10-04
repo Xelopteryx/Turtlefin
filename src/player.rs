@@ -34,6 +34,8 @@ pub struct PlayRequest {
     pub local_title: Option<(String, String)>,
     /// Sous-titres externes d'un fichier local : (chemin, langue).
     pub local_subs: Vec<(String, String)>,
+    /// Watch party : lecture synchronisée (pause, reprise et sauts passent par le serveur).
+    pub sync: bool,
 }
 
 /// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
@@ -275,6 +277,14 @@ pub async fn play(
         eprintln!("turtlefin : rendu vidéo pas prêt après 5 s, lecture sans image");
     }
 
+    let sync = req.sync;
+    let sp = app.sp.clone();
+    // Watch party : on démarre en pause et on attend la reprise commune.
+    if sync {
+        let _ = player.set_property("pause", "yes");
+    }
+    // Prêt à signaler au groupe (après le chargement ou un saut).
+    let mut sp_wait_ready = sync;
     let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
     if let Some((t, s)) = req.local_title {
         let _ = ui.upgrade_in_event_loop(move |u| {
@@ -298,6 +308,8 @@ pub async fn play(
         let mut go_episode: Option<i64> = None;
         // Autre élément à lire (épisode choisi dans la saison, suggestion de fin).
         let mut go_item: Option<String> = None;
+        // Position de départ imposée (watch party).
+        let mut sp_start: Option<f64> = None;
 
         tokio::select! {
             ev = events.recv() => {
@@ -368,6 +380,17 @@ pub async fn play(
                         }
                         _ => {}
                     },
+                    Event::Restart => {
+                        if sync && sp_wait_ready {
+                            sp_wait_ready = false;
+                            if let Some(c) = client {
+                                let (c, sp, pos, playing) = (c.clone(), sp.clone(), cur.pos, !cur.paused);
+                                tokio::spawn(async move {
+                                    let _ = crate::syncplay::ready(&c, &sp, pos, playing).await;
+                                });
+                            }
+                        }
+                    }
                     Event::FileLoaded => {
                         for (url, lang) in std::mem::take(&mut cur.subs) {
                             let _ = player.command(&["sub-add", &url, "auto", "", &lang]);
@@ -387,7 +410,10 @@ pub async fn play(
                             report(client, "/Sessions/Playing/Stopped", cur.body(end)).await;
                             cur.reported_stop = true;
                             cur.ended = true;
-                            if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
+                            if sync {
+                                // Watch party : on laisse la suite au groupe (écran de fin pour choisir).
+                                show_up_next(&app, client, cur.item.as_ref(), None, true);
+                            } else if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
                                 // Épisode suivant (ou premier de la saison suivante).
                                 go_episode = Some(1);
                             } else if cur.up_shown {
@@ -414,7 +440,75 @@ pub async fn play(
             cmd = commands.recv() => {
                 let Some(c) = cmd else { break };
                 let (verb, arg) = c.split_once(':').unwrap_or((c.as_str(), ""));
+                // Watch party : pause, reprise et sauts passent par le serveur, qui les renvoie à tous.
+                if sync && matches!(verb, "pause" | "seek" | "seek-to" | "chapter") {
+                    if let Some(cl) = client {
+                        let target = match verb {
+                            "seek" => cur.pos + arg.parse::<f64>().unwrap_or(0.0),
+                            "seek-to" => cur.dur * arg.parse::<f64>().unwrap_or(0.0).clamp(0.0, 1.0),
+                            "chapter" => {
+                                let d = arg.parse::<i64>().unwrap_or(1);
+                                let i = cur.chapters.iter().rposition(|t| *t <= cur.pos + 0.5).map(|i| i as i64).unwrap_or(-1) + d;
+                                usize::try_from(i).ok().and_then(|i| cur.chapters.get(i).copied()).unwrap_or(cur.pos)
+                            }
+                            _ => cur.pos,
+                        };
+                        let (cl, paused) = (cl.clone(), cur.paused);
+                        let is_pause = verb == "pause";
+                        tokio::spawn(async move {
+                            let _ = if is_pause {
+                                if paused { crate::syncplay::unpause(&cl).await } else { crate::syncplay::pause(&cl).await }
+                            } else {
+                                crate::syncplay::seek(&cl, target.max(0.0)).await
+                            };
+                        });
+                    }
+                    continue;
+                }
                 let r = match verb {
+                    // Commandes du groupe (watch party), reçues du serveur.
+                    "sp-unpause" => {
+                        let (pos, delay) = arg.split_once(':').unwrap_or((arg, "0"));
+                        let (pos, delay) = (pos.parse::<f64>().unwrap_or(cur.pos), delay.parse::<f64>().unwrap_or(0.0));
+                        // En retard : on rattrape ; en avance : on attend l'instant commun.
+                        let at = pos + (-delay).max(0.0);
+                        if (at - cur.pos).abs() > 0.5 {
+                            let _ = player.command(&["seek", &format!("{at:.3}"), "absolute", "exact"]);
+                        }
+                        let p = player.clone();
+                        tokio::spawn(async move {
+                            if delay > 0.0 {
+                                tokio::time::sleep(Duration::from_secs_f64(delay)).await;
+                            }
+                            let _ = p.set_property("pause", "no");
+                        });
+                        Ok(())
+                    }
+                    "sp-pause" => {
+                        let _ = player.set_property("pause", "yes");
+                        match arg.parse::<f64>() {
+                            Ok(p) if (p - cur.pos).abs() > 0.3 => player.command(&["seek", &format!("{p:.3}"), "absolute", "exact"]),
+                            _ => Ok(()),
+                        }
+                    }
+                    "sp-seek" => {
+                        let _ = player.set_property("pause", "yes");
+                        sp_wait_ready = true;
+                        if let Some(cl) = client {
+                            let (cl, sp, pos) = (cl.clone(), sp.clone(), cur.pos);
+                            tokio::spawn(async move {
+                                let _ = crate::syncplay::buffering(&cl, &sp, pos).await;
+                            });
+                        }
+                        let p = arg.parse::<f64>().unwrap_or(cur.pos);
+                        player.command(&["seek", &format!("{p:.3}"), "absolute", "exact"])
+                    }
+                    "sp-load" => {
+                        let (id, start) = arg.split_once('@').unwrap_or((arg, "0"));
+                        go_item = Some(id.to_string());
+                        sp_start = start.parse().ok();
+                        Ok(())
+                    }
                     "pause" => player.command(&["cycle", "pause"]),
                     "seek" => player.command(&["seek", arg, "relative"]),
                     "seek-to" => {
@@ -481,6 +575,26 @@ pub async fn play(
             }
         }
 
+        // Watch party : un changement d'élément décidé ici (épisode suivant, suggestion) est
+        // envoyé au groupe ; tout le monde (nous compris) le recevra par « sp-load ».
+        if sync && sp_start.is_none() {
+            let target = match (go_episode, &go_item) {
+                (Some(d), _) => neighbour(&episodes, cur.item.as_ref(), d),
+                (None, Some(id)) => Some(id.clone()),
+                _ => None,
+            };
+            if let (Some(id), Some(cl)) = (target, client) {
+                let cl = cl.clone();
+                tokio::spawn(async move {
+                    let it = match cl.item(&id).await {
+                        Ok(it) => crate::resolve_playable(&cl, it).await.map(|t| t.id).unwrap_or(id),
+                        Err(_) => id,
+                    };
+                    let _ = crate::syncplay::play(&cl, &it, 0.0).await;
+                });
+                continue;
+            }
+        }
         // Élément suivant à lire : épisode voisin, ou élément choisi.
         let next: Option<Result<Item>> = match (go_episode, go_item, client) {
             (Some(d), _, Some(c)) => match neighbour(&episodes, cur.item.as_ref(), d) {
@@ -508,7 +622,11 @@ pub async fn play(
             if !episodes.contains(&next.id) {
                 episodes = series_episodes(client, Some(&next)).await;
             }
-            let start = next.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
+            let start = sp_start.unwrap_or_else(|| next.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0));
+            if sync {
+                let _ = player.set_property("pause", "yes");
+                sp_wait_ready = true;
+            }
             // L'ancien fichier se terminera (« stop ») sauf s'il était déjà fini.
             switching = !cur.ended;
             match load(&player, client, Some(next), start, None, &episodes, &ui) {

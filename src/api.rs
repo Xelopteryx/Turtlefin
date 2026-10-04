@@ -758,6 +758,24 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_json(&self, path: &str) -> Result<serde_json::Value> {
+        self.get(path, &[]).await
+    }
+
+    pub async fn post_json(&self, path: &str, body: &serde_json::Value) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{}{}", self.server, path))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("Le serveur a répondu {} sur {path}", resp.status()));
+        }
+        Ok(())
+    }
+
     /// Contenu brut d'une adresse du serveur (avec la connexion).
     pub async fn get_bytes(&self, path: &str) -> Result<Vec<u8>> {
         let resp = self

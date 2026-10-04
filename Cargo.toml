@@ -9,6 +9,9 @@ slint = "1"
 # Lecture : libmpv chargée à l'exécution, rendu OpenGL de la vidéo dans la fenêtre Slint.
 libloading = "0.8"
 glow = "0.17"
+# Watch party (SyncPlay) : connexion WebSocket au serveur.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 # Heure locale (« Fin à 22:47 »).
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time"] }

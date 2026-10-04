@@ -28,6 +28,7 @@ const FORMAT_NODE_MAP: c_int = 8;
 const EVENT_SHUTDOWN: c_int = 1;
 const EVENT_END_FILE: c_int = 7;
 const EVENT_FILE_LOADED: c_int = 8;
+const EVENT_PLAYBACK_RESTART: c_int = 21;
 const EVENT_PROPERTY_CHANGE: c_int = 22;
 
 const RENDER_PARAM_INVALID: c_int = 0;
@@ -230,6 +231,8 @@ pub enum Event {
     FileLoaded,
     /// Fin d'un fichier : `eof` = arrivé au bout, `error` = lecture impossible.
     EndFile { eof: bool, error: Option<String> },
+    /// Lecture (re)partie après un chargement ou un saut.
+    Restart,
     Shutdown,
 }
 
@@ -307,6 +310,7 @@ impl Mpv {
             match ev.event_id {
                 EVENT_SHUTDOWN => Some(Event::Shutdown),
                 EVENT_FILE_LOADED => Some(Event::FileLoaded),
+                EVENT_PLAYBACK_RESTART => Some(Event::Restart),
                 EVENT_END_FILE => {
                     let ef = &*(ev.data as *const RawEventEndFile);
                     let error = (ef.reason == 4).then(|| {

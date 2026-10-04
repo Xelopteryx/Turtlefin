@@ -750,6 +750,13 @@ export component AppWindow inherits Window {
     in-out property <bool> dl-dialog;       // Lire / Supprimer / Annuler
     in-out property <int> dl-dsel;
 
+    // Watch party
+    in property <bool> sp-active;
+    in property <string> sp-name;
+    in property <string> sp-people;
+    in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
+    in-out property <int> sp-sel;
+
     // Recherche
     in-out property <string> search-text;
     in property <[Section]> search-sections;
@@ -828,6 +835,7 @@ export component AppWindow inherits Window {
     callback seerr-action();
     callback track-pick(string, string, string); // type, langue ("" défaut, "off"), libellé
     callback search-open();
+    callback party-action(string);
     callback search-changed(string);
     callback random-pick();
     // Effacement : le clavier à l'écran envoie "\u{8}" + texte ; le dernier caractère est retiré en Rust.
@@ -1249,6 +1257,115 @@ export component AppWindow inherits Window {
                             root.sel-item = i;
                             root.open-item(section.items[i].id);
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Watch party
+    if root.screen == "party" && !root.playing: party := Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+
+        // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
+        property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    if (root.sp-sel == 0) {
+                        root.nav-enter();
+                    } else {
+                        root.sp-sel -= 1;
+                    }
+                } else if (event.text == Key.DownArrow) {
+                    root.sp-sel = min(party.n - 1, root.sp-sel + 1);
+                } else if (event.text == Key.Return) {
+                    if (root.sp-active) {
+                        root.party-action("leave");
+                    } else if (root.sp-sel < root.sp-groups.length) {
+                        root.party-action(root.sp-groups[root.sp-sel].action);
+                    } else {
+                        root.party-action("create");
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.go-home();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        VerticalLayout {
+            x: 64px * root.k;
+            width: min(parent.width - 128px * root.k, 760px * root.k);
+            alignment: start;
+            spacing: 14px * root.k;
+
+            Text {
+                text: "Watch party";
+                color: Theme.text;
+                font-size: 30px * root.k;
+                font-weight: 700;
+            }
+            Text {
+                text: root.sp-active
+                    ? "Tu es dans « " + root.sp-name + " ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
+                    : "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.";
+                color: Theme.muted;
+                font-size: 15px * root.k;
+                wrap: word-wrap;
+            }
+            if root.sp-active: Text {
+                text: "Participants : " + root.sp-people;
+                color: Theme.accent2;
+                font-size: 16px * root.k;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+            if !root.sp-active && root.sp-groups.length > 0: Text {
+                text: "REJOINDRE";
+                color: Theme.muted;
+                font-size: 12px * root.k;
+                font-weight: 700;
+            }
+            for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
+                height: 56px * root.k;
+                border-radius: 12px * root.k;
+                background: i == root.sp-sel || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
+                Text {
+                    x: 20px * root.k;
+                    height: parent.height;
+                    text: g.label;
+                    color: white;
+                    font-size: 16px * root.k;
+                    vertical-alignment: center;
+                }
+                g-area := TouchArea {
+                    clicked => {
+                        root.party-action(g.action);
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                height: 46px * root.k;
+                ActionButton {
+                    text: root.sp-active ? "Quitter la watch party" : "Créer une watch party";
+                    font: 16px * root.k;
+                    focused: root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length;
+                    clicked => {
+                        root.party-action(root.sp-active ? "leave" : "create");
                     }
                 }
             }
@@ -2992,7 +3109,7 @@ export component AppWindow inherits Window {
     }
 
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
-    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile" || root.screen == "search"
+    if (root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile" || root.screen == "search" || root.screen == "party"
         || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads")
         && !root.playing: NavBar {
         y: 0px;
@@ -3000,7 +3117,8 @@ export component AppWindow inherits Window {
         k: root.k;
         can-back: root.can-back;
         show-home: true;
-        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : root.screen == "search" ? "Recherche" : "";
+        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : root.screen == "search" ? "Recherche"
+            : root.screen == "party" ? "Watch party" : "";
         sel: root.h-focus ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);
@@ -3406,6 +3524,7 @@ export component AppWindow inherits Window {
         skip-intro: root.p-skip-intro;
         bg: root.p-bg;
         has-bg: root.p-has-bg;
+        party: root.sp-active ? root.sp-name : "";
         command(c) => {
             root.player-cmd(c);
         }
@@ -3415,7 +3534,7 @@ export component AppWindow inherits Window {
     }
 
     // Message d'état (accueil et fiche)
-    if (root.screen == "home" || root.screen == "detail" || root.screen == "library" || root.screen == "downloads") && !root.playing: Text {
+    if (root.screen == "home" || root.screen == "detail" || root.screen == "library" || root.screen == "downloads" || root.screen == "party") && !root.playing: Text {
         x: 32px;
         y: parent.height - 32px;
         text: root.toast;

@@ -273,6 +273,7 @@ export component PlayerView inherits Rectangle {
     in property <bool> skip-intro;
     in property <image> bg;
     in property <bool> has-bg;
+    in property <string> party; // watch party en cours (nom), vide sinon
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "stop"
     callback toggle-fullscreen();
@@ -1172,6 +1173,24 @@ export component PlayerView inherits Rectangle {
             triggered => {
                 root.picks-in = true;
             }
+        }
+    }
+
+    // Watch party : rappel discret en haut à droite.
+    if root.party != "" && root.osd: Rectangle {
+        x: parent.width - self.width - root.m;
+        y: root.m + 6px * root.k;
+        width: party-txt.preferred-width + 28px * root.k;
+        height: 34px * root.k;
+        border-radius: self.height / 2;
+        background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+        party-txt := Text {
+            text: "Watch party · " + root.party;
+            color: white;
+            font-size: 14px * root.k;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
         }
     }
 }

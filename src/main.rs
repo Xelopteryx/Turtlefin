@@ -4,6 +4,7 @@ mod discovery;
 mod downloads;
 mod mpv;
 mod player;
+mod syncplay;
 mod video;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -84,6 +85,9 @@ struct App {
     lib_return: Mutex<Option<(String, usize)>>,
     /// Fiche affichée : clé de préférences et pistes (langue, libellé) audio / sous-titres.
     detail_streams: Mutex<(String, Vec<(String, String)>, Vec<(String, String)>)>,
+    /// Watch party (SyncPlay) : état du groupe, connexion déjà ouverte.
+    sp: syncplay::Shared,
+    sp_connected: AtomicBool,
     /// Configuration du compte Jellyfin (Paramètres > Lecture).
     user_cfg: Mutex<serde_json::Value>,
     /// Avatars GetAvatar proposés : (id, nom).
@@ -396,6 +400,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         *app.user_cfg.lock().unwrap() = cfg;
     }
     load_header_avatar(&app, &client);
+    start_syncplay(&app, &client);
     app.can_download.store(client.can_download().await, Ordering::SeqCst);
     load_tab(app, client).await;
 }
@@ -765,6 +770,104 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
                 u.set_toast(msg.into());
             });
         }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Watch party (SyncPlay)
+// ---------------------------------------------------------------------------
+fn start_syncplay(app: &Arc<App>, client: &api::Client) {
+    if app.sp_connected.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<syncplay::Event>();
+    let (c, sp) = (client.clone(), app.sp.clone());
+    app.rt.spawn(async move { syncplay::connect(c, sp, tx) });
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        while let Some(ev) = rx.recv().await {
+            match ev {
+                syncplay::Event::Group => refresh_party(&app2),
+                syncplay::Event::Toast(m) => {
+                    let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(m.into()));
+                }
+                syncplay::Event::Play { item_id, start } => {
+                    // Lecture en cours : le lecteur change de média ; sinon on le lance.
+                    let tx = app2.player_tx.lock().unwrap().clone();
+                    match tx {
+                        Some(tx) => {
+                            let _ = tx.send(format!("sp-load:{item_id}@{start}"));
+                        }
+                        None => {
+                            let a = app2.clone();
+                            app2.rt.spawn(async move { play_flow_group(a, item_id, start).await });
+                        }
+                    }
+                }
+                syncplay::Event::Command(cmd) => {
+                    let msg = match cmd {
+                        syncplay::Cmd::Unpause { pos, delay } => format!("sp-unpause:{pos}:{delay}"),
+                        syncplay::Cmd::Pause { pos } => format!("sp-pause:{pos}"),
+                        syncplay::Cmd::Seek { pos } => format!("sp-seek:{pos}"),
+                        syncplay::Cmd::Stop => "stop".to_string(),
+                    };
+                    if let Some(tx) = app2.player_tx.lock().unwrap().as_ref() {
+                        let _ = tx.send(msg);
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Écran Watch party : groupe actuel ou liste des groupes.
+fn refresh_party(app: &Arc<App>) {
+    let (group, people) = {
+        let s = app.sp.lock().unwrap();
+        (s.group.clone(), s.participants.clone())
+    };
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let groups = if group.is_none() { syncplay::list(&client).await } else { Vec::new() };
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_sp_active(group.is_some());
+            u.set_sp_name(group.map(|g| g.1).unwrap_or_default().into());
+            u.set_sp_people(people.join(", ").into());
+            let rows: Vec<MenuEntry> = groups
+                .into_iter()
+                .map(|(id, name, p)| MenuEntry { label: format!("{name}  ·  {}", p.join(", ")).into(), action: id.into(), header: false })
+                .collect();
+            u.set_sp_groups(ModelRc::new(VecModel::from(rows)));
+        });
+    });
+}
+
+fn open_party(app: &Arc<App>) {
+    if let Some(u) = app.ui().upgrade() {
+        u.set_sp_sel(0);
+        u.set_h_focus(false);
+        u.set_screen("party".into());
+    }
+    refresh_party(app);
+}
+
+/// Action de l'écran Watch party : "create", "leave", ou l'identifiant d'un groupe à rejoindre.
+fn party_action(app: &Arc<App>, action: String) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r = match action.as_str() {
+            "create" => syncplay::create(&client, &format!("Watch party de {}", client.user_name)).await,
+            "leave" => syncplay::leave(&client).await,
+            id => syncplay::join(&client, id).await,
+        };
+        if let Err(e) = r {
+            let msg = format!("Watch party : {e}");
+            let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        refresh_party(&app2);
     });
 }
 
@@ -1530,6 +1633,7 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
         e.push(("Demandes".into(), "requests".into(), false));
     }
     e.push(("Téléchargements".into(), "downloads".into(), false));
+    e.push(("Watch party".into(), "party".into(), false));
     e.push(("Bibliothèques".into(), String::new(), true));
     for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
         e.push((v.name.clone(), format!("lib:{}", v.id), false));
@@ -1941,7 +2045,29 @@ async fn play_local(app: Arc<App>, e: downloads::Entry) {
 }
 
 async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) {
+    // Watch party : le média est lancé pour tout le groupe (le serveur renvoie la file à tous).
+    let in_group = app.sp.lock().unwrap().group.is_some();
+    if let (Some(id), Some(client), true) = (&id, app.client(), in_group) {
+        let target = match client.item(id).await {
+            Ok(it) => resolve_playable(&client, it).await,
+            Err(e) => Err(e),
+        };
+        if let Ok(t) = target {
+            let start = t.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
+            if let Err(e) = syncplay::play(&client, &t.id, start).await {
+                let msg = format!("Watch party : {e}");
+                let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            }
+        }
+        return;
+    }
     play_flow_with(app, id, test_url, None, Vec::new()).await;
+}
+
+/// Lecture lancée par le groupe (watch party) à une position imposée.
+async fn play_flow_group(app: Arc<App>, id: String, start: f64) {
+    *app.play_start.lock().unwrap() = Some(start);
+    play_flow_with(app, Some(id), None, None, Vec::new()).await;
 }
 
 async fn play_flow_with(
@@ -1978,7 +2104,8 @@ async fn play_flow_with(
             }
             _ => (None, 0.0),
         };
-        let req = player::PlayRequest { item, start_secs, test_url, local_title, local_subs };
+        let sync = app.sp.lock().unwrap().group.is_some() && test_url.is_none();
+        let req = player::PlayRequest { item, start_secs, test_url, local_title, local_subs, sync };
         player::play(app.clone(), client.clone(), req, rx, ui.clone()).await
     }
     .await;
@@ -2056,6 +2183,8 @@ fn main() -> anyhow::Result<()> {
         seerr_page: Mutex::new(None),
         search_gen: AtomicU64::new(0),
         user_cfg: Mutex::new(serde_json::Value::Null),
+        sp: Arc::default(),
+        sp_connected: AtomicBool::new(false),
         avatars: Mutex::new(Vec::new()),
         detail_streams: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
@@ -2138,6 +2267,11 @@ fn main() -> anyhow::Result<()> {
         tick();
         clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(10), tick);
     }
+
+    ui.on_party_action({
+        let app = app.clone();
+        move |a| party_action(&app, a.to_string())
+    });
 
     ui.on_search_open({
         let app = app.clone();
@@ -2300,6 +2434,8 @@ fn main() -> anyhow::Result<()> {
                 open_settings(&app);
             } else if a == "downloads" {
                 open_downloads(&app);
+            } else if a == "party" {
+                open_party(&app);
             } else if a == "server" {
                 open_servers(&app);
             } else if a == "logout" {
