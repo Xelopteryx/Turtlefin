@@ -109,6 +109,130 @@ export global Rows {
     pure callback pick(int /* from */, int /* from-idx */, float /* from-w */, int /* to */, int /* to-n */, float /* to-w */, float /* écart */, float /* marge */, float /* largeur */) -> int;
 }
 
+// Champ de saisie au style de l'appli : intitulé au-dessus, case de verre, contour d'accent quand
+// il est choisi, rouge (avec message) en cas d'erreur. Bureau : saisie directe (TextInput) ;
+// mode TV : le texte vient du clavier à l'écran (`shown`, curseur quand `editing`).
+component Field inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <string> label;
+    in property <string> hint;                 // texte d'aide, quand le champ est vide
+    in-out property <string> text;
+    in property <string> shown;                // mode TV : texte affiché (points pour un mot de passe)
+    in property <bool> password;
+    in property <bool> tv;
+    in property <bool> selected;               // mode TV : la sélection est sur ce champ
+    in property <bool> editing;                // mode TV : le clavier à l'écran écrit ici
+    in property <string> error;
+    callback accepted();
+    callback clicked();
+    public function focus-input() {
+        input.focus();
+    }
+
+    property <bool> lit: root.tv ? root.selected || root.editing : input.has-focus;
+    height: 22px * root.k + 52px * root.k + 22px * root.k;
+
+    Text {
+        x: 4px * root.k;
+        y: 0px;
+        width: parent.width - 8px * root.k;
+        height: 22px * root.k;
+        text: root.label;
+        color: root.error != "" ? #ff8a8a : root.lit ? white : Theme.muted;
+        font-size: 13px * root.k;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+    box := Rectangle {
+        y: 22px * root.k;
+        height: 52px * root.k;
+        border-radius: 12px * root.k;
+        background: root.lit ? #ffffff24 : #ffffff12;
+        border-width: root.error != "" || root.lit ? 2px : 1px;
+        border-color: root.error != "" ? #ff6b6b : root.lit ? Theme.accent2 : #ffffff2e;
+        animate background, border-color { duration: 160ms; }
+
+        // Aide (champ vide)
+        if root.text == "" && !(root.tv && root.editing): Text {
+            x: 18px * root.k;
+            width: parent.width - 36px * root.k;
+            height: parent.height;
+            text: root.hint;
+            color: #ffffff59;
+            font-size: 17px * root.k;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.tv: Text {
+            x: 18px * root.k;
+            width: parent.width - 36px * root.k;
+            height: parent.height;
+            text: root.shown + (root.editing ? "│" : "");
+            color: white;
+            font-size: 18px * root.k;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        input := TextInput {
+            x: 18px * root.k;
+            width: parent.width - 36px * root.k;
+            height: parent.height;
+            visible: !root.tv;
+            enabled: !root.tv;
+            text <=> root.text;
+            input-type: root.password ? InputType.password : InputType.text;
+            color: white;
+            font-size: 18px * root.k;
+            vertical-alignment: center;
+            single-line: true;
+            selection-background-color: Theme.accent1;
+            accepted => {
+                root.accepted();
+            }
+        }
+        if root.tv: TouchArea {
+            clicked => {
+                root.clicked();
+            }
+        }
+    }
+    if root.error != "": Text {
+        x: 4px * root.k;
+        y: 22px * root.k + 52px * root.k;
+        width: parent.width - 8px * root.k;
+        height: 22px * root.k;
+        text: root.error;
+        color: #ff8a8a;
+        font-size: 13px * root.k;
+        vertical-alignment: center;
+    }
+}
+
+// Message en bulle (connexion, saisie d'adresse) : verre sombre, rouge pour une erreur.
+component Bubble inherits Rectangle {
+    in property <string> text;
+    in property <bool> error;
+    in property <float> k: 1.0;
+    in property <length> max-w: 600px;
+    width: min(root.max-w, msg.preferred-width + 44px * root.k);
+    height: msg.preferred-height + 22px * root.k;
+    border-radius: 14px * root.k;
+    background: root.error ? #3a1418f2 : #0b1620f2;
+    border-width: 1px;
+    border-color: root.error ? #ff6b6b80 : Theme.glass-border;
+    msg := Text {
+        x: 22px * root.k;
+        width: parent.width - 44px * root.k;
+        height: parent.height;
+        text: root.text;
+        color: root.error ? #ffd0d0 : Theme.text;
+        font-size: 15px * root.k;
+        wrap: word-wrap;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 // Image partagée entre une carte et la page qu'elle ouvre : à l'ouverture, la carte sélectionnée
 // donne sa position et son image (voir AppWindow.open-hero).
 global Hero {
@@ -120,6 +244,166 @@ global Hero {
     in-out property <length> h;
     in-out property <image> img;
     in-out property <bool> wide;
+    in-out property <CardData> data;   // la carte entière (pastilles, note)
+    in-out property <float> k: 1.0;
+    in-out property <string> hide-id;  // carte cachée pendant le vol (l'image partagée la remplace)
+}
+
+// Image d'une carte avec ses pastilles (avancement, Seerr, épisodes restants / vu, statut, note).
+// Utilisée par Card et par l'image partagée en vol (voir Hero).
+component CardArt inherits Rectangle {
+    in property <CardData> data;
+    in property <float> k: 1.0;
+    in property <bool> badges-only;     // sans image ni fond (image partagée en vol)
+
+    border-top-left-radius: Theme.radius;
+    border-top-right-radius: Theme.radius;
+    background: root.data.has-image || root.badges-only ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+
+    // Image arrivée après la carte : elle apparaît en fondu (déjà là à la création : tout de suite).
+    property <float> img-a: root.data.has-image ? 1 : 0;
+    animate img-a { duration: 380ms; easing: ease-out; }
+    if root.data.has-image && !root.badges-only: Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.data.image;
+        image-fit: fill;
+        opacity: parent.img-a;
+    }
+
+    // Avancement de la lecture (comme .itemProgressBar de JellySkin)
+    if root.data.progress > 0: Rectangle {
+        x: 14px * root.k;
+        y: parent.height - 16px * root.k;
+        width: parent.width - 28px * root.k - (root.data.rating != "" ? 50px * root.k : 0px);
+        height: 5px * root.k;
+        border-radius: self.height / 2;
+        background: #ffffff4d;
+
+        Rectangle {
+            x: 0px;
+            width: parent.width * root.data.progress;
+            height: parent.height;
+            border-radius: parent.height / 2;
+            background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+        }
+    }
+
+    // Absent du serveur, proposé par Seerr : badge en haut à gauche.
+    if root.data.seerr: Rectangle {
+        x: 7px * root.k;
+        y: 7px * root.k;
+        width: 52px * root.k;
+        height: 20px * root.k;
+        border-radius: 5px * root.k;
+        background: @linear-gradient(130deg, #6366f1 0%, #a855f7 100%);
+        Text {
+            text: "SEERR";
+            color: white;
+            font-size: 10px * root.k;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // Coin en haut à droite, collé à l'angle de l'affiche : épisodes restant à voir (« +99 »
+    // au-delà), sinon une coche si tout est vu.
+    if root.data.count > 0 || root.data.played: Rectangle {
+        x: parent.width - self.width;
+        y: 0px;
+        width: max(30px * root.k, cnt.preferred-width + 16px * root.k);
+        height: 28px * root.k;
+        border-top-right-radius: Theme.radius;
+        border-bottom-left-radius: 9px * root.k;
+        background: @linear-gradient(110deg, Theme.accent1 0%, Theme.accent2 100%);
+        cnt := Text {
+            text: root.data.count > 99 ? "+99" : root.data.count > 0 ? root.data.count : "";
+            color: white;
+            font-size: 14px * root.k;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        if root.data.count == 0: Path {
+            width: 14px * root.k;
+            height: 14px * root.k;
+            viewbox-width: 14;
+            viewbox-height: 14;
+            fill: transparent;
+            stroke: white;
+            stroke-width: 2.5px * root.k;
+            commands: "M 2 7.5 L 5.5 11 L 12 3";
+        }
+    }
+
+    // État d'une demande Seerr
+    if root.data.status > 0: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 8px * root.k;
+        width: st-row.preferred-width + 18px * root.k;
+        height: 24px * root.k;
+        border-radius: self.height / 2;
+        background: root.data.status == 1 ? #d97706 : root.data.status == 2 ? #15803d
+            : root.data.status == 3 ? #dc2626 : root.data.status == 4 ? #4ade80 : #7f1d1d;
+        st-row := HorizontalLayout {
+            alignment: center;
+            spacing: 5px * root.k;
+            padding-left: 9px * root.k;
+            padding-right: 9px * root.k;
+            Path {
+                width: 12px * root.k;
+                height: 12px * root.k;
+                y: (24px * root.k - self.height) / 2;
+                viewbox-width: 12;
+                viewbox-height: 12;
+                fill: transparent;
+                stroke: root.data.status == 4 ? #052e16 : white;
+                stroke-width: 2px * root.k;
+                // en attente : sablier · acceptée / disponible : coche · refusée / échec : croix
+                commands: root.data.status == 1 ? "M 2 1 L 10 1 L 2 11 L 10 11 Z"
+                    : root.data.status == 2 || root.data.status == 4 ? "M 1.5 6.5 L 4.5 9.5 L 10.5 2.5"
+                    : "M 2 2 L 10 10 M 10 2 L 2 10";
+            }
+            Text {
+                text: root.data.status == 1 ? "En attente" : root.data.status == 2 ? "Acceptée"
+                    : root.data.status == 3 ? "Refusée" : root.data.status == 4 ? "Disponible" : "Échec";
+                color: root.data.status == 4 ? #052e16 : white;
+                font-size: 11px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // Note de la communauté
+    if root.data.rating != "": Rectangle {
+        x: parent.width - self.width - 8px * root.k;
+        y: parent.height - self.height - 7px * root.k;
+        width: 44px * root.k;
+        height: 18px * root.k;
+        border-radius: 4px * root.k;
+        background: #000000b3;
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 3px * root.k;
+
+            Text {
+                text: "★";
+                color: #f5c518;
+                font-size: 11px * root.k;
+                vertical-alignment: center;
+            }
+            Text {
+                text: root.data.rating;
+                color: white;
+                font-size: 11px * root.k;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+        }
+    }
 }
 
 // Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
@@ -145,6 +429,8 @@ component Card inherits Rectangle {
             Hero.h = root.img-h * 1.06;
             Hero.img = root.data.image;
             Hero.wide = root.ratio < 1;
+            Hero.data = root.data;
+            Hero.k = root.k;
         }
     }
 
@@ -154,157 +440,13 @@ component Card inherits Rectangle {
     border-radius: Theme.radius;
     background: root.focused ? #00000080 : #00000033;
 
-    Rectangle {
+    CardArt {
         y: 0px;
         height: root.img-h;
-        border-top-left-radius: Theme.radius;
-        border-top-right-radius: Theme.radius;
-        background: root.data.has-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
-
-        // Image arrivée après la carte : elle apparaît en fondu (déjà là à la création : tout de suite).
-        property <float> img-a: root.data.has-image ? 1 : 0;
-        animate img-a { duration: 380ms; easing: ease-out; }
-        if root.data.has-image: Image {
-            width: parent.width;
-            height: parent.height;
-            source: root.data.image;
-            image-fit: fill;
-            opacity: parent.img-a;
-        }
-
-        // Avancement de la lecture (comme .itemProgressBar de JellySkin)
-        if root.data.progress > 0: Rectangle {
-            x: 14px * root.k;
-            y: parent.height - 16px * root.k;
-            width: parent.width - 28px * root.k - (root.data.rating != "" ? 50px * root.k : 0px);
-            height: 5px * root.k;
-            border-radius: self.height / 2;
-            background: #ffffff4d;
-
-            Rectangle {
-                x: 0px;
-                width: parent.width * root.data.progress;
-                height: parent.height;
-                border-radius: parent.height / 2;
-                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
-            }
-        }
-
-        // Absent du serveur, proposé par Seerr : badge en haut à gauche.
-        if root.data.seerr: Rectangle {
-            x: 7px * root.k;
-            y: 7px * root.k;
-            width: 52px * root.k;
-            height: 20px * root.k;
-            border-radius: 5px * root.k;
-            background: @linear-gradient(130deg, #6366f1 0%, #a855f7 100%);
-            Text {
-                text: "SEERR";
-                color: white;
-                font-size: 10px * root.k;
-                font-weight: 700;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-
-        // Coin en haut à droite, collé à l'angle de l'affiche : épisodes restant à voir (« +99 »
-        // au-delà), sinon une coche si tout est vu.
-        if root.data.count > 0 || root.data.played: Rectangle {
-            x: parent.width - self.width;
-            y: 0px;
-            width: max(30px * root.k, cnt.preferred-width + 16px * root.k);
-            height: 28px * root.k;
-            border-top-right-radius: Theme.radius;
-            border-bottom-left-radius: 9px * root.k;
-            background: @linear-gradient(110deg, Theme.accent1 0%, Theme.accent2 100%);
-            cnt := Text {
-                text: root.data.count > 99 ? "+99" : root.data.count > 0 ? root.data.count : "";
-                color: white;
-                font-size: 14px * root.k;
-                font-weight: 700;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-            if root.data.count == 0: Path {
-                width: 14px * root.k;
-                height: 14px * root.k;
-                viewbox-width: 14;
-                viewbox-height: 14;
-                fill: transparent;
-                stroke: white;
-                stroke-width: 2.5px * root.k;
-                commands: "M 2 7.5 L 5.5 11 L 12 3";
-            }
-        }
-
-        // État d'une demande Seerr
-        if root.data.status > 0: Rectangle {
-            x: (parent.width - self.width) / 2;
-            y: parent.height - self.height - 8px * root.k;
-            width: st-row.preferred-width + 18px * root.k;
-            height: 24px * root.k;
-            border-radius: self.height / 2;
-            background: root.data.status == 1 ? #d97706 : root.data.status == 2 ? #15803d
-                : root.data.status == 3 ? #dc2626 : root.data.status == 4 ? #4ade80 : #7f1d1d;
-            st-row := HorizontalLayout {
-                alignment: center;
-                spacing: 5px * root.k;
-                padding-left: 9px * root.k;
-                padding-right: 9px * root.k;
-                Path {
-                    width: 12px * root.k;
-                    height: 12px * root.k;
-                    y: (24px * root.k - self.height) / 2;
-                    viewbox-width: 12;
-                    viewbox-height: 12;
-                    fill: transparent;
-                    stroke: root.data.status == 4 ? #052e16 : white;
-                    stroke-width: 2px * root.k;
-                    // en attente : sablier · acceptée / disponible : coche · refusée / échec : croix
-                    commands: root.data.status == 1 ? "M 2 1 L 10 1 L 2 11 L 10 11 Z"
-                        : root.data.status == 2 || root.data.status == 4 ? "M 1.5 6.5 L 4.5 9.5 L 10.5 2.5"
-                        : "M 2 2 L 10 10 M 10 2 L 2 10";
-                }
-                Text {
-                    text: root.data.status == 1 ? "En attente" : root.data.status == 2 ? "Acceptée"
-                        : root.data.status == 3 ? "Refusée" : root.data.status == 4 ? "Disponible" : "Échec";
-                    color: root.data.status == 4 ? #052e16 : white;
-                    font-size: 11px * root.k;
-                    font-weight: 700;
-                    vertical-alignment: center;
-                }
-            }
-        }
-
-        // Note de la communauté
-        if root.data.rating != "": Rectangle {
-            x: parent.width - self.width - 8px * root.k;
-            y: parent.height - self.height - 7px * root.k;
-            width: 44px * root.k;
-            height: 18px * root.k;
-            border-radius: 4px * root.k;
-            background: #000000b3;
-
-            HorizontalLayout {
-                alignment: center;
-                spacing: 3px * root.k;
-
-                Text {
-                    text: "★";
-                    color: #f5c518;
-                    font-size: 11px * root.k;
-                    vertical-alignment: center;
-                }
-                Text {
-                    text: root.data.rating;
-                    color: white;
-                    font-size: 11px * root.k;
-                    font-weight: 600;
-                    vertical-alignment: center;
-                }
-            }
-        }
+        data: root.data;
+        k: root.k;
+        // Pendant qu'elle vole (ouverture / retour), l'image partagée remplace celle-ci.
+        visible: Hero.hide-id == "" || root.data.id != Hero.hide-id;
     }
 
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
@@ -669,6 +811,20 @@ component DetailButton inherits Rectangle {
         commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10 M 4.5 20 L 19.5 20";
     }
 
+    // Supprimer (téléchargement) : corbeille.
+    if root.icon == "trash": Path {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 22px * root.k;
+        height: 22px * root.k;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: white;
+        stroke-width: 2px * root.k;
+        commands: "M 4 6.5 L 20 6.5 M 9.5 6.5 L 9.5 4 L 14.5 4 L 14.5 6.5 M 6 6.5 L 7 20 L 17 20 L 18 6.5 M 10 10.5 L 10 16.5 M 14 10.5 L 14 16.5";
+    }
+
     label := Text {
         width: parent.width;
         height: parent.height;
@@ -960,6 +1116,8 @@ export component AppWindow inherits Window {
     in-out property <string> login-pass;
     in-out property <int> login-field;  // 0 utilisateur · 1 mot de passe · 2 Se connecter · 3 Retour
     in-out property <bool> login-osk;   // mode TV : le clavier à l'écran a la sélection
+    in-out property <string> login-user-err; // « Saisis un nom d'utilisateur. »
+    property <int> login-focus-tick;         // bureau : le curseur retourne au nom d'utilisateur
     in property <string> server-name;
     in-out property <bool> busy;
     in property <bool> tv-mode;
@@ -996,24 +1154,31 @@ export component AppWindow inherits Window {
     property <float> veil: root.loading || root.veil-hold ? 1 : 0;
     animate veil { duration: 260ms; easing: ease-in-out; }
 
-    // ---- Image partagée (« hero ») : l'affiche ou la vignette de la carte ouverte vole jusqu'à
-    // la place de l'affiche de la fiche (vignette 16:9 : tout l'écran, en fond provisoire qui
-    // s'efface ensuite). Au retour, elle repart vers la carte. Animations au temps
-    // (animation-tick), coupées par des minuteries : rien ne tourne au repos.
+    // ---- Image partagée (« hero ») : l'image de la carte ouverte (avec ses pastilles) vole jusqu'à
+    // la place de l'affiche de la page ouverte : fiche, ou page Seerr (vignette 16:9 vers une fiche :
+    // tout l'écran, en fond provisoire qui s'efface ensuite). Au retour, l'affiche reste d'abord
+    // en place pendant que la page s'efface, puis vole vers la position exacte de sa carte, une fois
+    // celle-ci affichée. Animations au temps (animation-tick), coupées par des minuteries.
     property <bool> hero-on;
     property <bool> hero-dest;              // vers la page ouverte (sinon retour vers la carte)
+    property <bool> hero-flying;            // retour : le vol a commencé (avant : immobile sur l'affiche)
     property <length> hero-fx;
     property <length> hero-fy;
     property <length> hero-fw;
     property <length> hero-fh;
     property <image> hero-img;
+    property <CardData> hero-data;
+    property <float> hero-k: 1.0;
     property <bool> hero-wide;
-    property <string> hero-id;              // fiche ouverte depuis une carte : retour animé
+    property <bool> hero-seerr;             // destination : la page Seerr
+    property <string> hero-id;              // page ouverte depuis une carte : retour animé
     property <bool> hero-anim;
     property <duration> hero-t0;
-    property <float> hero-q: root.hero-anim ? clamp((animation-tick() - root.hero-t0) / 460ms, 0, 1) : 1;
-    property <float> hero-e: 1 - (1 - root.hero-q) * (1 - root.hero-q) * (1 - root.hero-q);
-    property <float> hero-p: root.hero-dest ? root.hero-e : 1 - root.hero-e;
+    property <float> hero-q: root.hero-anim ? clamp((animation-tick() - root.hero-t0) / 480ms, 0, 1) : 1;
+    property <float> hero-e: root.hero-q < 0.5 ? 4 * root.hero-q * root.hero-q * root.hero-q
+        : 1 - (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) / 2;
+    // 0 : sur la carte · 1 : sur la page.
+    property <float> hero-p: root.hero-dest ? root.hero-e : root.hero-flying ? 1 - root.hero-e : 1;
     // Grand fond 16:9 : fondu (sortie quand la page est là, entrée au retour).
     property <bool> hero-faded;
     property <bool> fade-in;
@@ -1021,33 +1186,55 @@ export component AppWindow inherits Window {
     property <duration> fade-t0;
     property <float> fade-q: root.fade-anim ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
-    // Destination : place de l'affiche de la fiche, ou tout l'écran.
-    property <length> hero-tx: root.hero-wide ? 0px : 32px;
-    property <length> hero-ty: root.hero-wide ? 0px : root.header-h + 24px;
-    property <length> hero-tw: root.hero-wide ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-wide ? root.height : root.poster-w * 1.5;
+    // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
+    property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
+    property <length> hero-tx: root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : 32px;
+    property <length> hero-ty: root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.header-h + 24px;
+    property <length> hero-tw: root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
+    property <bool> hero-big: root.hero-wide && !root.hero-seerr;
+    // L'affiche de la page ouverte est cachée tant que l'image partagée vole (elle prend le relais).
+    property <bool> hero-covers: root.hero-on;
     // La page ouverte est affichée.
-    property <bool> hero-ready: root.hero-on && root.hero-dest && !root.hero-anim && !root.loading
-        && root.screen != "home" && root.screen != "loading";
+    property <bool> hero-ready: root.hero-on && root.hero-dest && !root.hero-anim && !root.loading && (root.hero-seerr
+        ? root.sr-open && !root.sr.loading
+        : root.screen != "home" && root.screen != "loading");
     changed hero-ready => {
-        if (root.hero-ready && root.hero-wide && !root.hero-faded) {
+        if (root.hero-ready && root.hero-big && !root.hero-faded) {
             root.fade-in = false;
             root.fade-t0 = animation-tick();
             root.fade-anim = true;
             root.hero-faded = true;
         }
     }
-    // Fin : l'affiche de la fiche (ou la carte, au retour) a pris le relais.
+    // L'affiche de la page met du temps (ou n'existe pas) : on n'attend pas plus de 1,2 s.
+    property <bool> hero-gave-up;
+    Timer {
+        interval: 1200ms;
+        running: root.hero-ready && !root.hero-gave-up;
+        triggered => {
+            root.hero-gave-up = true;
+        }
+    }
+    // Fin : l'affiche de la page (ou la carte, au retour) a pris le relais.
     property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && (
-        (root.hero-ready && (root.hero-wide ? root.hero-faded : (root.screen != "detail" || root.detail.has-poster)))
-        || (!root.hero-dest && root.screen != "detail" && root.veil < 0.01 && root.hero-card-ok));
+        (root.hero-ready && (root.hero-big ? root.hero-faded
+            : root.hero-seerr ? root.sr.has-poster || root.hero-gave-up
+            : root.screen != "detail" || root.detail.has-poster || root.hero-gave-up))
+        || (!root.hero-dest && root.hero-flying));
     changed hero-done => {
         if (root.hero-done) {
             root.hero-on = false;
         }
     }
+    changed hero-on => {
+        if (!root.hero-on) {
+            Hero.hide-id = "";
+            root.hero-flying = false;
+        }
+    }
     Timer {
-        interval: 480ms;
+        interval: 500ms;
         running: root.hero-anim;
         triggered => {
             root.hero-anim = false;
@@ -1062,7 +1249,7 @@ export component AppWindow inherits Window {
     }
     // Sécurité : jamais d'image partagée oubliée à l'écran.
     Timer {
-        interval: 8s;
+        interval: 6s;
         running: root.hero-on;
         triggered => {
             root.hero-on = false;
@@ -1072,6 +1259,7 @@ export component AppWindow inherits Window {
     // Ouverture d'un élément depuis une carte : l'image de la carte sélectionnée vole vers la page.
     // La carte répond juste après (rappel `changed`), d'où les deux temps.
     property <string> hero-pending;
+    pure callback is-seerr(string) -> bool;   // identifiant « seerr:… » (Rust : Slint n'a pas de starts-with)
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
@@ -1081,32 +1269,36 @@ export component AppWindow inherits Window {
         }
         root.open-item(id);
     }
-    // Retour : l'image attend que sa carte soit là, image chargée, puis se pose exactement dessus.
-    property <bool> hero-card-ok;
-    property <bool> hero-wait: root.hero-on && !root.hero-dest && root.screen != "detail" && !root.loading;
+    // Retour : l'image attend que sa carte soit affichée, puis vole exactement jusqu'à elle.
+    property <bool> hero-wait: root.hero-on && !root.hero-dest && !root.hero-flying && !root.loading && !root.veil-hold
+        && !root.sr-open && root.screen != "detail" && root.screen != "loading";
     Timer {
-        interval: 80ms;
-        running: root.hero-wait && !root.hero-card-ok;
+        interval: 60ms;
+        running: root.hero-wait;
         triggered => {
             Hero.tick += 1;
         }
     }
     Timer {
-        interval: 1500ms;
-        running: root.hero-wait && !root.hero-card-ok;
+        interval: 1200ms;
+        running: root.hero-wait;
         triggered => {
-            root.hero-card-ok = true;
+            // Carte introuvable (plus affichée) : l'image s'efface sur place.
+            root.hero-on = false;
         }
     }
     property <int> hero-seq: Hero.seq;
     changed hero-seq => {
         if (root.hero-pending == "" && root.hero-wait) {
-            // La carte a répondu : position exacte (si elle diffère un peu de celle du départ).
             root.hero-fx = Hero.x;
             root.hero-fy = Hero.y;
             root.hero-fw = Hero.w;
             root.hero-fh = Hero.h;
-            root.hero-card-ok = true;
+            root.hero-data = Hero.data;
+            Hero.hide-id = Hero.data.id;
+            root.hero-t0 = animation-tick();
+            root.hero-anim = true;
+            root.hero-flying = true;
             return;
         }
         if (root.hero-pending != "") {
@@ -1115,44 +1307,58 @@ export component AppWindow inherits Window {
             root.hero-fw = Hero.w;
             root.hero-fh = Hero.h;
             root.hero-img = Hero.img;
+            root.hero-data = Hero.data;
+            root.hero-k = Hero.k;
+            root.hero-seerr = root.is-seerr(root.hero-pending);
             root.hero-wide = Hero.wide;
             root.hero-faded = false;
+            root.hero-gave-up = false;
             root.fade-anim = false;
             root.hero-dest = true;
+            root.hero-flying = false;
             root.hero-t0 = animation-tick();
             root.hero-anim = true;
             root.hero-on = true;
+            Hero.hide-id = Hero.data.id;
             root.hero-id = root.hero-pending;
             root.hero-pending = "";
         }
     }
 
-    // Retour : depuis la fiche ouverte par une carte, l'image repart vers la carte.
+    // Retour : depuis la page ouverte par une carte, l'image reste en place pendant que la page
+    // s'efface, puis repart vers la carte.
+    function hero-return() {
+        root.hero-dest = false;
+        root.hero-flying = false;
+        root.hero-anim = false;
+        root.hero-gave-up = false;
+        root.hero-on = true;
+        if (root.hero-big) {
+            root.fade-in = true;
+            root.fade-t0 = animation-tick();
+            root.fade-anim = true;
+            root.hero-faded = false;
+        }
+        root.hero-id = "";
+    }
     function back-anim() {
         if (root.veil-hold) {
             return; // retour déjà en cours
         }
         if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id) {
-            root.hero-card-ok = false;
-            root.hero-dest = false;
-            root.hero-t0 = animation-tick();
-            root.hero-anim = true;
-            root.hero-on = true;
-            if (root.hero-wide) {
-                root.fade-in = true;
-                root.fade-t0 = animation-tick();
-                root.fade-anim = true;
-                root.hero-faded = false;
-            }
-            // Les infos s'effacent d'abord (seule l'image reste), puis l'accueil revient.
-            root.hero-id = "";
-            root.nav-out("back", "");
-            return;
+            root.hero-return();
         }
         root.hero-id = "";
         root.nav-out("back", "");
     }
-
+    // Fermeture de la page Seerr (Échap, Retour, bouton Fermer).
+    function seerr-close() {
+        if (root.hero-id != "" && root.hero-seerr) {
+            root.hero-return();
+        }
+        root.sr-open = false;
+        root.refocus += 1;
+    }
     // Changement de page sans image partagée (maison, retour, menu, Échap) : la page s'efface dans
     // le fond (voile), l'action a lieu, puis la nouvelle page arrive (page-enter, rangées en cascade).
     property <string> nav-kind;
@@ -1210,6 +1416,22 @@ export component AppWindow inherits Window {
     changed sel-item => {
         root.row-seen(root.sel-section, root.sel-item);
     }
+    changed login-user => {
+        if (root.login-user != "") {
+            root.login-user-err = "";
+        }
+    }
+    changed login-mode => {
+        root.login-user-err = "";
+        root.login-osk = false;
+        // Retour aux comptes : l'ancien message n'a plus lieu d'être (« Session expirée » reste, lui,
+        // à l'ouverture du formulaire).
+        if (root.login-mode == "pick") {
+            root.error-text = "";
+        }
+        // Le champ qui avait le clavier disparaît : la page le reprend.
+        root.refocus += 1;
+    }
 
     // ---- Fond d'écran : image (floutée, assombrie) du média sélectionné, en fondu enchaîné.
     in-out property <image> bg-a;
@@ -1261,7 +1483,7 @@ export component AppWindow inherits Window {
     in property <bool> srv-searching;
     in-out property <int> srv-sel;
     in-out property <bool> manual-open;
-    in property <string> manual-error;
+    in-out property <string> manual-error;
     in property <bool> manual-busy;
     in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
     in property <string> choice-b;
@@ -1397,6 +1619,37 @@ export component AppWindow inherits Window {
     }
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
+    in-out property <string> manual-local;
+    in-out property <string> manual-remote;
+    in-out property <int> manual-field;     // 0 locale · 1 distante · 2 Valider · 3 Annuler
+    in-out property <bool> manual-osk;      // mode TV : le clavier à l'écran écrit dans le champ
+    in-out property <string> manual-local-err;
+    function open-manual() {
+        root.manual-field = 0;
+        root.manual-osk = false;
+        root.manual-local-err = "";
+        root.manual-error = "";
+        root.manual-open = true;
+    }
+    function close-manual() {
+        root.manual-open = false;
+        root.manual-osk = false;
+        root.refocus += 1;
+    }
+    function manual-go() {
+        if (root.manual-local == "" && root.manual-remote == "") {
+            root.manual-local-err = "Saisis au moins l'adresse locale du serveur.";
+            root.manual-field = 0;
+            return;
+        }
+        root.manual-osk = false;
+        root.manual-submit(root.manual-local, root.manual-remote);
+    }
+    changed manual-local => {
+        if (root.manual-local != "") {
+            root.manual-local-err = "";
+        }
+    }
     callback manual-choice(string);
     callback settings-activate(string);
     callback settings-category();
@@ -1576,7 +1829,7 @@ export component AppWindow inherits Window {
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
     // Passe derrière une fois arrivé et la page prête (avant, le voile la cacherait).
-    property <bool> hero-under: root.hero-on && root.hero-wide && !root.hero-anim && !root.loading
+    property <bool> hero-under: root.hero-on && root.hero-big && root.hero-dest && !root.hero-anim && !root.loading
         && root.screen != "home" && root.screen != "loading";
     if root.hero-under && !root.playing: Rectangle {
         Image {
@@ -1607,6 +1860,14 @@ export component AppWindow inherits Window {
         property <length> gap: 12 * self.u;
 
         function submit() {
+            // Un compte a toujours un nom d'utilisateur (le mot de passe peut être vide sur Jellyfin).
+            if (root.login-user == "") {
+                root.login-user-err = "Saisis un nom d'utilisateur.";
+                root.login-field = 0;
+                root.login-focus-tick += 1;
+                return;
+            }
+            root.login-osk = false;
             root.login(root.server, root.login-user, root.login-pass);
         }
 
@@ -1642,7 +1903,16 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.accept;
                 }
-                // Formulaire
+                // Formulaire. Clavier à l'écran ouvert : il a les touches ; Échap le ferme.
+                if (root.tv-mode && root.login-osk) {
+                    if (form-osk.key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        root.login-osk = false;
+                    }
+                    return EventResult.accept;
+                }
                 if (event.text == Key.Escape) {
                     root.login-mode = "pick";
                     root.login-osk = false;
@@ -1651,19 +1921,15 @@ export component AppWindow inherits Window {
                 if (!root.tv-mode) {
                     return EventResult.reject;
                 }
-                if (root.login-osk) {
-                    if (form-osk.key(event.text)) {
-                        return EventResult.accept;
-                    }
-                    if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.login-osk = false;
-                    }
-                    return EventResult.accept;
-                }
+                // Champs (0, 1), puis la ligne des boutons : Se connecter (2) et Retour (3, à gauche).
                 if (event.text == Key.UpArrow) {
-                    root.login-field = max(0, root.login-field - 1);
+                    root.login-field = root.login-field >= 2 ? 1 : max(0, root.login-field - 1);
                 } else if (event.text == Key.DownArrow) {
-                    root.login-field = min(3, root.login-field + 1);
+                    root.login-field = min(2, root.login-field + 1);
+                } else if (event.text == Key.LeftArrow && root.login-field == 2) {
+                    root.login-field = 3;
+                } else if (event.text == Key.RightArrow && root.login-field == 3) {
+                    root.login-field = 2;
                 } else if (event.text == Key.Return) {
                     if (root.login-field <= 1) {
                         root.login-osk = true;
@@ -1679,9 +1945,12 @@ export component AppWindow inherits Window {
             }
         }
 
-        // En-tête : nom de l'appli et serveur
+        // En-tête : nom de l'appli et serveur (s'efface quand le clavier à l'écran prend la place).
+        property <float> osk-p: root.tv-mode && root.login-mode == "form" && root.login-osk ? 1 : 0;
+        animate osk-p { duration: 280ms; easing: ease-in-out; }
         Text {
-            y: 40 * lg.u;
+            visible: lg.osk-p < 0.99;
+            y: 40 * lg.u - lg.osk-p * 30 * lg.u;
             width: parent.width;
             text: "Turtlefin";
             color: Theme.accent2;
@@ -1690,7 +1959,8 @@ export component AppWindow inherits Window {
             horizontal-alignment: center;
         }
         Text {
-            y: 100 * lg.u;
+            visible: lg.osk-p < 0.99;
+            y: 100 * lg.u - lg.osk-p * 30 * lg.u;
             width: parent.width;
             text: root.server-name != "" ? root.server-name + "  ·  " + root.server : root.server;
             color: Theme.muted;
@@ -1783,22 +2053,148 @@ export component AppWindow inherits Window {
                     }
                 }
             }
-            Text {
-                y: parent.height - 50 * lg.u;
-                width: parent.width;
+            if root.busy || root.error-text != "": Bubble {
+                x: (parent.width - self.width) / 2;
+                y: parent.height - self.height - 28 * lg.u;
+                k: lg.u / 1px;
+                max-w: parent.width - 80 * lg.u;
                 text: root.busy ? "Connexion…" : root.error-text;
-                color: root.busy ? Theme.muted : #ff6b6b;
-                font-size: 15 * lg.u;
-                horizontal-alignment: center;
+                error: !root.busy;
             }
         }
 
-        // Sous les boutons du formulaire.
+        // ---- Ajouter un compte : carte de verre centrée (intitulés au-dessus des champs).
+        // Mode TV : choisir un champ (↑ ↓) puis Entrée ouvre le clavier à l'écran sous la carte.
+        property <length> card-w: min(self.width - 80 * self.u, 520 * self.u);
+        property <length> card-h: 390 * self.u;
+        property <length> card-y: (1 - self.osk-p) * max(150 * self.u, (self.height - self.card-h) / 2 + 40 * self.u)
+            + self.osk-p * 24 * self.u;
+
+        if root.login-mode == "form": form-card := FocusScope {
+            x: (parent.width - lg.card-w) / 2;
+            y: lg.card-y;
+            width: lg.card-w;
+            height: lg.card-h;
+            // Bureau : Échap depuis un champ revient aux comptes.
+            key-pressed(event) => {
+                if (event.text == Key.Escape) {
+                    root.login-mode = "pick";
+                    return EventResult.accept;
+                }
+                return EventResult.reject;
+            }
+
+            Rectangle {
+                border-radius: 20 * lg.u;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                drop-shadow-blur: 0px;
+            }
+
+            VerticalLayout {
+                padding: 26 * lg.u;
+                spacing: 6 * lg.u;
+                alignment: start;
+
+                Text {
+                    text: "Ajouter un compte";
+                    color: white;
+                    font-size: 24 * lg.u;
+                    font-weight: 700;
+                }
+                Text {
+                    text: root.tv-mode ? "Choisis un champ puis appuie sur Entrée pour écrire."
+                        : "Le mot de passe peut rester vide si le compte n'en a pas.";
+                    color: Theme.muted;
+                    font-size: 13 * lg.u;
+                }
+                Rectangle {
+                    height: 6 * lg.u;
+                }
+                user-field := Field {
+                    k: lg.u / 1px;
+                    label: "Nom d'utilisateur";
+                    hint: "ex. Sebastien";
+                    text <=> root.login-user;
+                    shown: root.login-user;
+                    tv: root.tv-mode;
+                    selected: root.tv-mode && !root.login-osk && root.login-field == 0;
+                    editing: root.login-osk && root.login-field == 0;
+                    error: root.login-user-err;
+                    property <int> want: root.login-focus-tick;
+                    changed want => {
+                        if (!root.tv-mode) {
+                            self.focus-input();
+                        }
+                    }
+                    init => {
+                        if (!root.tv-mode && root.login-field == 0) {
+                            self.focus-input();
+                        }
+                    }
+                    accepted => {
+                        pass-field.focus-input();
+                    }
+                    clicked => {
+                        root.login-field = 0;
+                        root.login-osk = true;
+                    }
+                }
+                pass-field := Field {
+                    k: lg.u / 1px;
+                    label: "Mot de passe";
+                    hint: "Mot de passe";
+                    text <=> root.login-pass;
+                    shown: root.mask(root.login-pass);
+                    password: true;
+                    tv: root.tv-mode;
+                    selected: root.tv-mode && !root.login-osk && root.login-field == 1;
+                    editing: root.login-osk && root.login-field == 1;
+                    init => {
+                        if (!root.tv-mode && root.login-field == 1) {
+                            self.focus-input();
+                        }
+                    }
+                    accepted => {
+                        lg.submit();
+                    }
+                    clicked => {
+                        root.login-field = 1;
+                        root.login-osk = true;
+                    }
+                }
+                HorizontalLayout {
+                    height: 46 * lg.u;
+                    spacing: 14 * lg.u;
+                    alignment: end;
+                    ActionButton {
+                        text: "Retour";
+                        font: 16 * lg.u;
+                        focused: root.tv-mode && !root.login-osk && root.login-field == 3;
+                        clicked => {
+                            root.login-mode = "pick";
+                            root.login-osk = false;
+                        }
+                    }
+                    ActionButton {
+                        text: root.busy ? "Connexion…" : "Se connecter";
+                        font: 16 * lg.u;
+                        focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
+                        clicked => {
+                            lg.submit();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clavier à l'écran (TV), sous la carte, seulement quand un champ est en cours d'écriture.
         form-osk := Osk {
             x: (parent.width - self.width) / 2;
-            y: lg.fy + 2 * lg.field-h + lg.btn-h + 2 * lg.gap + 28 * lg.u;
+            y: lg.card-y + lg.card-h + 18 * lg.u + (1 - lg.osk-p) * 60 * lg.u;
             width: min(parent.width - 80 * lg.u, 760 * lg.u);
-            visible: root.tv-mode && root.login-mode == "form";
+            visible: root.tv-mode && root.login-mode == "form" && lg.osk-p > 0.01;
             k: lg.u / 1px * 1.0;
             active: root.login-osk;
             text: root.login-field == 0 ? root.login-user : root.login-pass;
@@ -1808,17 +2204,16 @@ export component AppWindow inherits Window {
             }
             edited(t) => {
                 if (root.login-field == 0) {
-                root.login-user = t;
+                    root.login-user = t;
                 } else {
-                root.login-pass = t;
+                    root.login-pass = t;
                 }
             }
             done => {
                 if (root.login-field == 0) {
-                root.login-field = 1;
+                    root.login-field = 1;
                 } else {
-                root.login-osk = false;
-                lg.submit();
+                    lg.submit();
                 }
             }
             leave-up => {
@@ -1830,116 +2225,14 @@ export component AppWindow inherits Window {
             }
         }
 
-        // ---- Formulaire (identifiant, mot de passe) : une colonne à hauteurs fixes, centrée.
-        if root.login-mode == "form": VerticalLayout {
-            x: (parent.width - lg.fw) / 2;
-            y: lg.fy;
-            width: lg.fw;
-            height: 2 * lg.field-h + lg.btn-h + 3 * lg.gap + 30 * lg.u;
-            spacing: lg.gap;
-            alignment: start;
-
-            // Mode TV : champs affichés, saisis au clavier à l'écran.
-            if root.tv-mode: VerticalLayout {
-                spacing: lg.gap;
-                for f[i] in ["Utilisateur", "Mot de passe"]: Rectangle {
-                    height: lg.field-h;
-                    border-radius: 12 * lg.u;
-                    background: #ffffff14;
-                    border-width: root.login-field == i ? 2px : 1px;
-                    border-color: root.login-field == i ? Theme.accent2 : #ffffff33;
-                    Text {
-                        x: 20 * lg.u;
-                        width: 150 * lg.u;
-                        height: parent.height;
-                        text: f;
-                        color: Theme.muted;
-                        font-size: 15 * lg.u;
-                        vertical-alignment: center;
-                    }
-                    Text {
-                        x: 170 * lg.u;
-                        width: parent.width - 190 * lg.u;
-                        height: parent.height;
-                        text: (i == 0 ? root.login-user : root.mask(root.login-pass)) + (root.login-osk && root.login-field == i ? "│" : "");
-                        color: white;
-                        font-size: 18 * lg.u;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                    TouchArea {
-                        clicked => {
-                            root.login-field = i;
-                            root.login-osk = true;
-                        }
-                    }
-                }
-            }
-            // Bureau : champs classiques.
-            if !root.tv-mode: VerticalLayout {
-                spacing: lg.gap;
-                user-in := LineEdit {
-                    height: lg.field-h;
-                    font-size: 17 * lg.u;
-                    placeholder-text: "Utilisateur";
-                    text <=> root.login-user;
-                    init => {
-                        if (root.login-field == 0) {
-                            self.focus();
-                        }
-                    }
-                    accepted => {
-                        pass-in.focus();
-                    }
-                }
-                pass-in := LineEdit {
-                    height: lg.field-h;
-                    font-size: 17 * lg.u;
-                    placeholder-text: "Mot de passe";
-                    input-type: InputType.password;
-                    text <=> root.login-pass;
-                    init => {
-                        if (root.login-field == 1) {
-                            self.focus();
-                        }
-                    }
-                    accepted => {
-                        lg.submit();
-                    }
-                }
-            }
-
-            HorizontalLayout {
-                height: lg.btn-h;
-                spacing: 14 * lg.u;
-                alignment: start;
-                ActionButton {
-                    text: root.busy ? "Connexion…" : "Se connecter";
-                    font: 17 * lg.u;
-                    focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
-                    clicked => {
-                        lg.submit();
-                    }
-                }
-                ActionButton {
-                    text: "Retour";
-                    font: 17 * lg.u;
-                    focused: root.tv-mode && !root.login-osk && root.login-field == 3;
-                    clicked => {
-                        root.login-mode = "pick";
-                        root.login-osk = false;
-                    }
-                }
-            }
-
-            Text {
-                height: 30 * lg.u;
-                text: root.error-text;
-                color: #ff6b6b;
-                font-size: 15 * lg.u;
-                vertical-alignment: center;
-                overflow: elide;
-            }
+        // Message (erreur de connexion, nom manquant...) en bulle en bas.
+        if root.login-mode == "form" && (root.busy || root.error-text != "") && lg.osk-p < 0.5: Bubble {
+            x: (parent.width - self.width) / 2;
+            y: parent.height - self.height - 28 * lg.u;
+            k: lg.u / 1px;
+            max-w: parent.width - 80 * lg.u;
+            text: root.busy ? "Connexion…" : root.error-text;
+            error: !root.busy;
         }
     }
 
@@ -1962,9 +2255,12 @@ export component AppWindow inherits Window {
             height: 4px * root.k;
             border-radius: self.height / 2;
             background: #ffffff1a;
+            // Segment qui traverse la piste sans jamais en sortir (bords coupés à la piste).
+            property <length> seg: 80px * root.k;
+            property <length> head: (mod(animation-tick() / 1ms, 1400) / 1400) * (self.width + self.seg);
             Rectangle {
-                x: (mod(animation-tick() / 1ms, 1400) / 1400) * (parent.width + self.width) - self.width;
-                width: 80px * root.k;
+                x: max(0px, parent.head - parent.seg);
+                width: min(parent.width, parent.head) - self.x;
                 height: parent.height;
                 border-radius: self.height / 2;
                 background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
@@ -2880,6 +3176,7 @@ export component AppWindow inherits Window {
             width: root.poster-w;
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
+            visible: !root.hero-covers || root.hero-seerr || root.hero-big;
             background: root.detail.has-poster ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
             // Image déjà recadrée et arrondie (voir Card).
@@ -3327,6 +3624,7 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-h;
 
         property <int> n: root.servers.length;
+        property <length> col-w: min(self.width - 64px * root.k, 680px * root.k);
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -3364,7 +3662,7 @@ export component AppWindow inherits Window {
                     } else if (root.srv-sel == srv.n) {
                         root.servers-search();
                     } else {
-                        root.manual-open = true;
+                        root.open-manual();
                     }
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
                     root.nav-out("go-home", "");
@@ -3374,6 +3672,8 @@ export component AppWindow inherits Window {
         }
 
         VerticalLayout {
+            x: (parent.width - srv.col-w) / 2;
+            width: srv.col-w;
             alignment: start;
             padding-top: 8px * root.k;
             spacing: 14px * root.k;
@@ -3383,62 +3683,125 @@ export component AppWindow inherits Window {
                 color: Theme.text;
                 font-size: 30px * root.k;
                 font-weight: 700;
-                horizontal-alignment: center;
             }
-            Text {
-                text: root.srv-searching ? "Recherche sur le réseau local et Tailscale…"
-                    : root.servers.length == 0 ? "Aucun serveur trouvé. Saisis son adresse."
-                    : "Serveurs trouvés sur le réseau local et Tailscale";
-                color: Theme.muted;
-                font-size: 15px * root.k;
-                horizontal-alignment: center;
+            // Recherche en cours : trois points qui pulsent.
+            HorizontalLayout {
+                height: 22px * root.k;
+                spacing: 8px * root.k;
+                alignment: start;
+                Text {
+                    text: root.srv-searching ? "Recherche sur le réseau local et Tailscale"
+                        : root.servers.length == 0 ? "Aucun serveur trouvé : saisis son adresse."
+                        : root.servers.length == 1 ? "1 serveur trouvé sur le réseau local et Tailscale"
+                        : root.servers.length + " serveurs trouvés sur le réseau local et Tailscale";
+                    color: Theme.muted;
+                    font-size: 15px * root.k;
+                    vertical-alignment: center;
+                }
+                for d[di] in (root.srv-searching ? [0, 1, 2] : []): Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    width: 6px * root.k;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: Theme.accent2.transparentize(0.75 - 0.75 * max(0, sin((animation-tick() / 1ms / 300 - di * 0.7) * 1rad)));
+                }
             }
 
-            for s[i] in root.servers: HorizontalLayout {
-                alignment: center;
-                height: 86px * root.k;
+            for s[i] in root.servers: srv-card := Rectangle {
+                height: 92px * root.k;
+                property <bool> sel: i == root.srv-sel;
+                property <bool> current: root.server != "" && (s.local == root.server || s.remote == root.server);
+                border-radius: 16px * root.k;
+                background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                    : (srv-area.has-hover ? #ffffff26 : #ffffff12);
+                border-width: self.sel ? 0px : 1px;
+                border-color: #ffffff1f;
+                transform-scale: self.sel ? 1.03 : 1.0;
+                animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
+                // Icône de serveur
                 Rectangle {
-                    width: 620px * root.k;
-                    border-radius: 14px * root.k;
-                    background: i == root.srv-sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : (srv-area.has-hover ? #ffffff26 : #ffffff14);
-
-                    Text {
-                        x: 22px * root.k;
-                        y: 12px * root.k;
-                        text: s.name + (s.version != "" ? "  ·  " + s.version : "");
-                        color: white;
-                        font-size: 19px * root.k;
-                        font-weight: 700;
+                    x: 20px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    width: 52px * root.k;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: parent.sel ? #ffffff33 : #ffffff14;
+                    Path {
+                        width: 26px * root.k;
+                        height: 26px * root.k;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        fill: transparent;
+                        stroke: white;
+                        stroke-width: 2px * root.k;
+                        commands: "M 4 4 L 20 4 L 20 10 L 4 10 Z M 4 14 L 20 14 L 20 20 L 4 20 Z M 7 7 L 8.5 7 M 7 17 L 8.5 17";
                     }
-                    Text {
-                        x: 22px * root.k;
-                        y: 40px * root.k;
-                        text: "Local : " + (s.local != "" ? s.local : "—");
-                        color: #ffffffcc;
-                        font-size: 13px * root.k;
-                    }
-                    Text {
-                        x: 22px * root.k;
-                        y: 60px * root.k;
-                        text: "Distante : " + (s.remote != "" ? s.remote : "—");
-                        color: #ffffffcc;
-                        font-size: 13px * root.k;
-                    }
-                    srv-area := TouchArea {
-                        clicked => {
-                            root.srv-sel = i;
-                            root.server-pick(i);
+                }
+                VerticalLayout {
+                    x: 90px * root.k;
+                    width: parent.width - self.x - 20px * root.k;
+                    alignment: center;
+                    spacing: 6px * root.k;
+                    HorizontalLayout {
+                        spacing: 10px * root.k;
+                        alignment: start;
+                        Text {
+                            text: s.name;
+                            color: white;
+                            font-size: 20px * root.k;
+                            font-weight: 700;
+                            vertical-alignment: center;
                         }
+                        if s.version != "": Rectangle {
+                            width: ver.preferred-width + 16px * root.k;
+                            border-radius: self.height / 2;
+                            background: #ffffff26;
+                            ver := Text {
+                                text: "Jellyfin " + s.version;
+                                color: #ffffffd9;
+                                font-size: 11px * root.k;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        if srv-card.current: Rectangle {
+                            width: cur.preferred-width + 16px * root.k;
+                            border-radius: self.height / 2;
+                            background: #15803d;
+                            cur := Text {
+                                text: "Actuel";
+                                color: white;
+                                font-size: 11px * root.k;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Local : " + (s.local != "" ? s.local : "—") + "      Distante : " + (s.remote != "" ? s.remote : "—");
+                        color: #ffffffcc;
+                        font-size: 13px * root.k;
+                        overflow: elide;
+                    }
+                }
+                srv-area := TouchArea {
+                    clicked => {
+                        root.srv-sel = i;
+                        root.server-pick(i);
                     }
                 }
             }
 
             HorizontalLayout {
-                alignment: center;
+                alignment: start;
                 spacing: 16px * root.k;
-                height: 44px * root.k;
+                height: 46px * root.k;
+                padding-top: 4px * root.k;
 
                 ActionButton {
                     text: root.srv-searching ? "Recherche…" : "Rechercher à nouveau";
@@ -3453,33 +3816,90 @@ export component AppWindow inherits Window {
                     font: 16px * root.k;
                     focused: root.srv-sel == root.servers.length + 1;
                     clicked => {
-                        root.manual-open = true;
+                        root.open-manual();
                     }
                 }
             }
         }
 
-        // Saisie manuelle : deux adresses possibles pour le même serveur.
-        if root.manual-open: Rectangle {
-            background: #000000b3;
+        // Saisie d'une adresse : deux adresses possibles pour le même serveur (locale, distante).
+        // Mode TV : ↑ ↓ pour choisir, Entrée pour écrire au clavier à l'écran.
+        property <float> mo-p: root.manual-open ? 1 : 0;
+        animate mo-p { duration: 220ms; easing: ease-out; }
+        property <float> mosk-p: root.manual-open && root.tv-mode && root.manual-osk ? 1 : 0;
+        animate mosk-p { duration: 260ms; easing: ease-in-out; }
+        if srv.mo-p > 0.01: Rectangle {
+            y: -root.header-h;
+            height: parent.height + root.header-h;
+            background: #000000b3.transparentize(1 - srv.mo-p);
 
             TouchArea { }
 
-            Rectangle {
-                width: 600px * root.k;
-                height: 360px * root.k;
-                border-radius: 16px;
-                background: Theme.glass;
-                border-width: 1px;
-                border-color: Theme.glass-border;
+            property <length> dw: min(self.width - 64px * root.k, 600px * root.k);
+            property <length> dh: 384px * root.k;
+            mdlg := FocusScope {
+                x: (parent.width - parent.dw) / 2;
+                y: (1 - srv.mosk-p) * (parent.height - parent.dh) / 2 + srv.mosk-p * 20px * root.k
+                    + (1 - srv.mo-p) * 30px * root.k;
+                width: parent.dw;
+                height: parent.dh;
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (root.tv-mode && root.manual-osk) {
+                        if (m-osk.key(event.text)) {
+                            return EventResult.accept;
+                        }
+                        if (event.text == Key.Escape) {
+                            root.manual-osk = false;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        root.close-manual();
+                        return EventResult.accept;
+                    }
+                    if (!root.tv-mode) {
+                        return EventResult.reject;
+                    }
+                    // Champs (0, 1), puis Valider (2) et Annuler (3, à gauche).
+                    if (event.text == Key.UpArrow) {
+                        root.manual-field = root.manual-field >= 2 ? 1 : max(0, root.manual-field - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.manual-field = min(2, root.manual-field + 1);
+                    } else if (event.text == Key.LeftArrow && root.manual-field == 2) {
+                        root.manual-field = 3;
+                    } else if (event.text == Key.RightArrow && root.manual-field == 3) {
+                        root.manual-field = 2;
+                    } else if (event.text == Key.Return) {
+                        if (root.manual-field <= 1) {
+                            root.manual-osk = true;
+                        } else if (root.manual-field == 2) {
+                            root.manual-go();
+                        } else {
+                            root.close-manual();
+                        }
+                    } else if (event.text == Key.Backspace) {
+                        root.close-manual();
+                    }
+                    return EventResult.accept;
+                }
 
+                Rectangle {
+                    border-radius: 20px * root.k;
+                    background: Theme.glass;
+                    border-width: 1px;
+                    border-color: Theme.glass-border;
+                }
                 VerticalLayout {
                     padding: 26px * root.k;
-                    spacing: 10px * root.k;
+                    spacing: 6px * root.k;
+                    alignment: start;
 
                     Text {
                         text: "Adresse du serveur";
-                        color: Theme.text;
+                        color: white;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
@@ -3488,74 +3908,118 @@ export component AppWindow inherits Window {
                         color: Theme.muted;
                         font-size: 13px * root.k;
                     }
-                    Text {
-                        text: "Réseau local";
-                        color: Theme.text;
-                        font-size: 14px * root.k;
+                    Rectangle {
+                        height: 4px * root.k;
                     }
-                    local-in := LineEdit {
-                        placeholder-text: "192.168.1.32:8097";
+                    local-f := Field {
+                        k: root.k;
+                        label: "Réseau local";
+                        hint: "192.168.1.32:8097";
+                        text <=> root.manual-local;
+                        shown: root.manual-local;
+                        tv: root.tv-mode;
+                        selected: root.tv-mode && !root.manual-osk && root.manual-field == 0;
+                        editing: root.manual-osk && root.manual-field == 0;
+                        error: root.manual-local-err;
                         init => {
-                            self.focus();
+                            if (!root.tv-mode) {
+                                self.focus-input();
+                            }
                         }
                         accepted => {
-                            remote-in.focus();
+                            remote-f.focus-input();
+                        }
+                        clicked => {
+                            root.manual-field = 0;
+                            root.manual-osk = true;
                         }
                     }
-                    Text {
-                        text: "Adresse distante (Tailscale ou autre), facultative";
-                        color: Theme.text;
-                        font-size: 14px * root.k;
-                    }
-                    remote-in := LineEdit {
-                        placeholder-text: "100.111.157.87:8097";
+                    remote-f := Field {
+                        k: root.k;
+                        label: "Adresse distante (Tailscale ou autre) · facultative";
+                        hint: "100.111.157.87:8097";
+                        text <=> root.manual-remote;
+                        shown: root.manual-remote;
+                        tv: root.tv-mode;
+                        selected: root.tv-mode && !root.manual-osk && root.manual-field == 1;
+                        editing: root.manual-osk && root.manual-field == 1;
                         accepted => {
-                            root.manual-submit(local-in.text, remote-in.text);
+                            root.manual-go();
                         }
-                    }
-                    Text {
-                        text: root.manual-busy ? "Vérification…" : root.manual-error;
-                        color: root.manual-busy ? Theme.muted : #ff6b6b;
-                        font-size: 13px * root.k;
-                        wrap: word-wrap;
+                        clicked => {
+                            root.manual-field = 1;
+                            root.manual-osk = true;
+                        }
                     }
                     HorizontalLayout {
                         alignment: end;
-                        spacing: 12px * root.k;
-                        height: 40px * root.k;
+                        spacing: 14px * root.k;
+                        height: 44px * root.k;
 
                         ActionButton {
                             text: "Annuler";
                             font: 15px * root.k;
-                            focused: false;
+                            focused: root.tv-mode && !root.manual-osk && root.manual-field == 3;
                             clicked => {
-                                root.manual-open = false;
-                                root.refocus += 1;
+                                root.close-manual();
                             }
                         }
                         ActionButton {
-                            text: "Valider";
+                            text: root.manual-busy ? "Vérification…" : "Valider";
                             font: 15px * root.k;
-                            focused: true;
+                            focused: root.tv-mode ? !root.manual-osk && root.manual-field == 2 : true;
                             clicked => {
-                                root.manual-submit(local-in.text, remote-in.text);
+                                root.manual-go();
                             }
                         }
                     }
                 }
+            }
 
-                FocusScope {
-                    width: 0px;
-                    height: 0px;
-                    key-pressed(event) => {
-                        if (event.text == Key.Escape) {
-                            root.manual-open = false;
-                            root.refocus += 1;
-                            return EventResult.accept;
-                        }
-                        return EventResult.reject;
+            m-osk := Osk {
+                x: (parent.width - self.width) / 2;
+                y: mdlg.y + parent.dh + 16px * root.k + (1 - srv.mosk-p) * 60px * root.k;
+                width: min(parent.width - 80px * root.k, 760px * root.k);
+                visible: root.tv-mode && srv.mosk-p > 0.01;
+                k: root.k;
+                active: root.manual-osk;
+                text: root.manual-field == 0 ? root.manual-local : root.manual-remote;
+                ok-label: root.manual-field == 0 ? "Suivant" : "Valider";
+                erase(t) => {
+                    return root.text-backspace("\u{8}" + t);
+                }
+                edited(t) => {
+                    if (root.manual-field == 0) {
+                        root.manual-local = t;
+                    } else {
+                        root.manual-remote = t;
                     }
                 }
+                done => {
+                    if (root.manual-field == 0) {
+                        root.manual-field = 1;
+                    } else {
+                        root.manual-osk = false;
+                        root.manual-go();
+                    }
+                }
+                leave-up => {
+                    root.manual-osk = false;
+                }
+                leave-down => {
+                    root.manual-osk = false;
+                    root.manual-field = 2;
+                }
+            }
+
+            // Vérification en cours, ou erreur du serveur : bulle en bas.
+            if (root.manual-busy || root.manual-error != "") && srv.mosk-p < 0.5: Bubble {
+                x: (parent.width - self.width) / 2;
+                y: parent.height - self.height - 28px * root.k;
+                k: root.k;
+                max-w: parent.width - 80px * root.k;
+                text: root.manual-busy ? "Vérification des adresses…" : root.manual-error;
+                error: !root.manual-busy;
             }
         }
 
@@ -4102,7 +4566,7 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.Return) {
                         root.close-menu();
                         root.nav-out("menu", root.menu-entries[root.menu-sel].action);
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.RightArrow) {
                         root.close-menu();
                     }
                     return EventResult.accept;
@@ -4222,12 +4686,10 @@ export component AppWindow inherits Window {
                     if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
                         root.seerr-action();
                     } else {
-                        root.sr-open = false;
-                        root.refocus += 1;
+                        root.seerr-close();
                     }
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.sr-open = false;
-                    root.refocus += 1;
+                    root.seerr-close();
                 }
                 return EventResult.accept;
             }
@@ -4260,6 +4722,7 @@ export component AppWindow inherits Window {
                 width: srp.poster-h / 1.5;
                 height: srp.poster-h;
                 border-radius: 12 * srp.u;
+                visible: !root.hero-covers || !root.hero-seerr;
                 background: root.sr.has-poster ? transparent : #ffffff14;
                 if root.sr.has-poster: Image {
                     width: parent.width;
@@ -4335,8 +4798,7 @@ export component AppWindow inherits Window {
                         font: 18 * srp.u;
                         focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
                         clicked => {
-                            root.sr-open = false;
-                            root.refocus += 1;
+                            root.seerr-close();
                         }
                     }
                 }
@@ -4454,12 +4916,15 @@ export component AppWindow inherits Window {
     }
 
     // Image partagée (au-dessus du voile) pendant qu'elle vole ; un grand fond arrivé passe derrière
-    // la page (voir plus haut, avant les écrans).
+    // la page (voir plus haut, avant les écrans). Coins arrondis (rognage, le temps du vol) et
+    // pastilles de la carte (épisodes restants, note...), qui s'effacent vers la page.
     if root.hero-on && !root.hero-under && !root.playing: Rectangle {
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
         y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
         height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
+        border-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
+        clip: true;
         Image {
             width: parent.width;
             height: parent.height;
@@ -4467,8 +4932,15 @@ export component AppWindow inherits Window {
             image-fit: cover;
             opacity: root.hero-alpha;
         }
+        // Pastilles de la carte, à leur taille de carte.
+        if root.hero-p < 0.999 && !root.hero-big: CardArt {
+            data: root.hero-data;
+            k: root.hero-k;
+            badges-only: true;
+            opacity: 1 - root.hero-p;
+        }
         // Grand fond : assombri pour que la page reste lisible par-dessus.
-        if root.hero-wide: Rectangle {
+        if root.hero-big: Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
     }

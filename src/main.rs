@@ -2999,6 +2999,16 @@ fn main() -> anyhow::Result<()> {
     ui.on_select_tab({
         let app = app.clone();
         move |tab| {
+            // Onglet déjà affiché (et à jour) : rien à recharger, la sélection redescend aux rangées.
+            let same = *app.tab.lock().unwrap() == tab.as_str();
+            if let Some(u) = app.ui().upgrade() {
+                if same && u.get_screen().as_str() == "home" && !app.home_stale.load(Ordering::SeqCst) {
+                    if u.get_sections().row_count() > 0 {
+                        u.set_h_focus(false);
+                    }
+                    return;
+                }
+            }
             *app.tab.lock().unwrap() = tab.to_string();
             if let Some(u) = app.ui().upgrade() {
                 u.set_tab(tab.clone());
@@ -3286,6 +3296,8 @@ fn main() -> anyhow::Result<()> {
             push_detail(&app, id.to_string())
         }
     });
+
+    ui.on_is_seerr(|id| id.starts_with("seerr:"));
 
     ui.on_menu_find({
         let weak = ui.as_weak();
@@ -3746,7 +3758,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         buttons.push((String::new(), "play".into(), "play".into(), false));
         buttons.push((String::new(), "fav".into(), "heart".into(), local_flag(series_id, true, false)));
         buttons.push((String::new(), "played".into(), "check".into(), local_flag(series_id, false, left == 0)));
-        buttons.push(("Supprimer les téléchargements".into(), "dl-delete".into(), String::new(), false));
+        buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
         children = seasons
             .iter()
             .map(|s| {
@@ -3776,8 +3788,8 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         buttons.push((String::new(), "play".into(), "play".into(), false));
         buttons.push((String::new(), "fav".into(), "heart".into(), local_flag(season_id, true, false)));
         buttons.push((String::new(), "played".into(), "check".into(), local_flag(season_id, false, left == 0)));
+        buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
         buttons.push(("Voir la série".into(), format!("open:dl:series:{}", first.series_id), String::new(), false));
-        buttons.push(("Supprimer les téléchargements".into(), "dl-delete".into(), String::new(), false));
         children = eps
             .iter()
             .map(|e| {
@@ -3803,11 +3815,11 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         buttons.push((String::new(), "play".into(), "play".into(), false));
         buttons.push((String::new(), "fav".into(), "heart".into(), e.favorite));
         buttons.push((String::new(), "played".into(), "check".into(), e.played));
+        buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
         if e.kind == "Episode" {
             buttons.push(("Voir la série".into(), format!("open:dl:series:{}", e.series_id), String::new(), false));
             buttons.push(("Voir la saison".into(), format!("open:dl:season:{}", e.season_id), String::new(), false));
         }
-        buttons.push(("Supprimer le téléchargement".into(), "dl-delete".into(), String::new(), false));
         children = Vec::new();
     }
     let key_s = key.to_string();

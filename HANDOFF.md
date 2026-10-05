@@ -229,6 +229,17 @@ Principes :
    Hors ligne ou sur une fiche locale, le changement y est gardé ; `downloads::sync` le renvoie au compte à la
    reconnexion (l'appareil a le dernier mot), avec les positions de lecture.
 
+25. Image partagée refaite : `CardArt` (image + pastilles, extrait de Card) vole avec coins arrondis (rognage le
+   temps du vol) et pastilles qui s'effacent vers la page ; la carte d'origine est cachée (`Hero.hide-id`), l'affiche
+   de la page aussi tant que l'image vole. Retour : l'image reste en place pendant que la page s'efface, puis vole vers
+   la position exacte de sa carte (la carte répond à `Hero.tick`). Destination Seerr (page Seerr ouverte depuis
+   Demandes / suggestions, `is-seerr`, `seerr-close`).
+26. Champ de saisie commun `Field` (intitulé au-dessus, contour accent / rouge + message) et bulle `Bubble`.
+   Formulaire « Ajouter un compte » refait (carte de verre ; TV : le clavier n'apparaît qu'après avoir choisi un
+   champ ; nom vide refusé avec message). Page « Choisir un serveur » et saisie d'adresse refaites (clavier à l'écran
+   en TV aussi). Corbeille à la place de « Supprimer » sur les fiches de téléchargements. Menu : → / Échap / Retour
+   le ferment (plus ←). Onglet déjà affiché : pas de rechargement.
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
