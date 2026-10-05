@@ -2139,10 +2139,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.busy) {
@@ -2617,11 +2622,16 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
 
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
 
             key-pressed(event) => {
@@ -2749,10 +2759,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.nav-key(event.text)) {
@@ -2930,7 +2945,9 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
                 if (root.tv-mode) {
@@ -3151,10 +3168,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.nav-key(event.text)) {
@@ -3202,10 +3224,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.nav-key(event.text)) {
@@ -3293,11 +3320,16 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
 
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
 
             key-pressed(event) => {
@@ -3893,10 +3925,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.nav-key(event.text)) {
@@ -3982,10 +4019,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.manual-open || root.choice-a != "") {
@@ -4197,7 +4239,10 @@ export component AppWindow inherits Window {
                 width: parent.dw;
                 height: parent.dh;
                 init => {
-                    self.focus();
+                    // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                    if (!root.menu-open) {
+                        self.focus();
+                    }
                 }
                 key-pressed(event) => {
                     if (root.tv-mode && root.manual-osk) {
@@ -4394,7 +4439,10 @@ export component AppWindow inherits Window {
 
                 FocusScope {
                     init => {
-                        self.focus();
+                        // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                        if (!root.menu-open) {
+                            self.focus();
+                        }
                     }
                     key-pressed(event) => {
                         if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
@@ -4463,10 +4511,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (root.nav-key(event.text)) {
@@ -4581,10 +4634,15 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                self.focus();
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 // Liste de choix ouverte : ↑ ↓ choisir, Entrée valider, Échap / ← fermer.
@@ -4643,7 +4701,10 @@ export component AppWindow inherits Window {
                             root.set-sel -= 1;
                         }
                     } else if (event.text == Key.DownArrow) {
-                        root.set-sel = min(sets.n - 1, root.set-sel + sets.av-cols);
+                        // Seulement s'il y a une ligne en dessous (sinon on resterait pas sur la même colonne).
+                        if (root.set-sel + sets.av-cols < sets.n) {
+                            root.set-sel += sets.av-cols;
+                        }
                     } else if (event.text == Key.UpArrow) {
                         root.set-sel = max(0, root.set-sel - sets.av-cols);
                     } else if (event.text == Key.Return) {
@@ -5173,7 +5234,10 @@ export component AppWindow inherits Window {
 
         FocusScope {
             init => {
-                self.focus();
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open) {
+                    self.focus();
+                }
             }
             key-pressed(event) => {
                 if (event.text == Key.LeftArrow) {
