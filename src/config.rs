@@ -17,6 +17,8 @@ pub struct Saved {
     pub prefer_remote: bool,
     /// Affichage : avatars GIF figés sur leur première image (moins de calcul).
     pub still_gifs: bool,
+    /// Affichage : pas de fond d'écran tiré du média sélectionné.
+    pub no_backdrop: bool,
     /// Identifiant du serveur (pour retrouver les comptes enregistrés).
     pub server_id: String,
     pub user_name: String,

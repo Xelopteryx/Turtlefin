@@ -108,6 +108,9 @@ struct App {
     offline: AtomicBool,
     /// Écran Téléchargements : série puis saison ouvertes (vides : liste générale).
     dl_path: Mutex<(String, String)>,
+    /// Fond d'écran : média affiché et génération (une demande plus récente annule les autres).
+    bg_id: Mutex<String>,
+    bg_gen: AtomicU64,
     /// Fin de la dernière lecture : (position, durée, fin atteinte), pour les lectures hors ligne.
     last_play: Mutex<Option<(f64, f64, bool)>>,
     /// Essais : élément à lancer au démarrage (--play) et position de départ forcée.
@@ -264,6 +267,50 @@ fn shaped(img: image::DynamicImage, s: Shape) -> SharedPixelBuffer<Rgba8Pixel> {
 // défiler. Réglage « Affichage » : GIF figés sur leur première image.
 // ---------------------------------------------------------------------------
 static STILL_GIFS: AtomicBool = AtomicBool::new(false);
+/// Réglage « Affichage » : pas de fond d'écran tiré du média sélectionné.
+static NO_BACKDROP: AtomicBool = AtomicBool::new(false);
+
+/// Fond d'écran du média sélectionné : chargé après une courte pause (pas à chaque carte survolée),
+/// flouté et assombri au décodage, puis affiché en fondu enchaîné.
+fn set_backdrop(app: &Arc<App>, id: String) {
+    if id.is_empty() || NO_BACKDROP.load(Ordering::Relaxed) {
+        return;
+    }
+    {
+        let mut cur = app.bg_id.lock().unwrap();
+        if *cur == id {
+            return;
+        }
+        *cur = id.clone();
+    }
+    let my = app.bg_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    let Some(client) = app.client() else { return };
+    let a = app.clone();
+    app.rt.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
+        if a.bg_gen.load(Ordering::SeqCst) != my {
+            return;
+        }
+        let Ok(item) = client.item(&id).await else { return };
+        let Some(bytes) = client.backdrop(&item).await else { return };
+        let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
+        if a.bg_gen.load(Ordering::SeqCst) != my {
+            return;
+        }
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            // L'image va dans le calque caché, puis les deux calques s'échangent en fondu.
+            let img = slint::Image::from_rgba8(buf);
+            if u.get_bg_flip() {
+                u.set_bg_a(img);
+                u.set_bg_flip(false);
+            } else {
+                u.set_bg_b(img);
+                u.set_bg_flip(true);
+            }
+            u.set_bg_show(true);
+        });
+    });
+}
 
 /// Images d'une animation et durée de chacune (ms). Une seule image : image fixe.
 type Frames = Vec<(SharedPixelBuffer<Rgba8Pixel>, u32)>;
@@ -528,6 +575,7 @@ async fn start_session(app: Arc<App>, client: api::Client) {
             let mut saved = client.to_saved();
             saved.prefer_remote = old.prefer_remote;
             saved.still_gifs = old.still_gifs;
+            saved.no_backdrop = old.no_backdrop;
             // Adresses du serveur : celles choisies à l'écran des serveurs, sinon déduites de l'adresse saisie.
             match app.pending_server.lock().unwrap().take() {
                 Some((local, remote)) => {
@@ -707,6 +755,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
     }
     config::clear_token();
     *app.client.lock().unwrap() = None;
+    app.bg_id.lock().unwrap().clear();
     *app.tab.lock().unwrap() = "home".to_string();
     app.stack.lock().unwrap().clear();
     *app.library.lock().unwrap() = None;
@@ -718,6 +767,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
         u.set_has_requests(false);
         stop_anims(|s| s == AnimSlot::Header);
         u.set_has_avatar(false);
+        u.set_bg_show(false);
         u.set_menu_open(false);
         u.set_lib_items(ModelRc::default());
         u.set_sections(ModelRc::default());
@@ -1507,7 +1557,13 @@ fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
         u.set_lib_total(0);
         u.set_l_sel(0);
         u.set_h_focus(false);
-        show_screen(&u, "library");
+        // Retour depuis une fiche : la page n'apparaît qu'une fois la carte d'origine rechargée
+        // (sinon la grille défilerait depuis le haut jusqu'à elle).
+        if back_to.is_some() {
+            begin_loading(&u);
+        } else {
+            show_screen(&u, "library");
+        }
     });
     load_library_page(app, client, back_to);
 }
@@ -1570,6 +1626,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
             u.set_lib_total(total as i32);
             if let Some(sel) = select {
                 u.set_l_sel(sel.min(u.get_lib_items().row_count().saturating_sub(1)) as i32);
+                show_screen(&u, "library");
             }
         });
         let card_w = if app2.tv { 230.0 } else { 170.0 };
@@ -1831,6 +1888,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             ]
         }
         3 => vec![
+            row("backdrop", "Fond d'écran : image du média sélectionné", String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("still_gifs", "Avatars animés (GIF) figés sur leur première image", String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
             row("info", "Une animation demande un peu de calcul à chaque image : à figer si l'appareil est lent.", String::new(), "info", false),
         ],
@@ -1977,6 +2035,17 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "prefer_local" => {
             let now_remote = config::load().prefer_remote;
             set_prefer_remote(app, !now_remote);
+        }
+        "backdrop" => {
+            let mut saved = config::load();
+            saved.no_backdrop = !saved.no_backdrop;
+            config::save(&saved);
+            NO_BACKDROP.store(saved.no_backdrop, Ordering::Relaxed);
+            app.bg_id.lock().unwrap().clear();
+            if let Some(u) = app.ui().upgrade() {
+                u.set_bg_show(!saved.no_backdrop);
+            }
+            refresh_settings(app);
         }
         "still_gifs" => {
             let mut saved = config::load();
@@ -2675,6 +2744,7 @@ fn main() -> anyhow::Result<()> {
 
     let saved = config::load();
     STILL_GIFS.store(saved.still_gifs, Ordering::Relaxed);
+    NO_BACKDROP.store(saved.no_backdrop, Ordering::Relaxed);
     let ui = AppWindow::new()?;
     let video_ok = match video::install(&ui) {
         Ok(()) => true,
@@ -2718,6 +2788,8 @@ fn main() -> anyhow::Result<()> {
         offline: AtomicBool::new(false),
         dl_path: Mutex::new((String::new(), String::new())),
         last_play: Mutex::new(None),
+        bg_id: Mutex::new(String::new()),
+        bg_gen: AtomicU64::new(0),
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
@@ -2836,6 +2908,11 @@ fn main() -> anyhow::Result<()> {
         move |id| play_download(&app, &id)
     });
 
+    ui.on_backdrop_for({
+        let app = app.clone();
+        move |id| set_backdrop(&app, id.to_string())
+    });
+
     ui.on_dl_open({
         let app = app.clone();
         move |id| dl_open(&app, &id)
@@ -2889,37 +2966,89 @@ fn main() -> anyhow::Result<()> {
         move |id| set_avatar(&app, id.to_string())
     });
 
-    // Navigation entre rangées : chaque rangée garde sa propre position (la carte où l'on était
-    // la dernière fois, la première sinon), comme sur les interfaces de télé.
-    let row_mem: Arc<Mutex<std::collections::HashMap<i32, i32>>> = Arc::default();
-    ui.on_row_seen({
-        let m = row_mem.clone();
-        move |key, idx| {
-            m.lock().unwrap().insert(key, idx);
+    // Rangées horizontales (voir `global Rows`) : défilement propre à chaque rangée, qui n'avance
+    // que lorsque la sélection atteint l'avant-dernière carte visible ; changement de rangée vers la
+    // carte la plus proche à l'écran. Mémoire : clé -> décalage (px logiques, <= 0).
+    let row_off: Arc<Mutex<std::collections::HashMap<i32, f32>>> = Arc::default();
+    ui.on_row_seen(|_, _| {});
+    ui.global::<Rows>().on_scroll({
+        let m = row_off.clone();
+        move |key, idx, n, w, gap, pad, rw| {
+            if n <= 0 || rw <= 0.0 {
+                return 0.0;
+            }
+            let idx = idx.clamp(0, n - 1);
+            let left = |i: i32| pad + i as f32 * (w + gap);
+            let strip = n as f32 * (w + gap) + 2.0 * pad;
+            let min_off = (rw - strip).min(0.0);
+            let mut map = m.lock().unwrap();
+            let mut off = map.get(&key).copied().unwrap_or(0.0);
+            // La voisine de droite (ou de gauche) reste visible : on voit ce qui suit.
+            let ahead = (idx + 1).min(n - 1);
+            if left(ahead) + w + off > rw - pad {
+                off = rw - pad - w - left(ahead);
+            }
+            let behind = (idx - 1).max(0);
+            if left(behind) + off < pad {
+                off = pad - left(behind);
+            }
+            // Cartes très larges : la sélectionnée en entier, au moins.
+            if left(idx) + w + off > rw {
+                off = rw - pad - w - left(idx);
+            }
+            let off = off.clamp(min_off, 0.0);
+            map.insert(key, off);
+            off
         }
     });
-    ui.on_row_pick({
-        let m = row_mem.clone();
-        move |_x, _rw, n, _w, _gap, _pad, key| {
-            if n <= 0 {
+    ui.global::<Rows>().on_pick({
+        let m = row_off.clone();
+        move |from, from_idx, from_w, to, to_n, to_w, gap, pad, _rw| {
+            if to_n <= 0 {
                 return 0;
             }
-            m.lock().unwrap().get(&key).copied().unwrap_or(0).clamp(0, n - 1)
+            let map = m.lock().unwrap();
+            let x = pad + from_idx as f32 * (from_w + gap) + from_w / 2.0 + map.get(&from).copied().unwrap_or(0.0);
+            let off = map.get(&to).copied().unwrap_or(0.0);
+            let left = |i: i32| pad + i as f32 * (to_w + gap) + off;
+            let center = |i: i32| left(i) + to_w / 2.0;
+            // Cartes où l'on peut arriver sans faire défiler la rangée (voisines visibles aussi) :
+            // la rangée ne bouge pas au changement de rangée.
+            let still = |i: i32| {
+                let ahead = (i + 1).min(to_n - 1);
+                let behind = (i - 1).max(0);
+                left(ahead) + to_w <= _rw - pad + 0.5 && left(behind) >= pad - 0.5
+            };
+            let dist = |i: &i32| (center(*i) - x).abs();
+            (0..to_n)
+                .filter(|i| still(*i))
+                .min_by(|a, b| dist(a).total_cmp(&dist(b)))
+                .or_else(|| (0..to_n).min_by(|a, b| dist(a).total_cmp(&dist(b))))
+                .unwrap_or(0)
         }
     });
-    // Nouvelles rangées (accueil rechargé, autre fiche) : défilements oubliés.
+    // Nouvelles rangées : défilements oubliés (accueil rechargé : clés < 1000 ; autre fiche : 1000+).
     {
-        let m = row_mem.clone();
+        let m = row_off.clone();
         let weak = ui.as_weak();
-        let last: Arc<Mutex<(usize, String)>> = Arc::default();
+        let last: Arc<Mutex<(usize, String, usize)>> = Arc::default();
         let t = slint::Timer::default();
         t.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(300), move || {
             let Some(u) = weak.upgrade() else { return };
-            let now = (u.get_sections().row_count(), u.get_detail().id.to_string());
+            let now = (u.get_sections().row_count(), u.get_detail().id.to_string(), u.get_search_sections().row_count());
             let mut l = last.lock().unwrap();
             if *l != now {
+                let mut map = m.lock().unwrap();
+                if l.0 != now.0 {
+                    map.retain(|k, _| *k >= 1000);
+                }
+                if l.1 != now.1 {
+                    map.retain(|k, _| !(1000..2000).contains(k));
+                }
+                if l.2 != now.2 {
+                    map.retain(|k, _| *k < 2000);
+                }
                 *l = now;
-                m.lock().unwrap().clear();
             }
         });
         std::mem::forget(t);

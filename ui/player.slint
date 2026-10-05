@@ -282,6 +282,22 @@ export component PlayerView inherits Rectangle {
     property <int> idle: 0;      // secondes sans activité
     property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes
     property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 audio · 6 sous-titres
+    // Bouton utilisable (les autres sont cachés et sautés par la sélection).
+    pure function btn-ok(i: int) -> bool {
+        return i == 0 ? root.has-prev : i == 1 || i == 3 ? root.chapter-count > 0 : i == 4 ? root.has-next
+            : i == 5 ? root.audio-tracks.length > 1 : i == 6 ? root.sub-tracks.length > 0 : true;
+    }
+    // Bouton utilisable suivant dans la direction d (sinon on reste sur place).
+    pure function btn-step(from: int, d: int) -> int {
+        let a = from + d;
+        let b = from + 2 * d;
+        let c = from + 3 * d;
+        let e = from + 4 * d;
+        return a >= 0 && a <= 6 && root.btn-ok(a) ? a
+            : b >= 0 && b <= 6 && root.btn-ok(b) ? b
+            : c >= 0 && c <= 6 && root.btn-ok(c) ? c
+            : e >= 0 && e <= 6 && root.btn-ok(e) ? e : from;
+    }
     property <string> menu: "";  // "" | "audio" | "sub"
     property <int> menu-sel: 0;
     property <int> menu-rows: 8;
@@ -578,9 +594,9 @@ export component PlayerView inherits Rectangle {
             } else if (root.zone == 2) {
                 // Boutons
                 if (event.text == Key.LeftArrow) {
-                    root.btn = max(0, root.btn - 1);
+                    root.btn = root.btn-step(root.btn, -1);
                 } else if (event.text == Key.RightArrow) {
-                    root.btn = min(6, root.btn + 1);
+                    root.btn = root.btn-step(root.btn, 1);
                 } else if (event.text == Key.UpArrow) {
                     root.zone = 1;
                 } else if (event.text == Key.DownArrow) {
@@ -779,20 +795,18 @@ export component PlayerView inherits Rectangle {
                 alignment: center;
                 spacing: 16px * root.k;
 
-                PlayerButton {
+                if root.has-prev: PlayerButton {
                     size: 52px * root.k;
                     icon: "prev-ep";
-                    enabled: root.has-prev;
                     focused: root.zone == 2 && root.btn == 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(0);
                     }
                 }
-                PlayerButton {
+                if root.chapter-count > 0: PlayerButton {
                     size: 52px * root.k;
                     icon: "prev-chap";
-                    enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 1;
                     clicked => {
                         root.zone = 0;
@@ -808,20 +822,18 @@ export component PlayerView inherits Rectangle {
                         root.activate(2);
                     }
                 }
-                PlayerButton {
+                if root.chapter-count > 0: PlayerButton {
                     size: 52px * root.k;
                     icon: "next-chap";
-                    enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 3;
                     clicked => {
                         root.zone = 0;
                         root.activate(3);
                     }
                 }
-                PlayerButton {
+                if root.has-next: PlayerButton {
                     size: 52px * root.k;
                     icon: "next-ep";
-                    enabled: root.has-next;
                     focused: root.zone == 2 && root.btn == 4;
                     clicked => {
                         root.zone = 0;
@@ -839,7 +851,7 @@ export component PlayerView inherits Rectangle {
                 alignment: end;
                 spacing: 12px * root.k;
 
-                PlayerButton {
+                if root.audio-tracks.length > 1: PlayerButton {
                     size: 44px * root.k;
                     font: 16px * root.k;
                     text: "Audio";
@@ -848,7 +860,7 @@ export component PlayerView inherits Rectangle {
                         root.activate(5);
                     }
                 }
-                PlayerButton {
+                if root.sub-tracks.length > 0: PlayerButton {
                     size: 44px * root.k;
                     font: 16px * root.k;
                     text: "Sous-titres";

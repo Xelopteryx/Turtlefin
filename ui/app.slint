@@ -98,6 +98,17 @@ export struct DetailData {
     icon-count: int, // boutons à icône (ligne du haut), les autres sont des pastilles
 }
 
+// Défilement des rangées horizontales, calculé en Rust (chaque rangée garde le sien) :
+// la rangée n'avance que quand la sélection atteint l'avant-dernière carte visible, et le passage
+// d'une rangée à l'autre arrive sur la carte visuellement la plus proche.
+// Clés : accueil = n° de rangée, recherche = 2000 + n°, fiche : enfants 1002, rangées 1004 + n°.
+export global Rows {
+    // Décalage (px, <= 0) de la rangée `key` pour que la carte `idx` (et sa voisine) soit visible.
+    pure callback scroll(int /* key */, int /* idx */, int /* n */, float /* w */, float /* écart */, float /* marge */, float /* largeur */) -> float;
+    // Carte de la rangée `to` la plus proche (à l'écran) de la carte `from-idx` de la rangée `from`.
+    pure callback pick(int /* from */, int /* from-idx */, float /* from-w */, int /* to */, int /* to-n */, float /* to-w */, float /* écart */, float /* marge */, float /* largeur */) -> int;
+}
+
 // Image partagée entre une carte et la page qu'elle ouvre : à l'ouverture, la carte sélectionnée
 // donne sa position et son image (voir AppWindow.open-hero).
 global Hero {
@@ -139,7 +150,7 @@ component Card inherits Rectangle {
 
     z: root.focused ? 1 : 0;
     transform-scale: root.focused ? 1.06 : 1.0;
-    animate transform-scale { duration: 120ms; easing: ease-out; }
+    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
     background: root.focused ? #00000080 : #00000033;
 
@@ -335,6 +346,7 @@ component SectionRow inherits Rectangle {
     in property <bool> active;
     in property <int> focus-index;
     in property <float> k: 1.0;
+    in property <int> key;                  // voir Rows
     callback activated(int);
 
     property <length> gap: 18px * root.k;
@@ -345,8 +357,8 @@ component SectionRow inherits Rectangle {
     property <int> remembered: 0;
     property <int> idx: root.active ? root.focus-index : root.remembered;
     property <length> strip-w: root.items.length * (root.card-w + root.gap) + root.pad * 2;
-    property <length> target-x: min(0px, max(root.width - root.strip-w,
-        root.width / 2 - (root.pad + root.idx * (root.card-w + root.gap) + root.card-w / 2)));
+    property <length> target-x: Rows.scroll(root.key, root.idx, root.items.length, root.card-w / 1px, root.gap / 1px,
+        root.pad / 1px, root.width / 1px) * 1px;
 
     changed focus-index => {
         if (root.active) {
@@ -422,8 +434,14 @@ component Tab inherits Rectangle {
         vertical-alignment: center;
     }
 
-    if root.focused: Rectangle {
+    // Soulignement qui s'étire depuis le centre à la sélection.
+    Rectangle {
+        property <float> w: root.focused ? 1 : 0;
+        animate w { duration: 220ms; easing: ease-out; }
+        visible: self.w > 0.01;
+        x: (parent.width - self.width) / 2;
         y: parent.height / 2 + 16px * root.k;
+        width: parent.width * self.w;
         height: 3px * root.k;
         border-radius: self.height / 2;
         background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
@@ -447,6 +465,8 @@ component HeaderIcon inherits Rectangle {
     width: 44px * root.k;
     height: 44px * root.k;
     border-radius: self.height / 2;
+    transform-scale: root.focused || area.has-hover ? 1.12 : 1.0;
+    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
     border-width: root.on && !root.focused ? 2px * root.k : 0px;
     border-color: Theme.accent2;
@@ -555,6 +575,9 @@ component ActionButton inherits Rectangle {
 
     preferred-width: label.preferred-width + 40px;
     border-radius: 10px;
+    // Sélection : petit rebond.
+    transform-scale: root.focused || area.has-hover ? 1.07 : 1.0;
+    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
 
@@ -590,6 +613,8 @@ component DetailButton inherits Rectangle {
     min-width: self.preferred-width;
     horizontal-stretch: 0;
     border-radius: root.chip ? self.height / 2 : 10px;
+    transform-scale: root.lit ? 1.1 : 1.0;
+    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
 
@@ -943,14 +968,18 @@ export component AppWindow inherits Window {
     // animation-tick() : rien n'est redessiné en continu.
     property <bool> page-anim;
     property <duration> page-t0;
-    property <float> page-lin: root.page-anim ? clamp((animation-tick() - root.page-t0) / 300ms, 0, 1) : 1;
+    property <float> page-lin: root.page-anim ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
+        // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste.
+        if (root.hero-on) {
+            return;
+        }
         root.page-t0 = animation-tick();
         root.page-anim = true;
     }
     Timer {
-        interval: 320ms;
+        interval: 540ms;
         running: root.page-anim;
         triggered => {
             root.page-anim = false;
@@ -1007,7 +1036,7 @@ export component AppWindow inherits Window {
     // Fin : l'affiche de la fiche (ou la carte, au retour) a pris le relais.
     property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && (
         (root.hero-ready && (root.hero-wide ? root.hero-faded : (root.screen != "detail" || root.detail.has-poster)))
-        || (!root.hero-dest && root.screen != "detail" && root.veil < 0.01));
+        || (!root.hero-dest && root.screen != "detail" && root.veil < 0.01 && root.hero-card-ok));
     changed hero-done => {
         if (root.hero-done) {
             root.hero-on = false;
@@ -1048,8 +1077,34 @@ export component AppWindow inherits Window {
         }
         root.open-item(id);
     }
+    // Retour : l'image attend que sa carte soit là, image chargée, puis se pose exactement dessus.
+    property <bool> hero-card-ok;
+    property <bool> hero-wait: root.hero-on && !root.hero-dest && root.screen != "detail" && !root.loading;
+    Timer {
+        interval: 80ms;
+        running: root.hero-wait && !root.hero-card-ok;
+        triggered => {
+            Hero.tick += 1;
+        }
+    }
+    Timer {
+        interval: 1500ms;
+        running: root.hero-wait && !root.hero-card-ok;
+        triggered => {
+            root.hero-card-ok = true;
+        }
+    }
     property <int> hero-seq: Hero.seq;
     changed hero-seq => {
+        if (root.hero-pending == "" && root.hero-wait) {
+            // La carte a répondu : position exacte (si elle diffère un peu de celle du départ).
+            root.hero-fx = Hero.x;
+            root.hero-fy = Hero.y;
+            root.hero-fw = Hero.w;
+            root.hero-fh = Hero.h;
+            root.hero-card-ok = true;
+            return;
+        }
         if (root.hero-pending != "") {
             root.hero-fx = Hero.x;
             root.hero-fy = Hero.y;
@@ -1074,6 +1129,7 @@ export component AppWindow inherits Window {
             return; // retour déjà en cours
         }
         if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id) {
+            root.hero-card-ok = false;
             root.hero-dest = false;
             root.hero-t0 = animation-tick();
             root.hero-anim = true;
@@ -1086,19 +1142,44 @@ export component AppWindow inherits Window {
             }
             // Les infos s'effacent d'abord (seule l'image reste), puis l'accueil revient.
             root.hero-id = "";
-            root.veil-hold = true;
+            root.nav-out("back", "");
             return;
         }
         root.hero-id = "";
-        root.run-action("back");
+        root.nav-out("back", "");
+    }
+
+    // Changement de page sans image partagée (maison, retour, menu, Échap) : la page s'efface dans
+    // le fond (voile), l'action a lieu, puis la nouvelle page arrive (page-enter, rangées en cascade).
+    property <string> nav-kind;
+    property <string> nav-arg;
+    function nav-out(kind: string, arg: string) {
+        if (root.veil-hold) {
+            return; // une transition est déjà en cours
+        }
+        root.nav-kind = kind;
+        root.nav-arg = arg;
+        root.veil-hold = true;
     }
     Timer {
         interval: 240ms;
         running: root.veil-hold;
         triggered => {
             root.veil-hold = false;
-            root.run-action("back");
+            if (root.nav-kind == "back") {
+                root.run-action("back");
+            } else if (root.nav-kind == "go-home") {
+                root.go-home();
+            } else {
+                root.menu-action(root.nav-arg);
+            }
+            // Même écran (fiche -> fiche, accueil rechargé...) : l'arrivée est rejouée quand même.
+            root.page-enter();
         }
+    }
+    // Arrivée en cascade : décalage vertical de l'élément n° i (rangées, lignes de grille).
+    pure function stagger(i: int) -> length {
+        return (1 - clamp(root.page-lin * 1.9 - i * 0.16, 0, 1)) * 70px * root.k;
     }
     Timer {
         interval: 20s;
@@ -1121,6 +1202,26 @@ export component AppWindow inherits Window {
     }
     changed sel-item => {
         root.row-seen(root.sel-section, root.sel-item);
+    }
+
+    // ---- Fond d'écran : image (floutée, assombrie) du média sélectionné, en fondu enchaîné.
+    in-out property <image> bg-a;
+    in-out property <image> bg-b;
+    in-out property <bool> bg-flip;          // false : bg-a visible · true : bg-b visible
+    in-out property <bool> bg-show;
+    callback backdrop-for(string);
+    property <float> bg-mix: root.bg-flip ? 1 : 0;
+    animate bg-mix { duration: 800ms; easing: ease-in-out; }
+    property <float> bg-vis: root.bg-show && root.screen != "login" ? 1 : 0;
+    animate bg-vis { duration: 600ms; easing: ease-in-out; }
+    // Média sélectionné (accueil, bibliothèque, fiche) : Rust attend un instant puis charge son fond.
+    property <string> focus-id: root.screen == "home" && !root.h-focus && root.sel-section < root.sections.length
+            && root.sel-item < root.sections[root.sel-section].items.length
+        ? root.sections[root.sel-section].items[root.sel-item].id
+        : root.screen == "library" && root.l-sel < root.lib-items.length ? root.lib-items[root.l-sel].id
+        : root.screen == "detail" ? root.detail.id : "";
+    changed focus-id => {
+        root.backdrop-for(root.focus-id);
     }
     changed d-x => {
         root.row-seen(1000 + root.d-zone, root.d-x);
@@ -1266,10 +1367,6 @@ export component AppWindow inherits Window {
     callback go-home();
     callback menu-action(string);
     callback lib-more();                    // page suivante de la bibliothèque
-    // Navigation entre rangées : carte de la rangée cible (n cartes de largeur w) la plus proche
-    // du centre `x` à l'écran, une fois cette rangée défilée vers elle. Calcul fait en Rust.
-    // `key` désigne la rangée cible (son défilement actuel est mémorisé côté Rust par row-seen).
-    pure callback row-pick(float /* x */, float /* largeur de rangée */, int /* n */, float /* w */, float /* écart */, float /* marge */, int /* key */) -> int;
     callback row-seen(int /* key */, int /* index sélectionné */);
     callback servers-search();
     callback dl-play(string);
@@ -1296,25 +1393,20 @@ export component AppWindow inherits Window {
     property <length> header-h: 72px * root.k;
     property <int> tab-count: root.has-requests ? 3 : 2;
 
-    // Centre à l'écran de la carte i d'une rangée (même calcul de défilement que SectionRow).
-    pure function card-center(i: int, n: int, w: length, gap: length, pad: length, rw: length) -> length {
-        return pad + i * (w + gap) + w / 2
-            + min(0px, max(rw - (n * (w + gap) + pad * 2), rw / 2 - (pad + i * (w + gap) + w / 2)));
+    // Passage d'une rangée à l'autre : carte la plus proche à l'écran (voir Rows).
+    pure function row-to(from-key: int, from-idx: int, from-w: length, to-key: int, to-n: int, to-w: length) -> int {
+        return Rows.pick(from-key, from-idx, from-w / 1px, to-key, to-n, to-w / 1px, 18 * root.k, 32 * root.k, root.width / 1px);
     }
     // Rangées de l'accueil.
     pure function home-w(si: int) -> length {
         return root.sections[si].landscape ? root.card-w * 1.5 : root.card-w;
     }
     pure function home-pick(from: int, to: int) -> int {
-        return root.row-pick(
-            root.card-center(root.sel-item, root.sections[from].items.length, root.home-w(from), 18px * root.k, 32px * root.k, root.width) / 1px,
-            root.width / 1px, root.sections[to].items.length, root.home-w(to) / 1px, 18 * root.k, 32 * root.k, to);
+        return root.row-to(from, root.sel-item, root.home-w(from), to, root.sections[to].items.length, root.home-w(to));
     }
-    // Fiche : rangée d'enfants (zone 2) et rangées du bas (zones 4+), cartes de 140 px x k.
-    pure function detail-pick-down(from-x: int, from-n: int, from-w: length, to-row: int) -> int {
-        return root.row-pick(
-            root.card-center(from-x, from-n, from-w, 18px * root.k, 32px * root.k, root.width) / 1px,
-            root.width / 1px, root.detail-rows[to-row].items.length, 140 * root.k, 18 * root.k, 32 * root.k, 1004 + to-row);
+    // Fiche : rangée d'enfants (clé 1002) et rangées du bas (1004 + n°), cartes de 140 px x k.
+    pure function detail-pick-down(from-key: int, from-x: int, from-w: length, to-row: int) -> int {
+        return root.row-to(from-key, from-x, from-w, 1004 + to-row, root.detail-rows[to-row].items.length, 140px * root.k);
     }
     // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
@@ -1327,7 +1419,7 @@ export component AppWindow inherits Window {
         } else if (i == root.nav-n - 1) {
             root.open-menu();
         } else {
-            root.menu-action("home");
+            root.nav-out("menu", "home");
         }
     }
 
@@ -1427,6 +1519,27 @@ export component AppWindow inherits Window {
         : root.d-zone == 2 ? max(0px, root.d-children-y - 140px * root.k) : 0px;
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     property <length> info-w: root.width - root.col-x - 32px - (root.detail.has-next ? root.next-w + 24px : 0px);
+
+    if root.bg-vis > 0.001 && !root.playing: Rectangle {
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg-a;
+            image-fit: cover;
+            opacity: (1 - root.bg-mix) * root.bg-vis;
+        }
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg-b;
+            image-fit: cover;
+            opacity: root.bg-mix * root.bg-vis;
+        }
+        // Plus sombre vers le bas, là où sont les rangées.
+        Rectangle {
+            background: @linear-gradient(180deg, #010e1840 0%, #010e18b0 60%, #010e18e0 100%);
+        }
+    }
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
     // Passe derrière une fois arrivé et la page prête (avant, le voile la cacherait).
@@ -1998,7 +2111,7 @@ export component AppWindow inherits Window {
                     animate y { duration: 180ms; easing: ease-out; }
 
                     for section[si] in root.sections: SectionRow {
-                        y: section.y-px * 1px;
+                        y: section.y-px * 1px + root.stagger(si);
                         width: parent.width;
                         height: section.h-px * 1px;
                         title: section.title;
@@ -2008,6 +2121,7 @@ export component AppWindow inherits Window {
                         k: root.k;
                         active: !root.h-focus && si == root.sel-section;
                         focus-index: root.sel-item;
+                        key: si;
                         activated(i) => {
                             root.h-focus = false;
                             root.sel-section = si;
@@ -2059,7 +2173,7 @@ export component AppWindow inherits Window {
                         root.party-action("create");
                     }
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                 }
                 return EventResult.accept;
             }
@@ -2165,7 +2279,7 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Escape) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                     return EventResult.accept;
                 }
                 // Clavier à l'écran (mode TV)
@@ -2191,20 +2305,18 @@ export component AppWindow inherits Window {
                     root.s-item = max(0, root.s-item - 1);
                 } else if (event.text == Key.DownArrow) {
                     if (root.s-section < root.search-sections.length - 1) {
-                        root.s-item = root.row-pick(
-                            root.card-center(root.s-item, root.search-sections[root.s-section].items.length,
-                                root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w, 18px * root.k, 32px * root.k, root.width) / 1px,
-                            root.width / 1px, root.search-sections[root.s-section + 1].items.length,
-                            (root.search-sections[root.s-section + 1].landscape ? root.card-w * 1.5 : root.card-w) / 1px, 18 * root.k, 32 * root.k, 2001 + root.s-section);
+                        root.s-item = root.row-to(2000 + root.s-section, root.s-item,
+                            root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w,
+                            2001 + root.s-section, root.search-sections[root.s-section + 1].items.length,
+                            root.search-sections[root.s-section + 1].landscape ? root.card-w * 1.5 : root.card-w);
                         root.s-section += 1;
                     }
                 } else if (event.text == Key.UpArrow) {
                     if (root.s-section > 0) {
-                        root.s-item = root.row-pick(
-                            root.card-center(root.s-item, root.search-sections[root.s-section].items.length,
-                                root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w, 18px * root.k, 32px * root.k, root.width) / 1px,
-                            root.width / 1px, root.search-sections[root.s-section - 1].items.length,
-                            (root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w) / 1px, 18 * root.k, 32 * root.k, 1999 + root.s-section);
+                        root.s-item = root.row-to(2000 + root.s-section, root.s-item,
+                            root.search-sections[root.s-section].landscape ? root.card-w * 1.5 : root.card-w,
+                            1999 + root.s-section, root.search-sections[root.s-section - 1].items.length,
+                            root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w);
                         root.s-section -= 1;
                     } else if (root.tv-mode) {
                         root.s-osk = true;
@@ -2214,7 +2326,7 @@ export component AppWindow inherits Window {
                 } else if (event.text == Key.Return) {
                     root.open-hero(root.search-sections[root.s-section].items[root.s-item].id);
                 } else if (event.text == Key.Backspace) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                 }
                 return EventResult.accept;
             }
@@ -2279,7 +2391,7 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     if (event.text == Key.Escape) {
-                        root.go-home();
+                        root.nav-out("go-home", "");
                         return EventResult.accept;
                     }
                     return EventResult.reject;
@@ -2356,6 +2468,7 @@ export component AppWindow inherits Window {
                     k: root.k;
                     active: !root.h-focus && !root.s-osk && si == root.s-section;
                     focus-index: root.s-item;
+                    key: 2000 + si;
                     activated(i) => {
                         root.s-section = si;
                         root.s-item = i;
@@ -2385,7 +2498,7 @@ export component AppWindow inherits Window {
                 if (event.text == Key.UpArrow) {
                     root.nav-enter();
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                 }
                 return EventResult.accept;
             }
@@ -2436,7 +2549,7 @@ export component AppWindow inherits Window {
                 if (event.text == Key.UpArrow) {
                     root.nav-enter();
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                 } else if (event.text == Key.LeftArrow) {
                     root.prof-sel = 0;
                 } else if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
@@ -2645,7 +2758,7 @@ export component AppWindow inherits Window {
                     }
                     if (event.text == Key.DownArrow) {
                         if (root.detail-rows.length > 0) {
-                            root.d-x = root.detail-pick-down(root.d-child, root.child-items.length, root.child-card-w, 0);
+                            root.d-x = root.detail-pick-down(1002, root.d-child, root.child-card-w, 0);
                             root.d-zone = 4;
                         }
                         return EventResult.accept;
@@ -2668,18 +2781,16 @@ export component AppWindow inherits Window {
                         }
                     } else if (event.text == Key.DownArrow) {
                         if (root.d-zone - 4 < root.detail-rows.length - 1) {
-                            root.d-x = root.detail-pick-down(root.d-x, root.detail-rows[root.d-zone - 4].items.length, 140px * root.k, root.d-zone - 3);
+                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, 140px * root.k, root.d-zone - 3);
                             root.d-zone += 1;
                         }
                     } else if (event.text == Key.UpArrow) {
                         if (root.d-zone > 4) {
-                            root.d-x = root.detail-pick-down(root.d-x, root.detail-rows[root.d-zone - 4].items.length, 140px * root.k, root.d-zone - 5);
+                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, 140px * root.k, root.d-zone - 5);
                             root.d-zone -= 1;
                         } else {
                             if (root.child-items.length > 0) {
-                                root.d-child = root.row-pick(
-                                    root.card-center(root.d-x, root.detail-rows[0].items.length, 140px * root.k, 18px * root.k, 32px * root.k, root.width) / 1px,
-                                    root.width / 1px, root.child-items.length, root.child-card-w / 1px, 18 * root.k, 32 * root.k, 1002);
+                                root.d-child = root.row-to(1004, root.d-x, 140px * root.k, 1002, root.child-items.length, root.child-card-w);
                             }
                             root.d-zone = root.child-items.length > 0 ? 2 : root.detail.overview != "" ? 1 : 0;
                         }
@@ -2950,6 +3061,7 @@ export component AppWindow inherits Window {
             k: root.k;
             active: !root.h-focus && root.d-zone == 2;
             focus-index: root.d-child;
+            key: 1002;
             activated(i) => {
                 root.d-zone = 2;
                 root.d-child = i;
@@ -2959,7 +3071,7 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : casting, plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
-            y: root.d-extra-y + row.y-px * 1px;
+            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2);
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
@@ -2969,6 +3081,7 @@ export component AppWindow inherits Window {
             k: root.k;
             active: !root.h-focus && root.d-zone == 4 + ri;
             focus-index: root.d-x;
+            key: 1004 + ri;
             activated(i) => {
                 root.d-zone = 4 + ri;
                 root.d-x = i;
@@ -3143,7 +3256,7 @@ export component AppWindow inherits Window {
 
                 for card[i] in root.lib-items: Card {
                     x: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
-                    y: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
+                    y: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + root.stagger(floor(i / lib.cols) - lib.sel-row + 2);
                     width: lib.cw;
                     height: lib.ch;
                     data: card;
@@ -3208,7 +3321,7 @@ export component AppWindow inherits Window {
                         root.manual-open = true;
                     }
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    root.nav-out("go-home", "");
                 }
                 return EventResult.accept;
             }
@@ -3534,7 +3647,7 @@ export component AppWindow inherits Window {
                     if (root.dl-level > 0) {
                         root.back-anim();
                     } else {
-                        root.go-home();
+                        root.nav-out("go-home", "");
                     }
                     return EventResult.accept;
                 }
@@ -3750,7 +3863,7 @@ export component AppWindow inherits Window {
                     if (root.set-in) {
                         root.set-in = false;
                     } else {
-                        root.go-home();
+                        root.nav-out("go-home", "");
                     }
                     return EventResult.accept;
                 }
@@ -4078,7 +4191,7 @@ export component AppWindow inherits Window {
                         root.menu-move(1);
                     } else if (event.text == Key.Return) {
                         root.close-menu();
-                        root.menu-action(root.menu-entries[root.menu-sel].action);
+                        root.nav-out("menu", root.menu-entries[root.menu-sel].action);
                     } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
                         root.close-menu();
                     }
@@ -4102,6 +4215,17 @@ export component AppWindow inherits Window {
                 height: parent.height - parent.top;
                 clip: true;
 
+                // Surbrillance de l'entrée choisie : elle glisse d'une entrée à l'autre.
+                Rectangle {
+                    x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - root.menu-sel * 0.045, 0, 1)) * 90px * root.k;
+                    y: root.menu-sel * drawer.row-h - drawer.scroll;
+                    animate y { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    width: parent.width - 28px * root.k;
+                    height: drawer.row-h - 4px * root.k;
+                    border-radius: 10px * root.k;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                }
+
                 for e[i] in root.menu-entries: Rectangle {
                     // Entrées en cascade : chacune arrive un peu après la précédente.
                     x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - i * 0.045, 0, 1)) * 90px * root.k;
@@ -4109,8 +4233,7 @@ export component AppWindow inherits Window {
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
-                    background: !e.header && (i == root.menu-sel || row.has-hover)
-                        ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                    background: !e.header && i != root.menu-sel && row.has-hover ? #ffffff1a : transparent;
 
                     if e.header && i > 0: Rectangle {
                         x: 4px * root.k;
@@ -4138,7 +4261,7 @@ export component AppWindow inherits Window {
                         clicked => {
                             root.menu-sel = i;
                             root.close-menu();
-                            root.menu-action(e.action);
+                            root.nav-out("menu", e.action);
                         }
                     }
                 }

@@ -197,7 +197,20 @@ Principes :
    Seerr ni disponibles, ni en cours, ni demandées : `SeerrDetails.missing_seasons`), ajouté après coup à la fiche.
    Vu sur Helluva Boss (saison 3) ; **aucune demande envoyée pendant les essais**.
 
-Pi : joignable par Tailscale, `ssh xelopteryx@prometheus` (l'adresse locale change).
+15. Rangées horizontales : `global Rows` (Rust) — défilement propre à chaque rangée, qui n'avance que quand la
+   sélection atteint l'avant-dernière carte visible ; changement de rangée vers la carte la plus proche à l'écran
+   parmi celles qui ne font pas défiler la rangée (plus de saut). Décalages mémorisés par clé de rangée.
+16. Transitions : `nav-out` (maison, retour, menu, Échap) efface la page dans le voile (240 ms), fait l'action,
+   puis la page arrive (zoom + rangées de l'accueil / lignes de bibliothèque / rangées de fiche en cascade,
+   `stagger()`). Image partagée : pas de zoom de page pendant un vol (positions exactes) ; au retour, l'image
+   attend que sa carte ait son image (`hero-card-ok`, 1,5 s au plus) et se recale dessus ; une bibliothèque
+   n'apparaît qu'une fois la carte d'origine rechargée. Sélection : rebond (cartes, boutons, icônes), soulignement
+   des onglets qui s'étire, surbrillance du menu qui glisse.
+17. Fond d'écran : image floutée/assombrie (`decode_backdrop`) du média sélectionné (accueil, bibliothèque, fiche),
+   chargée 350 ms après la sélection, fondu enchaîné entre deux calques. Réglage Affichage (`no_backdrop`).
+18. Lecteur : boutons inutilisables cachés et sautés (épisode préc./suiv., chapitres, audio à une piste, sous-titres).
+
+Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
 Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
