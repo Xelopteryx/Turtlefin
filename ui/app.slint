@@ -3860,8 +3860,8 @@ export component AppWindow inherits Window {
 
         // Saisons / épisodes / contenu
         if root.child-items.length > 0: SectionRow {
-            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 24px * root.k : 0px);
-            opacity: root.sw-kids ? root.sw-e : 1;
+            // Glissement seulement : une opacité sur toute la rangée coûte cher sur le Pi.
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px);
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
@@ -3881,8 +3881,7 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
-            opacity: root.rows-a;
-            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2);
+            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k;
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
