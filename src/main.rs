@@ -145,7 +145,28 @@ fn show_login_error(ui: &slint::Weak<AppWindow>, msg: String) {
     });
 }
 
+/// Chargement d'une page : l'écran affiché reste visible sous une barre de progression (sauf depuis
+/// la connexion, où l'écran « Chargement » prend le relais).
+fn begin_loading(u: &AppWindow) {
+    if u.get_screen().as_str() == "login" {
+        u.set_screen("loading".into());
+    } else {
+        u.set_loading(true);
+    }
+}
+
+/// Affiche une page avec son animation d'arrivée, même si c'est le même écran (fiche -> fiche).
+fn show_screen(u: &AppWindow, name: &str) {
+    u.set_loading(false);
+    if u.get_screen().as_str() == name {
+        u.invoke_page_enter();
+    } else {
+        u.set_screen(name.into());
+    }
+}
+
 fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
+    let _ = ui.upgrade_in_event_loop(|u| u.set_loading(false));
     if e.downcast_ref::<api::Unauthorized>().is_some() {
         config::clear_token();
     }
@@ -754,7 +775,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
 /// Charge l'onglet affiché (« Accueil » ou « Favoris ») et le présente.
 async fn load_tab(app: Arc<App>, client: api::Client) {
     let ui = app.ui();
-    let _ = ui.upgrade_in_event_loop(|u| u.set_screen("loading".into()));
+    let _ = ui.upgrade_in_event_loop(|u| begin_loading(&u));
     let tab = app.tab.lock().unwrap().clone();
     let seerr = *app.seerr_user.lock().unwrap();
     let sections = match (tab.as_str(), seerr) {
@@ -884,6 +905,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
                                 seerr: c.seerr,
                                 status: c.status,
                                 count: c.count,
+                                played: c.played,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -912,7 +934,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
         }
         u.set_toast("".into());
         u.set_busy(false);
-        u.set_screen("home".into());
+        show_screen(&u, "home");
     });
 
     let apply: Apply = Arc::new(
@@ -995,6 +1017,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                                 seerr: c.seerr,
                                 status: c.status,
                                 count: c.count,
+                                played: c.played,
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -1353,6 +1376,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 seerr: false,
                 status: 0,
                 count: 0,
+                played: false,
             })
             .collect();
         let jobs: Vec<ImageJob> = cast.iter().enumerate().filter_map(|(i, c)| ImageJob::for_card(0, i, c, false)).collect();
@@ -1457,6 +1481,7 @@ fn card_data(c: &api::CardInfo) -> CardData {
         seerr: c.seerr,
         status: c.status,
         count: c.count,
+        played: c.played,
         ..Default::default()
     }
 }
@@ -1480,7 +1505,7 @@ fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
         u.set_lib_total(0);
         u.set_l_sel(0);
         u.set_h_focus(false);
-        u.set_screen("library".into());
+        show_screen(&u, "library");
     });
     load_library_page(app, client, back_to);
 }
@@ -1535,6 +1560,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                                 seerr: c.seerr,
                                 status: c.status,
                                 count: c.count,
+                                played: c.played,
                         ..Default::default()
                     });
                 }
@@ -2075,6 +2101,11 @@ fn sync_can_back(app: &Arc<App>) {
 
 /// Retour direct à l'accueil (bouton Accueil, menu).
 fn go_home(app: &Arc<App>) {
+    // Hors ligne : les téléchargements tiennent lieu d'accueil.
+    if app.offline.load(Ordering::SeqCst) {
+        open_downloads(app);
+        return;
+    }
     if app.client().is_none() {
         if let Some(u) = app.ui().upgrade() {
             u.set_screen("login".into());
@@ -2092,7 +2123,11 @@ fn go_home(app: &Arc<App>) {
         u.set_lib_items(ModelRc::default());
         u.set_overview_open(false);
         u.set_h_focus(false);
-        u.set_screen(if stale { "loading" } else { "home" }.into());
+        if stale {
+            begin_loading(&u);
+        } else {
+            show_screen(&u, "home");
+        }
     }
     if stale {
         if let Some(client) = app.client() {
@@ -2108,7 +2143,7 @@ fn start_detail(app: &Arc<App>, id: String) {
     if let Some(u) = app.ui().upgrade() {
         u.set_overview_open(false);
         u.set_toast("".into());
-        u.set_screen("loading".into());
+        begin_loading(&u);
     }
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -2155,6 +2190,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             let msg = format!("Impossible d'ouvrir la fiche : {e}");
             let _ = ui.upgrade_in_event_loop(move |u| {
                 u.set_toast(msg.into());
+                u.set_loading(false);
                 let screen = if prev_empty { "home" } else { "detail" };
                 u.set_screen(screen.into());
             });
@@ -2285,6 +2321,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                                 seerr: c.seerr,
                                 status: c.status,
                                 count: c.count,
+                                played: c.played,
                 ..Default::default()
             })
             .collect();
@@ -2297,7 +2334,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         u.set_d_button(0);
         u.set_d_child(0);
         u.set_overview_open(false);
-        u.set_screen("detail".into());
+        show_screen(&u, "detail");
     });
 
     // Poster (400x600) : saison pour un épisode, sinon élément ou série.
@@ -2842,6 +2879,14 @@ fn main() -> anyhow::Result<()> {
         move |action| {
             let a = action.as_str();
             if a == "home" {
+                // Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (pas Favoris
+                // ni Demandes), rechargé s'il n'était pas affiché.
+                if std::mem::replace(&mut *app.tab.lock().unwrap(), "home".to_string()) != "home" {
+                    app.home_stale.store(true, Ordering::SeqCst);
+                }
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_tab("home".into());
+                }
                 go_home(&app);
             } else if a == "requests" {
                 *app.tab.lock().unwrap() = "requests".to_string();
@@ -3081,6 +3126,7 @@ struct DlCard {
     folder: bool,
     count: i32,
     progress: f32,
+    played: bool,
     /// Infos du bas : titre, ligne de détails, résumé.
     info: (String, String, String),
 }
@@ -3147,6 +3193,7 @@ fn dl_cards(entries: &[downloads::Entry], series: &str, season: &str) -> (Vec<Dl
         folder: false,
         count: 0,
         progress: progress(e),
+        played: e.played,
         info: (if e.kind == "Episode" { format!("{} — {}", e.title, e.subtitle) } else { title }, dl_details(e), e.overview.clone()),
     };
     if !season.is_empty() {
@@ -3193,6 +3240,7 @@ fn dl_cards(entries: &[downloads::Entry], series: &str, season: &str) -> (Vec<Dl
                     folder: true,
                     count: n as i32,
                     progress: 0.0,
+                    played: false,
                     info: (
                         format!("{} — {}", first.series_name, season_label(first)),
                         format!("{}  ·  {}", plural(n, "épisode téléchargé", "épisodes téléchargés"), fmt_size(size)),
@@ -3227,6 +3275,7 @@ fn dl_cards(entries: &[downloads::Entry], series: &str, season: &str) -> (Vec<Dl
                 folder: true,
                 count: n as i32,
                 progress: 0.0,
+                played: false,
                 info: (
                     e.series_name.clone(),
                     {
@@ -3270,12 +3319,20 @@ fn refresh_downloads(app: &Arc<App>) {
     let level = if !season.is_empty() { 2 } else if !series.is_empty() { 1 } else { 0 };
     let card_w = if app.tv { 230.0 } else { 170.0 };
     let shape = if landscape { Shape::card_top(400, 225, card_w * 1.6) } else { Shape::card_top(270, 405, card_w) };
-    let rows: Vec<(String, String, String, bool, i32, f32, (String, String, String))> =
-        cards.iter().map(|c| (c.id.clone(), c.title.clone(), c.subtitle.clone(), c.folder, c.count, c.progress, c.info.clone())).collect();
+    let rows: Vec<(String, String, String, bool, i32, f32, (String, String, String), bool)> =
+        cards.iter().map(|c| (c.id.clone(), c.title.clone(), c.subtitle.clone(), c.folder, c.count, c.progress, c.info.clone(), c.played)).collect();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         let data: Vec<CardData> = rows
             .iter()
-            .map(|(id, t, s, _, n, p, _)| CardData { id: id.into(), title: t.into(), subtitle: s.into(), count: *n, progress: *p, ..Default::default() })
+            .map(|(id, t, s, _, n, p, _, played)| CardData {
+                id: id.into(),
+                title: t.into(),
+                subtitle: s.into(),
+                count: *n,
+                progress: *p,
+                played: *played,
+                ..Default::default()
+            })
             .collect();
         let folders: Vec<bool> = rows.iter().map(|r| r.3).collect();
         let infos: Vec<DlInfo> = rows

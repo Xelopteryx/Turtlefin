@@ -152,6 +152,8 @@ pub struct CardInfo {
     pub status: i32,
     /// Épisodes restant à voir (séries, saisons), 0 sinon.
     pub count: i32,
+    /// Vu en entier (film, épisode, série ou saison terminée) : coche sur l'affiche.
+    pub played: bool,
 }
 
 /// (id de l'élément portant l'image, étiquette de version de l'image)
@@ -251,6 +253,7 @@ impl SeerrRequest {
                 }
             },
             count: 0,
+            played: false,
         }
     }
 }
@@ -347,7 +350,7 @@ impl Item {
             count: match self.kind.as_str() {
                 "Series" | "Season" => self.user_data.as_ref().and_then(|u| u.unplayed_item_count).unwrap_or(0) as i32,
                 _ => 0,
-            },
+            },            played: self.user_data.as_ref().is_some_and(|u| u.played),
         }
     }
 
@@ -382,6 +385,7 @@ impl Item {
             seerr: false,
             status: 0,
             count: 0,
+            played: false,
         }
     }
 
@@ -504,6 +508,7 @@ impl Item {
                 seerr: false,
                 status: 0,
                 count: 0,
+                played: false,
             });
         }
         out
@@ -960,6 +965,7 @@ impl Client {
                 seerr: true,
                 status: 0,
                 count: 0,
+                played: false,
             });
         }
         out
@@ -1242,6 +1248,7 @@ impl Client {
                 seerr: !on_server,
                 status: 0,
                 count: 0,
+                played: false,
             });
         }
         out

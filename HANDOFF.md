@@ -173,6 +173,17 @@ Principes :
    réessayé toutes les 30 s, et au retour : `POST /UserItems/{id}/UserData` (position, vu, date), puis l'accueil.
    Vérifié : reprise à 5 min envoyée, l'épisode est apparu dans « Reprendre ».
 7. Messages (toast) : bulle centrée en bas, effacée après 6 s.
+8. Affiches : pastille collée au coin haut droit (dégradé violet -> bleu) avec les épisodes restants (« +99 »
+   au-delà), sinon une coche si le film / la série est vu (`CardData.played`, `UserData.Played`).
+9. Noms trop longs : composant `Marquee` (`ui/marquee.slint`), défilement aller-retour de l'élément sélectionné
+   seulement (cartes, tuiles de connexion, menu, fiche, « À suivre », page Seerr, téléchargements).
+10. Animations : menu burger qui glisse (ouverture / fermeture), arrivée de page (zoom 0,96 -> 1 et glissement,
+   300 ms, `page-enter()`, puis `animation-tick()` n'est plus lu : rien n'est redessiné en continu), boutons ← et
+   maison qui descendent à leur apparition, menu / titre qui se décalent. Plus d'écran vide « Chargement » : la page
+   affichée reste visible sous un trait animé en haut (`loading`, Rust : `begin_loading` / `show_screen`) ;
+   l'écran « Chargement » ne sert plus qu'au démarrage (logo + barre).
+11. Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (avant : l'onglet en cours, Favoris ou
+   Demandes). Hors ligne, ils mènent aux téléchargements.
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
 Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.

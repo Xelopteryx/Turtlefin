@@ -8,6 +8,7 @@ import { PlayerView, TrackData } from "player.slint";
 import { Theme } from "theme.slint";
 import { CardData } from "card.slint";
 import { Osk } from "osk.slint";
+import { Marquee } from "marquee.slint";
 
 export { CardData }
 
@@ -165,21 +166,33 @@ component Card inherits Rectangle {
             }
         }
 
-        // Épisodes restant à voir (comme JellySkin)
-        if root.data.count > 0: Rectangle {
-            x: parent.width - self.width - 7px * root.k;
-            y: 7px * root.k;
-            width: max(26px * root.k, cnt.preferred-width + 12px * root.k);
-            height: 26px * root.k;
-            border-radius: self.height / 2;
-            background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+        // Coin en haut à droite, collé à l'angle de l'affiche : épisodes restant à voir (« +99 »
+        // au-delà), sinon une coche si tout est vu.
+        if root.data.count > 0 || root.data.played: Rectangle {
+            x: parent.width - self.width;
+            y: 0px;
+            width: max(30px * root.k, cnt.preferred-width + 16px * root.k);
+            height: 28px * root.k;
+            border-top-right-radius: Theme.radius;
+            border-bottom-left-radius: 9px * root.k;
+            background: @linear-gradient(110deg, Theme.accent1 0%, Theme.accent2 100%);
             cnt := Text {
-                text: root.data.count;
+                text: root.data.count > 99 ? "+99" : root.data.count > 0 ? root.data.count : "";
                 color: white;
-                font-size: 13px * root.k;
+                font-size: 14px * root.k;
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+            if root.data.count == 0: Path {
+                width: 14px * root.k;
+                height: 14px * root.k;
+                viewbox-width: 14;
+                viewbox-height: 14;
+                fill: transparent;
+                stroke: white;
+                stroke-width: 2.5px * root.k;
+                commands: "M 2 7.5 L 5.5 11 L 12 3";
             }
         }
 
@@ -252,32 +265,30 @@ component Card inherits Rectangle {
         }
     }
 
-    Text {
+    // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
+    Marquee {
         x: 8px * root.k;
         // Sans sous-titre (bibliothèques), le titre est centré dans l'encadré.
         y: root.img-h + (root.data.subtitle == "" ? (parent.height - root.img-h - self.height) / 2 : 8px * root.k);
         width: parent.width - 16px * root.k;
         height: 22px * root.k;
         text: root.data.title;
-        color: Theme.text;
+        active: root.focused;
+        text-color: Theme.text;
         font-size: 15px * root.k;
         font-weight: 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        overflow: elide;
     }
 
-    Text {
+    Marquee {
         x: 8px * root.k;
         y: root.img-h + 30px * root.k;
         width: parent.width - 16px * root.k;
         height: 18px * root.k;
         text: root.data.subtitle;
-        color: Theme.muted;
+        active: root.focused;
+        text-color: Theme.muted;
         font-size: 12px * root.k;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        overflow: elide;
+        font-weight: 400;
     }
 
     TouchArea {
@@ -687,8 +698,18 @@ component OverviewPanel inherits Rectangle {
     }
 }
 
+// Élément qui descend en glissant à son apparition (`e` passe de 0 à 1 à la création).
+component DropIn inherits Rectangle {
+    out property <float> e: 0;
+    init => {
+        self.e = 1;
+    }
+    animate e { duration: 280ms; easing: ease-out; }
+}
+
 // Barre de navigation en haut à gauche de chaque écran : menu, retour (si l'on a navigué),
-// accueil (hors accueil) et titre de la page.
+// accueil (hors accueil) et titre de la page. Les boutons qui apparaissent descendent en glissant,
+// le menu et le titre se décalent en douceur, le titre d'une nouvelle page descend aussi.
 component NavBar inherits Rectangle {
     in property <float> k: 1.0;
     in property <bool> can-back;
@@ -696,19 +717,21 @@ component NavBar inherits Rectangle {
     in property <string> title;
     in property <brush> title-color: Theme.text;
     in property <int> sel: -1; // bouton sélectionné, de gauche à droite : [retour] [accueil] menu
+    in property <float> enter: 1; // arrivée de la page (0 -> 1)
     callback activate(int);
 
     property <int> n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
+    property <length> x0: 24px * root.k;
+    property <length> step: 54px * root.k;
+    property <length> iy: (root.height - 44px * root.k) / 2;
     height: 72px * root.k;
 
-    HorizontalLayout {
-        alignment: start;
-        spacing: 10px * root.k;
-        padding-left: 24px * root.k;
-        padding-top: (root.height - 44px * root.k) / 2;
-        padding-bottom: (root.height - 44px * root.k) / 2;
-
-        if root.can-back: HeaderIcon {
+    if root.can-back: DropIn {
+        x: root.x0;
+        y: root.iy + (self.e - 1) * 34px * root.k;
+        width: 44px * root.k;
+        height: 44px * root.k;
+        HeaderIcon {
             icon: "back";
             k: root.k;
             focused: root.sel == 0;
@@ -716,7 +739,14 @@ component NavBar inherits Rectangle {
                 root.activate(0);
             }
         }
-        if root.show-home: HeaderIcon {
+    }
+    if root.show-home: DropIn {
+        x: root.x0 + (root.can-back ? root.step : 0px);
+        y: root.iy + (self.e - 1) * 34px * root.k;
+        width: 44px * root.k;
+        height: 44px * root.k;
+        animate x { duration: 240ms; easing: ease-out; }
+        HeaderIcon {
             icon: "home";
             k: root.k;
             focused: root.sel == (root.can-back ? 1 : 0);
@@ -724,22 +754,30 @@ component NavBar inherits Rectangle {
                 root.activate(root.can-back ? 1 : 0);
             }
         }
-        HeaderIcon {
-            icon: "menu";
-            k: root.k;
-            focused: root.sel == root.n - 1;
-            clicked => {
-                root.activate(root.n - 1);
-            }
+    }
+    HeaderIcon {
+        x: root.x0 + (root.n - 1) * root.step;
+        y: root.iy;
+        animate x { duration: 240ms; easing: ease-out; }
+        icon: "menu";
+        k: root.k;
+        focused: root.sel == root.n - 1;
+        clicked => {
+            root.activate(root.n - 1);
         }
-        Text {
-            text: root.title;
-            color: root.title-color;
-            font-size: 26px * root.k;
-            font-weight: 700;
-            vertical-alignment: center;
-            overflow: elide;
-        }
+    }
+    Text {
+        x: root.x0 + root.n * root.step + 4px * root.k;
+        y: (1 - root.enter) * -18px * root.k;
+        width: root.width - self.x - 8px * root.k;
+        height: root.height;
+        animate x { duration: 240ms; easing: ease-out; }
+        text: root.title;
+        color: root.title-color;
+        font-size: 26px * root.k;
+        font-weight: 700;
+        vertical-alignment: center;
+        overflow: elide;
     }
 }
 
@@ -874,7 +912,38 @@ export component AppWindow inherits Window {
     in-out property <[Section]> sections;
     in-out property <int> sel-section: 0;
     in-out property <int> sel-item: 0;
+    // Arrivée d'une page : 300 ms d'animation (zoom léger, glissement), puis la minuterie coupe
+    // animation-tick() : rien n'est redessiné en continu.
+    property <bool> page-anim;
+    property <duration> page-t0;
+    property <float> page-lin: root.page-anim ? clamp((animation-tick() - root.page-t0) / 300ms, 0, 1) : 1;
+    out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
+    public function page-enter() {
+        root.page-t0 = animation-tick();
+        root.page-anim = true;
+    }
+    Timer {
+        interval: 320ms;
+        running: root.page-anim;
+        triggered => {
+            root.page-anim = false;
+        }
+    }
+    // Chargement d'une page : barre animée en haut, l'écran précédent reste affiché.
+    in-out property <bool> loading;
+    Timer {
+        interval: 20s;
+        running: root.loading;
+        triggered => {
+            root.loading = false;
+        }
+    }
+
     changed screen => {
+        root.loading = false;
+        if (root.screen != "login") {
+            root.page-enter();
+        }
         if (root.screen == "login") {
             root.login-mode = "pick";
             root.login-osk = false;
@@ -1089,7 +1158,7 @@ export component AppWindow inherits Window {
         } else if (i == root.nav-n - 1) {
             root.open-menu();
         } else {
-            root.go-home();
+            root.menu-action("home");
         }
     }
 
@@ -1341,15 +1410,16 @@ export component AppWindow inherits Window {
                         overflow: clip;
                     }
                 }
-                Text {
+                Marquee {
                     y: lg.tile + 12 * lg.u;
                     width: parent.width;
                     text: t.title;
-                    color: white;
+                    text-color: white;
                     font-size: 18 * lg.u;
                     font-weight: 600;
                     horizontal-alignment: center;
-                    overflow: elide;
+                    active: i == root.login-sel;
+                    height: self.preferred-height;
                 }
                 Text {
                     y: lg.tile + 38 * lg.u;
@@ -1541,16 +1611,38 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Chargement
-    if root.screen == "loading" && !root.playing: Text {
-        text: "Chargement…";
-        color: Theme.muted;
-        font-size: 24px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    // Démarrage (ou juste après la connexion) : nom de l'appli et barre animée.
+    if root.screen == "loading" && !root.playing: Rectangle {
+        Text {
+            y: parent.height / 2 - 60px * root.k;
+            width: parent.width;
+            text: "Turtlefin";
+            color: Theme.accent2;
+            font-size: 48px * root.k;
+            font-weight: 800;
+            horizontal-alignment: center;
+        }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: parent.height / 2 + 20px * root.k;
+            width: 220px * root.k;
+            height: 4px * root.k;
+            border-radius: self.height / 2;
+            background: #ffffff1a;
+            Rectangle {
+                x: (mod(animation-tick() / 1ms, 1400) / 1400) * (parent.width + self.width) - self.width;
+                width: 80px * root.k;
+                height: parent.height;
+                border-radius: self.height / 2;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
+        }
     }
 
     // ------------------------------------------------------------ Accueil / Favoris
     if root.screen == "home" && !root.playing: Rectangle {
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
         // En-tête : nom, onglets au centre, recherche, profil et heure à droite.
         Rectangle {
             y: 0px;
@@ -1743,7 +1835,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Watch party
     if root.screen == "party" && !root.playing: party := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
@@ -1858,7 +1952,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Recherche
     if root.screen == "search" && !root.playing: srch := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         property <length> box-h: 52px * root.k;
@@ -2085,6 +2181,8 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Bientôt disponible (Recherche, Paramètres)
     if root.screen == "soon" && !root.playing: Rectangle {
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
@@ -2134,6 +2232,8 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Profil
     if root.screen == "profile" && !root.playing: Rectangle {
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
@@ -2207,7 +2307,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Fiche détail
     if root.screen == "detail" && !root.playing: Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
         clip: true; // le contenu défile sous la barre de navigation sans la recouvrir
 
@@ -2460,29 +2562,31 @@ export component AppWindow inherits Window {
                 image-fit: contain;
             }
 
-            if !root.detail.has-logo && !root.detail.expect-logo: Text {
+            if !root.detail.has-logo && !root.detail.expect-logo: Marquee {
                 width: parent.width;
                 height: parent.height;
                 text: root.detail.title;
-                color: Theme.text;
+                text-color: Theme.text;
                 font-size: 34px * root.k;
                 font-weight: 800;
                 vertical-alignment: center;
-                overflow: elide;
+                active: true;
+                horizontal-alignment: TextHorizontalAlignment.left;
             }
         }
 
-        Text {
+        Marquee {
             x: root.col-x;
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
             text: root.detail.subtitle;
-            color: Theme.accent2;
+            text-color: Theme.accent2;
             font-size: 18px * root.k;
             font-weight: 600;
             vertical-alignment: center;
-            overflow: elide;
+            active: true;
+            horizontal-alignment: TextHorizontalAlignment.left;
         }
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
@@ -2618,23 +2722,25 @@ export component AppWindow inherits Window {
                 }
             }
 
-            Text {
+            Marquee {
                 y: 24px * root.k + root.next-w * 0.5625 + 6px;
                 height: 22px * root.k;
                 text: root.detail.next-title;
-                color: Theme.text;
+                text-color: Theme.text;
                 font-size: 14px * root.k;
                 font-weight: 600;
-                overflow: elide;
+                active: !root.h-focus && root.d-zone == 3;
+                horizontal-alignment: TextHorizontalAlignment.left;
             }
 
-            Text {
+            Marquee {
                 y: 24px * root.k + root.next-w * 0.5625 + 6px + 22px * root.k;
                 height: 18px * root.k;
                 text: root.detail.next-subtitle;
-                color: Theme.muted;
+                text-color: Theme.muted;
                 font-size: 12px * root.k;
-                overflow: elide;
+                active: !root.h-focus && root.d-zone == 3;
+                horizontal-alignment: TextHorizontalAlignment.left;
             }
 
             TouchArea {
@@ -2766,7 +2872,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Bibliothèque (grille)
     if root.screen == "library" && !root.playing: lib := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         property <length> gap: 18px * root.k;
@@ -2867,7 +2975,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Choix du serveur
     if root.screen == "servers" && !root.playing: srv := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         property <int> n: root.servers.length;
@@ -3176,7 +3286,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Téléchargements
     if root.screen == "downloads" && !root.playing: dls := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         property <length> gap: 18px * root.k;
@@ -3329,12 +3441,14 @@ export component AppWindow inherits Window {
                 padding-right: 20px * root.k;
                 spacing: 4px * root.k;
                 alignment: start;
-                Text {
+                Marquee {
                     text: root.dl-infos[root.dl-sel].title;
-                    color: Theme.text;
+                    text-color: Theme.text;
                     font-size: 18px * root.k;
                     font-weight: 700;
-                    overflow: elide;
+                    active: true;
+                    horizontal-alignment: TextHorizontalAlignment.left;
+                    height: self.preferred-height;
                 }
                 Text {
                     text: root.dl-infos[root.dl-sel].details;
@@ -3421,7 +3535,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Paramètres
     if root.screen == "settings" && !root.playing: sets := Rectangle {
-        y: root.header-h;
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        transform-scale: 0.96 + 0.04 * root.page-e;
+        y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
         property <[string]> cats: ["Profil", "Lecture", "Réseau", "Affichage", "Compte"];
@@ -3604,14 +3720,15 @@ export component AppWindow inherits Window {
                             image-fit: fill;
                         }
                     }
-                    Text {
+                    Marquee {
                         y: sets.av + 6px * root.k;
                         width: parent.width;
                         text: a.title;
-                        color: Theme.muted;
+                        text-color: Theme.muted;
                         font-size: 12px * root.k;
                         horizontal-alignment: center;
-                        overflow: elide;
+                        active: root.set-in && i == root.set-sel;
+                        height: self.preferred-height;
                     }
                     av-area := TouchArea {
                         clicked => {
@@ -3698,6 +3815,7 @@ export component AppWindow inherits Window {
         k: root.k;
         can-back: root.can-back;
         show-home: true;
+        enter: root.page-e;
         title-color: root.offline ? #4ade80 : Theme.text;
         title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? "Recherche"
             : root.screen == "party" ? "Watch party" : "";
@@ -3724,17 +3842,22 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Menu latéral
-    if root.menu-open && !root.playing: Rectangle {
-        background: #000000a6;
+    // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
+    property <float> menu-p: root.menu-open ? 1 : 0;
+    animate menu-p { duration: 240ms; easing: ease-out; }
+    if root.menu-p > 0.001 && !root.playing: Rectangle {
+        background: #000000a6.transparentize(1 - root.menu-p);
 
         TouchArea {
             clicked => {
-                root.close-menu();
+                if (root.menu-open) {
+                    root.close-menu();
+                }
             }
         }
 
         drawer := Rectangle {
-            x: 0px;
+            x: -(1 - root.menu-p) * (self.width + 8px);
             width: 340px * root.k;
             height: parent.height;
             background: #0b1520f5;
@@ -3752,7 +3875,17 @@ export component AppWindow inherits Window {
                 init => {
                     self.focus();
                 }
+                // Rouvert pendant qu'il se refermait : le clavier revient au menu.
+                property <bool> open: root.menu-open;
+                changed open => {
+                    if (self.open) {
+                        self.focus();
+                    }
+                }
                 key-pressed(event) => {
+                    if (!root.menu-open) {
+                        return EventResult.reject;
+                    }
                     if (event.text == Key.UpArrow) {
                         root.menu-move(-1);
                     } else if (event.text == Key.DownArrow) {
@@ -3800,15 +3933,17 @@ export component AppWindow inherits Window {
                         background: #ffffff38;
                     }
 
-                    Text {
+                    Marquee {
                         x: (e.header ? 14px : 18px) * root.k;
                         width: parent.width - 28px * root.k;
                         text: e.header ? e.label.to-uppercase() : e.label;
-                        color: e.header ? Theme.muted : white;
+                        text-color: e.header ? Theme.muted : white;
                         font-size: (e.header ? 12px : 17px) * root.k;
                         font-weight: e.header ? 700 : (i == root.menu-sel ? 600 : 500);
                         vertical-alignment: e.header ? TextVerticalAlignment.bottom : TextVerticalAlignment.center;
-                        overflow: elide;
+                        active: !e.header && i == root.menu-sel;
+                        horizontal-alignment: TextHorizontalAlignment.left;
+                        height: self.preferred-height;
                     }
 
                     row := TouchArea {
@@ -3827,6 +3962,7 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Page Seerr (premier plan)
     // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible.
     if root.sr-open && !root.playing: srp := Rectangle {
+        transform-scale: 0.96 + 0.04 * root.page-e;
         background: #0b1220;
 
         property <length> u: min(self.height / 720px, self.width / 1280px) * 1px; // unité : 1 px sur un écran 1280x720
@@ -3904,12 +4040,14 @@ export component AppWindow inherits Window {
                 spacing: 12 * srp.u;
                 alignment: center;
 
-                Text {
+                Marquee {
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                    color: white;
+                    text-color: white;
                     font-size: 38 * srp.u;
                     font-weight: 700;
-                    overflow: elide;
+                    active: true;
+                    horizontal-alignment: TextHorizontalAlignment.left;
+                    height: self.preferred-height;
                 }
                 Text {
                     text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
@@ -4068,6 +4206,18 @@ export component AppWindow inherits Window {
         }
         toggle-fullscreen => {
             root.full-screen = !root.full-screen;
+        }
+    }
+
+    // Chargement en cours : trait animé tout en haut de l'écran.
+    if root.loading && !root.playing: Rectangle {
+        y: 0px;
+        height: 3px * root.k;
+        Rectangle {
+            x: (mod(animation-tick() / 1ms, 1100) / 1100) * (parent.width + self.width) - self.width;
+            width: parent.width * 0.3;
+            height: parent.height;
+            background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
         }
     }
 

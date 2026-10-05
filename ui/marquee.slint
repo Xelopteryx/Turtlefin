@@ -1,0 +1,62 @@
+// Texte d'une ligne : coupé avec « … » au repos ; quand `active` (carte sélectionnée) et trop long,
+// il défile en aller-retour, avec une pause à chaque bout. Seul l'élément sélectionné s'anime :
+// rien n'est redessiné en continu ailleurs.
+export component Marquee inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <brush> text-color: white;
+    in property <length> font-size: 15px;
+    in property <int> font-weight: 500;
+    in property <TextHorizontalAlignment> horizontal-alignment: center;
+    in property <TextVerticalAlignment> vertical-alignment: center;
+    // Vitesse en pixels logiques par seconde, pause à chaque bout (ms).
+    in property <float> speed: 45;
+    in property <float> pause: 1200;
+
+    preferred-height: measure.preferred-height;
+    min-height: measure.preferred-height;
+
+    // Dépassement du texte (0 s'il tient).
+    property <length> over: max(0px, measure.preferred-width - root.width);
+    property <bool> run: root.active && root.over > 1px;
+    property <float> travel: root.over / 1px / root.speed * 1000;
+    property <float> cycle: 2 * (root.travel + root.pause);
+    property <duration> start;
+    changed run => {
+        root.start = animation-tick();
+    }
+    // Carte déjà sélectionnée à sa création : le défilement part du début aussi.
+    init => {
+        root.start = animation-tick();
+    }
+    property <float> t: root.run ? mod((animation-tick() - root.start) / 1ms, root.cycle) : 0;
+    // Avancement 0 -> 1 -> 0 : pause, aller, pause, retour.
+    property <float> f: root.t < root.pause ? 0
+        : root.t < root.pause + root.travel ? (root.t - root.pause) / root.travel
+        : root.t < 2 * root.pause + root.travel ? 1
+        : 1 - (root.t - 2 * root.pause - root.travel) / root.travel;
+
+    // Un rognage rectangulaire (sans coins arrondis) ne coûte pas de couche intermédiaire.
+    clip: root.run;
+
+    // Mesure de la largeur naturelle du texte (jamais affichée).
+    measure := Text {
+        visible: false;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+    }
+
+    label := Text {
+        x: root.run ? -root.over * root.f : 0px;
+        width: root.run ? measure.preferred-width : root.width;
+        height: root.height;
+        text: root.text;
+        color: root.text-color;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        horizontal-alignment: root.run ? TextHorizontalAlignment.left : root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+        overflow: root.run ? TextOverflow.clip : TextOverflow.elide;
+    }
+}
