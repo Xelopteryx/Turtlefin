@@ -161,11 +161,15 @@ component Card inherits Rectangle {
         border-top-right-radius: Theme.radius;
         background: root.data.has-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
+        // Image arrivée après la carte : elle apparaît en fondu (déjà là à la création : tout de suite).
+        property <float> img-a: root.data.has-image ? 1 : 0;
+        animate img-a { duration: 380ms; easing: ease-out; }
         if root.data.has-image: Image {
             width: parent.width;
             height: parent.height;
             source: root.data.image;
             image-fit: fill;
+            opacity: parent.img-a;
         }
 
         // Avancement de la lecture (comme .itemProgressBar de JellySkin)
@@ -1071,7 +1075,7 @@ export component AppWindow inherits Window {
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
-        if (root.screen == "home" || root.screen == "library" || root.screen == "search") {
+        if (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads") {
             root.hero-pending = id;
             Hero.tick += 1;
         }
@@ -1157,6 +1161,9 @@ export component AppWindow inherits Window {
         if (root.veil-hold) {
             return; // une transition est déjà en cours
         }
+        if (kind == "menu" && root.at(arg)) {
+            return; // déjà ici : rien à recharger
+        }
         root.nav-kind = kind;
         root.nav-arg = arg;
         root.veil-hold = true;
@@ -1219,6 +1226,8 @@ export component AppWindow inherits Window {
             && root.sel-item < root.sections[root.sel-section].items.length
         ? root.sections[root.sel-section].items[root.sel-item].id
         : root.screen == "library" && root.l-sel < root.lib-items.length ? root.lib-items[root.l-sel].id
+        : root.screen == "downloads" && root.dl-sec < root.dl-sections.length
+            && root.dl-item < root.dl-sections[root.dl-sec].items.length ? root.dl-sections[root.dl-sec].items[root.dl-item].id
         : root.screen == "detail" ? root.detail.id : "";
     changed focus-id => {
         root.backdrop-for(root.focus-id);
@@ -1277,6 +1286,9 @@ export component AppWindow inherits Window {
 
     // Téléchargements : liste générale (séries, films) > saisons d'une série > épisodes d'une saison
     in property <[CardData]> dl-items;
+    in property <[Section]> dl-sections;    // rangées (Reprendre, Séries, Films)
+    in-out property <int> dl-sec;
+    in-out property <int> dl-item;
     in property <[bool]> dl-folders;        // la carte s'ouvre (série, saison) au lieu de se lire
     in property <[DlInfo]> dl-infos;        // infos de la carte sélectionnée (bas de l'écran)
     in property <int> dl-level;             // 0 liste générale · 1 série · 2 saison
@@ -1380,6 +1392,9 @@ export component AppWindow inherits Window {
     // Effacement : le clavier à l'écran envoie "\u{8}" + texte ; le dernier caractère est retiré en Rust.
     pure callback text-backspace(string) -> string;
     callback dl-delete(string);
+    public function back-anim-pub() {
+        root.back-anim();
+    }
     callback server-pick(int);
     callback manual-submit(string, string); // adresse locale, adresse distante
     callback manual-choice(string);
@@ -1423,8 +1438,26 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Où l'on est, en termes d'entrée du menu (action) : signalé dans le menu.
+    in-out property <string> here-lib;       // bibliothèque d'où vient la page ("lib:<id>"), sinon ""
+    in-out property <bool> at-lib-root;      // à la racine de cette bibliothèque (pas dans un sous-dossier)
+    property <string> here: root.screen == "downloads" ? "downloads" : root.screen == "party" ? "party"
+        : root.screen == "settings" ? "settings" : root.screen == "servers" ? "server"
+        : (root.screen == "library" || root.screen == "detail") && root.here-lib != "" ? root.here-lib
+        : root.tab == "requests" ? "requests" : root.tab == "home" ? "home" : "";
+    // Déjà sur cette page (à sa racine) : rien à recharger.
+    pure function at(action: string) -> bool {
+        return action == root.here && (
+            ((action == "home" || action == "requests") && root.screen == "home")
+            || (action == "downloads" && root.dl-level == 0)
+            || action == "party" || action == "settings" || action == "server"
+            || (root.screen == "library" && root.at-lib-root));
+    }
+    pure callback menu-find(string) -> int;  // n° de l'entrée du menu ayant cette action (-1 sinon)
+
     function open-menu() {
-        root.menu-sel = root.menu-entries.length > 1 && root.menu-entries[0].header ? 1 : 0;
+        let i = root.menu-find(root.here);
+        root.menu-sel = i >= 0 ? i : root.menu-entries.length > 1 && root.menu-entries[0].header ? 1 : 0;
         root.menu-open = true;
     }
 
@@ -2065,7 +2098,14 @@ export component AppWindow inherits Window {
                 if (event.text == Key.LeftArrow) {
                     if (root.sel-item > 0) {
                         root.sel-item -= 1;
+                    } else {
+                        // Tout à gauche : le menu s'ouvre.
+                        root.open-menu();
                     }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.open-menu();
                     return EventResult.accept;
                 }
                 if (event.text == Key.DownArrow) {
@@ -2606,7 +2646,13 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Fiche détail
-    if root.screen == "detail" && !root.playing: Rectangle {
+    if root.screen == "detail" && !root.playing: dt := Rectangle {
+        // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
+        property <length> btn-gap: 14px * root.k;
+        property <length> icons-w: root.detail.icon-count * 40px * root.k + max(0, root.detail.icon-count - 1) * self.btn-gap;
+        // Les boutons à icône masqués de la ligne des pastilles comptent encore un espacement chacun.
+        property <length> chips-w: max(0px, chips-row.preferred-width - root.detail.icon-count * self.btn-gap);
+        property <length> btns-w: max(self.icons-w, self.chips-w);
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
         transform-scale: 0.96 + 0.04 * root.page-e;
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
@@ -2889,11 +2935,11 @@ export component AppWindow inherits Window {
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         HorizontalLayout {
-            x: root.col-x;
+            x: root.col-x + (dt.btns-w - dt.icons-w) / 2;
             y: 24px + 118px * root.k;
             width: root.info-w;
             height: 40px * root.k;
-            spacing: 10px * root.k;
+            spacing: dt.btn-gap;
             alignment: start;
 
             for b[i] in root.detail.buttons: DetailButton {
@@ -2912,13 +2958,13 @@ export component AppWindow inherits Window {
             }
         }
         // … puis pastilles compactes (saison, série, langue audio, sous-titres).
-        HorizontalLayout {
+        chips-row := HorizontalLayout {
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
-            x: root.col-x - root.detail.icon-count * 8px * root.k;
+            x: root.col-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2;
             y: 24px + 166px * root.k;
             width: root.info-w;
             height: 30px * root.k;
-            spacing: 8px * root.k;
+            spacing: dt.btn-gap;
             alignment: start;
 
             for b[i] in root.detail.buttons: DetailButton {
@@ -3585,31 +3631,16 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Téléchargements
+    // Comme l'accueil : rangées (Reprendre, Séries, Films) ; les fiches marchent sans serveur.
     if root.screen == "downloads" && !root.playing: dls := Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
         transform-scale: 0.96 + 0.04 * root.page-e;
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <length> gap: 18px * root.k;
-        property <float> ratio: root.dl-landscape ? 0.5625 : 1.5;
-        property <length> cw: root.dl-landscape ? root.card-w * 1.6 : root.card-w;
-        property <length> ch: self.cw * self.ratio + 56px * root.k;
-        property <length> top: root.dl-status != "" ? 44px * root.k : 8px * root.k;
-        // Bandeau d'infos de la carte sélectionnée, en bas.
-        property <length> info-h: root.dl-items.length > 0 ? 132px * root.k : 0px;
-        property <int> cols: max(1, floor((self.width - 64px * root.k + self.gap) / (self.cw + self.gap)));
-        property <int> rows: ceil(root.dl-items.length / self.cols);
-        property <int> sel-row: floor(root.dl-sel / self.cols);
-        property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
-
-        function activate() {
-            if (root.dl-sel < root.dl-folders.length && root.dl-folders[root.dl-sel]) {
-                root.dl-open(root.dl-items[root.dl-sel].id);
-            } else {
-                root.dl-dsel = 0;
-                root.dl-dialog = true;
-            }
+        property <length> top: root.dl-status != "" ? 40px * root.k : 0px;
+        pure function w(si: int) -> length {
+            return root.dl-sections[si].landscape ? root.card-w * 1.5 : root.card-w;
         }
 
         FocusScope {
@@ -3621,58 +3652,39 @@ export component AppWindow inherits Window {
                 self.focus();
             }
             key-pressed(event) => {
-                // Fenêtre Lire / Supprimer / Annuler
-                if (root.dl-dialog) {
-                    if (event.text == Key.LeftArrow) {
-                        root.dl-dsel = max(0, root.dl-dsel - 1);
-                    } else if (event.text == Key.RightArrow) {
-                        root.dl-dsel = min(2, root.dl-dsel + 1);
-                    } else if (event.text == Key.Return) {
-                        root.dl-dialog = false;
-                        if (root.dl-dsel == 0) {
-                            root.dl-play(root.dl-items[root.dl-sel].id);
-                        } else if (root.dl-dsel == 1) {
-                            root.dl-delete(root.dl-items[root.dl-sel].id);
-                        }
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.dl-dialog = false;
-                    }
-                    return EventResult.accept;
-                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    // Saison -> série -> liste générale -> accueil
-                    if (root.dl-level > 0) {
-                        root.back-anim();
-                    } else {
-                        root.nav-out("go-home", "");
-                    }
+                    root.nav-out("go-home", "");
                     return EventResult.accept;
                 }
-                if (root.dl-items.length == 0) {
+                if (root.dl-sections.length == 0) {
                     if (event.text == Key.UpArrow) {
                         root.nav-enter();
                     }
                     return EventResult.accept;
                 }
                 if (event.text == Key.RightArrow) {
-                    root.dl-sel = min(root.dl-items.length - 1, root.dl-sel + 1);
+                    root.dl-item = min(root.dl-sections[root.dl-sec].items.length - 1, root.dl-item + 1);
                 } else if (event.text == Key.LeftArrow) {
-                    root.dl-sel = max(0, root.dl-sel - 1);
+                    root.dl-item = max(0, root.dl-item - 1);
                 } else if (event.text == Key.DownArrow) {
-                    if (dls.sel-row < dls.rows - 1) {
-                        root.dl-sel = min(root.dl-items.length - 1, root.dl-sel + dls.cols);
+                    if (root.dl-sec < root.dl-sections.length - 1) {
+                        root.dl-item = root.row-to(3000 + root.dl-sec, root.dl-item, dls.w(root.dl-sec),
+                            3001 + root.dl-sec, root.dl-sections[root.dl-sec + 1].items.length, dls.w(root.dl-sec + 1));
+                        root.dl-sec += 1;
                     }
                 } else if (event.text == Key.UpArrow) {
-                    if (dls.sel-row > 0) {
-                        root.dl-sel -= dls.cols;
+                    if (root.dl-sec > 0) {
+                        root.dl-item = root.row-to(3000 + root.dl-sec, root.dl-item, dls.w(root.dl-sec),
+                            2999 + root.dl-sec, root.dl-sections[root.dl-sec - 1].items.length, dls.w(root.dl-sec - 1));
+                        root.dl-sec -= 1;
                     } else {
                         root.nav-enter();
                     }
                 } else if (event.text == Key.Return) {
-                    dls.activate();
+                    root.open-hero(root.dl-sections[root.dl-sec].items[root.dl-item].id);
                 }
                 return EventResult.accept;
             }
@@ -3689,7 +3701,7 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
         }
 
-        if root.dl-items.length == 0: Text {
+        if root.dl-sections.length == 0: Text {
             text: root.offline ? "Aucun téléchargement : rien à regarder hors ligne."
                 : "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.";
             color: Theme.muted;
@@ -3700,133 +3712,31 @@ export component AppWindow inherits Window {
 
         Rectangle {
             y: dls.top;
-            height: parent.height - dls.top - dls.info-h;
+            height: parent.height - dls.top;
             clip: true;
 
             Rectangle {
-                y: min(0px, parent.height / 2 - (12px * root.k + dls.sel-row * (dls.ch + dls.gap) + dls.ch / 2));
+                y: root.dl-sections.length == 0 ? 0px
+                    : min(0px, 4px * root.k - root.dl-sections[root.dl-sec].y-px * 1px);
                 animate y { duration: 180ms; easing: ease-out; }
 
-                for card[i] in root.dl-items: Card {
-                    x: dls.left + mod(i, dls.cols) * (dls.cw + dls.gap);
-                    y: 12px * root.k + floor(i / dls.cols) * (dls.ch + dls.gap);
-                    width: dls.cw;
-                    height: dls.ch;
-                    data: card;
-                    ratio: dls.ratio;
+                for section[si] in root.dl-sections: SectionRow {
+                    y: section.y-px * 1px + root.stagger(si);
+                    width: parent.width;
+                    height: section.h-px * 1px;
+                    title: section.title;
+                    items: section.items;
+                    card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
+                    ratio: section.landscape ? 0.5625 : 1.5;
                     k: root.k;
-                    focused: !root.h-focus && i == root.dl-sel;
-                    clicked => {
-                        root.dl-sel = i;
-                        dls.activate();
-                    }
-                }
-            }
-        }
-
-        // Infos de la carte sélectionnée : titre, détails (année, durée, état, taille), résumé.
-        if root.dl-sel < root.dl-infos.length: Rectangle {
-            x: 32px * root.k;
-            y: parent.height - dls.info-h;
-            width: parent.width - 64px * root.k;
-            height: dls.info-h - 16px * root.k;
-            border-radius: 14px * root.k;
-            background: #ffffff0d;
-            border-width: 1px;
-            border-color: #ffffff1a;
-
-            VerticalLayout {
-                padding: 14px * root.k;
-                padding-left: 20px * root.k;
-                padding-right: 20px * root.k;
-                spacing: 4px * root.k;
-                alignment: start;
-                Marquee {
-                    text: root.dl-infos[root.dl-sel].title;
-                    text-color: Theme.text;
-                    font-size: 18px * root.k;
-                    font-weight: 700;
-                    active: true;
-                    horizontal-alignment: TextHorizontalAlignment.left;
-                    height: self.preferred-height;
-                }
-                Text {
-                    text: root.dl-infos[root.dl-sel].details;
-                    color: Theme.accent2;
-                    font-size: 14px * root.k;
-                    font-weight: 600;
-                    overflow: elide;
-                }
-                Text {
-                    text: root.dl-infos[root.dl-sel].overview;
-                    color: Theme.muted;
-                    font-size: 14px * root.k;
-                    wrap: word-wrap;
-                    overflow: elide;
-                    height: 40px * root.k;
-                }
-            }
-        }
-
-        if root.dl-dialog && root.dl-sel < root.dl-items.length: Rectangle {
-            background: #000000b3;
-            TouchArea {
-                clicked => {
-                    root.dl-dialog = false;
-                }
-            }
-            Rectangle {
-                width: 520px * root.k;
-                height: 160px * root.k;
-                border-radius: 16px;
-                background: Theme.glass;
-                border-width: 1px;
-                border-color: Theme.glass-border;
-
-                TouchArea { }
-
-                VerticalLayout {
-                    padding: 24px * root.k;
-                    spacing: 20px * root.k;
-
-                    Text {
-                        text: root.dl-items[root.dl-sel].title;
-                        color: Theme.text;
-                        font-size: 19px * root.k;
-                        font-weight: 700;
-                        overflow: elide;
-                    }
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 14px * root.k;
-                        height: 44px * root.k;
-
-                        ActionButton {
-                            text: "Lire";
-                            font: 16px * root.k;
-                            focused: root.dl-dsel == 0;
-                            clicked => {
-                                root.dl-dialog = false;
-                                root.dl-play(root.dl-items[root.dl-sel].id);
-                            }
-                        }
-                        ActionButton {
-                            text: "Supprimer";
-                            font: 16px * root.k;
-                            focused: root.dl-dsel == 1;
-                            clicked => {
-                                root.dl-dialog = false;
-                                root.dl-delete(root.dl-items[root.dl-sel].id);
-                            }
-                        }
-                        ActionButton {
-                            text: "Annuler";
-                            font: 16px * root.k;
-                            focused: root.dl-dsel == 2;
-                            clicked => {
-                                root.dl-dialog = false;
-                            }
-                        }
+                    active: !root.h-focus && si == root.dl-sec;
+                    focus-index: root.dl-item;
+                    key: 3000 + si;
+                    activated(i) => {
+                        root.h-focus = false;
+                        root.dl-sec = si;
+                        root.dl-item = i;
+                        root.open-hero(section.items[i].id);
                     }
                 }
             }
@@ -4254,6 +4164,24 @@ export component AppWindow inherits Window {
                         active: !e.header && i == root.menu-sel;
                         horizontal-alignment: TextHorizontalAlignment.left;
                         height: self.preferred-height;
+                    }
+
+                    // Vous êtes ici : trait d'accent à gauche et point à droite.
+                    if !e.header && e.action == root.here: Rectangle {
+                        x: 0px;
+                        y: (parent.height - self.height) / 2;
+                        width: 4px * root.k;
+                        height: parent.height * 0.6;
+                        border-radius: self.width / 2;
+                        background: i == root.menu-sel ? white : Theme.accent2;
+                    }
+                    if !e.header && e.action == root.here: Rectangle {
+                        x: parent.width - self.width - 14px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 8px * root.k;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: i == root.menu-sel ? white : Theme.accent2;
                     }
 
                     row := TouchArea {

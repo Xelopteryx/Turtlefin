@@ -210,6 +210,25 @@ Principes :
    chargée 350 ms après la sélection, fondu enchaîné entre deux calques. Réglage Affichage (`no_backdrop`).
 18. Lecteur : boutons inutilisables cachés et sautés (épisode préc./suiv., chapitres, audio à une piste, sous-titres).
 
+19. Coche « vu » aussi sur les épisodes (child_card). Fiche : « Voir la série » avant « Voir la saison », les deux
+   lignes de boutons centrées l'une sur l'autre, espacement agrandi (rebond). Bibliothèques : images en fondu,
+   première page en cascade.
+20. Lecteur : boutons inutilisables de nouveau affichés grisés, toujours sautés par la sélection (`btn-step`) ;
+   rebonds ; bandeau d'épisodes qui monte avec le panneau (`ep-p`), marge pour la carte agrandie, titre défilant ;
+   un épisode choisi démarre (pause levée) hors watch party.
+21. Menu : entrée de la page où l'on est marquée (trait + point), sélectionnée à l'ouverture (`here`, `here-lib`,
+   `menu-find`) ; choisir la page où l'on est déjà ne recharge rien (`at()`). Accueil : ← sur la première carte ou
+   Retour / Échap ouvrent le menu.
+22. **Pages gardées** (`PAGES`, `cache_current_page` / `restore_page`) : le retour réaffiche fiche ou bibliothèque
+   telles quelles, sans requête (sauf après une lecture). C'était la lenteur des retours sur le Pi.
+23. **Téléchargements = accueil hors ligne** : rangées Reprendre / Séries / Films ; fiches locales `dl:series:<id>`,
+   `dl:season:<id>`, `dl:item:<id>` (`show_local_detail`) avec affiche, logo, fond, résumé, saisons, épisodes, lecture
+   (premier épisode non vu), vu / favori, suppression. Le téléchargement garde aussi logo, fond, classification,
+   résumé de saison et favori (`meta_v` 2 ; les anciens sont complétés en ligne).
+24. **Vu / favoris sur l'appareil** : `config::Flags` dans `userdata.json` (par élément : valeur + « à envoyer »).
+   Hors ligne ou sur une fiche locale, le changement y est gardé ; `downloads::sync` le renvoie au compte à la
+   reconnexion (l'appareil a le dernier mot), avec les positions de lecture.
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.

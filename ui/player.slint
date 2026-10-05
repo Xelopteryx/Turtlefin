@@ -10,6 +10,7 @@
 // Fin d'un épisode (générique) : carte « Épisode suivant » ; fin de série / film : 3 suggestions,
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
+import { Marquee } from "marquee.slint";
 import { Theme } from "theme.slint";
 import { CardData } from "card.slint";
 
@@ -100,6 +101,8 @@ component PlayerButton inherits Rectangle {
     width: root.text == "" ? root.size : label.preferred-width + root.size;
     height: root.size;
     border-radius: self.height / 2;
+    transform-scale: root.lit ? 1.12 : 1.0;
+    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
     border-width: root.lit ? 0px : 1px;
     border-color: #ffffff40;
@@ -142,7 +145,7 @@ component EpisodeCard inherits Rectangle {
 
     z: root.focused ? 1 : 0;
     transform-scale: root.focused ? 1.06 : 1.0;
-    animate transform-scale { duration: 120ms; easing: ease-out; }
+    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: 10px;
     background: root.focused ? #000000cc : #00000099;
     border-width: root.current ? 2px : 0px;
@@ -161,15 +164,17 @@ component EpisodeCard inherits Rectangle {
             image-fit: fill;
         }
     }
-    Text {
+    Marquee {
         x: 8px * root.k;
         y: root.width * 0.5625 + 6px * root.k;
         width: parent.width - 16px * root.k;
+        height: 18px * root.k;
         text: root.data.title;
-        color: white;
+        active: root.focused;
+        text-color: white;
         font-size: 13px * root.k;
         font-weight: 600;
-        overflow: elide;
+        horizontal-alignment: TextHorizontalAlignment.left;
     }
     Text {
         x: 8px * root.k;
@@ -195,7 +200,7 @@ component PickCard inherits Rectangle {
     callback clicked();
 
     transform-scale: root.focused ? 1.08 : 1.0;
-    animate transform-scale { duration: 120ms; easing: ease-out; }
+    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: 10px;
     background: root.focused ? #ffffff26 : #ffffff0f;
     border-width: root.focused ? 3px : 0px;
@@ -315,6 +320,9 @@ export component PlayerView inherits Rectangle {
         root.picks-in = false;
     }
     property <length> ep-h: 190px * root.k; // hauteur du bandeau d'épisodes
+    // Bandeau d'épisodes affiché (0 -> 1) : panneau et bandeau glissent ensemble.
+    property <float> ep-p: root.osd && root.zone == 5 ? 1 : 0;
+    animate ep-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     changed up-mode => {
         root.up-sel = root.up-mode == "next" ? 0 : root.up-mode == "" ? 0 : 1;
     }
@@ -685,8 +693,7 @@ export component PlayerView inherits Rectangle {
             x: root.m;
             width: parent.width - 2 * root.m;
             height: 160px * root.k;
-            y: parent.height - self.height - root.m - (root.zone == 5 ? root.ep-h : 0px);
-            animate y { duration: 160ms; easing: ease-out; }
+            y: parent.height - self.height - root.m - root.ep-p * root.ep-h;
             border-radius: 16px;
             background: Theme.glass;
             border-width: 1px;
@@ -795,18 +802,20 @@ export component PlayerView inherits Rectangle {
                 alignment: center;
                 spacing: 16px * root.k;
 
-                if root.has-prev: PlayerButton {
+                PlayerButton {
                     size: 52px * root.k;
                     icon: "prev-ep";
+                    enabled: root.has-prev;
                     focused: root.zone == 2 && root.btn == 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(0);
                     }
                 }
-                if root.chapter-count > 0: PlayerButton {
+                PlayerButton {
                     size: 52px * root.k;
                     icon: "prev-chap";
+                    enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 1;
                     clicked => {
                         root.zone = 0;
@@ -822,18 +831,20 @@ export component PlayerView inherits Rectangle {
                         root.activate(2);
                     }
                 }
-                if root.chapter-count > 0: PlayerButton {
+                PlayerButton {
                     size: 52px * root.k;
                     icon: "next-chap";
+                    enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 3;
                     clicked => {
                         root.zone = 0;
                         root.activate(3);
                     }
                 }
-                if root.has-next: PlayerButton {
+                PlayerButton {
                     size: 52px * root.k;
                     icon: "next-ep";
+                    enabled: root.has-next;
                     focused: root.zone == 2 && root.btn == 4;
                     clicked => {
                         root.zone = 0;
@@ -851,7 +862,8 @@ export component PlayerView inherits Rectangle {
                 alignment: end;
                 spacing: 12px * root.k;
 
-                if root.audio-tracks.length > 1: PlayerButton {
+                PlayerButton {
+                    enabled: root.audio-tracks.length > 1;
                     size: 44px * root.k;
                     font: 16px * root.k;
                     text: "Audio";
@@ -860,7 +872,8 @@ export component PlayerView inherits Rectangle {
                         root.activate(5);
                     }
                 }
-                if root.sub-tracks.length > 0: PlayerButton {
+                PlayerButton {
+                    enabled: root.sub-tracks.length > 0;
                     size: 44px * root.k;
                     font: 16px * root.k;
                     text: "Sous-titres";
@@ -958,20 +971,24 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Épisodes de la saison (↓)
-    if root.osd && root.zone == 5: Rectangle {
+    // Le bandeau monte du bas en même temps que le panneau (ep-p), sans le recouvrir.
+    if root.osd && root.ep-p > 0.001: Rectangle {
         x: root.m;
-        y: parent.height - root.ep-h - root.m / 2;
+        y: parent.height - root.ep-p * (root.ep-h + root.m / 2);
         width: parent.width - 2 * root.m;
         height: root.ep-h;
         clip: true;
 
         property <length> cw: 220px * root.k;
         property <length> gap: 16px * root.k;
-        property <length> strip-x: min(0px, max(self.width - root.episodes.length * (self.cw + self.gap),
-            self.width / 2 - (root.ep-sel * (self.cw + self.gap) + self.cw / 2)));
+        // Marge intérieure : la carte agrandie (sélection) n'est pas coupée sur les bords.
+        property <length> pad: 16px * root.k;
+        property <length> strip-x: min(0px, max(self.width - root.episodes.length * (self.cw + self.gap) + self.gap - 2 * self.pad,
+            self.width / 2 - (self.pad + root.ep-sel * (self.cw + self.gap) + self.cw / 2)));
+        animate strip-x { duration: 220ms; easing: ease-out; }
 
         for e[i] in root.episodes: EpisodeCard {
-            x: parent.strip-x + i * (parent.cw + parent.gap);
+            x: parent.strip-x + parent.pad + i * (parent.cw + parent.gap);
             y: 8px * root.k;
             width: parent.cw;
             height: parent.cw * 0.5625 + 50px * root.k;

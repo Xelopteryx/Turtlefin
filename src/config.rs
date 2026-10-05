@@ -185,3 +185,72 @@ pub fn forget_account(user_id: &str) {
     list.retain(|x| x.user_id != user_id);
     save_accounts(&list);
 }
+
+// ---------------------------------------------------------------------------
+// « Vu » et favoris décidés sur l'appareil (hors ligne, ou sur les fiches des téléchargements) :
+// gardés ici, puis renvoyés au compte à la reconnexion (l'appareil a le dernier mot).
+// ---------------------------------------------------------------------------
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[serde(default)]
+pub struct Flags {
+    pub played: Option<bool>,
+    pub favorite: Option<bool>,
+    /// À renvoyer au serveur.
+    pub dirty_played: bool,
+    pub dirty_favorite: bool,
+}
+
+fn flags_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("userdata.json"))
+}
+
+pub fn all_flags() -> std::collections::HashMap<String, Flags> {
+    flags_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_flags(all: &std::collections::HashMap<String, Flags>) {
+    let Some(p) = flags_path() else { return };
+    if let Some(dir) = p.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(t) = serde_json::to_string_pretty(all) {
+        let _ = std::fs::write(p, t);
+    }
+}
+
+pub fn flags(id: &str) -> Flags {
+    all_flags().get(id).cloned().unwrap_or_default()
+}
+
+/// Change « vu » (`favorite` = false) ou « favori » d'un élément ; `dirty` : à renvoyer au serveur.
+pub fn set_flag(id: &str, favorite: bool, value: bool, dirty: bool) {
+    if id.is_empty() {
+        return;
+    }
+    let mut all = all_flags();
+    let f = all.entry(id.to_string()).or_default();
+    if favorite {
+        f.favorite = Some(value);
+        f.dirty_favorite |= dirty;
+    } else {
+        f.played = Some(value);
+        f.dirty_played |= dirty;
+    }
+    save_flags(&all);
+}
+
+/// Changement renvoyé : plus à envoyer.
+pub fn clear_dirty(id: &str, favorite: bool) {
+    let mut all = all_flags();
+    if let Some(f) = all.get_mut(id) {
+        if favorite {
+            f.dirty_favorite = false;
+        } else {
+            f.dirty_played = false;
+        }
+        save_flags(&all);
+    }
+}

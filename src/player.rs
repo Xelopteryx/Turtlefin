@@ -626,6 +626,9 @@ pub async fn play(
             if sync {
                 let _ = player.set_property("pause", "yes");
                 sp_wait_ready = true;
+            } else {
+                // Épisode choisi (bandeau, suivant, suggestion) : il démarre, même si l'on était en pause.
+                let _ = player.set_property("pause", "no");
             }
             // L'ancien fichier se terminera (« stop ») sauf s'il était déjà fini.
             switching = !cur.ended;

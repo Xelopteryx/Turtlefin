@@ -49,7 +49,16 @@ pub struct Entry {
     pub dirty: bool,
     /// Métadonnées complètes (série, saison, année...) : faux pour un téléchargement plus ancien.
     pub meta: bool,
+    /// Version des métadonnées (2 : logo, fond, classification, résumé de saison, favori).
+    pub meta_v: u32,
+    pub official_rating: String,
+    pub season_overview: String,
+    /// Favori (état du compte au téléchargement, puis changements faits sur l'appareil).
+    pub favorite: bool,
 }
+
+/// Version actuelle des métadonnées enregistrées.
+const META_V: u32 = 2;
 
 impl Entry {
     pub fn dir(&self) -> PathBuf {
@@ -70,6 +79,16 @@ impl Entry {
     pub fn season_poster(&self) -> PathBuf {
         let p = self.dir().join("season.jpg");
         if p.exists() { p } else { self.series_poster() }
+    }
+    /// Logo (série ou film), s'il y en a un.
+    pub fn logo_path(&self) -> Option<PathBuf> {
+        let p = self.dir().join("logo.png");
+        p.exists().then_some(p)
+    }
+    /// Image de fond (série ou film), s'il y en a une.
+    pub fn backdrop_path(&self) -> Option<PathBuf> {
+        let p = self.dir().join("backdrop.jpg");
+        p.exists().then_some(p)
     }
     pub fn thumb_path(&self) -> PathBuf {
         let p = self.dir().join("thumb.jpg");
@@ -116,9 +135,24 @@ fn now_rfc3339() -> String {
     format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
-/// Renvoie au serveur les lectures faites hors ligne (position, « vu »). Rend le nombre envoyé.
+/// Renvoie au serveur les lectures faites hors ligne (position, « vu ») et les « vu » / favoris
+/// décidés sur l'appareil. Rend le nombre de changements envoyés.
 pub async fn sync(client: &Client) -> usize {
     let mut n = 0;
+    for (id, f) in crate::config::all_flags() {
+        if let (true, Some(v)) = (f.dirty_played, f.played) {
+            if client.set_played(&id, v).await.is_ok() {
+                crate::config::clear_dirty(&id, false);
+                n += 1;
+            }
+        }
+        if let (true, Some(v)) = (f.dirty_favorite, f.favorite) {
+            if client.set_favorite(&id, v).await.is_ok() {
+                crate::config::clear_dirty(&id, true);
+                n += 1;
+            }
+        }
+    }
     for mut e in list().into_iter().filter(|e| e.dirty) {
         let body = serde_json::json!({
             "PlaybackPositionTicks": (e.position * 10_000_000.0) as i64,
@@ -137,6 +171,11 @@ pub async fn sync(client: &Client) -> usize {
 /// Métadonnées et affiches de série / saison : `item` est l'élément tel que donné par le serveur.
 async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
     e.meta = true;
+    e.meta_v = META_V;
+    e.official_rating = item.official_rating.clone().unwrap_or_default();
+    if let Some(ud) = &item.user_data {
+        e.favorite = ud.is_favorite;
+    }
     let (title, subtitle) = item.titles();
     e.title = title;
     e.subtitle = subtitle;
@@ -160,12 +199,15 @@ async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
             save_bytes(&dir.join("poster.jpg"), &b).await;
         }
     }
+    // Logo et fond : ceux de la série pour un épisode.
+    let mut look = item.clone();
     if !e.series_id.is_empty() {
         if let Ok(series) = client.item(&e.series_id).await {
             e.series_overview = series.overview.clone().unwrap_or_default();
             if e.year.is_none() {
                 e.year = series.production_year;
             }
+            look = series;
         }
         let series_ref = [(e.series_id.clone(), item.series_primary_image_tag.clone())];
         if let Some(b) = client.image_first(&series_ref, "Primary", Size::Fill(400, 600)).await {
@@ -176,13 +218,24 @@ async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
         if let Some(b) = client.image_first(&[(e.season_id.clone(), None)], "Primary", Size::Fill(400, 600)).await {
             save_bytes(&dir.join("season.jpg"), &b).await;
         }
+        if let Ok(season) = client.item(&e.season_id).await {
+            e.season_overview = season.overview.clone().unwrap_or_default();
+        }
+    }
+    if let Some(logo) = look.logo_candidate().or_else(|| item.logo_candidate()) {
+        if let Some(b) = client.image_first(&[logo], "Logo", Size::MaxWidth(500)).await {
+            save_bytes(&dir.join("logo.png"), &b).await;
+        }
+    }
+    if let Some(b) = client.backdrop(&look).await {
+        save_bytes(&dir.join("backdrop.jpg"), &b).await;
     }
 }
 
 /// Téléchargement d'avant le regroupement par série : métadonnées complétées (une fois).
 pub async fn enrich(client: &Client, id: &str) -> bool {
     let Some(mut e) = get(id) else { return false };
-    if e.meta {
+    if e.meta_v >= META_V {
         return false;
     }
     let Ok(item) = client.item(id).await else { return false };

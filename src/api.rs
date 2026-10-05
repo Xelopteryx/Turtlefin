@@ -370,9 +370,7 @@ impl Item {
         if let Some(m) = self.minutes() {
             parts.push(format!("{m} min"));
         }
-        if self.user_data.as_ref().map(|u| u.played).unwrap_or(false) {
-            parts.push("vu".to_string());
-        }
+        let played = self.user_data.as_ref().map(|u| u.played).unwrap_or(false);
         let tag = self.primary_tag();
         CardInfo {
             id: self.id.clone(),
@@ -387,7 +385,8 @@ impl Item {
             seerr: false,
             status: 0,
             count: 0,
-            played: false,
+            // Coche « vu » sur l'image, comme les films et les séries.
+            played,
         }
     }
 
@@ -469,14 +468,15 @@ impl Item {
                 b.push((String::new(), "download".into(), "download".into(), false));
             }
         }
-        if self.kind == "Episode" {
-            if let Some(id) = &self.season_id {
-                b.push(("Voir la saison".into(), format!("open:{id}"), String::new(), false));
-            }
-        }
+        // La série d'abord, puis la saison (du plus large au plus précis).
         if matches!(self.kind.as_str(), "Episode" | "Season") {
             if let Some(id) = &self.series_id {
                 b.push(("Voir la série".into(), format!("open:{id}"), String::new(), false));
+            }
+        }
+        if self.kind == "Episode" {
+            if let Some(id) = &self.season_id {
+                b.push(("Voir la saison".into(), format!("open:{id}"), String::new(), false));
             }
         }
         b
