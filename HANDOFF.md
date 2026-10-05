@@ -175,7 +175,7 @@ Principes :
 7. Messages (toast) : bulle centrée en bas, effacée après 6 s.
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
-Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=targetelease\libmpv-2.dll`.
+Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
 
 ### Pas fait
 - Manette / télécommande ; défilement à la molette, survol souris qui déplace le focus.
