@@ -98,6 +98,19 @@ export struct DetailData {
     icon-count: int, // boutons à icône (ligne du haut), les autres sont des pastilles
 }
 
+// Image partagée entre une carte et la page qu'elle ouvre : à l'ouverture, la carte sélectionnée
+// donne sa position et son image (voir AppWindow.open-hero).
+global Hero {
+    in-out property <int> tick;     // demande : la carte sélectionnée répond
+    in-out property <int> seq;      // réponse de la carte (position et image ci-dessous)
+    in-out property <length> x;
+    in-out property <length> y;
+    in-out property <length> w;
+    in-out property <length> h;
+    in-out property <image> img;
+    in-out property <bool> wide;
+}
+
 // Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
 // intégrés à l'image au décodage), titre et sous-titre centrés dessous. Sélection : encadré plus
 // sombre et carte légèrement agrandie (simple mise à l'échelle, sans image intermédiaire).
@@ -109,6 +122,20 @@ component Card inherits Rectangle {
     callback clicked();
 
     property <length> img-h: root.width * root.ratio;
+
+    // Ouverture animée : la carte sélectionnée donne la place de son image (agrandie de 6 %).
+    property <int> hero-tick: Hero.tick;
+    changed hero-tick => {
+        if (root.focused && root.data.has-image) {
+            Hero.seq += 1;
+            Hero.x = root.absolute-position.x - root.width * 0.03;
+            Hero.y = root.absolute-position.y - root.height * 0.03;
+            Hero.w = root.width * 1.06;
+            Hero.h = root.img-h * 1.06;
+            Hero.img = root.data.image;
+            Hero.wide = root.ratio < 1;
+        }
+    }
 
     z: root.focused ? 1 : 0;
     transform-scale: root.focused ? 1.06 : 1.0;
@@ -929,8 +956,150 @@ export component AppWindow inherits Window {
             root.page-anim = false;
         }
     }
-    // Chargement d'une page : barre animée en haut, l'écran précédent reste affiché.
+    // Chargement d'une page : un voile couleur de fond recouvre la page qui part (sauf l'image
+    // partagée), puis se lève sur la nouvelle.
     in-out property <bool> loading;
+    property <bool> veil-hold;               // retour animé : la fiche s'efface avant de partir
+    property <float> veil: root.loading || root.veil-hold ? 1 : 0;
+    animate veil { duration: 260ms; easing: ease-in-out; }
+
+    // ---- Image partagée (« hero ») : l'affiche ou la vignette de la carte ouverte vole jusqu'à
+    // la place de l'affiche de la fiche (vignette 16:9 : tout l'écran, en fond provisoire qui
+    // s'efface ensuite). Au retour, elle repart vers la carte. Animations au temps
+    // (animation-tick), coupées par des minuteries : rien ne tourne au repos.
+    property <bool> hero-on;
+    property <bool> hero-dest;              // vers la page ouverte (sinon retour vers la carte)
+    property <length> hero-fx;
+    property <length> hero-fy;
+    property <length> hero-fw;
+    property <length> hero-fh;
+    property <image> hero-img;
+    property <bool> hero-wide;
+    property <string> hero-id;              // fiche ouverte depuis une carte : retour animé
+    property <bool> hero-anim;
+    property <duration> hero-t0;
+    property <float> hero-q: root.hero-anim ? clamp((animation-tick() - root.hero-t0) / 460ms, 0, 1) : 1;
+    property <float> hero-e: 1 - (1 - root.hero-q) * (1 - root.hero-q) * (1 - root.hero-q);
+    property <float> hero-p: root.hero-dest ? root.hero-e : 1 - root.hero-e;
+    // Grand fond 16:9 : fondu (sortie quand la page est là, entrée au retour).
+    property <bool> hero-faded;
+    property <bool> fade-in;
+    property <bool> fade-anim;
+    property <duration> fade-t0;
+    property <float> fade-q: root.fade-anim ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
+    property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
+    // Destination : place de l'affiche de la fiche, ou tout l'écran.
+    property <length> hero-tx: root.hero-wide ? 0px : 32px;
+    property <length> hero-ty: root.hero-wide ? 0px : root.header-h + 24px;
+    property <length> hero-tw: root.hero-wide ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-wide ? root.height : root.poster-w * 1.5;
+    // La page ouverte est affichée.
+    property <bool> hero-ready: root.hero-on && root.hero-dest && !root.hero-anim && !root.loading
+        && root.screen != "home" && root.screen != "loading";
+    changed hero-ready => {
+        if (root.hero-ready && root.hero-wide && !root.hero-faded) {
+            root.fade-in = false;
+            root.fade-t0 = animation-tick();
+            root.fade-anim = true;
+            root.hero-faded = true;
+        }
+    }
+    // Fin : l'affiche de la fiche (ou la carte, au retour) a pris le relais.
+    property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && (
+        (root.hero-ready && (root.hero-wide ? root.hero-faded : (root.screen != "detail" || root.detail.has-poster)))
+        || (!root.hero-dest && root.screen != "detail" && root.veil < 0.01));
+    changed hero-done => {
+        if (root.hero-done) {
+            root.hero-on = false;
+        }
+    }
+    Timer {
+        interval: 480ms;
+        running: root.hero-anim;
+        triggered => {
+            root.hero-anim = false;
+        }
+    }
+    Timer {
+        interval: 720ms;
+        running: root.fade-anim;
+        triggered => {
+            root.fade-anim = false;
+        }
+    }
+    // Sécurité : jamais d'image partagée oubliée à l'écran.
+    Timer {
+        interval: 8s;
+        running: root.hero-on;
+        triggered => {
+            root.hero-on = false;
+        }
+    }
+
+    // Ouverture d'un élément depuis une carte : l'image de la carte sélectionnée vole vers la page.
+    // La carte répond juste après (rappel `changed`), d'où les deux temps.
+    property <string> hero-pending;
+    function open-hero(id: string) {
+        root.hero-id = "";
+        root.hero-pending = "";
+        if (root.screen == "home" || root.screen == "library" || root.screen == "search") {
+            root.hero-pending = id;
+            Hero.tick += 1;
+        }
+        root.open-item(id);
+    }
+    property <int> hero-seq: Hero.seq;
+    changed hero-seq => {
+        if (root.hero-pending != "") {
+            root.hero-fx = Hero.x;
+            root.hero-fy = Hero.y;
+            root.hero-fw = Hero.w;
+            root.hero-fh = Hero.h;
+            root.hero-img = Hero.img;
+            root.hero-wide = Hero.wide;
+            root.hero-faded = false;
+            root.fade-anim = false;
+            root.hero-dest = true;
+            root.hero-t0 = animation-tick();
+            root.hero-anim = true;
+            root.hero-on = true;
+            root.hero-id = root.hero-pending;
+            root.hero-pending = "";
+        }
+    }
+
+    // Retour : depuis la fiche ouverte par une carte, l'image repart vers la carte.
+    function back-anim() {
+        if (root.veil-hold) {
+            return; // retour déjà en cours
+        }
+        if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id) {
+            root.hero-dest = false;
+            root.hero-t0 = animation-tick();
+            root.hero-anim = true;
+            root.hero-on = true;
+            if (root.hero-wide) {
+                root.fade-in = true;
+                root.fade-t0 = animation-tick();
+                root.fade-anim = true;
+                root.hero-faded = false;
+            }
+            // Les infos s'effacent d'abord (seule l'image reste), puis l'accueil revient.
+            root.hero-id = "";
+            root.veil-hold = true;
+            return;
+        }
+        root.hero-id = "";
+        root.run-action("back");
+    }
+    Timer {
+        interval: 240ms;
+        running: root.veil-hold;
+        triggered => {
+            root.veil-hold = false;
+            root.run-action("back");
+        }
+    }
     Timer {
         interval: 20s;
         running: root.loading;
@@ -1154,7 +1323,7 @@ export component AppWindow inherits Window {
     function nav-activate(i: int) {
         root.h-focus = false;
         if (i == 0 && root.can-back) {
-            root.run-action("back");
+            root.back-anim();
         } else if (i == root.nav-n - 1) {
             root.open-menu();
         } else {
@@ -1209,7 +1378,8 @@ export component AppWindow inherits Window {
     // Monte dans la barre de navigation, sur le premier bouton (Retour s'il existe).
     function nav-enter() {
         root.h-focus = true;
-        root.h-sel = 0;
+        // Hors accueil, le bouton maison est sélectionné d'abord (après le bouton retour s'il y en a un).
+        root.h-sel = root.screen != "home" && root.can-back ? 1 : 0;
     }
 
     function tab-index() -> int {
@@ -1257,6 +1427,23 @@ export component AppWindow inherits Window {
         : root.d-zone == 2 ? max(0px, root.d-children-y - 140px * root.k) : 0px;
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     property <length> info-w: root.width - root.col-x - 32px - (root.detail.has-next ? root.next-w + 24px : 0px);
+
+    // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
+    // Passe derrière une fois arrivé et la page prête (avant, le voile la cacherait).
+    property <bool> hero-under: root.hero-on && root.hero-wide && !root.hero-anim && !root.loading
+        && root.screen != "home" && root.screen != "loading";
+    if root.hero-under && !root.playing: Rectangle {
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.hero-img;
+            image-fit: cover;
+            opacity: root.hero-alpha;
+        }
+        Rectangle {
+            background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha);
+        }
+    }
 
     // ------------------------------------------------------------ Connexion
     // Pendant la lecture, aucun écran n'est instancié sous la vidéo : rien à redessiner à chaque
@@ -1787,7 +1974,7 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Return) {
-                    root.open-item(root.sections[root.sel-section].items[root.sel-item].id);
+                    root.open-hero(root.sections[root.sel-section].items[root.sel-item].id);
                     return EventResult.accept;
                 }
                 return EventResult.reject;
@@ -1825,7 +2012,7 @@ export component AppWindow inherits Window {
                             root.h-focus = false;
                             root.sel-section = si;
                             root.sel-item = i;
-                            root.open-item(section.items[i].id);
+                            root.open-hero(section.items[i].id);
                         }
                     }
                 }
@@ -2025,7 +2212,7 @@ export component AppWindow inherits Window {
                         s-input.focus();
                     }
                 } else if (event.text == Key.Return) {
-                    root.open-item(root.search-sections[root.s-section].items[root.s-item].id);
+                    root.open-hero(root.search-sections[root.s-section].items[root.s-item].id);
                 } else if (event.text == Key.Backspace) {
                     root.go-home();
                 }
@@ -2172,7 +2359,7 @@ export component AppWindow inherits Window {
                     activated(i) => {
                         root.s-section = si;
                         root.s-item = i;
-                        root.open-item(section.items[i].id);
+                        root.open-hero(section.items[i].id);
                     }
                 }
             }
@@ -2361,7 +2548,7 @@ export component AppWindow inherits Window {
                 }
 
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.run-action("back");
+                    root.back-anim();
                     return EventResult.accept;
                 }
 
@@ -2464,7 +2651,7 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     if (event.text == Key.Return) {
-                        root.open-item(root.child-items[root.d-child].id);
+                        root.open-hero(root.child-items[root.d-child].id);
                         return EventResult.accept;
                     }
                 }
@@ -2497,7 +2684,7 @@ export component AppWindow inherits Window {
                             root.d-zone = root.child-items.length > 0 ? 2 : root.detail.overview != "" ? 1 : 0;
                         }
                     } else if (event.text == Key.Return) {
-                        root.open-item(root.detail-rows[root.d-zone - 4].items[root.d-x].id);
+                        root.open-hero(root.detail-rows[root.d-zone - 4].items[root.d-x].id);
                     }
                     return EventResult.accept;
                 }
@@ -2515,7 +2702,7 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     if (event.text == Key.Return) {
-                        root.open-item(root.detail.next-id);
+                        root.open-hero(root.detail.next-id);
                         return EventResult.accept;
                     }
                 }
@@ -2746,7 +2933,7 @@ export component AppWindow inherits Window {
             TouchArea {
                 clicked => {
                     root.d-zone = 3;
-                    root.open-item(root.detail.next-id);
+                    root.open-hero(root.detail.next-id);
                 }
             }
         }
@@ -2766,7 +2953,7 @@ export component AppWindow inherits Window {
             activated(i) => {
                 root.d-zone = 2;
                 root.d-child = i;
-                root.open-item(root.child-items[i].id);
+                root.open-hero(root.child-items[i].id);
             }
         }
 
@@ -2785,7 +2972,7 @@ export component AppWindow inherits Window {
             activated(i) => {
                 root.d-zone = 4 + ri;
                 root.d-x = i;
-                root.open-item(row.items[i].id);
+                root.open-hero(row.items[i].id);
             }
         }
         }
@@ -2907,7 +3094,7 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.run-action("back");
+                    root.back-anim();
                     return EventResult.accept;
                 }
                 if (root.lib-items.length == 0) {
@@ -2931,7 +3118,7 @@ export component AppWindow inherits Window {
                         root.nav-enter();
                     }
                 } else if (event.text == Key.Return) {
-                    root.open-item(root.lib-items[root.l-sel].id);
+                    root.open-hero(root.lib-items[root.l-sel].id);
                 }
                 lib.maybe-more();
                 return EventResult.accept;
@@ -2966,7 +3153,7 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.h-focus = false;
                         root.l-sel = i;
-                        root.open-item(card.id);
+                        root.open-hero(card.id);
                     }
                 }
             }
@@ -3345,7 +3532,7 @@ export component AppWindow inherits Window {
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
                     // Saison -> série -> liste générale -> accueil
                     if (root.dl-level > 0) {
-                        root.run-action("back");
+                        root.back-anim();
                     } else {
                         root.go-home();
                     }
@@ -3844,8 +4031,10 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Menu latéral
     // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
     property <float> menu-p: root.menu-open ? 1 : 0;
-    animate menu-p { duration: 240ms; easing: ease-out; }
-    if root.menu-p > 0.001 && !root.playing: Rectangle {
+    animate menu-p { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Toujours construit (invisible quand il est fermé) : l'ouverture ne crée rien, pas d'à-coup.
+    Rectangle {
+        visible: root.menu-p > 0.001 && !root.playing;
         background: #000000a6.transparentize(1 - root.menu-p);
 
         TouchArea {
@@ -3872,10 +4061,7 @@ export component AppWindow inherits Window {
             TouchArea { }
 
             FocusScope {
-                init => {
-                    self.focus();
-                }
-                // Rouvert pendant qu'il se refermait : le clavier revient au menu.
+                // À l'ouverture (même pendant qu'il se refermait), le clavier va au menu.
                 property <bool> open: root.menu-open;
                 changed open => {
                     if (self.open) {
@@ -3917,7 +4103,8 @@ export component AppWindow inherits Window {
                 clip: true;
 
                 for e[i] in root.menu-entries: Rectangle {
-                    x: 14px * root.k;
+                    // Entrées en cascade : chacune arrive un peu après la précédente.
+                    x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - i * 0.045, 0, 1)) * 90px * root.k;
                     y: i * drawer.row-h - drawer.scroll;
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
@@ -4209,15 +4396,29 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Chargement en cours : trait animé tout en haut de l'écran.
-    if root.loading && !root.playing: Rectangle {
-        y: 0px;
-        height: 3px * root.k;
-        Rectangle {
-            x: (mod(animation-tick() / 1ms, 1100) / 1100) * (parent.width + self.width) - self.width;
-            width: parent.width * 0.3;
+    // Voile de transition : la page qui part s'efface dans la couleur de fond.
+    if root.veil > 0.001 && !root.playing: Rectangle {
+        background: Theme.bg.transparentize(1 - root.veil);
+        TouchArea { }
+    }
+
+    // Image partagée (au-dessus du voile) pendant qu'elle vole ; un grand fond arrivé passe derrière
+    // la page (voir plus haut, avant les écrans).
+    if root.hero-on && !root.hero-under && !root.playing: Rectangle {
+        x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
+        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+        width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
+        height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
+        Image {
+            width: parent.width;
             height: parent.height;
-            background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            source: root.hero-img;
+            image-fit: cover;
+            opacity: root.hero-alpha;
+        }
+        // Grand fond : assombri pour que la page reste lisible par-dessus.
+        if root.hero-wide: Rectangle {
+            background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
     }
 

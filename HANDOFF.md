@@ -184,6 +184,20 @@ Principes :
    l'écran « Chargement » ne sert plus qu'au démarrage (logo + barre).
 11. Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (avant : l'onglet en cours, Favoris ou
    Demandes). Hors ligne, ils mènent aux téléchargements.
+12. **Transitions « organiques » (expérimental)** : plus de trait de chargement. Ouvrir une carte depuis l'accueil,
+   une bibliothèque ou la recherche : un voile couleur de fond efface la page (`veil`, piloté par `loading`), l'image
+   de la carte (`global Hero` : la carte sélectionnée donne sa position via `absolute-position`, en deux temps car
+   les `changed` de Slint sont différés) vole jusqu'à la place de l'affiche de la fiche ; une vignette 16:9 remplit
+   tout l'écran (fond provisoire assombri) puis s'efface. Retour : la fiche s'efface (240 ms), l'image revole vers
+   sa carte. Animations au temps (`animation-tick()` lu seulement pendant l'animation, minuteries pour couper).
+   Menu burger : 380 ms, entrées en cascade, toujours construit (invisible fermé) pour éviter l'à-coup d'ouverture.
+13. Navigation entre rangées : chaque rangée retrouve sa propre position (`row-pick` renvoie la mémoire de la rangée).
+   Montée dans la barre hors accueil : le bouton maison est sélectionné d'abord.
+14. Fiche d'une série incomplète : bouton « Demander la saison N » / « Demander les N saisons manquantes » (saisons
+   Seerr ni disponibles, ni en cours, ni demandées : `SeerrDetails.missing_seasons`), ajouté après coup à la fiche.
+   Vu sur Helluva Boss (saison 3) ; **aucune demande envoyée pendant les essais**.
+
+Pi : joignable par Tailscale, `ssh xelopteryx@prometheus` (l'adresse locale change).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
 Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.

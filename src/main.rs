@@ -86,6 +86,8 @@ struct App {
     lib_return: Mutex<Option<(String, usize)>>,
     /// Fiche affichée : clé de préférences et pistes (langue, libellé) audio / sous-titres.
     detail_streams: Mutex<(String, Vec<(String, String)>, Vec<(String, String)>)>,
+    /// Fiche d'une série incomplète : (id Jellyfin, id TMDB, saisons manquantes à demander).
+    missing_seasons: Mutex<(String, i64, Vec<i64>)>,
     /// Watch party (SyncPlay) : état du groupe, connexion déjà ouverte.
     sp: syncplay::Shared,
     sp_connected: AtomicBool,
@@ -2151,6 +2153,66 @@ fn start_detail(app: &Arc<App>, id: String) {
     });
 }
 
+/// Fiche d'une série : saisons absentes du serveur et pas encore demandées -> bouton « Demander ».
+async fn add_missing_seasons_button(app: Arc<App>, client: api::Client, id: String, tmdb: i64) {
+    let Ok(d) = client.seerr_details(true, tmdb).await else { return };
+    if d.missing_seasons.is_empty() {
+        return;
+    }
+    let n = d.missing_seasons.len();
+    let label = if n == 1 {
+        format!("Demander la saison {}", d.missing_seasons[0])
+    } else {
+        format!("Demander les {n} saisons manquantes")
+    };
+    *app.missing_seasons.lock().unwrap() = (id.clone(), tmdb, d.missing_seasons);
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let detail = u.get_detail();
+        if detail.id.as_str() != id {
+            return;
+        }
+        if let Some(m) = detail.buttons.as_any().downcast_ref::<VecModel<ButtonData>>() {
+            if !(0..m.row_count()).any(|i| m.row_data(i).is_some_and(|b| b.action.as_str() == "seerr-missing")) {
+                m.push(ButtonData { label: label.into(), action: "seerr-missing".into(), icon: "".into(), active: false });
+            }
+        }
+    });
+}
+
+/// Demande à Seerr les saisons manquantes de la série affichée.
+fn request_missing_seasons(app: &Arc<App>) {
+    let (id, tmdb, seasons) = app.missing_seasons.lock().unwrap().clone();
+    let Some(client) = app.client() else { return };
+    if seasons.is_empty() {
+        return;
+    }
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let r = client.seerr_request(true, tmdb, &seasons).await;
+        let list = seasons.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ");
+        let ok = r.is_ok();
+        let msg = match r {
+            Ok(()) => format!("Demande envoyée à Seerr : saison(s) {list}."),
+            Err(e) => format!("Demande refusée par Seerr : {e}"),
+        };
+        if ok {
+            a.missing_seasons.lock().unwrap().2.clear();
+        }
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_toast(msg.into());
+            let detail = u.get_detail();
+            if !ok || detail.id.as_str() != id {
+                return;
+            }
+            if let Some(m) = detail.buttons.as_any().downcast_ref::<VecModel<ButtonData>>() {
+                if let Some(i) = (0..m.row_count()).find(|&i| m.row_data(i).is_some_and(|b| b.action.as_str() == "seerr-missing")) {
+                    m.set_row_data(i, ButtonData { label: "Saisons demandées".into(), action: "".into(), icon: "".into(), active: true });
+                }
+            }
+        });
+    });
+}
+
 fn go_back(app: &Arc<App>) {
     if dl_up(app) {
         return;
@@ -2282,6 +2344,13 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
 
     let expect_logo = logo.is_some();
     let id_for_ui = item_id.clone();
+    // Série incomplète (Seerr) : bouton pour demander les saisons manquantes, ajouté une fois connu.
+    if item.kind == "Series" && app.seerr_user.lock().unwrap().is_some() {
+        if let Some(tmdb) = item.tmdb() {
+            let (a, c, id) = (app.clone(), client.clone(), item.id.clone());
+            app.rt.spawn(async move { add_missing_seasons_button(a, c, id, tmdb).await });
+        }
+    }
     let _ = ui.upgrade_in_event_loop(move |u| {
         let detail = DetailData {
             id: id_for_ui.into(),
@@ -2643,6 +2712,7 @@ fn main() -> anyhow::Result<()> {
         sp_connected: AtomicBool::new(false),
         avatars: Mutex::new(Vec::new()),
         detail_streams: Mutex::new(Default::default()),
+        missing_seasons: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
         offline: AtomicBool::new(false),
@@ -2819,9 +2889,8 @@ fn main() -> anyhow::Result<()> {
         move |id| set_avatar(&app, id.to_string())
     });
 
-    // Navigation entre rangées : carte de la rangée cible dont le centre, avec le défilement
-    // actuel de cette rangée (celui de sa dernière sélection, comme SectionRow), est le plus
-    // proche de `x` : on arrive sur la carte visuellement au-dessus / en dessous.
+    // Navigation entre rangées : chaque rangée garde sa propre position (la carte où l'on était
+    // la dernière fois, la première sinon), comme sur les interfaces de télé.
     let row_mem: Arc<Mutex<std::collections::HashMap<i32, i32>>> = Arc::default();
     ui.on_row_seen({
         let m = row_mem.clone();
@@ -2831,15 +2900,11 @@ fn main() -> anyhow::Result<()> {
     });
     ui.on_row_pick({
         let m = row_mem.clone();
-        move |x, rw, n, w, gap, pad, key| {
+        move |_x, _rw, n, _w, _gap, _pad, key| {
             if n <= 0 {
                 return 0;
             }
-            let rem = m.lock().unwrap().get(&key).copied().unwrap_or(0).clamp(0, n - 1);
-            let strip = n as f32 * (w + gap) + 2.0 * pad;
-            let base = |i: i32| pad + i as f32 * (w + gap) + w / 2.0;
-            let offset = (rw - strip).max(rw / 2.0 - base(rem)).min(0.0);
-            (0..n).min_by(|a, b| (base(*a) + offset - x).abs().total_cmp(&(base(*b) + offset - x).abs())).unwrap_or(0)
+            m.lock().unwrap().get(&key).copied().unwrap_or(0).clamp(0, n - 1)
         }
     });
     // Nouvelles rangées (accueil rechargé, autre fiche) : défilements oubliés.
@@ -2948,6 +3013,8 @@ fn main() -> anyhow::Result<()> {
                 toggle_flag(&app, a);
             } else if a == "download" {
                 start_download(&app);
+            } else if a == "seerr-missing" {
+                request_missing_seasons(&app);
             } else if let Some(id) = a.strip_prefix("open:") {
                 push_detail(&app, id.to_string());
             }

@@ -192,6 +192,8 @@ pub struct SeerrDetails {
     pub status: i64,
     pub jellyfin_id: Option<String>,
     pub seasons: Vec<i64>,
+    /// Saisons ni disponibles, ni demandées, ni en cours (série incomplète).
+    pub missing_seasons: Vec<i64>,
     /// Distribution : (nom, personnage, photo)
     pub cast: Vec<(String, String, Option<String>)>,
 }
@@ -1169,9 +1171,25 @@ impl Client {
                 )
             })
             .collect();
+        // Saisons déjà là ou en route : statut média de la saison (2 en attente, 3 en cours,
+        // 4 partielle, 5 disponible), ou saison d'une demande qui n'a pas été refusée (3).
+        let mut known: Vec<i64> = d["mediaInfo"]["seasons"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|x| matches!(x["status"].as_i64(), Some(2..=5)))
+            .filter_map(|x| x["seasonNumber"].as_i64())
+            .collect();
+        for r in d["mediaInfo"]["requests"].as_array().into_iter().flatten().filter(|r| r["status"].as_i64() != Some(3)) {
+            known.extend(r["seasons"].as_array().into_iter().flatten().filter_map(|x| x["seasonNumber"].as_i64()));
+        }
+        let all_seasons: Vec<i64> =
+            d["seasons"].as_array().into_iter().flatten().filter_map(|x| x["seasonNumber"].as_i64()).filter(|n| *n > 0).collect();
+        let missing_seasons: Vec<i64> = all_seasons.iter().copied().filter(|n| !known.contains(n)).collect();
         Ok(SeerrDetails {
             tv,
             tmdb,
+            missing_seasons,
             title: if tv { s("name") } else { s("title") },
             year: date.chars().take(4).collect(),
             overview: s("overview"),
