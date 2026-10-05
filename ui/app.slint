@@ -4907,7 +4907,8 @@ export component AppWindow inherits Window {
                 }
             }
             property <length> row-h: 46px * root.k;
-            property <int> rows: min(root.ch-items.length, 9);
+            // Autant de lignes que l'écran en permet (la liste défile avec la sélection).
+            property <int> rows: min(root.ch-items.length, max(3, floor((self.height - 120px * root.k) / self.row-h)));
             property <int> top: max(0, min(root.ch-sel - 4, root.ch-items.length - self.rows));
             Rectangle {
                 x: parent.width - self.width - 32px * root.k + (1 - sets.ch-p) * 60px * root.k;
