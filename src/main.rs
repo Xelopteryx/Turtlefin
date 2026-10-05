@@ -2755,20 +2755,28 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     // Séries/saisons : tout. Autres dossiers : 60 premiers seulement.
     let is_season_like = matches!(item.kind.as_str(), "Series" | "Season");
     let limit: u32 = if is_season_like { 300 } else { 60 };
-    let children: Vec<api::Item> = if item.is_folder {
-        let sort = if is_season_like { "IndexNumber,SortName" } else { "SortName" };
-        client.children(&id, sort, limit).await.unwrap_or_default()
-    } else {
-        Vec::new()
+    // Enfants et bloc « À suivre » (séries) demandés en même temps.
+    let t0 = std::time::Instant::now();
+    let kids = async {
+        if item.is_folder {
+            let sort = if is_season_like { "IndexNumber,SortName" } else { "SortName" };
+            client.children(&id, sort, limit).await.unwrap_or_default()
+        } else {
+            Vec::new()
+        }
     };
+    let nxt = async {
+        if item.kind == "Series" {
+            client.next_up_for(&id).await.ok().flatten()
+        } else {
+            None
+        }
+    };
+    let (children, next): (Vec<api::Item>, Option<api::Item>) = tokio::join!(kids, nxt);
+    if std::env::var_os("TURTLEFIN_DEBUG_FRAMES").is_some() {
+        eprintln!("fiche {} : enfants + à suivre en {} ms", item.name, t0.elapsed().as_millis());
+    }
     let truncated = !is_season_like && children.len() as u32 >= limit;
-
-    // Bloc « À suivre » (séries uniquement)
-    let next: Option<api::Item> = if item.kind == "Series" {
-        client.next_up_for(&id).await.ok().flatten()
-    } else {
-        None
-    };
 
     if app.gen.load(Ordering::SeqCst) != my_gen {
         return; // l'utilisateur a navigué ailleurs entre-temps
