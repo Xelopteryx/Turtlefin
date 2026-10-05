@@ -254,3 +254,47 @@ pub fn clear_dirty(id: &str, favorite: bool) {
         save_flags(&all);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Préférences de l'appareil (Paramètres > Lecture / Sous-titres / Affichage), dans `prefs.json`.
+// ---------------------------------------------------------------------------
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct UiPrefs {
+    /// Intro (segment Jellyfin) passée sans demander.
+    pub auto_skip_intro: bool,
+    /// Taille des sous-titres (mpv `sub-scale`).
+    pub sub_scale: f64,
+    /// Interface TV (grands éléments, plein écran) ; les options --tv / --desktop priment.
+    pub tv: bool,
+    pub show_ratings: bool,
+    pub marquee: bool,
+    pub show_clock: bool,
+}
+
+impl Default for UiPrefs {
+    fn default() -> Self {
+        UiPrefs { auto_skip_intro: false, sub_scale: 1.0, tv: false, show_ratings: true, marquee: true, show_clock: true }
+    }
+}
+
+fn ui_prefs_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("prefs.json"))
+}
+
+pub fn ui_prefs() -> UiPrefs {
+    ui_prefs_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_ui_prefs(p: &UiPrefs) {
+    let Some(path) = ui_prefs_path() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(t) = serde_json::to_string_pretty(p) {
+        let _ = std::fs::write(path, t);
+    }
+}

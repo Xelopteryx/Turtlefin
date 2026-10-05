@@ -636,6 +636,11 @@ fn build_http() -> Result<reqwest::Client> {
     Ok(b.build()?)
 }
 
+/// Dossier du cache d'images (Paramètres > À propos : taille, vidage).
+pub fn image_cache_dir() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.cache_dir().join("img"))
+}
+
 fn image_cache_path(item_id: &str, kind: &str, tag: Option<&str>, size_key: &str) -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "turtlefin").map(|d| {
         d.cache_dir()

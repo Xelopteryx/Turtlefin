@@ -5,12 +5,12 @@ import "fonts/Montserrat-Medium.ttf";
 import "fonts/Montserrat-SemiBold.ttf";
 import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme } from "theme.slint";
+import { Theme, Prefs } from "theme.slint";
 import { CardData } from "card.slint";
 import { Osk } from "osk.slint";
 import { Marquee } from "marquee.slint";
 
-export { CardData }
+export { CardData, Prefs }
 
 export { TrackData }
 
@@ -57,6 +57,7 @@ export struct SeerrPage {
 export struct SettingRow {
     key: string,
     label: string,
+    hint: string,  // aide sous le libellé
     value: string,
     kind: string, // "toggle" | "choice" | "action" | "info"
     on: bool,
@@ -384,7 +385,7 @@ component CardArt inherits Rectangle {
     }
 
     // Note de la communauté
-    if root.data.rating != "": Rectangle {
+    if root.data.rating != "" && Prefs.ratings: Rectangle {
         x: parent.width - self.width - 8px * root.k;
         y: parent.height - self.height - 7px * root.k;
         width: 44px * root.k;
@@ -1198,7 +1199,7 @@ component HeaderRight inherits Rectangle {
                 image-fit: fill;
             }
         }
-        Text {
+        if Prefs.clock: Text {
             text: root.clock;
             color: Theme.text;
             font-size: 18px * root.k;
@@ -1737,6 +1738,12 @@ export component AppWindow inherits Window {
 
     // Paramètres : catégories à gauche (0 Profil · 1 Lecture · 2 Réseau · 3 Affichage · 4 Compte), lignes à droite
     in-out property <int> set-cat;
+    // Liste de choix d'un réglage (Paramètres) : clé du réglage ("" : fermée), titre, options.
+    in-out property <string> ch-key;
+    in property <string> ch-title;
+    in property <[TrackData]> ch-items;
+    in-out property <int> ch-sel;
+    callback settings-choose(string, string);
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
     in property <[SettingRow]> set-rows;
@@ -4561,12 +4568,16 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cats: ["Profil", "Lecture", "Réseau", "Affichage", "Compte"];
+        property <[string]> cats: ["Profil", "Lecture", "Sous-titres", "Affichage", "Réseau", "Compte", "À propos"];
         property <length> left-w: 260px * root.k;
         property <length> av: 96px * root.k;
         property <int> av-cols: max(1, floor((self.width - self.left-w - 120px * root.k) / (self.av + 18px * root.k)));
         // Profil : les lignes sont les avatars ; autres catégories : les lignes de réglage.
         property <int> n: root.set-cat == 0 ? root.avatar-items.length : root.set-rows.length;
+        // Première ligne réglable (les lignes d'information ne se sélectionnent pas).
+        property <int> first: root.set-cat == 0 || root.set-rows.length == 0 ? 0
+            : root.set-rows[0].kind != "info" ? 0 : root.set-rows.length > 1 && root.set-rows[1].kind != "info" ? 1
+            : root.set-rows.length > 2 && root.set-rows[2].kind != "info" ? 2 : 3;
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -4577,6 +4588,20 @@ export component AppWindow inherits Window {
                 self.focus();
             }
             key-pressed(event) => {
+                // Liste de choix ouverte : ↑ ↓ choisir, Entrée valider, Échap / ← fermer.
+                if (root.ch-key != "") {
+                    if (event.text == Key.UpArrow) {
+                        root.ch-sel = max(0, root.ch-sel - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.ch-sel = min(root.ch-items.length - 1, root.ch-sel + 1);
+                    } else if (event.text == Key.Return) {
+                        root.settings-choose(root.ch-key, root.ch-items[root.ch-sel].id);
+                        root.ch-key = "";
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                        root.ch-key = "";
+                    }
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -4603,7 +4628,7 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.RightArrow || event.text == Key.Return) {
                         if (sets.n > 0) {
                             root.set-in = true;
-                            root.set-sel = 0;
+                            root.set-sel = sets.first;
                         }
                     }
                     return EventResult.accept;
@@ -4627,13 +4652,18 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.accept;
                 }
+                // Lignes d'information sautées.
                 if (event.text == Key.UpArrow) {
-                    root.set-sel = max(0, root.set-sel - 1);
+                    let a = root.set-sel - 1;
+                    let b = root.set-sel - 2;
+                    root.set-sel = a >= 0 && root.set-rows[a].kind != "info" ? a : b >= 0 && root.set-rows[b].kind != "info" ? b : root.set-sel;
                 } else if (event.text == Key.DownArrow) {
-                    root.set-sel = min(sets.n - 1, root.set-sel + 1);
+                    let a = root.set-sel + 1;
+                    let b = root.set-sel + 2;
+                    root.set-sel = a < sets.n && root.set-rows[a].kind != "info" ? a : b < sets.n && root.set-rows[b].kind != "info" ? b : root.set-sel;
                 } else if (event.text == Key.LeftArrow) {
                     root.set-in = false;
-                } else if (event.text == Key.Return) {
+                } else if (event.text == Key.Return || (event.text == Key.RightArrow && root.set-rows[root.set-sel].kind == "choice")) {
                     root.settings-activate(root.set-rows[root.set-sel].key);
                 }
                 return EventResult.accept;
@@ -4761,39 +4791,80 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Autres catégories : lignes de réglage
+            // Autres catégories : lignes de réglage (libellé, aide dessous, valeur ou interrupteur à droite).
             if root.set-cat != 0: VerticalLayout {
                 alignment: start;
                 spacing: 10px * root.k;
 
-                for r[i] in root.set-rows: Rectangle {
-                    height: r.kind == "info" ? 30px * root.k : 60px * root.k;
+                for r[i] in root.set-rows: set-row := Rectangle {
+                    height: r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
                     border-radius: 12px * root.k;
-                    property <bool> sel: root.set-in && i == root.set-sel;
+                    property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
                     background: r.kind == "info" ? transparent
                         : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : self.sel ? #ffffff2e : #ffffff12;
+                        : self.sel ? #ffffff2e : row-area.has-hover ? #ffffff1f : #ffffff12;
                     border-width: self.sel && r.kind != "action" ? 2px : 0px;
                     border-color: Theme.accent2;
+                    transform-scale: self.sel ? 1.015 : 1.0;
+                    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
-                    Text {
+                    VerticalLayout {
                         x: 20px * root.k;
-                        width: parent.width - 260px * root.k;
-                        height: parent.height;
-                        text: r.label;
-                        color: r.kind == "info" ? Theme.muted : white;
-                        font-size: (r.kind == "info" ? 13px : 16px) * root.k;
-                        font-weight: r.kind == "action" ? 600 : 400;
-                        vertical-alignment: center;
-                        wrap: word-wrap;
+                        width: parent.width - 300px * root.k;
+                        alignment: center;
+                        spacing: 3px * root.k;
+                        if r.label != "": Text {
+                            text: r.label;
+                            color: white;
+                            font-size: 16px * root.k;
+                            font-weight: r.kind == "action" ? 700 : 600;
+                            overflow: elide;
+                        }
+                        if r.hint != "": Text {
+                            text: r.hint;
+                            color: r.kind == "info" ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
+                            font-size: 13px * root.k;
+                            wrap: word-wrap;
+                        }
                     }
-                    if r.kind == "choice": Text {
-                        x: parent.width - 240px * root.k;
-                        width: 220px * root.k;
+                    // Choix : valeur actuelle dans une pastille, flèche vers la liste.
+                    if r.kind == "choice": Rectangle {
+                        x: parent.width - self.width - 18px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: val-t.preferred-width + 48px * root.k;
+                        height: 34px * root.k;
+                        border-radius: self.height / 2;
+                        background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
+                        val-t := Text {
+                            x: 16px * root.k;
+                            height: parent.height;
+                            text: r.value;
+                            color: white;
+                            font-size: 15px * root.k;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Path {
+                            x: parent.width - self.width - 14px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: 12px * root.k;
+                            height: 12px * root.k;
+                            viewbox-width: 12;
+                            viewbox-height: 12;
+                            fill: transparent;
+                            stroke: white;
+                            stroke-width: 2px * root.k;
+                            commands: "M 2 4 L 6 8 L 10 4";
+                        }
+                    }
+                    // Action avec une valeur (taille du cache...)
+                    if r.kind == "action" && r.value != "": Text {
+                        x: parent.width - 200px * root.k;
+                        width: 180px * root.k;
                         height: parent.height;
-                        text: "‹  " + r.value + "  ›";
-                        color: Theme.accent2;
-                        font-size: 16px * root.k;
+                        text: r.value;
+                        color: #ffffffd9;
+                        font-size: 15px * root.k;
                         font-weight: 600;
                         horizontal-alignment: right;
                         vertical-alignment: center;
@@ -4811,7 +4882,7 @@ export component AppWindow inherits Window {
                             height: 22px * root.k;
                             border-radius: self.height / 2;
                             background: white;
-                            animate x { duration: 120ms; }
+                            animate x { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                         }
                     }
                     row-area := TouchArea {
@@ -4820,6 +4891,85 @@ export component AppWindow inherits Window {
                             root.set-in = true;
                             root.set-sel = i;
                             root.settings-activate(r.key);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Liste de choix d'un réglage : panneau de verre à droite, l'option actuelle cochée.
+        property <float> ch-p: root.ch-key != "" ? 1 : 0;
+        animate ch-p { duration: 240ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        if sets.ch-p > 0.01: ch-pane := Rectangle {
+            background: #00000080.transparentize(1 - sets.ch-p);
+            TouchArea {
+                clicked => {
+                    root.ch-key = "";
+                }
+            }
+            property <length> row-h: 46px * root.k;
+            property <int> rows: min(root.ch-items.length, 9);
+            property <int> top: max(0, min(root.ch-sel - 4, root.ch-items.length - self.rows));
+            Rectangle {
+                x: parent.width - self.width - 32px * root.k + (1 - sets.ch-p) * 60px * root.k;
+                y: (parent.height - self.height) / 2;
+                width: 380px * root.k;
+                height: 70px * root.k + parent.rows * parent.row-h + 12px * root.k;
+                border-radius: 18px * root.k;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                TouchArea { }
+                Text {
+                    x: 22px * root.k;
+                    y: 0px;
+                    height: 62px * root.k;
+                    text: root.ch-title;
+                    color: white;
+                    font-size: 18px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    y: 62px * root.k;
+                    height: parent.height - self.y - 12px * root.k;
+                    clip: true;
+                    for t[i] in root.ch-items: Rectangle {
+                        x: 10px * root.k;
+                        y: (i - ch-pane.top) * ch-pane.row-h;
+                        animate y { duration: 160ms; easing: ease-out; }
+                        width: parent.width - 20px * root.k;
+                        height: ch-pane.row-h - 4px * root.k;
+                        border-radius: 10px * root.k;
+                        background: i == root.ch-sel || ch-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Text {
+                            x: 16px * root.k;
+                            width: parent.width - 60px * root.k;
+                            height: parent.height;
+                            text: t.label;
+                            color: white;
+                            font-size: 16px * root.k;
+                            font-weight: t.current ? 700 : 500;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        if t.current: Path {
+                            x: parent.width - self.width - 16px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: 16px * root.k;
+                            height: 16px * root.k;
+                            viewbox-width: 16;
+                            viewbox-height: 16;
+                            fill: transparent;
+                            stroke: i == root.ch-sel ? white : Theme.accent2;
+                            stroke-width: 2.4px * root.k;
+                            commands: "M 2.5 8.5 L 6.5 12.5 L 13.5 3.5";
+                        }
+                        ch-area := TouchArea {
+                            clicked => {
+                                root.settings-choose(root.ch-key, t.id);
+                                root.ch-key = "";
+                            }
                         }
                     }
                 }

@@ -324,6 +324,12 @@ pub async fn play(
                                 push_time(&ui, &cur);
                                 // Intro : bouton « Passer l'intro » 5 s au plus, dès qu'elle commence.
                                 if let Some((s, e)) = cur.intro {
+                                    if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 && crate::config::ui_prefs().auto_skip_intro && !sync {
+                                        // Réglage « Passer l'intro automatiquement ».
+                                        cur.intro_shown = true;
+                                        let _ = player.command(&["seek", &format!("{e:.1}"), "absolute"]);
+                                        let _ = ui.upgrade_in_event_loop(|u| u.set_toast("Intro passée".into()));
+                                    }
                                     if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 {
                                         cur.intro_shown = true;
                                         let _ = ui.upgrade_in_event_loop(|u| u.set_p_skip_intro(true));
@@ -413,9 +419,18 @@ pub async fn play(
                             if sync {
                                 // Watch party : on laisse la suite au groupe (écran de fin pour choisir).
                                 show_up_next(&app, client, cur.item.as_ref(), None, true);
-                            } else if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
+                            } else if neighbour(&episodes, cur.item.as_ref(), 1).is_some() && autonext(&app) {
                                 // Épisode suivant (ou premier de la saison suivante).
                                 go_episode = Some(1);
+                            } else if neighbour(&episodes, cur.item.as_ref(), 1).is_some() {
+                                // Enchaînement coupé (réglage) : la carte « Épisode suivant » attend un choix.
+                                let next = neighbour(&episodes, cur.item.as_ref(), 1);
+                                if !cur.up_shown {
+                                    cur.up_shown = true;
+                                    show_up_next(&app, client, cur.item.as_ref(), next, false);
+                                } else {
+                                    let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("next".into()));
+                                }
                             } else if cur.up_shown {
                                 // Suggestions déjà chargées pendant le générique : écran de fin tout de suite.
                                 let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("end".into()));
@@ -699,7 +714,7 @@ async fn prepare_extras(app: &Arc<App>, client: Option<&Client>, cur: &mut Curre
             u.set_p_episodes(ModelRc::new(VecModel::from(cards.iter().map(card_data).collect::<Vec<_>>())));
             u.set_p_ep_current(cur_idx);
         });
-        let k = if app2.tv { 1.4 } else { 1.0 };
+        let k = if app2.tv() { 1.4 } else { 1.0 };
         let apply: crate::Apply = Arc::new(|u: &AppWindow, job: &crate::ImageJob, buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
             let model = u.get_p_episodes();
             if let Some(mut card) = model.row_data(job.b) {
@@ -726,6 +741,11 @@ fn card_data(c: &api::CardInfo) -> CardData {
                                 count: c.count,
         ..Default::default()
     }
+}
+
+/// Réglage du compte « Épisode suivant automatique » (activé par défaut).
+fn autonext(app: &Arc<App>) -> bool {
+    app.user_cfg.lock().unwrap()["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)
 }
 
 /// Propositions de fin :
@@ -758,7 +778,7 @@ fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, ne
                     u.set_p_up_image(slint::Image::from_rgba8(buf));
                     u.set_p_has_up_image(true);
                 });
-                let k = if app2.tv { 1.4 } else { 1.0 };
+                let k = if app2.tv() { 1.4 } else { 1.0 };
                 crate::spawn_image_jobs(&app2, &c, vec![job], api::Size::Fill(400, 225), crate::Shape::card(400, 225, 260.0 * k), apply);
             }
             return;
@@ -785,7 +805,7 @@ fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, ne
             u.set_p_picks(ModelRc::new(VecModel::from(cards.iter().map(card_data).collect::<Vec<_>>())));
             u.set_p_up_mode(if ended { "end" } else { "pick" }.into());
         });
-        let k = if app2.tv { 1.4 } else { 1.0 };
+        let k = if app2.tv() { 1.4 } else { 1.0 };
         let apply: crate::Apply = Arc::new(|u: &AppWindow, job: &crate::ImageJob, buf: slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
             let model = u.get_p_picks();
             if let Some(mut card) = model.row_data(job.b) {
@@ -859,6 +879,8 @@ fn load(
     };
 
     player.set_property("force-media-title", &title)?;
+    // Paramètres > Sous-titres > Taille.
+    let _ = player.set_property("sub-scale", &format!("{:.2}", crate::config::ui_prefs().sub_scale));
     // Pistes préférées de la série / du film (langue audio, sous-titres).
     if let Some(it) = &item {
         let pref = crate::config::track_pref(&it.pref_key());

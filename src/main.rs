@@ -26,7 +26,7 @@ struct Cli {
     user: Option<String>,
     pass: Option<String>,
     server: Option<String>,
-    tv: bool,
+    tv: Option<bool>,
     /// Lecture d'essai sans serveur : --test-video=FICHIER_OU_URL.
     test_video: Option<String>,
     /// Lecture directe d'un élément du serveur (essais) : --play=ID[@SECONDES].
@@ -35,12 +35,12 @@ struct Cli {
 
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
-    let mut cli = Cli { user: None, pass: None, server: None, tv: false, test_video: None, play: None };
+    let mut cli = Cli { user: None, pass: None, server: None, tv: None, test_video: None, play: None };
 
     for a in std::env::args().skip(1) {
         match a.as_str() {
-            "--tv" => cli.tv = true,
-            "--desktop" => cli.tv = false,
+            "--tv" => cli.tv = Some(true),
+            "--desktop" => cli.tv = Some(false),
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
@@ -71,8 +71,8 @@ struct App {
     /// Numéro de la dernière fiche demandée : ignore les réponses périmées.
     gen: AtomicU64,
     device_id: String,
-    /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images).
-    tv: bool,
+    /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images). Réglable.
+    tv_flag: AtomicBool,
     /// Onglet de l'accueil affiché : "home", "favorites" ou "requests".
     tab: Mutex<String>,
     /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
@@ -137,6 +137,10 @@ struct App {
 }
 
 impl App {
+    fn tv(&self) -> bool {
+        self.tv_flag.load(Ordering::Relaxed)
+    }
+
     fn ui(&self) -> slint::Weak<AppWindow> {
         self.ui.lock().unwrap().clone()
     }
@@ -977,8 +981,8 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
     let ui = app.ui();
 
     // Dimensions : voir card-w et SectionRow dans app.slint (rangée = 132 px x k + image).
-    let k = if app.tv { 1.4_f32 } else { 1.0 };
-    let card_w = if app.tv { 230.0_f32 } else { 170.0 };
+    let k = if app.tv() { 1.4_f32 } else { 1.0 };
+    let card_w = if app.tv() { 230.0_f32 } else { 170.0 };
     let row_h = move |landscape: bool| 132.0 * k + if landscape { card_w * 1.5 * 0.5625 } else { card_w * 1.5 };
 
     let mut poster_jobs: Vec<ImageJob> = Vec::new();
@@ -1090,8 +1094,8 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
         }
 
         // Dimensions : mêmes cartes que l'accueil (card-w dans app.slint).
-        let k = if app2.tv { 1.4_f32 } else { 1.0 };
-        let card_w = if app2.tv { 230.0_f32 } else { 170.0 };
+        let k = if app2.tv() { 1.4_f32 } else { 1.0 };
+        let card_w = if app2.tv() { 230.0_f32 } else { 170.0 };
         let row_h = 132.0 * k + card_w * 1.5;
         let item_id = item.id.clone();
         let mut jobs: Vec<ImageJob> = Vec::new();
@@ -1748,7 +1752,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                 show_screen(&u, "library");
             }
         });
-        let card_w = if app2.tv { 230.0 } else { 170.0 };
+        let card_w = if app2.tv() { 230.0 } else { 170.0 };
         let apply: Apply = Arc::new(|u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
             let model = u.get_lib_items();
             let Some(mut card) = model.row_data(job.b) else { return };
@@ -1975,48 +1979,178 @@ fn label_of<'a>(list: &[(&'a str, &'a str)], v: &str) -> &'a str {
 }
 
 /// Lignes de la catégorie affichée : (clé, libellé, valeur, type « toggle » / « choice » / « action » / « info »).
+/// Tailles de sous-titres proposées (mpv `sub-scale`).
+const SUB_SIZES: [(&str, &str); 5] = [("0.8", "Petite"), ("1", "Normale"), ("1.2", "Grande"), ("1.45", "Très grande"), ("1.7", "Énorme")];
+
+fn sub_size_label(v: f64) -> &'static str {
+    SUB_SIZES.iter().min_by(|a, b| (a.0.parse::<f64>().unwrap_or(1.0) - v).abs().total_cmp(&(b.0.parse::<f64>().unwrap_or(1.0) - v).abs())).map(|x| x.1).unwrap_or("Normale")
+}
+
+/// Réglages de l'appareil appliqués à l'interface (global Prefs).
+fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
+    let g = u.global::<Prefs>();
+    g.set_ratings(p.show_ratings);
+    g.set_marquee(p.marquee);
+    g.set_clock(p.show_clock);
+}
+
+/// Taille du cache d'images sur le disque (octets).
+fn cache_size() -> u64 {
+    let Some(dir) = api::image_cache_dir() else { return 0 };
+    std::fs::read_dir(dir).map(|d| d.flatten().filter_map(|e| e.metadata().ok()).map(|m| m.len()).sum()).unwrap_or(0)
+}
+
+/// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » / « action » / « info »).
+/// Catégories : 0 Profil · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Compte · 6 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
-    let row = |key: &str, label: &str, value: String, kind: &str, on: bool| SettingRow {
+    let row = |key: &str, label: &str, hint: &str, value: String, kind: &str, on: bool| SettingRow {
         key: key.into(),
         label: label.into(),
+        hint: hint.into(),
         value: value.into(),
         kind: kind.into(),
         on,
     };
+    let prefs = config::ui_prefs();
+    let c = app.user_cfg.lock().unwrap().clone();
+    let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
     match cat {
-        1 => {
-            let c = app.user_cfg.lock().unwrap().clone();
-            let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
-            vec![
-                row("alang", "Langue audio préférée", label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
-                row("defaudio", "Lire la piste audio par défaut du fichier", String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
-                row("slang", "Langue des sous-titres préférée", label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
-                row("submode", "Sous-titres", label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
-                row("info", "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire.", String::new(), "info", false),
-            ]
-        }
-        2 => {
+        1 => vec![
+            row("alang", "Langue audio préférée", "Choisie à l'ouverture d'un film ou d'un épisode, si elle existe.", label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
+            row("defaudio", "Piste audio par défaut du fichier", "Sans langue préférée, la piste marquée « par défaut » est lue.", String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
+            row("autonext", "Épisode suivant automatique", "À la fin d'un épisode, le suivant démarre tout seul.", String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
+            row("autoskip", "Passer l'intro automatiquement", "Quand le serveur connaît l'intro (segments), elle est sautée sans demander.", String::new(), "toggle", prefs.auto_skip_intro),
+            row("info", "", "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire.", String::new(), "info", false),
+        ],
+        2 => vec![
+            row("slang", "Langue des sous-titres préférée", "Utilisée selon le mode ci-dessous.", label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
+            row("submode", "Quand afficher les sous-titres", "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue.", label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
+            row("subsize", "Taille des sous-titres", "Appliquée à la prochaine vidéo.", sub_size_label(prefs.sub_scale).into(), "choice", false),
+        ],
+        3 => vec![
+            row("tvmode", "Interface TV", "Grands éléments et plein écran, pour la télé (--tv et --desktop priment).", String::new(), "toggle", app.tv()),
+            row("backdrop", "Fond d'écran du média sélectionné", "Image floutée derrière les pages. À couper si l'appareil est lent.", String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
+            row("ratings", "Notes sur les affiches", "La note de la communauté (★) en bas à droite des affiches.", String::new(), "toggle", prefs.show_ratings),
+            row("marquee", "Faire défiler les noms trop longs", "Sur l'élément sélectionné seulement.", String::new(), "toggle", prefs.marquee),
+            row("clock", "Afficher l'heure", "En haut à droite de l'écran.", String::new(), "toggle", prefs.show_clock),
+            row("still_gifs", "Avatars animés figés", "Les avatars GIF restent sur leur première image (moins de calcul).", String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
+        ],
+        4 => {
             let saved = config::load();
             let current = app.client().map(|c| c.server).unwrap_or_default();
             vec![
-                row("prefer_local", "Privilégier l'adresse locale (si elle répond) plutôt que l'adresse distante", String::new(), "toggle", !saved.prefer_remote),
-                row("info", &format!("Adresse locale : {}", if saved.server_local.is_empty() { "inconnue" } else { &saved.server_local }), String::new(), "info", false),
-                row("info", &format!("Adresse distante : {}", if saved.server_remote.is_empty() { "inconnue" } else { &saved.server_remote }), String::new(), "info", false),
-                row("info", &format!("Utilisée : {current}"), String::new(), "info", false),
-                row("server", "Sélectionner un serveur", String::new(), "action", false),
+                row("prefer_local", "Privilégier l'adresse locale", "Si elle répond, sinon l'adresse distante (Tailscale...).", String::new(), "toggle", !saved.prefer_remote),
+                row("info", "", &format!("Adresse locale : {}", if saved.server_local.is_empty() { "inconnue" } else { &saved.server_local }), String::new(), "info", false),
+                row("info", "", &format!("Adresse distante : {}", if saved.server_remote.is_empty() { "inconnue" } else { &saved.server_remote }), String::new(), "info", false),
+                row("info", "", &format!("Utilisée en ce moment : {current}"), String::new(), "info", false),
+                row("server", "Sélectionner un serveur", "", String::new(), "action", false),
             ]
         }
-        3 => vec![
-            row("backdrop", "Fond d'écran : image du média sélectionné", String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
-            row("still_gifs", "Avatars animés (GIF) figés sur leur première image", String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
-            row("info", "Une animation demande un peu de calcul à chaque image : à figer si l'appareil est lent.", String::new(), "info", false),
-        ],
-        4 => vec![
-            row("logout", "Se déconnecter", String::new(), "action", false),
-            row("quit", "Fermer l'application", String::new(), "action", false),
-        ],
+        5 => {
+            let who = app.client().map(|c| c.user_name).unwrap_or_default();
+            vec![
+                row("info", "", &format!("Connecté en tant que {who}"), String::new(), "info", false),
+                row("switch", "Changer de compte", "Les comptes enregistrés restent disponibles.", String::new(), "action", false),
+                row("logout", "Se déconnecter", "Le compte est retiré de cet appareil.", String::new(), "action", false),
+                row("quit", "Fermer l'application", "", String::new(), "action", false),
+            ]
+        }
+        6 => {
+            let size = cache_size();
+            let srv = app.client().map(|c| c.server).unwrap_or_default();
+            vec![
+                row("info", "", &format!("Turtlefin {} · client Jellyfin natif (Rust + Slint + mpv)", env!("CARGO_PKG_VERSION")), String::new(), "info", false),
+                row("info", "", &format!("Serveur : {srv}"), String::new(), "info", false),
+                row("info", "", &format!("Appareil : {}", app.device_id), String::new(), "info", false),
+                row("clearcache", "Vider le cache d'images", "Affiches et vignettes gardées sur le disque ; elles seront retéléchargées.", format!("{} Mo", size >> 20), "action", false),
+            ]
+        }
         _ => Vec::new(),
     }
+}
+
+/// Choix proposés pour un réglage « choice » : (titre, [(valeur, libellé)], valeur actuelle).
+fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, String)>, String)> {
+    let c = app.user_cfg.lock().unwrap().clone();
+    let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
+    let own = |l: &[(&str, &str)]| l.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+    match key {
+        "alang" => Some(("Langue audio préférée".into(), own(&LANGS), s("AudioLanguagePreference"))),
+        "slang" => Some(("Langue des sous-titres".into(), own(&LANGS), s("SubtitleLanguagePreference"))),
+        "submode" => Some(("Quand afficher les sous-titres".into(), own(&SUB_MODES), {
+            let m = s("SubtitleMode");
+            if m.is_empty() { "Default".into() } else { m }
+        })),
+        "subsize" => {
+            let cur = config::ui_prefs().sub_scale;
+            let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
+            Some(("Taille des sous-titres".into(), own(&SUB_SIZES), v.into()))
+        }
+        _ => None,
+    }
+}
+
+/// Ouvre la liste de choix d'un réglage (← → / ↑ ↓ pour choisir, Entrée pour valider).
+fn open_choice(app: &Arc<App>, key: &str) {
+    let Some((title, list, cur)) = setting_choices(app, key) else { return };
+    let sel = list.iter().position(|(k, _)| *k == cur).unwrap_or(0) as i32;
+    if let Some(u) = app.ui().upgrade() {
+        let rows: Vec<TrackData> = list.iter().map(|(k, l)| TrackData { id: k.clone().into(), label: l.clone().into(), current: *k == cur }).collect();
+        u.set_ch_items(ModelRc::new(VecModel::from(rows)));
+        u.set_ch_title(title.into());
+        u.set_ch_sel(sel);
+        u.set_ch_key(key.into());
+    }
+}
+
+/// Valeur choisie dans la liste d'un réglage.
+fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
+    if key == "subsize" {
+        let mut p = config::ui_prefs();
+        p.sub_scale = value.parse().unwrap_or(1.0);
+        config::save_ui_prefs(&p);
+        refresh_settings(app);
+        return;
+    }
+    let field = match key {
+        "alang" => "AudioLanguagePreference",
+        "slang" => "SubtitleLanguagePreference",
+        "submode" => "SubtitleMode",
+        _ => return,
+    };
+    let mut cfg = app.user_cfg.lock().unwrap().clone();
+    if !cfg.is_object() {
+        return;
+    }
+    cfg[field] = value.into();
+    save_user_cfg(app, cfg);
+}
+
+/// Préférences du compte Jellyfin : appliquées, affichées, puis envoyées au serveur.
+fn save_user_cfg(app: &Arc<App>, cfg: serde_json::Value) {
+    apply_user_defaults(&cfg);
+    *app.user_cfg.lock().unwrap() = cfg.clone();
+    refresh_settings(app);
+    if let Some(client) = app.client() {
+        let app2 = app.clone();
+        app.rt.spawn(async move {
+            if let Err(e) = client.set_user_config(&cfg).await {
+                let msg = format!("Réglage non enregistré : {e}");
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            }
+        });
+    }
+}
+
+/// Réglage de l'appareil à bascule (prefs.json).
+fn toggle_ui_pref(app: &Arc<App>, f: impl Fn(&mut config::UiPrefs)) {
+    let mut p = config::ui_prefs();
+    f(&mut p);
+    config::save_ui_prefs(&p);
+    if let Some(u) = app.ui().upgrade() {
+        apply_ui_prefs(&u, &p);
+    }
+    refresh_settings(app);
 }
 
 fn refresh_settings(app: &Arc<App>) {
@@ -2110,47 +2244,44 @@ fn set_avatar(app: &Arc<App>, id: String) {
 
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
-    let cycle = |list: &[(&str, &str)], cur: &str| -> String {
-        let i = list.iter().position(|(k, _)| *k == cur).unwrap_or(0);
-        list[(i + 1) % list.len()].0.to_string()
-    };
     match key {
-        "alang" | "slang" | "submode" | "defaudio" => {
+        "alang" | "slang" | "submode" | "subsize" => open_choice(app, key),
+        "defaudio" | "autonext" => {
             let mut cfg = app.user_cfg.lock().unwrap().clone();
             if !cfg.is_object() {
                 return;
             }
-            match key {
-                "alang" => {
-                    let n = cycle(&LANGS, cfg["AudioLanguagePreference"].as_str().unwrap_or(""));
-                    cfg["AudioLanguagePreference"] = n.into();
-                }
-                "slang" => {
-                    let n = cycle(&LANGS, cfg["SubtitleLanguagePreference"].as_str().unwrap_or(""));
-                    cfg["SubtitleLanguagePreference"] = n.into();
-                }
-                "submode" => {
-                    let n = cycle(&SUB_MODES, cfg["SubtitleMode"].as_str().unwrap_or("Default"));
-                    cfg["SubtitleMode"] = n.into();
-                }
-                _ => {
-                    let v = cfg["PlayDefaultAudioTrack"].as_bool().unwrap_or(true);
-                    cfg["PlayDefaultAudioTrack"] = (!v).into();
-                }
-            }
-            apply_user_defaults(&cfg);
-            *app.user_cfg.lock().unwrap() = cfg.clone();
-            refresh_settings(app);
-            if let Some(client) = app.client() {
-                let app2 = app.clone();
-                app.rt.spawn(async move {
-                    if let Err(e) = client.set_user_config(&cfg).await {
-                        let msg = format!("Réglage non enregistré : {e}");
-                        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
-                    }
-                });
-            }
+            let field = if key == "defaudio" { "PlayDefaultAudioTrack" } else { "EnableNextEpisodeAutoPlay" };
+            let v = cfg[field].as_bool().unwrap_or(true);
+            cfg[field] = (!v).into();
+            save_user_cfg(app, cfg);
         }
+        "autoskip" => toggle_ui_pref(app, |p| p.auto_skip_intro = !p.auto_skip_intro),
+        "ratings" => toggle_ui_pref(app, |p| p.show_ratings = !p.show_ratings),
+        "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
+        "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
+        "tvmode" => {
+            let on = !app.tv();
+            toggle_ui_pref(app, |p| p.tv = on);
+            app.tv_flag.store(on, Ordering::Relaxed);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_tv_mode(on);
+                u.window().set_fullscreen(on);
+            }
+            refresh_settings(app);
+        }
+        "clearcache" => {
+            if let Some(dir) = api::image_cache_dir() {
+                for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast("Cache d'images vidé.".into());
+            }
+            refresh_settings(app);
+        }
+        "switch" => end_session(app, false),
         "prefer_local" => {
             let now_remote = config::load().prefer_remote;
             set_prefer_remote(app, !now_remote);
@@ -2737,7 +2868,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let id = item_id.clone();
         let cands = item.poster_candidates();
         // poster-w dans app.slint : 200 px x k (k = 1,4 en mode TV).
-        let shape = Shape::card(400, 600, if app.tv { 280.0 } else { 200.0 });
+        let shape = Shape::card(400, 600, if app.tv() { 280.0 } else { 200.0 });
         app.rt.spawn(async move {
             if let Some(buf) = fetch_decoded(&client, cands, "Primary", api::Size::Fill(400, 600), Some(shape)).await {
                 let _ = ui.upgrade_in_event_loop(move |u| {
@@ -2785,7 +2916,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             let id = item_id.clone();
             let tag = card.img_tag;
             // next-w dans app.slint : 260 px x k.
-            let shape = Shape::card(320, 180, if app.tv { 364.0 } else { 260.0 });
+            let shape = Shape::card(320, 180, if app.tv() { 364.0 } else { 260.0 });
             app.rt.spawn(async move {
                 if let Some(buf) = fetch_decoded(&client, vec![(img_id, tag)], "Primary", api::Size::Fill(320, 180), Some(shape)).await {
                     let _ = ui.upgrade_in_event_loop(move |u| {
@@ -2809,7 +2940,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     // Vignettes des enfants : 16:9 pour les épisodes, posters sinon.
     let size = if landscape { api::Size::Fill(400, 225) } else { api::Size::Fill(270, 405) };
     // child-card-w dans app.slint : (240 px en 16:9, 120 sinon) x k.
-    let k = if app.tv { 1.4 } else { 1.0 };
+    let k = if app.tv() { 1.4 } else { 1.0 };
     let shape = if landscape { Shape::card_top(400, 225, 240.0 * k) } else { Shape::card_top(270, 405, 120.0 * k) };
     let apply: Apply = Arc::new(
         |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
@@ -3010,10 +3141,13 @@ fn main() -> anyhow::Result<()> {
             false
         }
     };
-    ui.set_tv_mode(cli.tv);
-    if cli.tv {
+    let prefs = config::ui_prefs();
+    let tv = cli.tv.unwrap_or(prefs.tv);
+    ui.set_tv_mode(tv);
+    if tv {
         ui.window().set_fullscreen(true);
     }
+    apply_ui_prefs(&ui, &prefs);
 
     let app = Arc::new(App {
         rt: rt.handle().clone(),
@@ -3022,7 +3156,7 @@ fn main() -> anyhow::Result<()> {
         stack: Mutex::new(Vec::new()),
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
-        tv: cli.tv,
+        tv_flag: AtomicBool::new(tv),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
         library: Mutex::new(None),
@@ -3399,6 +3533,11 @@ fn main() -> anyhow::Result<()> {
 
     ui.on_is_seerr(|id| id.starts_with("seerr:"));
 
+    ui.on_settings_choose({
+        let app = app.clone();
+        move |key, value| choose_setting(&app, &key, &value)
+    });
+
     ui.on_menu_find({
         let weak = ui.as_weak();
         move |action| {
@@ -3730,8 +3869,8 @@ fn refresh_downloads(app: &Arc<App>) {
             sections.push((t.to_string(), l, c));
         }
     }
-    let k = if app.tv { 1.4_f32 } else { 1.0 };
-    let card_w = if app.tv { 230.0_f32 } else { 170.0 };
+    let k = if app.tv() { 1.4_f32 } else { 1.0 };
+    let card_w = if app.tv() { 230.0_f32 } else { 170.0 };
     let row_h = move |landscape: bool| 132.0 * k + if landscape { card_w * 1.5 * 0.5625 } else { card_w * 1.5 };
     let rows: Vec<(String, bool, Vec<LocalCard>)> = sections.clone();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
@@ -3986,7 +4125,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         tokio::task::spawn_blocking(move || decode(&std::fs::read(p).ok()?, shape)).await.ok().flatten()
     };
     let (ui, k2) = (app.ui(), key_s.clone());
-    let poster_shape = Shape::card(400, 600, if app.tv { 280.0 } else { 200.0 });
+    let poster_shape = Shape::card(400, 600, if app.tv() { 280.0 } else { 200.0 });
     app.rt.spawn(async move {
         let p = read(poster, Some(poster_shape)).await;
         let l = match logo {
@@ -4012,7 +4151,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             u.set_detail(d);
         });
     });
-    let k = if app.tv { 1.4 } else { 1.0 };
+    let k = if app.tv() { 1.4 } else { 1.0 };
     let shape = if landscape { Shape::card_top(400, 225, 240.0 * k) } else { Shape::card_top(270, 405, 120.0 * k) };
     for (i, c) in children.into_iter().enumerate() {
         let ui = app.ui();

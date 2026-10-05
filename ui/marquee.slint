@@ -1,3 +1,5 @@
+import { Prefs } from "theme.slint";
+
 // Texte d'une ligne : coupé avec « … » au repos ; quand `active` (carte sélectionnée) et trop long,
 // il défile en aller-retour, avec une pause à chaque bout. Seul l'élément sélectionné s'anime :
 // rien n'est redessiné en continu ailleurs.
@@ -18,7 +20,7 @@ export component Marquee inherits Rectangle {
 
     // Dépassement du texte (0 s'il tient).
     property <length> over: max(0px, measure.preferred-width - root.width);
-    property <bool> run: root.active && root.over > 1px;
+    property <bool> run: root.active && Prefs.marquee && root.over > 1px;
     property <float> travel: root.over / 1px / root.speed * 1000;
     property <float> cycle: 2 * (root.travel + root.pause);
     property <duration> start;
