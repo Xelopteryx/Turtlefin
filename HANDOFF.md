@@ -193,7 +193,7 @@ Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
 
 ## 8. Variables d'environnement utiles
 
-`TURTLEFIN_PASSWORD`, `TURTLEFIN_LIBMPV` (chemin de libmpv), `TURTLEFIN_MPV_ARGS`, `TURTLEFIN_MPV_LOG`, `TURTLEFIN_HWDEC`, `TURTLEFIN_AO`, `TURTLEFIN_INSECURE=1` (test uniquement), `SLINT_BACKEND=winit-software`.
+`TURTLEFIN_PASSWORD`, `TURTLEFIN_LIBMPV` (chemin de libmpv), `TURTLEFIN_MPV_ARGS`, `TURTLEFIN_MPV_LOG`, `TURTLEFIN_HWDEC`, `TURTLEFIN_AO`, `TURTLEFIN_INSECURE=1` (test uniquement), `TURTLEFIN_CONFIG_DIR` (autre dossier de session, comptes et pistes : essais), `SLINT_BACKEND=winit-software`.
 
 ## 9. Ordre de travail proposé
 

@@ -25,8 +25,16 @@ pub struct Saved {
     pub device_id: String,
 }
 
+/// Dossier de configuration ; `TURTLEFIN_CONFIG_DIR` le remplace (essais avec une autre session).
+fn config_dir() -> Option<PathBuf> {
+    if let Some(d) = std::env::var_os("TURTLEFIN_CONFIG_DIR") {
+        return Some(PathBuf::from(d));
+    }
+    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.config_dir().to_path_buf())
+}
+
 fn path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.config_dir().join("session.json"))
+    config_dir().map(|d| d.join("session.json"))
 }
 
 /// Charge la session ; crée et enregistre un identifiant d'appareil au premier lancement.
@@ -75,7 +83,7 @@ pub struct TrackPref {
 }
 
 fn prefs_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.config_dir().join("tracks.json"))
+    config_dir().map(|d| d.join("tracks.json"))
 }
 
 fn load_prefs() -> std::collections::HashMap<String, TrackPref> {
@@ -137,7 +145,7 @@ pub struct Account {
 }
 
 fn accounts_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.config_dir().join("accounts.json"))
+    config_dir().map(|d| d.join("accounts.json"))
 }
 
 pub fn accounts() -> Vec<Account> {
