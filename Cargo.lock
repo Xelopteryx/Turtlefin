@@ -5403,7 +5403,7 @@ dependencies = [
 
 [[package]]
 name = "turtlefin"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

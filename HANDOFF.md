@@ -1,7 +1,7 @@
 # Turtlefin : passation de projet (état au 5 octobre 2026)
 
 Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.3.1.
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.4.0.
 
 **Branches** : `main` (état d'origine), `interface-lua` (mpv en processus séparé + interface de lecture en script Lua), `libmpv` (lecteur intégré, voir ci-dessous). Le choix entre `interface-lua` et `libmpv` dépend de la mesure RAM/CPU sur le Pi (section 9).
 
