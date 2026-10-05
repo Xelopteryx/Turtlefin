@@ -471,7 +471,9 @@ impl Item {
         // La série d'abord, puis la saison (du plus large au plus précis).
         if matches!(self.kind.as_str(), "Episode" | "Season") {
             if let Some(id) = &self.series_id {
-                b.push(("Voir la série".into(), format!("open:{id}"), String::new(), false));
+                // Saison : seul bouton de texte, il rejoint la ligne principale (« label »).
+                let icon = if self.kind == "Season" { "label" } else { "" };
+                b.push(("Voir la série".into(), format!("open:{id}"), icon.into(), false));
             }
         }
         if self.kind == "Episode" {
@@ -483,6 +485,7 @@ impl Item {
     }
 
     /// Casting et équipe : cartes portrait (photo, nom, rôle).
+    #[allow(dead_code)]
     pub fn people_cards(&self) -> Vec<CardInfo> {
         let mut out = Vec::new();
         for p in self.people.iter().flatten().take(30) {

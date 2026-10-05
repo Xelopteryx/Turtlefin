@@ -96,6 +96,12 @@ export struct DetailData {
     next-image: image,
     buttons: [ButtonData],
     icon-count: int, // boutons à icône (ligne du haut), les autres sont des pastilles
+    // Changement de fiche en douceur : ce qui est identique reste, le reste s'anime (voir detail-swap).
+    poster-key: string,
+    logo-key: string,
+    icons-sig: string,
+    chips-sig: string,
+    children-sig: string,
 }
 
 // Défilement des rangées horizontales, calculé en Rust (chaque rangée garde le sien) :
@@ -247,6 +253,7 @@ global Hero {
     in-out property <CardData> data;   // la carte entière (pastilles, note)
     in-out property <float> k: 1.0;
     in-out property <string> hide-id;  // carte cachée pendant le vol (l'image partagée la remplace)
+    in-out property <string> want-id;  // retour : la carte de cet élément répond (sinon la carte sélectionnée)
 }
 
 // Image d'une carte avec ses pastilles (avancement, Seerr, épisodes restants / vu, statut, note).
@@ -421,7 +428,7 @@ component Card inherits Rectangle {
     // Ouverture animée : la carte sélectionnée donne la place de son image (agrandie de 6 %).
     property <int> hero-tick: Hero.tick;
     changed hero-tick => {
-        if (root.focused && root.data.has-image) {
+        if (Hero.want-id != "" ? root.data.id == Hero.want-id && root.data.has-image : root.focused && root.data.has-image) {
             Hero.seq += 1;
             Hero.x = root.absolute-position.x - root.width * 0.03;
             Hero.y = root.absolute-position.y - root.height * 0.03;
@@ -746,99 +753,165 @@ component ActionButton inherits Rectangle {
 // Bouton de la fiche : icône (lecture, favori, vu, téléchargement) ou texte, au style de ActionButton.
 component DetailButton inherits Rectangle {
     in property <string> text;
-    in property <string> icon;
+    in property <string> icon;          // "" : pastille de texte · "label" : texte sur la ligne des icônes
     in property <bool> active;
     in property <bool> focused;
     in property <float> k: 1.0;
+    in property <int> press;            // incrémenté à chaque activation : le bouton sélectionné réagit
     callback clicked();
 
     property <bool> lit: root.focused || area.has-hover;
+    property <bool> is-icon: root.icon != "" && root.icon != "label";
+
+    // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
+    property <bool> act: root.active;
+    property <int> kind;                // 1 appui · 2 changement d'état
+    property <bool> anim;
+    property <duration> t0;
+    changed press => {
+        if (root.focused) {
+            root.kind = 1;
+            root.t0 = animation-tick();
+            root.anim = true;
+        }
+    }
+    changed act => {
+        root.kind = 2;
+        root.t0 = animation-tick();
+        root.anim = true;
+    }
+    Timer {
+        interval: 520ms;
+        running: root.anim;
+        triggered => {
+            root.anim = false;
+        }
+    }
+    property <float> q: root.anim ? clamp((animation-tick() - root.t0) / 500ms, 0, 1) : 1;
+    property <float> wave: root.anim ? sin(root.q * 360deg) * (1 - root.q) : 0;
+    property <float> hop: root.anim ? sin(root.q * 180deg) * (1 - 0.4 * root.q) : 0;
+    property <float> lit-s: root.lit ? 1.1 : 1.0;
+    animate lit-s { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     in property <bool> chip; // pastille compacte (saison, série, pistes)
-    preferred-width: root.icon != "" ? self.height : label.preferred-width + (root.chip ? 24px : 40px) * root.k;
+    preferred-width: root.is-icon ? self.height : label.preferred-width + (root.chip ? 24px : 40px) * root.k;
     min-width: self.preferred-width;
     horizontal-stretch: 0;
-    border-radius: root.chip ? self.height / 2 : 10px;
-    transform-scale: root.lit ? 1.1 : 1.0;
-    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-        : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
-
-    if root.icon == "play": Path {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 22px * root.k;
-        height: 22px * root.k;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        fill: white;
-        commands: "M 7 4 L 20 12 L 7 20 Z";
-    }
-    if root.icon == "heart": Path {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 22px * root.k;
-        height: 22px * root.k;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        fill: root.active ? #ff4d6d : transparent;
-        stroke: root.active ? #ff4d6d : white;
-        stroke-width: 2px * root.k;
-        commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
-    }
-    if root.icon == "check": Path {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 22px * root.k;
-        height: 22px * root.k;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        fill: transparent;
-        stroke: root.active ? Theme.accent2 : white;
-        stroke-width: (root.active ? 3.2px : 2.2px) * root.k;
-        commands: "M 4 12.5 L 9.5 18 L 20 6.5";
-    }
-    if root.icon == "download": Path {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 22px * root.k;
-        height: 22px * root.k;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        fill: transparent;
-        stroke: root.active ? Theme.accent2 : white;
-        stroke-width: 2.2px * root.k;
-        commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10 M 4.5 20 L 19.5 20";
-    }
-
-    // Supprimer (téléchargement) : corbeille.
-    if root.icon == "trash": Path {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 22px * root.k;
-        height: 22px * root.k;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        fill: transparent;
-        stroke: white;
-        stroke-width: 2px * root.k;
-        commands: "M 4 6.5 L 20 6.5 M 9.5 6.5 L 9.5 4 L 14.5 4 L 14.5 6.5 M 6 6.5 L 7 20 L 17 20 L 18 6.5 M 10 10.5 L 10 16.5 M 14 10.5 L 14 16.5";
-    }
-
-    label := Text {
+    // Le zoom ne s'applique pas à la racine d'un composant : il porte sur ce rectangle intérieur.
+    face := Rectangle {
         width: parent.width;
         height: parent.height;
-        text: root.text;
-        color: white;
-        font-size: (root.chip ? 13px : 16px) * root.k;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
+        border-radius: root.chip || root.icon == "label" ? self.height / 2 : 10px;
+        transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
+        background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+            : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
 
-    area := TouchArea {
-        clicked => {
-            root.clicked();
+        if root.icon == "play": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: white;
+            commands: "M 7 4 L 20 12 L 7 20 Z";
+        }
+        // Favori : le cœur se remplit en fondu pendant qu'il saute.
+        if root.icon == "heart": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: root.active ? #ff4d6d : #ff4d6d00;
+            animate fill { duration: 300ms; easing: ease-out; }
+            stroke: root.active ? #ff4d6d : white;
+            animate stroke { duration: 300ms; }
+            stroke-width: 2px * root.k;
+            commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
+        }
+        if root.icon == "check": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: root.active ? Theme.accent2 : white;
+            animate stroke { duration: 300ms; }
+            stroke-width: (root.active ? 3.2px : 2.2px) * root.k;
+            commands: "M 4 12.5 L 9.5 18 L 20 6.5";
+        }
+        // Téléchargement : la flèche plonge vers le plateau à l'appui.
+        if root.icon == "download": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2 + (root.kind == 1 ? root.hop * 6px * root.k : 0px);
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: root.active ? Theme.accent2 : white;
+            animate stroke { duration: 300ms; }
+            stroke-width: 2.2px * root.k;
+            commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10";
+        }
+        if root.icon == "download": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: root.active ? Theme.accent2 : white;
+            stroke-width: 2.2px * root.k;
+            commands: "M 4.5 20 L 19.5 20";
+        }
+
+        // Supprimer (téléchargement) : corbeille, le couvercle se soulève à l'appui.
+        if root.icon == "trash": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2 - (root.kind == 1 ? root.hop * 4px * root.k : 0px);
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: white;
+            stroke-width: 2px * root.k;
+            commands: "M 4 6.5 L 20 6.5 M 9.5 6.5 L 9.5 4 L 14.5 4 L 14.5 6.5";
+        }
+        if root.icon == "trash": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: white;
+            stroke-width: 2px * root.k;
+            commands: "M 6 6.5 L 7 20 L 17 20 L 18 6.5 M 10 10.5 L 10 16.5 M 14 10.5 L 14 16.5";
+        }
+
+        label := Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.is-icon ? "" : root.text;
+            color: white;
+            font-size: (root.chip ? 13px : root.icon == "label" ? 15px : 16px) * root.k;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        area := TouchArea {
+            clicked => {
+                root.clicked();
+            }
         }
     }
 }
@@ -1002,7 +1075,27 @@ component HeaderRight inherits Rectangle {
     in property <image> avatar;
     in property <string> clock;
     in property <bool> offline;
+    in property <int> party-count;
     callback activate(int);
+
+    // Impulsion (0 -> 1, trois fois) quand le groupe change.
+    property <int> pc: root.party-count;
+    property <bool> pulse-on;
+    property <duration> pulse-t0;
+    property <float> pulse: root.pulse-on ? mod((animation-tick() - root.pulse-t0) / 1ms, 700) / 700 : 0;
+    changed pc => {
+        if (root.party-on) {
+            root.pulse-t0 = animation-tick();
+            root.pulse-on = true;
+        }
+    }
+    Timer {
+        interval: 2100ms;
+        running: root.pulse-on;
+        triggered => {
+            root.pulse-on = false;
+        }
+    }
 
     HorizontalLayout {
         alignment: end;
@@ -1044,6 +1137,33 @@ component HeaderRight inherits Rectangle {
             focused: root.sel == 0;
             clicked => {
                 root.activate(0);
+            }
+            // Dans une watch party : fond d'accent, anneau qui s'élargit à chaque arrivée / départ
+            // (trois fois puis plus rien : pas d'animation continue), nombre de participants.
+            if root.party-on: Rectangle {
+                width: parent.width * (1 + 0.7 * root.pulse);
+                height: self.width;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                border-width: 2px * root.k;
+                border-color: Theme.accent2.transparentize(root.pulse-on ? root.pulse : 1);
+            }
+            if root.party-on: Rectangle {
+                x: parent.width - self.width + 4px * root.k;
+                y: -4px * root.k;
+                width: max(18px * root.k, cnt-t.preferred-width + 10px * root.k);
+                height: 18px * root.k;
+                border-radius: self.height / 2;
+                background: @linear-gradient(110deg, Theme.accent1 0%, Theme.accent2 100%);
+                cnt-t := Text {
+                    text: root.party-count;
+                    color: white;
+                    font-size: 11px * root.k;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
         }
         if !root.offline: HeaderIcon {
@@ -1133,8 +1253,9 @@ export component AppWindow inherits Window {
     property <float> page-lin: root.page-anim ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
-        // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste.
-        if (root.hero-on) {
+        // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste
+        // (sauf un grand fond : la page arrive normalement par-dessus).
+        if (root.hero-on && !root.hero-big) {
             return;
         }
         root.page-t0 = animation-tick();
@@ -1194,10 +1315,12 @@ export component AppWindow inherits Window {
     property <length> hero-th: root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr;
     // L'affiche de la page ouverte est cachée tant que l'image partagée vole (elle prend le relais).
-    property <bool> hero-covers: root.hero-on;
+    property <bool> hero-covers: root.hero-on && root.hero-dest;
+    property <string> hero-from-id;          // retour : page quittée (l'image attend qu'elle soit partie)
     // La page ouverte est affichée.
     property <bool> hero-ready: root.hero-on && root.hero-dest && !root.hero-anim && !root.loading && (root.hero-seerr
         ? root.sr-open && !root.sr.loading
+        : root.screen == "detail" ? root.detail.id == root.hero-id
         : root.screen != "home" && root.screen != "loading");
     changed hero-ready => {
         if (root.hero-ready && root.hero-big && !root.hero-faded) {
@@ -1230,6 +1353,7 @@ export component AppWindow inherits Window {
     changed hero-on => {
         if (!root.hero-on) {
             Hero.hide-id = "";
+            Hero.want-id = "";
             root.hero-flying = false;
         }
     }
@@ -1263,7 +1387,10 @@ export component AppWindow inherits Window {
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
-        if (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads") {
+        // Fiche : rangées du bas (autre média) oui, enfants (épisodes, saisons) non : là, la fiche change
+        // en douceur, sans image qui vole.
+        if (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
+                || (root.screen == "detail" && root.d-zone >= 4)) {
             root.hero-pending = id;
             Hero.tick += 1;
         }
@@ -1271,7 +1398,7 @@ export component AppWindow inherits Window {
     }
     // Retour : l'image attend que sa carte soit affichée, puis vole exactement jusqu'à elle.
     property <bool> hero-wait: root.hero-on && !root.hero-dest && !root.hero-flying && !root.loading && !root.veil-hold
-        && !root.sr-open && root.screen != "detail" && root.screen != "loading";
+        && !root.sr-open && root.screen != "loading" && !(root.screen == "detail" && root.detail.id == root.hero-from-id);
     Timer {
         interval: 60ms;
         running: root.hero-wait;
@@ -1328,6 +1455,8 @@ export component AppWindow inherits Window {
     // Retour : depuis la page ouverte par une carte, l'image reste en place pendant que la page
     // s'efface, puis repart vers la carte.
     function hero-return() {
+        root.hero-from-id = root.screen == "detail" ? root.detail.id : "";
+        Hero.want-id = root.hero-data.id;
         root.hero-dest = false;
         root.hero-flying = false;
         root.hero-anim = false;
@@ -1349,8 +1478,14 @@ export component AppWindow inherits Window {
             root.hero-return();
         }
         root.hero-id = "";
+        // Fiche -> fiche précédente : rien ne s'efface, la fiche change en douceur.
+        if (root.screen == "detail" && root.back-soft) {
+            root.run-action("back");
+            return;
+        }
         root.nav-out("back", "");
     }
+    in property <bool> back-soft;           // la page précédente est une fiche (Rust)
     // Fermeture de la page Seerr (Échap, Retour, bouton Fermer).
     function seerr-close() {
         if (root.hero-id != "" && root.hero-seerr) {
@@ -1415,6 +1550,118 @@ export component AppWindow inherits Window {
     }
     changed sel-item => {
         root.row-seen(root.sel-section, root.sel-item);
+    }
+
+    // ---- Changement de fiche sans quitter l'écran (épisode, saison, série...) : rien ne s'efface ;
+    // seuls les éléments dont le contenu change réapparaissent en fondu (drapeaux posés par les
+    // `changed` ci-dessous, après detail-swap()). L'affiche fait un fondu enchaîné si elle change.
+    in-out property <int> d-press;           // appui sur un bouton de la fiche (animation)
+    property <bool> sw-anim;
+    property <duration> sw-t0;
+    property <float> sw-q: root.sw-anim ? clamp((animation-tick() - root.sw-t0) / 420ms, 0, 1) : 1;
+    property <float> sw-e: 1 - (1 - root.sw-q) * (1 - root.sw-q);
+    property <bool> sw-title;
+    property <bool> sw-sub;
+    property <bool> sw-icons;
+    property <bool> sw-chips;
+    property <bool> sw-misc;
+    property <bool> sw-ov;
+    property <bool> sw-next;
+    property <bool> sw-kids;
+    public function detail-swap() {
+        root.sw-title = false;
+        root.sw-sub = false;
+        root.sw-icons = false;
+        root.sw-chips = false;
+        root.sw-misc = false;
+        root.sw-ov = false;
+        root.sw-next = false;
+        root.sw-kids = false;
+        root.sw-t0 = animation-tick();
+        root.sw-anim = true;
+    }
+    Timer {
+        interval: 440ms;
+        running: root.sw-anim;
+        triggered => {
+            root.sw-anim = false;
+        }
+    }
+    property <string> w-logo-key: root.detail.logo-key;
+    changed w-logo-key => {
+        root.sw-title = true;
+    }
+    property <bool> w-has-logo: root.detail.has-logo;
+    changed w-has-logo => {
+        root.sw-title = true;
+    }
+    property <string> w-title: root.detail.title;
+    changed w-title => {
+        root.sw-title = true;
+    }
+    property <string> w-subtitle: root.detail.subtitle;
+    changed w-subtitle => {
+        root.sw-sub = true;
+    }
+    property <string> w-icons-sig: root.detail.icons-sig;
+    changed w-icons-sig => {
+        root.sw-icons = true;
+    }
+    property <string> w-chips-sig: root.detail.chips-sig;
+    changed w-chips-sig => {
+        root.sw-chips = true;
+    }
+    property <string> w-misc: root.detail.misc;
+    changed w-misc => {
+        root.sw-misc = true;
+    }
+    property <string> w-overview: root.detail.overview;
+    changed w-overview => {
+        root.sw-ov = true;
+    }
+    property <string> w-next-id: root.detail.next-id;
+    changed w-next-id => {
+        root.sw-next = true;
+    }
+    property <string> w-children-sig: root.detail.children-sig;
+    changed w-children-sig => {
+        root.sw-kids = true;
+    }
+    // Affiche : l'ancienne reste dessous (posée par Rust) jusqu'à ce que la nouvelle l'ait recouverte.
+    in-out property <image> d-poster-old;
+    in-out property <bool> d-poster-swap;
+    property <bool> pm-anim;
+    property <duration> pm-t0;
+    property <float> pm: root.pm-anim ? clamp((animation-tick() - root.pm-t0) / 450ms, 0, 1) : 1;
+    property <bool> w-has-poster: root.detail.has-poster;
+    changed w-has-poster => {
+        if (root.detail.has-poster && root.d-poster-swap) {
+            root.pm-t0 = animation-tick();
+            root.pm-anim = true;
+        }
+    }
+    Timer {
+        interval: 470ms;
+        running: root.pm-anim;
+        triggered => {
+            root.pm-anim = false;
+            root.d-poster-swap = false;
+        }
+    }
+    // Rangées du bas (plus de ce genre...) : elles arrivent après coup, en fondu.
+    property <bool> rows-anim;
+    property <duration> rows-t0;
+    property <float> rows-a: root.rows-anim ? clamp((animation-tick() - root.rows-t0) / 400ms, 0, 1) : 1;
+    changed detail-rows => {
+        root.rows-t0 = animation-tick();
+        root.rows-anim = true;
+    }
+    Timer {
+        interval: 420ms;
+        running: root.rows-anim;
+        triggered => {
+            root.rows-anim = false;
+        }
     }
     changed login-user => {
         if (root.login-user != "") {
@@ -1525,6 +1772,9 @@ export component AppWindow inherits Window {
     in property <bool> sp-active;
     in property <string> sp-name;
     in property <string> sp-people;
+    in property <int> sp-count;              // participants de la watch party
+    in property <[string]> sp-list;          // leurs noms
+    in property <string> sp-now;             // ce que le groupe regarde (vide : rien)
     in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
     in-out property <int> sp-sel;
@@ -1674,7 +1924,7 @@ export component AppWindow inherits Window {
     }
     // Fiche : rangée d'enfants (clé 1002) et rangées du bas (1004 + n°), cartes de 140 px x k.
     pure function detail-pick-down(from-key: int, from-x: int, from-w: length, to-row: int) -> int {
-        return root.row-to(from-key, from-x, from-w, 1004 + to-row, root.detail-rows[to-row].items.length, 140px * root.k);
+        return root.row-to(from-key, from-x, from-w, 1004 + to-row, root.detail-rows[to-row].items.length, root.card-w);
     }
     // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
@@ -1829,9 +2079,16 @@ export component AppWindow inherits Window {
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
     // Passe derrière une fois arrivé et la page prête (avant, le voile la cacherait).
-    property <bool> hero-under: root.hero-on && root.hero-big && root.hero-dest && !root.hero-anim && !root.loading
+    // Le grand fond passe derrière la page dès qu'elle est là (même en plein vol) : il ne cache
+    // jamais les affiches.
+    property <bool> hero-under: root.hero-on && root.hero-big && root.hero-dest && !root.loading
         && root.screen != "home" && root.screen != "loading";
     if root.hero-under && !root.playing: Rectangle {
+        // Même trajectoire que l'image en vol (elle finit de s'agrandir derrière la page).
+        x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
+        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+        width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
+        height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
         Image {
             width: parent.width;
             height: parent.height;
@@ -1840,7 +2097,7 @@ export component AppWindow inherits Window {
             opacity: root.hero-alpha;
         }
         Rectangle {
-            background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha);
+            background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha * root.hero-p);
         }
     }
 
@@ -2335,6 +2592,7 @@ export component AppWindow inherits Window {
                 k: root.k;
                 sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
                 party-on: root.sp-active;
+                party-count: root.sp-count;
                 has-avatar: root.has-avatar;
                 avatar: root.avatar;
                 clock: root.clock;
@@ -2535,18 +2793,83 @@ export component AppWindow inherits Window {
                 font-size: 15px * root.k;
                 wrap: word-wrap;
             }
-            if root.sp-active: Text {
-                text: "État : " + root.sp-state;
-                color: Theme.text;
-                font-size: 16px * root.k;
-                font-weight: 600;
-            }
-            if root.sp-active: Text {
-                text: "Participants : " + root.sp-people;
-                color: Theme.accent2;
-                font-size: 16px * root.k;
-                font-weight: 600;
-                wrap: word-wrap;
+            // Le groupe : état, ce qu'il regarde, participants.
+            if root.sp-active: Rectangle {
+                height: party-card.preferred-height;
+                border-radius: 16px * root.k;
+                background: #ffffff12;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                party-card := VerticalLayout {
+                    padding: 20px * root.k;
+                    spacing: 10px * root.k;
+                    HorizontalLayout {
+                        spacing: 10px * root.k;
+                        alignment: start;
+                        Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            width: 10px * root.k;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            background: root.sp-state == "En lecture" ? #4ade80 : root.sp-state == "En pause" ? #f59e0b : Theme.accent2;
+                        }
+                        Text {
+                            text: root.sp-state;
+                            color: white;
+                            font-size: 16px * root.k;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Text {
+                        text: root.sp-now != "" ? "Regarde : " + root.sp-now : "Rien pour l'instant : lance un film ou un épisode.";
+                        color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
+                        font-size: 16px * root.k;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sp-count == 1 ? "1 participant" : root.sp-count + " participants";
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px * root.k;
+                        alignment: start;
+                        height: 32px * root.k;
+                        for who in root.sp-list: Rectangle {
+                            width: who-t.preferred-width + 44px * root.k;
+                            border-radius: self.height / 2;
+                            background: #ffffff1a;
+                            Rectangle {
+                                x: 4px * root.k;
+                                y: 4px * root.k;
+                                width: parent.height - 8px * root.k;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                                Text {
+                                    text: who.character-count > 0 ? who.to-uppercase() : "?";
+                                    color: white;
+                                    font-size: 11px * root.k;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    overflow: clip;
+                                    width: 10px * root.k;
+                                }
+                            }
+                            who-t := Text {
+                                x: parent.height + 2px * root.k;
+                                text: who;
+                                color: white;
+                                font-size: 14px * root.k;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
             }
             if !root.sp-active && root.sp-groups.length > 0: Text {
                 text: "REJOINDRE";
@@ -2557,7 +2880,7 @@ export component AppWindow inherits Window {
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
-                background: i == root.sp-sel || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
+                background: (!root.h-focus && i == root.sp-sel) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
                 Text {
                     x: 20px * root.k;
                     height: parent.height;
@@ -2578,7 +2901,7 @@ export component AppWindow inherits Window {
                 ActionButton {
                     text: root.sp-active ? "Quitter la watch party" : "Créer une watch party";
                     font: 16px * root.k;
-                    focused: root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length;
+                    focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
                     clicked => {
                         root.party-action(root.sp-active ? "leave" : "create");
                     }
@@ -2945,7 +3268,9 @@ export component AppWindow inherits Window {
     if root.screen == "detail" && !root.playing: dt := Rectangle {
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
-        property <length> icons-w: root.detail.icon-count * 40px * root.k + max(0, root.detail.icon-count - 1) * self.btn-gap;
+        property <length> icons-w: max(0px, icons-row.preferred-width - (root.detail.buttons.length - root.detail.icon-count) * self.btn-gap);
+        // Pas de pastilles (saison...) : les infos remontent d'une ligne.
+        property <length> lift: root.detail.buttons.length == root.detail.icon-count ? 34px * root.k : 0px;
         // Les boutons à icône masqués de la ligne des pastilles comptent encore un espacement chacun.
         property <length> chips-w: max(0px, chips-row.preferred-width - root.detail.icon-count * self.btn-gap);
         property <length> btns-w: max(self.icons-w, self.chips-w);
@@ -3048,6 +3373,7 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     if (event.text == Key.Return) {
+                        root.d-press += 1;
                         root.run-action(root.detail.buttons[root.d-button].action);
                         return EventResult.accept;
                     }
@@ -3123,16 +3449,16 @@ export component AppWindow inherits Window {
                         }
                     } else if (event.text == Key.DownArrow) {
                         if (root.d-zone - 4 < root.detail-rows.length - 1) {
-                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, 140px * root.k, root.d-zone - 3);
+                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, root.card-w, root.d-zone - 3);
                             root.d-zone += 1;
                         }
                     } else if (event.text == Key.UpArrow) {
                         if (root.d-zone > 4) {
-                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, 140px * root.k, root.d-zone - 5);
+                            root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, root.card-w, root.d-zone - 5);
                             root.d-zone -= 1;
                         } else {
                             if (root.child-items.length > 0) {
-                                root.d-child = root.row-to(1004, root.d-x, 140px * root.k, 1002, root.child-items.length, root.child-card-w);
+                                root.d-child = root.row-to(1004, root.d-x, root.card-w, 1002, root.child-items.length, root.child-card-w);
                             }
                             root.d-zone = root.child-items.length > 0 ? 2 : root.detail.overview != "" ? 1 : 0;
                         }
@@ -3177,12 +3503,20 @@ export component AppWindow inherits Window {
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
             visible: !root.hero-covers || root.hero-seerr || root.hero-big;
-            background: root.detail.has-poster ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+            background: root.detail.has-poster || root.d-poster-swap ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
 
+            // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu.
+            if root.d-poster-swap: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.d-poster-old;
+                image-fit: fill;
+            }
             // Image déjà recadrée et arrondie (voir Card).
             if root.detail.has-poster: Image {
                 width: parent.width;
                 height: parent.height;
+                opacity: root.d-poster-swap ? root.pm : 1;
                 source: root.detail.poster;
                 image-fit: fill;
             }
@@ -3194,6 +3528,7 @@ export component AppWindow inherits Window {
             y: 24px;
             width: root.info-w;
             height: 84px * root.k;
+            opacity: root.sw-title ? root.sw-e : 1;
 
             if root.detail.has-logo: Image {
                 x: 0px;
@@ -3221,6 +3556,7 @@ export component AppWindow inherits Window {
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
+            opacity: root.sw-sub ? root.sw-e : 1;
             text: root.detail.subtitle;
             text-color: Theme.accent2;
             font-size: 18px * root.k;
@@ -3231,8 +3567,9 @@ export component AppWindow inherits Window {
         }
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
-        HorizontalLayout {
+        icons-row := HorizontalLayout {
             x: root.col-x + (dt.btns-w - dt.icons-w) / 2;
+            opacity: root.sw-icons ? root.sw-e : 1;
             y: 24px + 118px * root.k;
             width: root.info-w;
             height: 40px * root.k;
@@ -3241,21 +3578,24 @@ export component AppWindow inherits Window {
 
             for b[i] in root.detail.buttons: DetailButton {
                 visible: i < root.detail.icon-count;
-                width: i < root.detail.icon-count ? self.height : 0px;
+                width: i < root.detail.icon-count ? (b.icon == "label" ? self.preferred-width : self.height) : 0px;
                 text: b.label;
                 icon: b.icon;
                 active: b.active;
                 k: root.k;
+                press: root.d-press;
                 focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
                 clicked => {
                     root.d-zone = 0;
                     root.d-button = i;
+                    root.d-press += 1;
                     root.run-action(b.action);
                 }
             }
         }
         // … puis pastilles compactes (saison, série, langue audio, sous-titres).
         chips-row := HorizontalLayout {
+            opacity: root.sw-chips ? root.sw-e : 1;
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
             x: root.col-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2;
             y: 24px + 166px * root.k;
@@ -3271,10 +3611,12 @@ export component AppWindow inherits Window {
                 text: b.label;
                 icon: "";
                 k: root.k;
+                press: root.d-press;
                 focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
                 clicked => {
                     root.d-zone = 0;
                     root.d-button = i;
+                    root.d-press += 1;
                     root.run-action(b.action);
                 }
             }
@@ -3283,7 +3625,8 @@ export component AppWindow inherits Window {
         // Année · classification · durée · note
         Text {
             x: root.col-x;
-            y: 24px + 202px * root.k;
+            y: 24px + 202px * root.k - dt.lift;
+            opacity: root.sw-misc ? root.sw-e : 1;
             width: root.info-w;
             height: 24px * root.k;
             text: root.detail.misc;
@@ -3296,7 +3639,8 @@ export component AppWindow inherits Window {
         // Résumé (bloc « verre » cliquable)
         if root.detail.overview != "": Rectangle {
             x: root.col-x;
-            y: 24px + 232px * root.k;
+            y: 24px + 232px * root.k - dt.lift;
+            opacity: root.sw-ov ? root.sw-e : 1;
             width: root.info-w;
             height: 80px * root.k;
             border-radius: 14px;
@@ -3328,6 +3672,7 @@ export component AppWindow inherits Window {
         if root.detail.has-next: Rectangle {
             x: parent.width - 32px - root.next-w;
             y: 24px;
+            opacity: root.sw-next ? root.sw-e : 1;
             width: root.next-w;
             height: 214px * root.k;
 
@@ -3394,7 +3739,8 @@ export component AppWindow inherits Window {
 
         // Saisons / épisodes / contenu
         if root.child-items.length > 0: SectionRow {
-            y: root.d-children-y;
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 24px * root.k : 0px);
+            opacity: root.sw-kids ? root.sw-e : 1;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
@@ -3412,14 +3758,15 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Rangées du bas : casting, plus de ce genre, Seerr (similaires, recommandés)
+        // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
+            opacity: root.rows-a;
             y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2);
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
             items: row.items;
-            card-w: 140px * root.k;
+            card-w: root.card-w;
             ratio: 1.5;
             k: root.k;
             active: !root.h-focus && root.d-zone == 4 + ri;
@@ -3709,7 +4056,7 @@ export component AppWindow inherits Window {
 
             for s[i] in root.servers: srv-card := Rectangle {
                 height: 92px * root.k;
-                property <bool> sel: i == root.srv-sel;
+                property <bool> sel: !root.h-focus && i == root.srv-sel;
                 property <bool> current: root.server != "" && (s.local == root.server || s.remote == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
@@ -3806,7 +4153,7 @@ export component AppWindow inherits Window {
                 ActionButton {
                     text: root.srv-searching ? "Recherche…" : "Rechercher à nouveau";
                     font: 16px * root.k;
-                    focused: root.srv-sel == root.servers.length;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length;
                     clicked => {
                         root.servers-search();
                     }
@@ -3814,7 +4161,7 @@ export component AppWindow inherits Window {
                 ActionButton {
                     text: "Saisir une adresse";
                     font: 16px * root.k;
-                    focused: root.srv-sel == root.servers.length + 1;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length + 1;
                     clicked => {
                         root.open-manual();
                     }
@@ -4506,6 +4853,7 @@ export component AppWindow inherits Window {
         k: root.k;
         sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
         party-on: root.sp-active;
+        party-count: root.sp-count;
         has-avatar: root.has-avatar;
         avatar: root.avatar;
         clock: root.clock;
@@ -4957,9 +5305,10 @@ export component AppWindow inherits Window {
             root.toast-on = false;
         }
     }
-    if root.toast-on && root.screen != "login" && !root.playing: Rectangle {
+    if root.toast-on && root.screen != "login": Rectangle {
         x: (parent.width - self.width) / 2;
-        y: parent.height - self.height - 24px * root.k;
+        // Pendant la lecture : en haut (les commandes sont en bas).
+        y: root.playing ? 24px * root.k : parent.height - self.height - 24px * root.k;
         width: min(parent.width - 64px * root.k, toast-text.preferred-width + 40px * root.k);
         height: toast-text.preferred-height + 20px * root.k;
         border-radius: 12px * root.k;

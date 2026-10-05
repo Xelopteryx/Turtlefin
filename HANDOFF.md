@@ -240,6 +240,22 @@ Principes :
    en TV aussi). Corbeille à la place de « Supprimer » sur les fiches de téléchargements. Menu : → / Échap / Retour
    le ferment (plus ←). Onglet déjà affiché : pas de rechargement.
 
+27. **Fiche -> fiche en douceur** (épisode / saison / série, en ligne et téléchargements) : pas de voile
+   (`begin_loading` ne fait rien depuis une fiche, `back-soft` pour le retour), `detail-swap()` : seuls les éléments
+   dont le contenu change réapparaissent en fondu (signatures `icons-sig`, `chips-sig`, `children-sig`...).
+   `set_detail_smooth` garde logo et affiche identiques (`logo-key`, `poster-key` ; en local : empreinte du
+   fichier) ; affiche différente : fondu enchaîné (`d-poster-old`). Fond : même image (empreinte des octets,
+   `bg_hash`) = pas de fondu. Rangées du bas gardées pour la même série (`rows_base`). Retour : sélection sur Lecture.
+28. Saison : « Voir la série » sur la ligne principale (icône "label"). Plus de « Casting et équipe ». Rangées du bas
+   aux cartes de l'accueil, image partagée depuis ces rangées (retour vers la carte par `Hero.want-id`). Boutons de
+   fiche animés (appui écrasé / rebond, cœur qui se remplit, flèche qui plonge, couvercle de corbeille) — le zoom est
+   sur un rectangle intérieur (`transform-scale` ignoré sur la racine d'un composant contenant un Timer).
+29. Corbeille : retour à la page la plus proche qui existe encore, sinon à la liste des téléchargements.
+30. Watch party : bulles aussi pendant la lecture (en haut), icône avec nombre de participants et impulsion à
+   chaque arrivée / départ, carte du groupe (état, ce qu'il regarde, participants), « Watch party · N en ligne »
+   dans le menu, sélection de la page éteinte quand on monte dans la barre. Bibliothèque ouverte depuis Mes médias :
+   le grand fond passe derrière les affiches pendant le vol, les lignes arrivent en cascade.
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.

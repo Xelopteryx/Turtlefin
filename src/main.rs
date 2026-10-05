@@ -108,6 +108,10 @@ struct App {
     offline: AtomicBool,
     /// D'où part la pile de pages : "downloads" (fiches des téléchargements) ou l'accueil.
     stack_base: Mutex<String>,
+    /// Élément dont les rangées du bas de la fiche sont affichées (série d'un épisode...).
+    rows_base: Mutex<String>,
+    /// Empreinte de l'image de fond affichée : la même image ne refait pas de fondu.
+    bg_hash: AtomicU64,
     /// Bibliothèques du compte (entrées du menu).
     views: Mutex<Vec<api::Item>>,
     /// Fond d'écran : média affiché et génération (une demande plus récente annule les autres).
@@ -155,21 +159,49 @@ fn show_login_error(ui: &slint::Weak<AppWindow>, msg: String) {
 /// Chargement d'une page : l'écran affiché reste visible sous une barre de progression (sauf depuis
 /// la connexion, où l'écran « Chargement » prend le relais).
 fn begin_loading(u: &AppWindow) {
-    if u.get_screen().as_str() == "login" {
-        u.set_screen("loading".into());
-    } else {
-        u.set_loading(true);
+    match u.get_screen().as_str() {
+        "login" => u.set_screen("loading".into()),
+        // D'une fiche à une autre : la fiche affichée reste jusqu'à l'échange (rien ne s'efface).
+        "detail" => {}
+        _ => u.set_loading(true),
     }
 }
 
 /// Affiche une page avec son animation d'arrivée, même si c'est le même écran (fiche -> fiche).
 fn show_screen(u: &AppWindow, name: &str) {
     u.set_loading(false);
-    if u.get_screen().as_str() == name {
+    if u.get_screen().as_str() == name && name == "detail" {
+        u.invoke_detail_swap();
+    } else if u.get_screen().as_str() == name {
         u.invoke_page_enter();
     } else {
         u.set_screen(name.into());
     }
+}
+
+/// Pose une fiche en gardant ce qui ne change pas : logo et affiche identiques (même élément
+/// d'origine) sont repris tels quels ; une affiche différente fait un fondu enchaîné avec l'ancienne.
+fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
+    let old = u.get_detail();
+    let on_detail = u.get_screen().as_str() == "detail";
+    if on_detail && old.has_logo && !new.logo_key.is_empty() && old.logo_key == new.logo_key && !new.has_logo {
+        new.logo = old.logo.clone();
+        new.has_logo = true;
+        new.expect_logo = true;
+    }
+    if on_detail && old.has_poster && !new.poster_key.is_empty() && old.poster_key == new.poster_key && !new.has_poster {
+        new.poster = old.poster.clone();
+        new.has_poster = true;
+    } else if on_detail && old.has_poster && old.poster_key != new.poster_key {
+        u.set_d_poster_old(old.poster.clone());
+        u.set_d_poster_swap(!new.has_poster);
+    }
+    u.set_detail(new);
+}
+
+/// Signature d'une liste de boutons (seuls les changements réels s'animent).
+fn buttons_sig(b: &[(String, String, String, bool)], icons: bool) -> String {
+    b.iter().filter(|x| x.2.is_empty() != icons).map(|x| format!("{}|{}|{}", x.0, x.1, x.2)).collect::<Vec<_>>().join(";")
 }
 
 fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
@@ -272,6 +304,15 @@ static STILL_GIFS: AtomicBool = AtomicBool::new(false);
 /// Réglage « Affichage » : pas de fond d'écran tiré du média sélectionné.
 static NO_BACKDROP: AtomicBool = AtomicBool::new(false);
 
+/// Nouvelle image de fond ? (false : la même que celle affichée, rien à faire).
+fn same_backdrop(app: &Arc<App>, bytes: &[u8]) -> bool {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut h);
+    let v = h.finish();
+    app.bg_hash.swap(v, Ordering::SeqCst) != v
+}
+
 /// Fond d'écran du média sélectionné : chargé après une courte pause (pas à chaque carte survolée),
 /// flouté et assombri au décodage, puis affiché en fondu enchaîné.
 fn set_backdrop(app: &Arc<App>, id: String) {
@@ -306,6 +347,9 @@ fn set_backdrop(app: &Arc<App>, id: String) {
         }
         let Ok(item) = client.item(&id).await else { return };
         let Some(bytes) = client.backdrop(&item).await else { return };
+        if !same_backdrop(&a, &bytes) {
+            return;
+        }
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
         if a.bg_gen.load(Ordering::SeqCst) != my {
             return;
@@ -1019,11 +1063,8 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
     let (app2, client2, item) = (app.clone(), client.clone(), item.clone());
     let seerr = *app.seerr_user.lock().unwrap();
     app.rt.spawn(async move {
+        // (Pas de « Casting et équipe » : les noms affichés ne sont pas ceux des voix françaises.)
         let mut rows: Vec<SectionData> = Vec::new();
-        let people = item.people_cards();
-        if !people.is_empty() {
-            rows.push(SectionData { title: "Casting et équipe".into(), landscape: false, cards: people });
-        }
         // Épisode / saison : suggestions de la série.
         let base = match item.kind.as_str() {
             "Episode" | "Season" => match &item.series_id {
@@ -1048,9 +1089,9 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             return;
         }
 
-        // Dimensions : cartes de 140 px x k (voir detail-rows dans app.slint).
+        // Dimensions : mêmes cartes que l'accueil (card-w dans app.slint).
         let k = if app2.tv { 1.4_f32 } else { 1.0 };
-        let card_w = 140.0 * k;
+        let card_w = if app2.tv { 230.0_f32 } else { 170.0 };
         let row_h = 132.0 * k + card_w * 1.5;
         let item_id = item.id.clone();
         let mut jobs: Vec<ImageJob> = Vec::new();
@@ -1299,7 +1340,7 @@ fn start_syncplay(app: &Arc<App>, client: &api::Client) {
 
 /// Écran Watch party : groupe actuel ou liste des groupes.
 fn refresh_party(app: &Arc<App>) {
-    let (group, people, state) = {
+    let group = {
         let s = app.sp.lock().unwrap();
         let st = match s.state.as_str() {
             "Playing" => "En lecture",
@@ -1307,17 +1348,41 @@ fn refresh_party(app: &Arc<App>) {
             "Waiting" => "En attente des participants",
             _ => "Prêt : lance un film ou un épisode",
         };
-        (s.group.clone(), s.participants.clone(), st.to_string())
+        (s.group.clone(), s.participants.clone(), st.to_string(), s.item_id.clone())
     };
+    let (group, people, state, now_id) = (group.0, group.1, group.2, group.3);
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
         let groups = if group.is_none() { syncplay::list(&client).await } else { Vec::new() };
+        // Ce que le groupe regarde : « Série — S1E2 · titre », ou le film.
+        let now = if group.is_some() && !now_id.is_empty() {
+            match client.item(&now_id).await {
+                Ok(it) => {
+                    let (t, sub) = it.titles();
+                    if sub.is_empty() { t } else { format!("{t} — {sub}") }
+                }
+                Err(_) => String::new(),
+            }
+        } else {
+            String::new()
+        };
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             u.set_sp_active(group.is_some());
-            u.set_sp_name(group.map(|g| g.1).unwrap_or_default().into());
+            u.set_sp_name(group.clone().map(|g| g.1).unwrap_or_default().into());
             u.set_sp_people(people.join(", ").into());
+            u.set_sp_count(people.len() as i32);
+            u.set_sp_list(ModelRc::new(VecModel::from(people.iter().map(|p| slint::SharedString::from(p.as_str())).collect::<Vec<_>>())));
+            u.set_sp_now(now.into());
             u.set_sp_state(state.into());
+            // Menu : la watch party en cours y est signalée (nombre de participants).
+            let m = u.get_menu_entries();
+            if let Some(i) = (0..m.row_count()).find(|&i| m.row_data(i).is_some_and(|e| e.action == "party")) {
+                if let Some(mut e) = m.row_data(i) {
+                    e.label = if group.is_some() { format!("Watch party · {} en ligne", people.len()).into() } else { "Watch party".into() };
+                    m.set_row_data(i, e);
+                }
+            }
             let rows: Vec<MenuEntry> = groups
                 .into_iter()
                 .map(|(id, name, p)| MenuEntry { label: format!("{name}  ·  {}", p.join(", ")).into(), action: id.into(), header: false })
@@ -2229,9 +2294,19 @@ fn push_detail(app: &Arc<App>, id: String) {
 
 /// Le bouton Retour n'a de sens que si l'on a navigué depuis l'accueil.
 fn sync_can_back(app: &Arc<App>) {
-    let can = !app.stack.lock().unwrap().is_empty();
+    let (can, prev) = {
+        let st = app.stack.lock().unwrap();
+        (!st.is_empty(), if st.len() >= 2 { st.get(st.len() - 2).cloned() } else { None })
+    };
+    // Retour vers une autre fiche (pas une bibliothèque) : échange en douceur, sans voile.
+    let soft = prev.is_some_and(|id| {
+        let lib = PAGES.with_borrow(|p| matches!(p.get(&id), Some(CachedPage::Library { .. })))
+            || app.views.lock().unwrap().iter().any(|v| v.id == id);
+        !lib
+    });
     if let Some(u) = app.ui().upgrade() {
         u.set_can_back(can);
+        u.set_back_soft(soft);
     }
 }
 
@@ -2411,13 +2486,15 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
     app.gen.fetch_add(1, Ordering::SeqCst);
     match page {
         CachedPage::Detail { detail, child, rows, zone } => {
-            u.set_detail(detail);
+            set_detail_smooth(&u, detail);
             u.set_child_items(child);
             u.set_detail_rows(rows);
-            u.set_d_zone(zone.0);
+            *app.rows_base.lock().unwrap() = String::new();
+            // Retour : la sélection revient sur Lecture (comme en ouvrant la fiche).
+            u.set_d_zone(0);
             u.set_d_x(zone.1);
             u.set_d_child(zone.2);
-            u.set_d_button(zone.3);
+            u.set_d_button(0);
             u.set_overview_open(false);
             show_screen(&u, "detail");
         }
@@ -2572,6 +2649,18 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
 
     let expect_logo = logo.is_some();
     let id_for_ui = item_id.clone();
+    let logo_key = logo.as_ref().map(|l| l.0.clone()).unwrap_or_default();
+    let poster_key = item.poster_candidates().first().map(|c| c.0.clone()).unwrap_or_default();
+    let icons_sig = buttons_sig(&buttons, true);
+    let chips_sig = buttons_sig(&buttons, false);
+    let children_sig = child_cards.iter().map(|c| c.id.as_str()).collect::<Vec<_>>().join(",");
+    // Rangées du bas (plus de ce genre...) : celles de la série pour un épisode / une saison ;
+    // identiques d'une fiche à l'autre de la même série, elles restent.
+    let rows_base = match item.kind.as_str() {
+        "Episode" | "Season" => item.series_id.clone().unwrap_or_else(|| item.id.clone()),
+        _ => item.id.clone(),
+    };
+    let keep_rows = std::mem::replace(&mut *app.rows_base.lock().unwrap(), rows_base.clone()) == rows_base;
     // Série incomplète (Seerr) : bouton pour demander les saisons manquantes, ajouté une fois connu.
     if item.kind == "Series" && app.seerr_user.lock().unwrap().is_some() {
         if let Some(tmdb) = item.tmdb() {
@@ -2587,6 +2676,11 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             misc: misc.into(),
             overview: overview.into(),
             expect_logo,
+            logo_key: logo_key.into(),
+            poster_key: poster_key.into(),
+            icons_sig: icons_sig.into(),
+            chips_sig: chips_sig.into(),
+            children_sig: children_sig.into(),
             children_title: children_title.into(),
             children_landscape: landscape,
             has_next,
@@ -2623,9 +2717,11 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             })
             .collect();
 
-        u.set_detail(detail);
+        set_detail_smooth(&u, detail);
         u.set_child_items(ModelRc::new(VecModel::from(cards)));
-        u.set_detail_rows(ModelRc::default());
+        if !keep_rows {
+            u.set_detail_rows(ModelRc::default());
+        }
         u.set_d_x(0);
         u.set_d_zone(0);
         u.set_d_button(0);
@@ -2706,7 +2802,9 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         }
     }
 
-    spawn_detail_rows(&app, &client, &item);
+    if !keep_rows {
+        spawn_detail_rows(&app, &client, &item);
+    }
 
     // Vignettes des enfants : 16:9 pour les épisodes, posters sinon.
     let size = if landscape { api::Size::Fill(400, 225) } else { api::Size::Fill(270, 405) };
@@ -2948,6 +3046,8 @@ fn main() -> anyhow::Result<()> {
         last_play: Mutex::new(None),
         bg_id: Mutex::new(String::new()),
         views: Mutex::new(Vec::new()),
+        rows_base: Mutex::new(String::new()),
+        bg_hash: AtomicU64::new(0),
         stack_base: Mutex::new(String::new()),
         bg_gen: AtomicU64::new(0),
         pending_server: Mutex::new(None),
@@ -3789,7 +3889,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         buttons.push((String::new(), "fav".into(), "heart".into(), local_flag(season_id, true, false)));
         buttons.push((String::new(), "played".into(), "check".into(), local_flag(season_id, false, left == 0)));
         buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
-        buttons.push(("Voir la série".into(), format!("open:dl:series:{}", first.series_id), String::new(), false));
+        buttons.push(("Voir la série".into(), format!("open:dl:series:{}", first.series_id), "label".into(), false));
         children = eps
             .iter()
             .map(|e| {
@@ -3825,6 +3925,20 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
     let key_s = key.to_string();
     let has_logo_file = logo.is_some();
     let rows: Vec<LocalCard> = children.clone();
+    // Clés d'images : empreinte du fichier (chaque épisode garde sa copie de l'affiche de la série).
+    let file_key = |p: &std::path::Path| -> String {
+        use std::hash::{Hash, Hasher};
+        let Ok(b) = std::fs::read(p) else { return String::new() };
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        b.hash(&mut h);
+        format!("{:x}", h.finish())
+    };
+    let poster_key = file_key(&poster);
+    let logo_key = logo.as_deref().map(file_key).unwrap_or_default();
+    let icons_sig = buttons_sig(&buttons, true);
+    let chips_sig = buttons_sig(&buttons, false);
+    let children_sig = children.iter().map(|c| c.0.as_str()).collect::<Vec<_>>().join(",");
+    *app.rows_base.lock().unwrap() = String::new();
     if let Some(u) = app.ui().upgrade() {
         // Même fiche réaffichée (après « vu » / favori) : pas d'animation, la sélection reste.
         let same = u.get_screen().as_str() == "detail" && u.get_detail().id.as_str() == key_s;
@@ -3835,6 +3949,11 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             misc: misc.into(),
             overview: overview.into(),
             expect_logo: has_logo_file,
+            logo_key: logo_key.into(),
+            poster_key: poster_key.into(),
+            icons_sig: icons_sig.into(),
+            chips_sig: chips_sig.into(),
+            children_sig: children_sig.into(),
             children_title: children_title.into(),
             children_landscape: landscape,
             icon_count: buttons.iter().filter(|b| !b.2.is_empty()).count() as i32,
@@ -3846,7 +3965,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             )),
             ..Default::default()
         };
-        u.set_detail(detail);
+        set_detail_smooth(&u, detail);
         u.set_child_items(ModelRc::new(VecModel::from(
             rows.iter()
                 .map(|c| CardData { id: c.0.clone().into(), title: c.1.clone().into(), subtitle: c.2.clone().into(), count: c.4, progress: c.5, played: c.6, ..Default::default() })
@@ -3923,7 +4042,11 @@ fn set_local_backdrop(app: &Arc<App>, key: String, path: std::path::PathBuf) {
     let my = app.bg_gen.fetch_add(1, Ordering::SeqCst) + 1;
     let a = app.clone();
     app.rt.spawn(async move {
-        let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&std::fs::read(path).ok()?)).await.ok().flatten() else { return };
+        let Ok(bytes) = std::fs::read(&path) else { return };
+        if !same_backdrop(&a, &bytes) {
+            return;
+        }
+        let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
         if a.bg_gen.load(Ordering::SeqCst) != my {
             return;
         }
@@ -3975,10 +4098,39 @@ fn delete_local_key(app: &Arc<App>, key: &str) {
         }
     }
     PAGES.with_borrow_mut(|p| p.retain(|k, _| !k.starts_with("dl:")));
+    // Retour à la page la plus proche qui existe encore (saison, série...), sinon à la liste des
+    // téléchargements (série entièrement supprimée).
+    let top = {
+        let mut st = app.stack.lock().unwrap();
+        st.pop();
+        while st.last().is_some_and(|t| t.starts_with("dl:") && !local_key_exists(t)) {
+            st.pop();
+        }
+        st.last().cloned()
+    };
+    sync_can_back(app);
+    refresh_downloads(app);
     if let Some(u) = app.ui().upgrade() {
         u.set_toast("Téléchargement supprimé.".into());
-        u.invoke_back_anim_pub();
     }
+    match top {
+        Some(id) => start_detail(app, id),
+        None => open_downloads(app),
+    }
+}
+
+/// La page locale (série, saison, élément) a-t-elle encore des téléchargements ?
+fn local_key_exists(key: &str) -> bool {
+    let id = real_id(key);
+    downloads::list().iter().any(|e| {
+        if key.starts_with("dl:series:") {
+            e.series_id == id
+        } else if key.starts_with("dl:season:") {
+            e.season_id == id
+        } else {
+            e.id == id
+        }
+    })
 }
 
 /// Mode hors ligne : écran Téléchargements, avec un message.

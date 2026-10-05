@@ -34,6 +34,8 @@ pub struct State {
     pub playlist_item: String,
     /// État du groupe : Idle, Waiting, Paused, Playing.
     pub state: String,
+    /// Élément Jellyfin que le groupe regarde (file en cours).
+    pub item_id: String,
 }
 
 pub type Shared = Arc<Mutex<State>>;
@@ -154,7 +156,12 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
             let idx = data["PlayingItemIndex"].as_i64().unwrap_or(0).max(0) as usize;
             let Some(entry) = data["Playlist"].as_array().and_then(|p| p.get(idx)) else { return };
             let item_id = entry["ItemId"].as_str().unwrap_or("").to_string();
-            state.lock().unwrap().playlist_item = entry["PlaylistItemId"].as_str().unwrap_or("").to_string();
+            {
+                let mut st = state.lock().unwrap();
+                st.playlist_item = entry["PlaylistItemId"].as_str().unwrap_or("").to_string();
+                st.item_id = item_id.clone();
+            }
+            let _ = tx.send(Event::Group);
             if matches!(reason, "NewPlaylist" | "SetCurrentItem" | "NextItem" | "PreviousItem") && !item_id.is_empty() {
                 let start = data["StartPositionTicks"].as_f64().unwrap_or(0.0) / 1e7;
                 let _ = tx.send(Event::Play { item_id, start });
