@@ -208,12 +208,32 @@ fn buttons_sig(b: &[(String, String, String, bool)], icons: bool) -> String {
     b.iter().filter(|x| x.2.is_empty() != icons).map(|x| format!("{}|{}|{}", x.0, x.1, x.2)).collect::<Vec<_>>().join(";")
 }
 
+/// Erreur lisible : les erreurs réseau deviennent une phrase (le détail technique reste en console).
+fn human_err(e: &anyhow::Error) -> String {
+    eprintln!("turtlefin : {e:#}");
+    if let Some(r) = e.downcast_ref::<reqwest::Error>() {
+        if r.is_timeout() {
+            return "le serveur met trop de temps à répondre".into();
+        }
+        if r.is_connect() || r.is_request() {
+            return "le serveur ne répond pas (est-il allumé ? le réseau est-il disponible ?)".into();
+        }
+        if r.is_decode() {
+            return "réponse du serveur illisible".into();
+        }
+    }
+    if e.downcast_ref::<api::Unauthorized>().is_some() {
+        return "session expirée, reconnecte-toi".into();
+    }
+    format!("{e}")
+}
+
 fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
     let _ = ui.upgrade_in_event_loop(|u| u.set_loading(false));
     if e.downcast_ref::<api::Unauthorized>().is_some() {
         config::clear_token();
     }
-    show_login_error(ui, format!("{e}"));
+    show_login_error(ui, format!("{}", human_err(&e)));
 }
 
 /// Forme finale d'une image de carte : taille exacte et coins arrondis intégrés aux pixels.
@@ -624,7 +644,7 @@ fn push_section(out: &mut Vec<SectionData>, title: &str, landscape: bool, items:
 async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
         Ok(client) => start_session(app, client).await,
-        Err(e) => show_login_error(&app.ui(), format!("{e}")),
+        Err(e) => show_login_error(&app.ui(), format!("{}", human_err(&e))),
     }
 }
 
@@ -686,16 +706,25 @@ fn login_opened(app: &Arc<App>) {
     app.rt.spawn(async move {
         let http = reqwest::Client::new();
         let info = if server.ends_with("//") || server.is_empty() { None } else { discovery::probe(&http, &server).await };
-        let (sid, sname) = info.map(|i| (i.0, i.1)).unwrap_or_default();
+        let reachable = info.is_some();
+        let (mut sid, sname) = info.map(|i| (i.0, i.1)).unwrap_or_default();
+        // Serveur injoignable : les comptes enregistrés du dernier serveur restent affichés.
+        if sid.is_empty() {
+            sid = config::load().server_id;
+        }
         // (action, nom, sous-titre, identifiant d'utilisateur pour l'avatar)
         let mut tiles: Vec<(String, String, String, String)> = Vec::new();
         if !sid.is_empty() {
             for a in config::accounts().into_iter().filter(|a| a.server_id == sid) {
                 tiles.push((format!("acc:{}", a.user_id), a.user_name, "Enregistré".into(), a.user_id));
             }
-            let public: serde_json::Value = match http.get(format!("{server}/Users/Public")).send().await {
-                Ok(r) => r.json().await.unwrap_or_default(),
-                Err(_) => serde_json::Value::Null,
+            let public: serde_json::Value = if !reachable {
+                serde_json::Value::Null
+            } else {
+                match http.get(format!("{server}/Users/Public")).timeout(std::time::Duration::from_secs(8)).send().await {
+                    Ok(r) => r.json().await.unwrap_or_default(),
+                    Err(_) => serde_json::Value::Null,
+                }
             };
             for p in public.as_array().into_iter().flatten() {
                 let (Some(id), Some(name)) = (p["Id"].as_str(), p["Name"].as_str()) else { continue };
@@ -706,7 +735,6 @@ fn login_opened(app: &Arc<App>) {
             }
         }
         tiles.push(("other".into(), "Autre compte".into(), String::new(), String::new()));
-        let reachable = !sid.is_empty();
         let rows = tiles.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let cards: Vec<CardData> = rows
@@ -720,7 +748,15 @@ fn login_opened(app: &Arc<App>) {
                     ..Default::default()
                 })
                 .collect();
+            let saved = rows.iter().filter(|r| r.0.starts_with("acc:")).count() as i32;
             u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+            u.set_login_saved(saved);
+            if saved == 0 {
+                u.set_login_edit(false);
+            }
+            if u.get_login_sel() >= rows.len() as i32 {
+                u.set_login_sel((rows.len() as i32 - 1).max(0));
+            }
             // L'écran de connexion reprend le clavier (après le menu, par exemple).
             u.set_refocus(u.get_refocus() + 1);
             u.set_server_name(if reachable { sname.into() } else { "Serveur injoignable".into() });
@@ -758,12 +794,14 @@ fn login_pick(app: &Arc<App>, action: String) {
     u.set_error_text("".into());
     u.set_login_pass("".into());
     if action == "other" {
+        u.set_login_title("Ajouter un compte".into());
         u.set_login_user("".into());
         u.set_login_field(0);
         u.set_login_mode("form".into());
         return;
     }
     if let Some(name) = action.strip_prefix("pub:") {
+        u.set_login_title(format!("Connexion de {name}").into());
         u.set_login_user(name.into());
         u.set_login_field(1);
         u.set_login_mode("form".into());
@@ -777,16 +815,24 @@ fn login_pick(app: &Arc<App>, action: String) {
     app.rt.spawn(async move {
         let client = match api::Client::from_token(&server, &acc.user_id, &acc.user_name, &acc.token, &app2.device_id) {
             Ok(c) => c,
-            Err(e) => return show_login_error(&app2.ui(), format!("{e}")),
+            Err(e) => return show_login_error(&app2.ui(), format!("{}", human_err(&e))),
         };
         match client.user_config().await {
             Ok(_) => start_session(app2, client).await,
+            // Serveur injoignable (réseau, serveur arrêté) : le compte reste enregistré.
+            Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() => {
+                let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                    u.set_busy(false);
+                    u.set_error_text(format!("Connexion impossible : {}.", human_err(&e)).into());
+                });
+            }
             Err(_) => {
                 // Jeton expiré ou révoqué : on demande le mot de passe.
                 config::forget_account(&acc.user_id);
                 let name = acc.user_name.clone();
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_busy(false);
+                    u.set_login_title(format!("Reconnexion de {name}").into());
                     u.set_login_user(name.into());
                     u.set_login_field(1);
                     u.set_login_mode("form".into());
@@ -1286,7 +1332,7 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
             config::set_flag(&id, action == "fav", on, false);
         }
         if let Err(e) = r {
-            let msg = format!("Action impossible : {e}");
+            let msg = format!("Action impossible : {}", human_err(&e));
             let _ = app2.ui().upgrade_in_event_loop(move |u| {
                 set(&u, !on);
                 u.set_toast(msg.into());
@@ -1419,7 +1465,7 @@ fn party_action(app: &Arc<App>, action: String) {
             id => syncplay::join(&client, id).await,
         };
         if let Err(e) = r {
-            let msg = format!("Watch party : {e}");
+            let msg = format!("Watch party : {}", human_err(&e));
             let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         }
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
@@ -1516,7 +1562,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
         let d = match client.seerr_details(tv, tmdb).await {
             Ok(d) => d,
             Err(e) => {
-                let msg = format!("Seerr : {e}");
+                let msg = format!("Seerr : {}", human_err(&e));
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_sr_open(false);
                     u.set_toast(msg.into());
@@ -1635,7 +1681,7 @@ fn seerr_action(app: &Arc<App>) {
                     p.status = "Demande envoyée".into();
                     p.can_request = false;
                 }
-                Err(e) => p.status = format!("Demande impossible : {e}").into(),
+                Err(e) => p.status = format!("Demande impossible : {}", human_err(&e)).into(),
             }
             u.set_sr(p);
         });
@@ -1705,7 +1751,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
         let (items, total) = match page {
             Ok(p) => p,
             Err(e) => {
-                let msg = format!("Bibliothèque illisible : {e}");
+                let msg = format!("Bibliothèque illisible : {}", human_err(&e));
                 let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
                 return;
             }
@@ -2138,7 +2184,7 @@ fn save_user_cfg(app: &Arc<App>, cfg: serde_json::Value) {
         let app2 = app.clone();
         app.rt.spawn(async move {
             if let Err(e) = client.set_user_config(&cfg).await {
-                let msg = format!("Réglage non enregistré : {e}");
+                let msg = format!("Réglage non enregistré : {}", human_err(&e));
                 let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             }
         });
@@ -2239,7 +2285,7 @@ fn set_avatar(app: &Arc<App>, id: String) {
                 load_header_avatar(&app2, &client);
                 "Avatar modifié.".to_string()
             }
-            Err(e) => format!("Avatar impossible : {e}"),
+            Err(e) => format!("Avatar impossible : {}", human_err(&e)),
         };
         let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
     });
@@ -2540,7 +2586,7 @@ fn request_missing_seasons(app: &Arc<App>) {
         let ok = r.is_ok();
         let msg = match r {
             Ok(()) => format!("Demande envoyée à Seerr : saison(s) {list}."),
-            Err(e) => format!("Demande refusée par Seerr : {e}"),
+            Err(e) => format!("Demande refusée par Seerr : {}", human_err(&e)),
         };
         if ok {
             a.missing_seasons.lock().unwrap().2.clear();
@@ -2688,7 +2734,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                 s.pop();
                 s.is_empty()
             };
-            let msg = format!("Impossible d'ouvrir la fiche : {e}");
+            let msg = format!("Impossible d'ouvrir la fiche : {}", human_err(&e));
             let _ = ui.upgrade_in_event_loop(move |u| {
                 u.set_toast(msg.into());
                 u.set_loading(false);
@@ -3038,7 +3084,7 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
         if let Ok(t) = target {
             let start = t.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
             if let Err(e) = syncplay::play(&client, &t.id, start).await {
-                let msg = format!("Watch party : {e}");
+                let msg = format!("Watch party : {}", human_err(&e));
                 let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             }
         }
@@ -3099,7 +3145,7 @@ async fn play_flow_with(
     app.home_stale.store(true, Ordering::SeqCst);
 
     let go_home_after = matches!(result, Ok(player::Exit::Home));
-    let msg = result.err().map(|e| format!("Lecture impossible : {e}"));
+    let msg = result.err().map(|e| format!("Lecture impossible : {}", human_err(&e)));
     let top = app.stack.lock().unwrap().last().cloned();
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
@@ -3536,6 +3582,22 @@ fn main() -> anyhow::Result<()> {
 
     ui.on_is_seerr(|id| id.starts_with("seerr:"));
 
+    // Écran des comptes : retirer un compte enregistré de cet appareil.
+    ui.on_login_forget({
+        let app = app.clone();
+        move |id| {
+            if let Some(uid) = id.strip_prefix("acc:") {
+                let name = config::accounts().into_iter().find(|a| a.user_id == uid).map(|a| a.user_name).unwrap_or_default();
+                config::forget_account(uid);
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_error_text("".into());
+                    u.set_toast(format!("{name} retiré de cet appareil.").into());
+                }
+                login_opened(&app);
+            }
+        }
+    });
+
     ui.on_settings_choose({
         let app = app.clone();
         move |key, value| choose_setting(&app, &key, &value)
@@ -3632,7 +3694,7 @@ fn main() -> anyhow::Result<()> {
             }
             match api::Client::from_saved(&saved) {
                 Ok(client) => load_home(a, client).await,
-                Err(e) => show_login_error(&a.ui(), format!("{e}")),
+                Err(e) => show_login_error(&a.ui(), format!("{}", human_err(&e))),
             }
         });
     }
@@ -3727,7 +3789,7 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
         .await;
         *app2.dl_current.lock().unwrap() = None;
         if let Err(e) = r {
-            let msg = format!("Téléchargement impossible ({title}) : {e}");
+            let msg = format!("Téléchargement impossible ({title}) : {}", human_err(&e));
             let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         }
         refresh_downloads(&app2);

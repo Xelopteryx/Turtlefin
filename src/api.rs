@@ -633,6 +633,8 @@ fn auth_header(device_id: &str, token: Option<&str>) -> String {
 fn build_http() -> Result<reqwest::Client> {
     let mut b = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
+        // Serveur éteint ou injoignable : échec en quelques secondes, pas au bout de 30.
+        .connect_timeout(Duration::from_secs(5))
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")));
     // À n'utiliser qu'en test : TURTLEFIN_INSECURE=1 accepte tout certificat.
     if std::env::var("TURTLEFIN_INSECURE").is_ok() {

@@ -172,11 +172,16 @@ fn save_accounts(list: &[Account]) {
     }
 }
 
+/// Comptes enregistrés au plus sur un appareil : au-delà, le moins récemment utilisé est retiré
+/// (un jeton reste valable sur le serveur tant qu'il n'est pas révoqué : on n'en garde pas trop).
+pub const MAX_ACCOUNTS: usize = 12;
+
 /// Ajoute ou met à jour un compte (le plus récent en premier).
 pub fn save_account(a: Account) {
     let mut list = accounts();
     list.retain(|x| x.user_id != a.user_id);
     list.insert(0, a);
+    list.truncate(MAX_ACCOUNTS);
     save_accounts(&list);
 }
 

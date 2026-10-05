@@ -54,7 +54,8 @@ fn http() -> reqwest::Client {
 
 /// Interroge `/System/Info/Public` : (identifiant, nom, version) si c'est un serveur Jellyfin.
 pub async fn probe(client: &reqwest::Client, base: &str) -> Option<(String, String, String)> {
-    let v: Value = client.get(format!("{base}/System/Info/Public")).send().await.ok()?.json().await.ok()?;
+    // Délai court : un serveur éteint ne doit pas bloquer l'écran (sans limite, plusieurs minutes).
+    let v: Value = client.get(format!("{base}/System/Info/Public")).timeout(Duration::from_secs(4)).send().await.ok()?.json().await.ok()?;
     let id = v["Id"].as_str()?.to_string();
     let name = v["ServerName"].as_str().unwrap_or("Jellyfin").to_string();
     let version = v["Version"].as_str().unwrap_or("").to_string();
