@@ -1,4 +1,4 @@
-# Turtlefin : passation de projet (état au 5 octobre 2026)
+# Turtlefin : passation de projet (état au 5 octobre 2026, version 0.4.0)
 
 Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
 Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.4.0.
@@ -268,6 +268,17 @@ Principes :
    clavier au menu ouvert, ↓ de la grille d'avatars qui sautait au dernier, initiales des participants, classification
    « -10 » -> « 10+ », vignettes d'épisodes téléchargés (`still.jpg`, `meta_v` 3). Pi : ~210-240 Mo, images de 25 à
    35 ms pendant les animations (30-40 i/s), une à 154 ms (ouverture de page).
+
+33. **Version 0.4.0** (README réécrit). Comptes : au plus 12 enregistrés (`config::MAX_ACCOUNTS`, le moins récent
+   est retiré), rangée qui défile, « Gérer les comptes » (croix rouges, `login-forget`), compte gardé si le serveur
+   ne répond pas (seul un 401 le retire), titre du formulaire selon le cas. Réseau : `connect_timeout` 5 s, sonde
+   4 s (un serveur éteint bloquait l'écran). Erreurs lisibles (`human_err`, détail en console). Fiche : enfants et
+   « À suivre » en parallèle, « À suivre » masqué en petite fenêtre (`show-next`). Mémoire Pi stable : 209 -> 229 Mo
+   sur 30 ouvertures / fermetures de fiche.
+34. **Mise à jour** (`src/update.rs`, À propos) : `build.rs` grave le commit (`TURTLEFIN_COMMIT`) ; comparaison avec
+   `main` par l'API GitHub (`compare/{commit}...main`, dépôt public, sans jeton), puis `git pull --ff-only` +
+   `cargo build --release` dans le dossier source (`CARGO_MANIFEST_DIR`), puis relance. Vérifié sur le Pi :
+   0.3.1 -> 0.4.0 en 5 min 40 s. Windows : l'exécutable en cours est renommé `.old.exe` avant la compilation.
 
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
