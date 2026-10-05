@@ -1377,6 +1377,9 @@ fn refresh_party(app: &Arc<App>) {
             u.set_sp_people(people.join(", ").into());
             u.set_sp_count(people.len() as i32);
             u.set_sp_list(ModelRc::new(VecModel::from(people.iter().map(|p| slint::SharedString::from(p.as_str())).collect::<Vec<_>>())));
+            u.set_sp_initials(ModelRc::new(VecModel::from(
+                people.iter().map(|p| slint::SharedString::from(p.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default())).collect::<Vec<_>>(),
+            )));
             u.set_sp_now(now.into());
             u.set_sp_state(state.into());
             // Menu : la watch party en cours y est signalée (nombre de participants).
@@ -3935,7 +3938,7 @@ fn refresh_downloads(app: &Arc<App>) {
     }
     // Anciens téléchargements (métadonnées incomplètes) : complétés si le serveur répond.
     if let (Some(client), false) = (app.client(), app.offline.load(Ordering::SeqCst)) {
-        let old: Vec<String> = entries.iter().filter(|e| e.meta_v < 2).map(|e| e.id.clone()).collect();
+        let old: Vec<String> = entries.iter().filter(|e| e.meta_v < 3).map(|e| e.id.clone()).collect();
         if !old.is_empty() {
             let a = app.clone();
             app.rt.spawn(async move {

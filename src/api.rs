@@ -439,7 +439,12 @@ impl Item {
             parts.push(y.to_string());
         }
         if let Some(r) = self.official_rating.as_ref().filter(|r| !r.is_empty()) {
-            parts.push(r.clone());
+            // Classification française « -10 » (moins de 10 ans déconseillé) : affichée « 10+ ».
+            let r = match r.strip_prefix('-').or_else(|| r.strip_prefix("FR-")) {
+                Some(n) if n.chars().all(|c| c.is_ascii_digit()) => format!("{n}+"),
+                _ => r.clone(),
+            };
+            parts.push(r);
         }
         if let Some(m) = self.minutes().filter(|m| *m > 0) {
             parts.push(if m >= 60 { format!("{}h{:02}", m / 60, m % 60) } else { format!("{m} min") });

@@ -1781,6 +1781,7 @@ export component AppWindow inherits Window {
     in property <string> sp-people;
     in property <int> sp-count;              // participants de la watch party
     in property <[string]> sp-list;          // leurs noms
+    in property <[string]> sp-initials;      // et leurs initiales
     in property <string> sp-now;             // ce que le groupe regarde (vide : rien)
     in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
@@ -2845,7 +2846,7 @@ export component AppWindow inherits Window {
                         spacing: 8px * root.k;
                         alignment: start;
                         height: 32px * root.k;
-                        for who in root.sp-list: Rectangle {
+                        for who[wi] in root.sp-list: Rectangle {
                             width: who-t.preferred-width + 44px * root.k;
                             border-radius: self.height / 2;
                             background: #ffffff1a;
@@ -2857,14 +2858,12 @@ export component AppWindow inherits Window {
                                 border-radius: self.width / 2;
                                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                                 Text {
-                                    text: who.character-count > 0 ? who.to-uppercase() : "?";
+                                    text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
                                     color: white;
-                                    font-size: 11px * root.k;
+                                    font-size: 12px * root.k;
                                     font-weight: 700;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
-                                    overflow: clip;
-                                    width: 10px * root.k;
                                 }
                             }
                             who-t := Text {

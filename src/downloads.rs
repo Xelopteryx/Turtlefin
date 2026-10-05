@@ -58,7 +58,7 @@ pub struct Entry {
 }
 
 /// Version actuelle des métadonnées enregistrées.
-const META_V: u32 = 2;
+const META_V: u32 = 3;
 
 impl Entry {
     pub fn dir(&self) -> PathBuf {
@@ -91,6 +91,11 @@ impl Entry {
         p.exists().then_some(p)
     }
     pub fn thumb_path(&self) -> PathBuf {
+        // Épisode : son image à lui (still.jpg), sinon la vignette.
+        let still = self.dir().join("still.jpg");
+        if still.exists() {
+            return still;
+        }
         let p = self.dir().join("thumb.jpg");
         if p.exists() { p } else { self.poster_path() }
     }
@@ -194,6 +199,13 @@ async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
         e.runtime_secs = t as f64 / 1e7;
     }
     let dir = e.dir();
+    if item.kind == "Episode" {
+        if let Some(t) = item.image_tags.as_ref().and_then(|m| m.get("Primary")) {
+            if let Some(b) = client.image_first(&[(item.id.clone(), Some(t.clone()))], "Primary", Size::Fill(400, 225)).await {
+                save_bytes(&dir.join("still.jpg"), &b).await;
+            }
+        }
+    }
     if !dir.join("poster.jpg").exists() {
         if let Some(b) = client.image_first(&item.poster_candidates(), "Primary", Size::Fill(400, 600)).await {
             save_bytes(&dir.join("poster.jpg"), &b).await;
