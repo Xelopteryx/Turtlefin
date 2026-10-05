@@ -1,51 +1,79 @@
-// Clavier à l'écran (mode TV) : lettres AZERTY, chiffres, accents et ponctuation du français.
-// Flèches : se déplacer ; Entrée : taper la touche ; « EFFACER » efface ; « OK » valide.
+// Clavier à l'écran (mode TV), à la manière d'un clavier de téléphone : trois dispositions
+// (lettres AZERTY · chiffres et symboles · accents), grosses touches, Maj à un coup.
+// Flèches : se déplacer ; Entrée : taper la touche ; Retour arrière : effacer.
+// Le clavier ne modifie jamais `text` lui-même : il propose le nouveau texte par `edited`.
 
 import { Theme } from "theme.slint";
 
 export component Osk inherits Rectangle {
     in property <float> k: 1.0;
-    in-out property <string> text;
+    in property <string> text;
     // Le clavier a la sélection (sinon, ses touches ne réagissent qu'à la souris).
     in property <bool> active;
+    in property <string> ok-label: "OK";
     callback edited(string);
     callback done();
     // Flèche ↑ sur la première ligne / ↓ sur la dernière : la sélection quitte le clavier.
     callback leave-up();
     callback leave-down();
+    // Retire le dernier caractère (fait en Rust : Slint n'a pas de sous-chaîne).
+    pure callback erase(string) -> string;
 
-    property <[[string]]> keys: [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "'"],
-        ["a", "z", "e", "r", "t", "y", "u", "i", "o", "p", "^", "¨"],
-        ["q", "s", "d", "f", "g", "h", "j", "k", "l", "m", "ù", "*"],
-        ["w", "x", "c", "v", "b", "n", ",", ".", ":", "/", "?", "!"],
-        ["é", "è", "ê", "ë", "à", "â", "ç", "î", "ï", "ô", "û", "œ"],
-        ["@", "_", "&", "(", ")", "\"", "+", "=", "€", "#", "%", "æ"],
-        ["MAJ", "ESPACE", "EFFACER", "OK"],
-    ];
-    property <int> r: 1;
-    property <int> c: 0;
+    property <int> mode: 0; // 0 lettres · 1 chiffres et symboles · 2 accents
     property <bool> shift;
-    property <length> kw: (self.width - 11 * 6px * root.k) / 12;
-    property <length> kh: 42px * root.k;
+    property <[[string]]> letters: [
+        ["a", "z", "e", "r", "t", "y", "u", "i", "o", "p"],
+        ["q", "s", "d", "f", "g", "h", "j", "k", "l", "m"],
+        ["⇧", "w", "x", "c", "v", "b", "n", "'", "-", "⌫"],
+        ["?123", "àé", "␣", ".", "OK"],
+    ];
+    property <[[string]]> symbols: [
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+        ["@", "#", "€", "%", "&", "_", "+", "=", "/", ":"],
+        ["(", ")", "\"", ";", "!", "?", ",", "*", "~", "⌫"],
+        ["ABC", "àé", "␣", ".", "OK"],
+    ];
+    property <[[string]]> accents: [
+        ["é", "è", "ê", "ë", "à", "â", "ä", "ç", "ù", "û"],
+        ["î", "ï", "ô", "ö", "ü", "ÿ", "œ", "æ", "«", "»"],
+        ["⇧", "'", "-", "(", ")", ",", "?", "!", ":", "⌫"],
+        ["ABC", "?123", "␣", ".", "OK"],
+    ];
+    property <[[string]]> keys: root.mode == 0 ? root.letters : root.mode == 1 ? root.symbols : root.accents;
+    property <int> r: 0;
+    property <int> c: 0;
+    property <length> gap: 8px * root.k;
+    property <length> kh: 48px * root.k;
 
-    public function press() {
-        if (root.r == 6) {
-            if (root.c == 0) {
-                root.shift = !root.shift;
-            } else if (root.c == 1) {
-                root.text += " ";
-                root.edited(root.text);
-            } else if (root.c == 2) {
-                // Effacement du dernier caractère (Slint n'a pas de « sous-chaîne » : on le fait en Rust).
-                root.edited("\u{8}" + root.text);
-            } else {
-                root.done();
-            }
-            return;
+    function press() {
+        let key = root.keys[root.r][root.c];
+        if (key == "⇧") {
+            root.shift = !root.shift;
+        } else if (key == "⌫") {
+            root.edited(root.erase(root.text));
+        } else if (key == "?123") {
+            root.mode = 1;
+        } else if (key == "ABC") {
+            root.mode = 0;
+        } else if (key == "àé") {
+            root.mode = 2;
+        } else if (key == "␣") {
+            root.edited(root.text + " ");
+        } else if (key == "OK") {
+            root.done();
+        } else {
+            root.edited(root.text + (root.shift ? key.to-uppercase() : key));
+            root.shift = false;
         }
-        root.text += root.shift ? root.keys[root.r][root.c].to-uppercase() : root.keys[root.r][root.c];
-        root.edited(root.text);
+        root.c = min(root.c, root.keys[root.r].length - 1);
+    }
+
+    // Même position horizontale (proportionnelle) en changeant de ligne.
+    function move-row(d: int) {
+        let from = root.keys[root.r].length;
+        root.r += d;
+        let to = root.keys[root.r].length;
+        root.c = min(to - 1, floor((root.c + 0.5) * to / from));
     }
 
     public function key(t: string) -> bool {
@@ -57,49 +85,65 @@ export component Osk inherits Rectangle {
             if (root.r == 0) {
                 root.leave-up();
             } else {
-                // Dernière ligne (4 grosses touches) <-> lignes de 12 touches : même position horizontale.
-                root.c = root.r == 6 ? min(11, root.c * 3 + 1) : root.c;
-                root.r -= 1;
+                root.move-row(-1);
             }
         } else if (t == Key.DownArrow) {
-            if (root.r == 6) {
+            if (root.r == root.keys.length - 1) {
                 root.leave-down();
             } else {
-                root.r += 1;
-                root.c = root.r == 6 ? min(3, floor(root.c / 3)) : root.c;
+                root.move-row(1);
             }
         } else if (t == Key.Return) {
             root.press();
         } else if (t == Key.Backspace) {
-            root.edited("\u{8}" + root.text);
+            root.edited(root.erase(root.text));
         } else {
             return false;
         }
         return true;
     }
 
-    height: 7 * (self.kh + 6px * root.k);
+    height: 4 * self.kh + 3 * self.gap;
     background: transparent;
 
-    for row[ri] in root.keys: Rectangle {
-        y: ri * (root.kh + 6px * root.k);
+    for row[ri] in root.keys: HorizontalLayout {
+        y: ri * (root.kh + root.gap);
         height: root.kh;
-
-        property <length> w: ri == 6 ? (parent.width - 3 * 6px * root.k) / 4 : root.kw;
+        spacing: root.gap;
 
         for key[ci] in row: Rectangle {
-            x: ci * (parent.w + 6px * root.k);
-            width: parent.w;
-            height: root.kh;
-            border-radius: 8px * root.k;
+            horizontal-stretch: key == "␣" ? 4 : key.character-count > 1 ? 1.6 : 1;
+            border-radius: 10px * root.k;
             property <bool> lit: (root.active && ri == root.r && ci == root.c) || ka.has-hover;
             background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                : (ri == 6 && ci == 0 && root.shift) ? #ffffff40 : #ffffff17;
+                : key == "OK" ? #ffffff38 : (key == "⇧" && root.shift) ? #ffffff4d
+                : key.character-count > 1 || key == "⇧" || key == "⌫" ? #ffffff24 : #ffffff14;
 
-            Text {
-                text: ri < 6 && root.shift ? key.to-uppercase() : key;
+            if key == "⇧": Path {
+                width: 20px * root.k;
+                height: 20px * root.k;
+                viewbox-width: 20;
+                viewbox-height: 20;
+                fill: root.shift ? white : transparent;
+                stroke: white;
+                stroke-width: 2px * root.k;
+                commands: "M 10 2 L 18 11 L 13.5 11 L 13.5 18 L 6.5 18 L 6.5 11 L 2 11 Z";
+            }
+            if key == "⌫": Path {
+                width: 26px * root.k;
+                height: 20px * root.k;
+                viewbox-width: 26;
+                viewbox-height: 20;
+                fill: transparent;
+                stroke: white;
+                stroke-width: 2px * root.k;
+                commands: "M 8 2 L 24 2 L 24 18 L 8 18 L 1 10 Z M 12 6 L 19 14 M 19 6 L 12 14";
+            }
+            if key != "⇧" && key != "⌫": Text {
+                text: key == "␣" ? "espace" : key == "OK" ? root.ok-label
+                    : key.character-count == 1 && root.shift ? key.to-uppercase() : key;
                 color: white;
-                font-size: (ri == 6 ? 14px : 18px) * root.k;
+                font-size: (key.character-count > 1 ? 16px : 22px) * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;

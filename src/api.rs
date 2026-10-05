@@ -593,7 +593,7 @@ pub struct Client {
     pub device_id: String,
 }
 
-fn normalize_server(s: &str) -> String {
+pub fn normalize_server(s: &str) -> String {
     let s = s.trim().trim_end_matches('/');
     if s.starts_with("http://") || s.starts_with("https://") {
         s.to_string()
@@ -660,6 +660,18 @@ impl Client {
     /// Change l'adresse utilisée (même serveur joint autrement : local / distant).
     pub fn set_server(&mut self, server: &str) {
         self.server = normalize_server(server);
+    }
+
+    /// Session à partir d'un compte enregistré.
+    pub fn from_token(server: &str, user_id: &str, user_name: &str, token: &str, device_id: &str) -> Result<Self> {
+        Ok(Self {
+            http: build_http()?,
+            server: normalize_server(server),
+            token: token.to_string(),
+            user_id: user_id.to_string(),
+            user_name: user_name.to_string(),
+            device_id: device_id.to_string(),
+        })
     }
 
     pub async fn login(server: &str, user: &str, pw: &str, device_id: &str) -> Result<Self> {
@@ -821,9 +833,11 @@ impl Client {
     }
 
     /// Avatar du compte (image Primary de l'utilisateur), si défini.
-    pub async fn user_avatar(&self) -> Option<Vec<u8>> {
+    /// `original` : fichier tel quel (un GIF reste animé ; réduit par le serveur, il ne l'est plus).
+    pub async fn user_avatar(&self, original: bool) -> Option<Vec<u8>> {
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-        self.get_bytes(&format!("/Users/{}/Images/Primary?maxWidth=200&t={t}", self.user_id)).await.ok()
+        let size = if original { "" } else { "maxWidth=200&" };
+        self.get_bytes(&format!("/Users/{}/Images/Primary?{size}t={t}", self.user_id)).await.ok()
     }
 
     /// Plugin GetAvatar : avatars proposés (id, nom). Vide si le plugin est absent.

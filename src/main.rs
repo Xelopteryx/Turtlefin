@@ -214,17 +214,157 @@ fn decode_backdrop(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
 
 fn decode(bytes: &[u8], shape: Option<Shape>) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
     let img = image::load_from_memory(bytes).ok()?;
-    let img = match shape {
-        Some(s) => {
-            // Recadrage au format exact (comme image-fit: cover), puis coins arrondis.
-            let mut img = img.resize_to_fill(s.w, s.h, image::imageops::FilterType::Triangle).to_rgba8();
-            round_corners(&mut img, s.radius * s.w as f32, s.top_only);
-            img
+    Some(match shape {
+        Some(s) => shaped(img, s),
+        None => {
+            let img = img.to_rgba8();
+            let (w, h) = img.dimensions();
+            SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h)
         }
-        None => img.to_rgba8(),
-    };
+    })
+}
+
+/// Recadrage au format exact (comme image-fit: cover), puis coins arrondis.
+fn shaped(img: image::DynamicImage, s: Shape) -> SharedPixelBuffer<Rgba8Pixel> {
+    let mut img = img.resize_to_fill(s.w, s.h, image::imageops::FilterType::Triangle).to_rgba8();
+    round_corners(&mut img, s.radius * s.w as f32, s.top_only);
     let (w, h) = img.dimensions();
-    Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
+    SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h)
+}
+
+// ---------------------------------------------------------------------------
+// Avatars animés (GIF) : toutes les images sont décodées une fois, puis une minuterie les fait
+// défiler. Réglage « Affichage » : GIF figés sur leur première image.
+// ---------------------------------------------------------------------------
+static STILL_GIFS: AtomicBool = AtomicBool::new(false);
+
+/// Images d'une animation et durée de chacune (ms). Une seule image : image fixe.
+type Frames = Vec<(SharedPixelBuffer<Rgba8Pixel>, u32)>;
+
+/// Au plus 150 images (avatar de 160 px : 100 Ko par image, 15 Mo au pire).
+const MAX_FRAMES: usize = 150;
+
+/// Comme `decode`, en gardant toutes les images d'un GIF animé (sauf si les GIF sont figés).
+fn decode_frames(bytes: &[u8], shape: Shape) -> Option<Frames> {
+    use image::AnimationDecoder;
+    if bytes.starts_with(b"GIF8") && !STILL_GIFS.load(Ordering::Relaxed) {
+        if let Ok(dec) = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(bytes)) {
+            let mut out = Frames::new();
+            for f in dec.into_frames().take(MAX_FRAMES) {
+                let Ok(f) = f else { break };
+                let (n, d) = f.delay().numer_denom_ms();
+                let ms = if d == 0 { 0 } else { n / d };
+                // Comme les navigateurs : une durée de moins de 20 ms vaut 100 ms.
+                let ms = if ms < 20 { 100 } else { ms };
+                out.push((shaped(image::DynamicImage::ImageRgba8(f.into_buffer()), shape), ms));
+            }
+            if !out.is_empty() {
+                return Some(out);
+            }
+        }
+    }
+    decode(bytes, Some(shape)).map(|b| vec![(b, 0)])
+}
+
+/// Place d'une image animée.
+#[derive(Clone, Copy, PartialEq)]
+enum AnimSlot {
+    /// Tuile de l'écran de connexion.
+    Login(usize),
+    /// Avatar proposé dans les paramètres.
+    Picker(usize),
+    /// Avatar du compte (en-tête, paramètres).
+    Header,
+}
+
+struct Anim {
+    slot: AnimSlot,
+    /// Identifiant de la carte : si la liste a changé, l'animation s'arrête.
+    key: String,
+    frames: Vec<(slint::Image, u32)>,
+    idx: usize,
+    due: std::time::Instant,
+}
+
+thread_local! {
+    static ANIMS: std::cell::RefCell<Vec<Anim>> = const { std::cell::RefCell::new(Vec::new()) };
+    static ANIM_TIMER: slint::Timer = slint::Timer::default();
+}
+
+/// Pose une image à sa place ; false si la place n'existe plus (liste remplacée).
+fn anim_set(u: &AppWindow, slot: AnimSlot, key: &str, img: slint::Image) -> bool {
+    let card = |m: ModelRc<CardData>, i: usize| {
+        let Some(mut c) = m.row_data(i) else { return false };
+        if c.id.as_str() != key {
+            return false;
+        }
+        c.image = img.clone();
+        c.has_image = true;
+        m.set_row_data(i, c);
+        true
+    };
+    match slot {
+        AnimSlot::Login(i) => card(u.get_login_tiles(), i),
+        AnimSlot::Picker(i) => card(u.get_avatar_items(), i),
+        AnimSlot::Header => {
+            u.set_avatar(img);
+            u.set_has_avatar(true);
+            true
+        }
+    }
+}
+
+/// Affiche une image (fixe ou animée) à sa place, en remplaçant l'animation qui s'y trouvait.
+fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
+    stop_anims(|s| s == slot);
+    let frames: Vec<(slint::Image, u32)> = frames.into_iter().map(|(b, ms)| (slint::Image::from_rgba8(b), ms)).collect();
+    let Some((first, ms)) = frames.first().cloned() else { return };
+    if !anim_set(u, slot, key, first) || frames.len() < 2 {
+        return;
+    }
+    let due = std::time::Instant::now() + std::time::Duration::from_millis(ms as u64);
+    ANIMS.with_borrow_mut(|a| a.push(Anim { slot, key: key.to_string(), frames, idx: 0, due }));
+    let ui = u.as_weak();
+    ANIM_TIMER.with(|t| {
+        if t.running() {
+            return;
+        }
+        t.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(20), move || {
+            let Some(u) = ui.upgrade() else { return };
+            // Pendant la lecture, aucun écran n'est affiché sous la vidéo.
+            if u.get_playing() {
+                return;
+            }
+            let screen = u.get_screen();
+            let now = std::time::Instant::now();
+            ANIMS.with_borrow_mut(|list| {
+                list.retain_mut(|a| {
+                    let shown = match a.slot {
+                        AnimSlot::Login(_) => screen == "login",
+                        AnimSlot::Picker(_) => screen == "settings",
+                        AnimSlot::Header => screen != "login",
+                    };
+                    if !shown || now < a.due {
+                        return true;
+                    }
+                    a.idx = (a.idx + 1) % a.frames.len();
+                    let (img, ms) = a.frames[a.idx].clone();
+                    // Animation restée cachée : elle repart d'ici plutôt que de rattraper son retard.
+                    let base = if now.duration_since(a.due).as_millis() > 500 { now } else { a.due };
+                    a.due = base + std::time::Duration::from_millis(ms as u64);
+                    anim_set(&u, a.slot, &a.key, img)
+                });
+                if list.is_empty() {
+                    ANIM_TIMER.with(|t| t.stop());
+                }
+            });
+        });
+    });
+}
+
+/// Arrête les animations d'un type de place (fin de session, nouvelle liste).
+fn stop_anims(f: impl Fn(AnimSlot) -> bool) {
+    ANIMS.with_borrow_mut(|a| a.retain(|x| !f(x.slot)));
 }
 
 /// Comme fetch_decoded, pour des candidats de types différents (Thumb, Backdrop, Primary).
@@ -348,10 +488,19 @@ fn push_section(out: &mut Vec<SectionData>, title: &str, landscape: bool, items:
 
 async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
-        Ok(client) => {
+        Ok(client) => start_session(app, client).await,
+        Err(e) => show_login_error(&app.ui(), format!("{e}")),
+    }
+}
+
+/// Session ouverte (mot de passe ou compte enregistré) : session et compte enregistrés, accueil.
+async fn start_session(app: Arc<App>, client: api::Client) {
+    {
+        {
             let old = config::load();
             let mut saved = client.to_saved();
             saved.prefer_remote = old.prefer_remote;
+            saved.still_gifs = old.still_gifs;
             // Adresses du serveur : celles choisies à l'écran des serveurs, sinon déduites de l'adresse saisie.
             match app.pending_server.lock().unwrap().take() {
                 Some((local, remote)) => {
@@ -366,10 +515,190 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
                     }
                 }
             }
+            // Le même serveur (même identifiant) garde ses adresses connues.
+            let server_id = discovery::probe(&reqwest::Client::new(), &client.server).await.map(|i| i.0).unwrap_or_default();
+            if !server_id.is_empty() && server_id == old.server_id {
+                if saved.server_local.is_empty() {
+                    saved.server_local = old.server_local.clone();
+                }
+                if saved.server_remote.is_empty() {
+                    saved.server_remote = old.server_remote.clone();
+                }
+            }
+            saved.server_id = server_id.clone();
             config::save(&saved);
+            config::save_account(config::Account {
+                server_id,
+                user_id: client.user_id.clone(),
+                user_name: client.user_name.clone(),
+                token: client.token.clone(),
+            });
             load_home(app, client).await;
         }
-        Err(e) => show_login_error(&app.ui(), format!("{e}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Écran de connexion : comptes enregistrés, comptes du serveur, autre compte
+// ---------------------------------------------------------------------------
+fn login_opened(app: &Arc<App>) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let server = api::normalize_server(&u.get_server());
+    u.set_login_mode("pick".into());
+    u.set_login_sel(0);
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let http = reqwest::Client::new();
+        let info = if server.ends_with("//") || server.is_empty() { None } else { discovery::probe(&http, &server).await };
+        let (sid, sname) = info.map(|i| (i.0, i.1)).unwrap_or_default();
+        // (action, nom, sous-titre, identifiant d'utilisateur pour l'avatar)
+        let mut tiles: Vec<(String, String, String, String)> = Vec::new();
+        if !sid.is_empty() {
+            for a in config::accounts().into_iter().filter(|a| a.server_id == sid) {
+                tiles.push((format!("acc:{}", a.user_id), a.user_name, "Enregistré".into(), a.user_id));
+            }
+            let public: serde_json::Value = match http.get(format!("{server}/Users/Public")).send().await {
+                Ok(r) => r.json().await.unwrap_or_default(),
+                Err(_) => serde_json::Value::Null,
+            };
+            for p in public.as_array().into_iter().flatten() {
+                let (Some(id), Some(name)) = (p["Id"].as_str(), p["Name"].as_str()) else { continue };
+                if tiles.iter().any(|t| t.3 == id) {
+                    continue;
+                }
+                tiles.push((format!("pub:{name}"), name.to_string(), String::new(), id.to_string()));
+            }
+        }
+        tiles.push(("other".into(), "Autre compte".into(), String::new(), String::new()));
+        let reachable = !sid.is_empty();
+        let rows = tiles.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            let cards: Vec<CardData> = rows
+                .iter()
+                .map(|(id, name, sub, _)| CardData {
+                    id: id.clone().into(),
+                    title: name.clone().into(),
+                    subtitle: sub.clone().into(),
+                    // Initiale affichée tant que l'avatar n'est pas chargé (Slint n'a pas de sous-chaîne).
+                    rating: name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "?".into()).into(),
+                    ..Default::default()
+                })
+                .collect();
+            u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+            // L'écran de connexion reprend le clavier (après le menu, par exemple).
+            u.set_refocus(u.get_refocus() + 1);
+            u.set_server_name(if reachable { sname.into() } else { "Serveur injoignable".into() });
+        });
+        // Avatars (publics, sans connexion), en cercle.
+        for (i, (key, _, _, uid)) in tiles.into_iter().enumerate() {
+            if uid.is_empty() {
+                continue;
+            }
+            let (http, server, ui) = (http.clone(), server.clone(), app2.ui());
+            tokio::spawn(async move {
+                // Fichier d'origine si les GIF sont animés (réduit par le serveur, un GIF ne l'est plus).
+                let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
+                let Ok(r) = http.get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await else { return };
+                if !r.status().is_success() {
+                    return;
+                }
+                let Ok(bytes) = r.bytes().await else { return };
+                let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false }))
+                    .await
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Login(i), &key, frames));
+            });
+        }
+    });
+}
+
+/// Tuile choisie : compte enregistré (connexion directe), compte du serveur ou autre compte.
+fn login_pick(app: &Arc<App>, action: String) {
+    let Some(u) = app.ui().upgrade() else { return };
+    u.set_error_text("".into());
+    u.set_login_pass("".into());
+    if action == "other" {
+        u.set_login_user("".into());
+        u.set_login_field(0);
+        u.set_login_mode("form".into());
+        return;
+    }
+    if let Some(name) = action.strip_prefix("pub:") {
+        u.set_login_user(name.into());
+        u.set_login_field(1);
+        u.set_login_mode("form".into());
+        return;
+    }
+    let Some(uid) = action.strip_prefix("acc:") else { return };
+    let Some(acc) = config::accounts().into_iter().find(|a| a.user_id == uid) else { return };
+    let server = u.get_server().to_string();
+    u.set_busy(true);
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let client = match api::Client::from_token(&server, &acc.user_id, &acc.user_name, &acc.token, &app2.device_id) {
+            Ok(c) => c,
+            Err(e) => return show_login_error(&app2.ui(), format!("{e}")),
+        };
+        match client.user_config().await {
+            Ok(_) => start_session(app2, client).await,
+            Err(_) => {
+                // Jeton expiré ou révoqué : on demande le mot de passe.
+                config::forget_account(&acc.user_id);
+                let name = acc.user_name.clone();
+                let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                    u.set_busy(false);
+                    u.set_login_user(name.into());
+                    u.set_login_field(1);
+                    u.set_login_mode("form".into());
+                    u.set_error_text("Session expirée : entre le mot de passe.".into());
+                });
+            }
+        }
+    });
+}
+
+/// Fin de session (déconnexion ou changement de compte) puis écran de connexion.
+/// `forget` : le compte est retiré des comptes enregistrés.
+fn end_session(app: &Arc<App>, forget: bool) {
+    if app.sp.lock().unwrap().group.is_some() {
+        if let Some(c) = app.client() {
+            app.rt.spawn(async move {
+                let _ = syncplay::leave(&c).await;
+            });
+        }
+        *app.sp.lock().unwrap() = syncplay::State::default();
+        refresh_party(app);
+    }
+    if forget {
+        if let Some(c) = app.client() {
+            config::forget_account(&c.user_id);
+        }
+    }
+    config::clear_token();
+    *app.client.lock().unwrap() = None;
+    *app.tab.lock().unwrap() = "home".to_string();
+    app.stack.lock().unwrap().clear();
+    *app.library.lock().unwrap() = None;
+    app.gen.fetch_add(1, Ordering::SeqCst);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_tab("home".into());
+        u.set_h_focus(false);
+        u.set_can_back(false);
+        u.set_has_requests(false);
+        stop_anims(|s| s == AnimSlot::Header);
+        u.set_has_avatar(false);
+        u.set_menu_open(false);
+        u.set_lib_items(ModelRc::default());
+        u.set_sections(ModelRc::default());
+        u.set_detail(DetailData::default());
+        u.set_child_items(ModelRc::default());
+        u.set_busy(false);
+        u.set_error_text("".into());
+        u.set_screen("login".into());
     }
 }
 
@@ -1276,6 +1605,7 @@ fn choose_server(app: &Arc<App>, local: String, remote: String) {
             u.set_error_text("".into());
             u.set_busy(false);
             u.set_screen("login".into());
+            u.invoke_login_opened();
         });
     });
 }
@@ -1397,7 +1727,7 @@ fn complete_addresses(app: &Arc<App>, client: &api::Client) {
 }
 
 // ---------------------------------------------------------------------------
-// Paramètres : Profil (avatar), Lecture, Réseau, Compte
+// Paramètres : Profil (avatar), Lecture, Réseau, Affichage, Compte
 // ---------------------------------------------------------------------------
 const LANGS: [(&str, &str); 9] = [
     ("", "Aucune préférence"),
@@ -1463,6 +1793,10 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             ]
         }
         3 => vec![
+            row("still_gifs", "Avatars animés (GIF) figés sur leur première image", String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
+            row("info", "Une animation demande un peu de calcul à chaque image : à figer si l'appareil est lent.", String::new(), "info", false),
+        ],
+        4 => vec![
             row("logout", "Se déconnecter", String::new(), "action", false),
             row("quit", "Fermer l'application", String::new(), "action", false),
         ],
@@ -1505,23 +1839,14 @@ fn load_avatars(app: &Arc<App>) {
             let (c, ui) = (client.clone(), app2.ui());
             app2.rt.spawn(async move {
                 let Ok(bytes) = c.get_bytes(&format!("/GetAvatar/Image/{id}")).await else { return };
-                let Some(buf) = tokio::task::spawn_blocking(move || decode(&bytes, Some(Shape { w: 160, h: 160, radius: 0.5, top_only: false })))
+                let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 160, h: 160, radius: 0.5, top_only: false }))
                     .await
                     .ok()
                     .flatten()
                 else {
                     return;
                 };
-                let _ = ui.upgrade_in_event_loop(move |u| {
-                    let m = u.get_avatar_items();
-                    if let Some(mut card) = m.row_data(i) {
-                        if card.id.as_str() == id {
-                            card.image = slint::Image::from_rgba8(buf);
-                            card.has_image = true;
-                            m.set_row_data(i, card);
-                        }
-                    }
-                });
+                let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Picker(i), &id, frames));
             });
         }
     });
@@ -1531,21 +1856,21 @@ fn load_avatars(app: &Arc<App>) {
 fn load_header_avatar(app: &Arc<App>, client: &api::Client) {
     let (c, ui) = (client.clone(), app.ui());
     app.rt.spawn(async move {
-        let Some(bytes) = c.user_avatar().await else {
-            let _ = ui.upgrade_in_event_loop(|u| u.set_has_avatar(false));
+        let Some(bytes) = c.user_avatar(!STILL_GIFS.load(Ordering::Relaxed)).await else {
+            let _ = ui.upgrade_in_event_loop(|u| {
+                stop_anims(|s| s == AnimSlot::Header);
+                u.set_has_avatar(false);
+            });
             return;
         };
-        let Some(buf) = tokio::task::spawn_blocking(move || decode(&bytes, Some(Shape { w: 160, h: 160, radius: 0.5, top_only: false })))
+        let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 160, h: 160, radius: 0.5, top_only: false }))
             .await
             .ok()
             .flatten()
         else {
             return;
         };
-        let _ = ui.upgrade_in_event_loop(move |u| {
-            u.set_avatar(slint::Image::from_rgba8(buf));
-            u.set_has_avatar(true);
-        });
+        let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Header, "", frames));
     });
 }
 
@@ -1615,6 +1940,18 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             let now_remote = config::load().prefer_remote;
             set_prefer_remote(app, !now_remote);
         }
+        "still_gifs" => {
+            let mut saved = config::load();
+            saved.still_gifs = !saved.still_gifs;
+            config::save(&saved);
+            STILL_GIFS.store(saved.still_gifs, Ordering::Relaxed);
+            refresh_settings(app);
+            // Avatars rechargés : animés (fichier d'origine) ou figés.
+            if let Some(client) = app.client() {
+                load_header_avatar(app, &client);
+            }
+            load_avatars(app);
+        }
         "server" => open_servers(app),
         "logout" => {
             if let Some(u) = app.ui().upgrade() {
@@ -1672,6 +2009,7 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
     }
     e.push(("Compte".into(), String::new(), true));
     for (label, action) in [
+        ("Changer de compte", "switch"),
         ("Sélectionner un serveur", "server"),
         ("Paramètres", "settings"),
         ("Se déconnecter", "logout"),
@@ -2185,6 +2523,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let saved = config::load();
+    STILL_GIFS.store(saved.still_gifs, Ordering::Relaxed);
     let ui = AppWindow::new()?;
     let video_ok = match video::install(&ui) {
         Ok(()) => true,
@@ -2250,38 +2589,26 @@ fn main() -> anyhow::Result<()> {
 
     ui.on_logout({
         let app = app.clone();
-        move || {
-            // Déconnexion : on quitte la watch party avant d'oublier la session.
-            if app.sp.lock().unwrap().group.is_some() {
-                if let Some(c) = app.client() {
-                    app.rt.spawn(async move {
-                        let _ = syncplay::leave(&c).await;
-                    });
-                }
-                *app.sp.lock().unwrap() = syncplay::State::default();
-                refresh_party(&app);
-            }
-            config::clear_token();
-            *app.client.lock().unwrap() = None;
-            *app.tab.lock().unwrap() = "home".to_string();
-            app.stack.lock().unwrap().clear();
-            *app.library.lock().unwrap() = None;
-            app.gen.fetch_add(1, Ordering::SeqCst);
-            if let Some(u) = app.ui().upgrade() {
-                u.set_tab("home".into());
-                u.set_h_focus(false);
-                u.set_can_back(false);
-                u.set_has_requests(false);
-                u.set_menu_open(false);
-                u.set_lib_items(ModelRc::default());
-                u.set_sections(ModelRc::default());
-                u.set_detail(DetailData::default());
-                u.set_child_items(ModelRc::default());
-                u.set_busy(false);
-                u.set_screen("login".into());
-            }
-        }
+        move || end_session(&app, true)
     });
+
+    ui.on_switch_account({
+        let app = app.clone();
+        move || end_session(&app, false)
+    });
+
+    ui.on_login_opened({
+        let app = app.clone();
+        move || login_opened(&app)
+    });
+
+    ui.on_login_pick({
+        let app = app.clone();
+        move |a| login_pick(&app, a.to_string())
+    });
+
+    // Mot de passe affiché en points.
+    ui.on_mask(|t| "•".repeat(t.chars().count()).into());
 
     ui.on_select_tab({
         let app = app.clone();
@@ -2483,6 +2810,8 @@ fn main() -> anyhow::Result<()> {
                 open_party(&app);
             } else if a == "server" {
                 open_servers(&app);
+            } else if a == "switch" {
+                end_session(&app, false);
             } else if a == "logout" {
                 if let Some(u) = app.ui().upgrade() {
                     u.invoke_logout();
@@ -2575,6 +2904,10 @@ fn main() -> anyhow::Result<()> {
                 Err(e) => show_login_error(&a.ui(), format!("{e}")),
             }
         });
+    }
+
+    if ui.get_screen().as_str() == "login" {
+        login_opened(&app);
     }
 
     // Essai du lecteur sans serveur : turtlefin --test-video=chemin/vers/video.mkv

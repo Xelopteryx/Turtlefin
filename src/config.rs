@@ -15,6 +15,10 @@ pub struct Saved {
     pub server_remote: String,
     /// Paramètres réseau : passer par l'adresse distante même si la locale répond.
     pub prefer_remote: bool,
+    /// Affichage : avatars GIF figés sur leur première image (moins de calcul).
+    pub still_gifs: bool,
+    /// Identifiant du serveur (pour retrouver les comptes enregistrés).
+    pub server_id: String,
     pub user_name: String,
     pub user_id: String,
     pub token: String,
@@ -117,4 +121,57 @@ pub fn set_user_defaults(audio: &str, sub: &str, mode: &str) {
 
 pub fn user_defaults() -> (String, String, String) {
     USER_DEFAULTS.lock().unwrap().clone()
+}
+
+// ---------------------------------------------------------------------------
+// Comptes enregistrés sur cet appareil (jeton d'accès, jamais le mot de passe) : on change de
+// compte sans le ressaisir.
+// ---------------------------------------------------------------------------
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[serde(default)]
+pub struct Account {
+    pub server_id: String,
+    pub user_id: String,
+    pub user_name: String,
+    pub token: String,
+}
+
+fn accounts_path() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.config_dir().join("accounts.json"))
+}
+
+pub fn accounts() -> Vec<Account> {
+    accounts_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_accounts(list: &[Account]) {
+    let Some(p) = accounts_path() else { return };
+    if let Some(dir) = p.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(t) = serde_json::to_string_pretty(list) {
+        let _ = std::fs::write(&p, t);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+}
+
+/// Ajoute ou met à jour un compte (le plus récent en premier).
+pub fn save_account(a: Account) {
+    let mut list = accounts();
+    list.retain(|x| x.user_id != a.user_id);
+    list.insert(0, a);
+    save_accounts(&list);
+}
+
+pub fn forget_account(user_id: &str) {
+    let mut list = accounts();
+    list.retain(|x| x.user_id != user_id);
+    save_accounts(&list);
 }

@@ -826,6 +826,15 @@ export component AppWindow inherits Window {
     in-out property <string> user-name;
     in-out property <string> error-text;
     in-out property <string> toast;
+    // Connexion
+    in-out property <string> login-mode: "pick"; // "pick" (tuiles) | "form" (identifiant, mot de passe)
+    in property <[CardData]> login-tiles;
+    in-out property <int> login-sel;
+    in-out property <string> login-user;
+    in-out property <string> login-pass;
+    in-out property <int> login-field;  // 0 utilisateur · 1 mot de passe · 2 Se connecter · 3 Retour
+    in-out property <bool> login-osk;   // mode TV : le clavier à l'écran a la sélection
+    in property <string> server-name;
     in-out property <bool> busy;
     in property <bool> tv-mode;
 
@@ -833,6 +842,13 @@ export component AppWindow inherits Window {
     in-out property <[Section]> sections;
     in-out property <int> sel-section: 0;
     in-out property <int> sel-item: 0;
+    changed screen => {
+        if (root.screen == "login") {
+            root.login-mode = "pick";
+            root.login-osk = false;
+            root.login-opened();
+        }
+    }
     changed sel-item => {
         root.row-seen(root.sel-section, root.sel-item);
     }
@@ -870,7 +886,7 @@ export component AppWindow inherits Window {
     in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
     in property <string> choice-b;
 
-    // Paramètres : catégories à gauche (0 Profil · 1 Lecture · 2 Réseau · 3 Compte), lignes à droite
+    // Paramètres : catégories à gauche (0 Profil · 1 Lecture · 2 Réseau · 3 Affichage · 4 Compte), lignes à droite
     in-out property <int> set-cat;
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
@@ -967,6 +983,10 @@ export component AppWindow inherits Window {
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
     callback logout();
+    callback switch-account();
+    callback login-opened();               // écran de connexion affiché : tuiles des comptes
+    callback login-pick(string);           // "acc:<id>" | "pub:<nom>" | "other"
+    pure callback mask(string) -> string;  // mot de passe affiché en points
     callback select-tab(string);            // "home" | "favorites" | "requests"
     callback go-home();
     callback menu-action(string);
@@ -1134,56 +1154,350 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Connexion
     // Pendant la lecture, aucun écran n'est instancié sous la vidéo : rien à redessiner à chaque
     // image, et le clavier va au lecteur.
-    if root.screen == "login" && !root.playing: VerticalLayout {
-        alignment: center;
-        padding: 32px;
+    if root.screen == "login" && !root.playing: lg := Rectangle {
+        property <length> u: min(self.height / 720px, self.width / 1280px) * 1px;
+        property <length> tile: 150 * self.u;
+        property <int> n: root.login-tiles.length;
+        // Tuiles puis bouton « Changer de serveur » (index n).
+        // Formulaire : largeur, haut, hauteur d'un champ, des boutons, écart entre les lignes.
+        property <length> fw: min(self.width - 80 * self.u, 560 * self.u);
+        property <length> fy: 150 * self.u;
+        property <length> field-h: 54 * self.u;
+        property <length> btn-h: 46 * self.u;
+        property <length> gap: 12 * self.u;
 
-        HorizontalLayout {
-            alignment: center;
+        function submit() {
+            root.login(root.server, root.login-user, root.login-pass);
+        }
 
-            VerticalLayout {
-                width: 420px;
-                spacing: 12px;
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                self.focus();
+            }
+            init => {
+                self.focus();
+            }
+            key-pressed(event) => {
+                if (root.busy) {
+                    return EventResult.accept;
+                }
+                if (root.login-mode == "pick") {
+                    if (event.text == Key.LeftArrow) {
+                        root.login-sel = max(0, root.login-sel - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.login-sel = min(lg.n - 1, root.login-sel + 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.login-sel = lg.n;
+                    } else if (event.text == Key.UpArrow) {
+                        if (root.login-sel >= lg.n) {
+                            root.login-sel = 0;
+                        }
+                    } else if (event.text == Key.Return) {
+                        if (root.login-sel >= lg.n) {
+                            root.menu-action("server");
+                        } else {
+                            root.login-pick(root.login-tiles[root.login-sel].id);
+                        }
+                    }
+                    return EventResult.accept;
+                }
+                // Formulaire
+                if (event.text == Key.Escape) {
+                    root.login-mode = "pick";
+                    root.login-osk = false;
+                    return EventResult.accept;
+                }
+                if (!root.tv-mode) {
+                    return EventResult.reject;
+                }
+                if (root.login-osk) {
+                    if (form-osk.key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.login-osk = false;
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.login-field = max(0, root.login-field - 1);
+                } else if (event.text == Key.DownArrow) {
+                    root.login-field = min(3, root.login-field + 1);
+                } else if (event.text == Key.Return) {
+                    if (root.login-field <= 1) {
+                        root.login-osk = true;
+                    } else if (root.login-field == 2) {
+                        lg.submit();
+                    } else {
+                        root.login-mode = "pick";
+                    }
+                } else if (event.text == Key.Backspace) {
+                    root.login-mode = "pick";
+                }
+                return EventResult.accept;
+            }
+        }
 
+        // En-tête : nom de l'appli et serveur
+        Text {
+            y: 40 * lg.u;
+            width: parent.width;
+            text: "Turtlefin";
+            color: Theme.accent2;
+            font-size: 44 * lg.u;
+            font-weight: 800;
+            horizontal-alignment: center;
+        }
+        Text {
+            y: 100 * lg.u;
+            width: parent.width;
+            text: root.server-name != "" ? root.server-name + "  ·  " + root.server : root.server;
+            color: Theme.muted;
+            font-size: 16 * lg.u;
+            horizontal-alignment: center;
+        }
+
+        // ---- Qui regarde ?
+        if root.login-mode == "pick": Rectangle {
+            Text {
+                y: 170 * lg.u;
+                width: parent.width;
+                text: "Qui regarde ?";
+                color: white;
+                font-size: 30 * lg.u;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            for t[i] in root.login-tiles: Rectangle {
+                x: (parent.width - (lg.n * (lg.tile + 30 * lg.u) - 30 * lg.u)) / 2 + i * (lg.tile + 30 * lg.u);
+                y: 240 * lg.u;
+                width: lg.tile;
+                height: lg.tile + 70 * lg.u;
+                property <bool> sel: (i == root.login-sel) || tile-area.has-hover;
+                transform-scale: self.sel ? 1.08 : 1.0;
+                animate transform-scale { duration: 120ms; }
+                Rectangle {
+                    y: 0px;
+                    width: lg.tile;
+                    height: lg.tile;
+                    border-radius: self.width / 2;
+                    background: t.id == "other" ? #ffffff14 : @linear-gradient(130deg, #3b2a55 0%, #12304a 100%);
+                    border-width: parent.sel ? 5 * lg.u : 0px;
+                    border-color: Theme.accent2;
+                    if t.has-image: Image {
+                        x: 6 * lg.u;
+                        y: 6 * lg.u;
+                        width: parent.width - 12 * lg.u;
+                        height: parent.height - 12 * lg.u;
+                        source: t.image;
+                        image-fit: fill;
+                    }
+                    if !t.has-image: Text {
+                        text: t.id == "other" ? "+" : t.rating;
+                        color: white;
+                        font-size: (t.id == "other" ? 64 : 40) * lg.u;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        overflow: clip;
+                    }
+                }
                 Text {
-                    text: "Turtlefin";
-                    color: Theme.text;
-                    font-size: 40px;
-                    font-weight: 800;
+                    y: lg.tile + 12 * lg.u;
+                    width: parent.width;
+                    text: t.title;
+                    color: white;
+                    font-size: 18 * lg.u;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    y: lg.tile + 38 * lg.u;
+                    width: parent.width;
+                    text: t.subtitle;
+                    color: Theme.accent2;
+                    font-size: 13 * lg.u;
                     horizontal-alignment: center;
                 }
-
-                server-input := LineEdit {
-                    placeholder-text: "Serveur (ex. 192.168.1.10:8096)";
-                    text: root.server;
+                tile-area := TouchArea {
+                    clicked => {
+                        root.login-sel = i;
+                        root.login-pick(t.id);
+                    }
                 }
+            }
+            HorizontalLayout {
+                y: 240 * lg.u + lg.tile + 110 * lg.u;
+                width: parent.width;
+                height: 46 * lg.u;
+                alignment: center;
+                ActionButton {
+                    text: "Changer de serveur";
+                    font: 16 * lg.u;
+                    focused: root.login-sel >= lg.n;
+                    clicked => {
+                        root.menu-action("server");
+                    }
+                }
+            }
+            Text {
+                y: parent.height - 50 * lg.u;
+                width: parent.width;
+                text: root.busy ? "Connexion…" : root.error-text;
+                color: root.busy ? Theme.muted : #ff6b6b;
+                font-size: 15 * lg.u;
+                horizontal-alignment: center;
+            }
+        }
 
-                user-input := LineEdit {
+        // Sous les boutons du formulaire.
+        form-osk := Osk {
+            x: (parent.width - self.width) / 2;
+            y: lg.fy + 2 * lg.field-h + lg.btn-h + 2 * lg.gap + 28 * lg.u;
+            width: min(parent.width - 80 * lg.u, 760 * lg.u);
+            visible: root.tv-mode && root.login-mode == "form";
+            k: lg.u / 1px * 1.0;
+            active: root.login-osk;
+            text: root.login-field == 0 ? root.login-user : root.login-pass;
+            ok-label: root.login-field == 0 ? "Suivant" : "Connexion";
+            erase(t) => {
+                return root.text-backspace("\u{8}" + t);
+            }
+            edited(t) => {
+                if (root.login-field == 0) {
+                root.login-user = t;
+                } else {
+                root.login-pass = t;
+                }
+            }
+            done => {
+                if (root.login-field == 0) {
+                root.login-field = 1;
+                } else {
+                root.login-osk = false;
+                lg.submit();
+                }
+            }
+            leave-up => {
+                root.login-osk = false;
+            }
+            leave-down => {
+                root.login-osk = false;
+                root.login-field = 2;
+            }
+        }
+
+        // ---- Formulaire (identifiant, mot de passe) : une colonne à hauteurs fixes, centrée.
+        if root.login-mode == "form": VerticalLayout {
+            x: (parent.width - lg.fw) / 2;
+            y: lg.fy;
+            width: lg.fw;
+            height: 2 * lg.field-h + lg.btn-h + 3 * lg.gap + 30 * lg.u;
+            spacing: lg.gap;
+            alignment: start;
+
+            // Mode TV : champs affichés, saisis au clavier à l'écran.
+            if root.tv-mode: VerticalLayout {
+                spacing: lg.gap;
+                for f[i] in ["Utilisateur", "Mot de passe"]: Rectangle {
+                    height: lg.field-h;
+                    border-radius: 12 * lg.u;
+                    background: #ffffff14;
+                    border-width: root.login-field == i ? 2px : 1px;
+                    border-color: root.login-field == i ? Theme.accent2 : #ffffff33;
+                    Text {
+                        x: 20 * lg.u;
+                        width: 150 * lg.u;
+                        height: parent.height;
+                        text: f;
+                        color: Theme.muted;
+                        font-size: 15 * lg.u;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        x: 170 * lg.u;
+                        width: parent.width - 190 * lg.u;
+                        height: parent.height;
+                        text: (i == 0 ? root.login-user : root.mask(root.login-pass)) + (root.login-osk && root.login-field == i ? "│" : "");
+                        color: white;
+                        font-size: 18 * lg.u;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.login-field = i;
+                            root.login-osk = true;
+                        }
+                    }
+                }
+            }
+            // Bureau : champs classiques.
+            if !root.tv-mode: VerticalLayout {
+                spacing: lg.gap;
+                user-in := LineEdit {
+                    height: lg.field-h;
+                    font-size: 17 * lg.u;
                     placeholder-text: "Utilisateur";
+                    text <=> root.login-user;
+                    init => {
+                        if (root.login-field == 0) {
+                            self.focus();
+                        }
+                    }
+                    accepted => {
+                        pass-in.focus();
+                    }
                 }
-
-                pass-input := LineEdit {
+                pass-in := LineEdit {
+                    height: lg.field-h;
+                    font-size: 17 * lg.u;
                     placeholder-text: "Mot de passe";
                     input-type: InputType.password;
+                    text <=> root.login-pass;
+                    init => {
+                        if (root.login-field == 1) {
+                            self.focus();
+                        }
+                    }
                     accepted => {
-                        root.login(server-input.text, user-input.text, pass-input.text);
+                        lg.submit();
                     }
                 }
+            }
 
-                Text {
-                    text: root.error-text;
-                    color: #ff6b6b;
-                    wrap: word-wrap;
-                }
-
-                Button {
+            HorizontalLayout {
+                height: lg.btn-h;
+                spacing: 14 * lg.u;
+                alignment: start;
+                ActionButton {
                     text: root.busy ? "Connexion…" : "Se connecter";
-                    enabled: !root.busy;
-                    primary: true;
+                    font: 17 * lg.u;
+                    focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
                     clicked => {
-                        root.login(server-input.text, user-input.text, pass-input.text);
+                        lg.submit();
                     }
                 }
+                ActionButton {
+                    text: "Retour";
+                    font: 17 * lg.u;
+                    focused: root.tv-mode && !root.login-osk && root.login-field == 3;
+                    clicked => {
+                        root.login-mode = "pick";
+                        root.login-osk = false;
+                    }
+                }
+            }
+
+            Text {
+                height: 30 * lg.u;
+                text: root.error-text;
+                color: #ff6b6b;
+                font-size: 15 * lg.u;
+                vertical-alignment: center;
+                overflow: elide;
             }
         }
     }
@@ -1669,8 +1983,11 @@ export component AppWindow inherits Window {
             k: root.k;
             active: root.s-osk;
             text: root.search-text;
+            erase(t) => {
+                return root.text-backspace("\u{8}" + t);
+            }
             edited(t) => {
-                root.search-text = t.starts-with("\u{8}") ? root.text-backspace(t) : t;
+                root.search-text = t;
                 root.search-changed(root.search-text);
             }
             done => {
@@ -3011,7 +3328,7 @@ export component AppWindow inherits Window {
         y: root.header-h;
         height: parent.height - root.header-h;
 
-        property <[string]> cats: ["Profil", "Lecture", "Réseau", "Compte"];
+        property <[string]> cats: ["Profil", "Lecture", "Réseau", "Affichage", "Compte"];
         property <length> left-w: 260px * root.k;
         property <length> av: 96px * root.k;
         property <int> av-cols: max(1, floor((self.width - self.left-w - 120px * root.k) / (self.av + 18px * root.k)));
@@ -3048,7 +3365,7 @@ export component AppWindow inherits Window {
                             root.settings-category();
                         }
                     } else if (event.text == Key.DownArrow) {
-                        root.set-cat = min(3, root.set-cat + 1);
+                        root.set-cat = min(sets.cats.length - 1, root.set-cat + 1);
                         root.settings-category();
                     } else if (event.text == Key.RightArrow || event.text == Key.Return) {
                         if (sets.n > 0) {
