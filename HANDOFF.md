@@ -256,6 +256,19 @@ Principes :
    dans le menu, sélection de la page éteinte quand on monte dans la barre. Bibliothèque ouverte depuis Mes médias :
    le grand fond passe derrière les affiches pendant le vol, les lignes arrivent en cascade.
 
+31. **Paramètres refaits** : catégories Profil, Lecture, Sous-titres, Affichage, Réseau, Compte, À propos ; chaque
+   ligne a une aide ; les choix (langues, mode et taille des sous-titres) ouvrent une liste (`ch-key`, `open_choice`,
+   `choose_setting`) au lieu de défiler à chaque Entrée. Nouveaux réglages : épisode suivant automatique
+   (`EnableNextEpisodeAutoPlay` du compte), intro passée automatiquement, taille des sous-titres (`sub-scale`),
+   interface TV (sauvée ; --tv / --desktop priment), notes sur les affiches, défilement des noms, heure
+   (`global Prefs` dans theme.slint), cache d'images (taille, vidage). Réglages de l'appareil : `prefs.json`.
+32. Essais PC + Pi (5 octobre, soir) : watch party test (Pi) + test2 (PC) vérifiée (rejoindre, lecture lancée pour
+   les deux, « Regarde : … », bulle « test a rejoint » pendant la lecture, rejoindre en cours de lecture). Corrigés :
+   menu qui ne recevait pas le clavier (caché par `visible` au moment de prendre le focus), pages qui volaient le
+   clavier au menu ouvert, ↓ de la grille d'avatars qui sautait au dernier, initiales des participants, classification
+   « -10 » -> « 10+ », vignettes d'épisodes téléchargés (`still.jpg`, `meta_v` 3). Pi : ~210-240 Mo, images de 25 à
+   35 ms pendant les animations (30-40 i/s), une à 154 ms (ouverture de page).
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
