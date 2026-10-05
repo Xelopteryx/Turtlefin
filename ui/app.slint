@@ -5079,11 +5079,14 @@ export component AppWindow inherits Window {
     property <float> menu-p: root.menu-open ? 1 : 0;
     animate menu-p { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Toujours construit (invisible quand il est fermé) : l'ouverture ne crée rien, pas d'à-coup.
+    // Pas de « visible: false » quand il est fermé : un élément caché ne peut pas prendre le clavier
+    // (il le demande à l'ouverture, avant le début de l'animation). Fermé, il est hors écran.
     Rectangle {
-        visible: root.menu-p > 0.001 && !root.playing;
+        visible: !root.playing;
         background: #000000a6.transparentize(1 - root.menu-p);
 
         TouchArea {
+            enabled: root.menu-open;
             clicked => {
                 if (root.menu-open) {
                     root.close-menu();
