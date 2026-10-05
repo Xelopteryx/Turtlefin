@@ -50,17 +50,24 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // précédente (à 60 Hz, une image arrive toutes les 16,7 ms : au-delà, au moins une est sautée).
     // À combiner avec SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console pour un rendu continu.
     let debug_frames = std::env::var_os("TURTLEFIN_DEBUG_FRAMES").is_some();
-    let mut last_frame: Option<std::time::Instant> = None;
+    // Durée de dessin d'une image (avant -> après le rendu) : l'écart entre deux images compterait
+    // aussi les moments de repos, où rien n'est redessiné.
+    let mut started: Option<std::time::Instant> = None;
+    let t_start = std::time::Instant::now();
     ui.window().set_rendering_notifier(move |rs, api| {
-        if debug_frames && matches!(rs, slint::RenderingState::AfterRendering) {
-            let now = std::time::Instant::now();
-            if let Some(prev) = last_frame {
-                let ms = now.duration_since(prev).as_secs_f64() * 1000.0;
-                if ms > 25.0 {
-                    eprintln!("image lente : {ms:.1} ms");
+        if debug_frames {
+            match rs {
+                slint::RenderingState::BeforeRendering => started = Some(std::time::Instant::now()),
+                slint::RenderingState::AfterRendering => {
+                    if let Some(t) = started.take() {
+                        let ms = t.elapsed().as_secs_f64() * 1000.0;
+                        if ms > 12.0 {
+                            eprintln!("[{:.2} s] image lente : {ms:.1} ms", t_start.elapsed().as_secs_f64());
+                        }
+                    }
                 }
+                _ => {}
             }
-            last_frame = Some(now);
         }
         let slint::GraphicsAPI::NativeOpenGL { get_proc_address } = api else { return };
         match rs {
