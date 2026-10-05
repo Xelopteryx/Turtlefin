@@ -5,6 +5,7 @@ mod downloads;
 mod mpv;
 mod player;
 mod syncplay;
+mod update;
 mod video;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -108,6 +109,8 @@ struct App {
     offline: AtomicBool,
     /// D'où part la pile de pages : "downloads" (fiches des téléchargements) ou l'accueil.
     stack_base: Mutex<String>,
+    /// Mise à jour (À propos) : "" · checking · uptodate · available:N|titres · installing:étape · ready · error:message.
+    update_state: Mutex<String>,
     /// Élément dont les rangées du bas de la fiche sont affichées (série d'un épisode...).
     rows_base: Mutex<String>,
     /// Empreinte de l'image de fond affichée : la même image ne refait pas de fondu.
@@ -2107,8 +2110,25 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         6 => {
             let size = cache_size();
             let srv = app.client().map(|c| c.server).unwrap_or_default();
+            let up = app.update_state.lock().unwrap().clone();
+            let commit = update::commit();
+            let short = &commit[..commit.len().min(7)];
+            let (label, hint, value) = match up.as_str() {
+                "checking" => ("Rechercher une mise à jour", "Recherche sur GitHub…".to_string(), String::new()),
+                "uptodate" => ("Rechercher une mise à jour", "Turtlefin est à jour.".to_string(), "À jour".to_string()),
+                "ready" => ("Redémarrer Turtlefin", "La nouvelle version est prête.".to_string(), String::new()),
+                s if s.starts_with("available:") => {
+                    let rest = &s["available:".len()..];
+                    let (n, titles) = rest.split_once('|').unwrap_or((rest, ""));
+                    ("Mettre à jour", format!("Nouveautés : {}", titles.replace('|', " · ")), format!("{n} nouveauté(s)"))
+                }
+                s if s.starts_with("installing:") => ("Mise à jour en cours", s["installing:".len()..].to_string(), String::new()),
+                s if s.starts_with("error:") => ("Rechercher une mise à jour", format!("Échec : {}", &s["error:".len()..]), String::new()),
+                _ => ("Rechercher une mise à jour", "Compare cette version à celle publiée sur GitHub.".to_string(), String::new()),
+            };
             vec![
-                row("info", "", &format!("Turtlefin {} · client Jellyfin natif (Rust + Slint + mpv)", env!("CARGO_PKG_VERSION")), String::new(), "info", false),
+                row("info", "", &format!("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", env!("CARGO_PKG_VERSION"), if short.is_empty() { "version locale" } else { short }), String::new(), "info", false),
+                row("update", label, &hint, value, "action", false),
                 row("info", "", &format!("Serveur : {srv}"), String::new(), "info", false),
                 row("info", "", &format!("Appareil : {}", app.device_id), String::new(), "info", false),
                 row("clearcache", "Vider le cache d'images", "Affiches et vignettes gardées sur le disque ; elles seront retéléchargées.", format!("{} Mo", size >> 20), "action", false),
@@ -2189,6 +2209,47 @@ fn save_user_cfg(app: &Arc<App>, cfg: serde_json::Value) {
             }
         });
     }
+}
+
+/// Bouton de mise à jour (À propos) : rechercher, installer, puis redémarrer.
+fn update_action(app: &Arc<App>) {
+    let state = app.update_state.lock().unwrap().clone();
+    let set = |a: &Arc<App>, s: String| {
+        *a.update_state.lock().unwrap() = s;
+        let a2 = a.clone();
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            if u.get_screen().as_str() == "settings" {
+                refresh_settings(&a2);
+            }
+        });
+    };
+    if state == "ready" {
+        update::restart();
+        return;
+    }
+    if state == "checking" || state.starts_with("installing:") {
+        return;
+    }
+    let a = app.clone();
+    if state.starts_with("available:") {
+        set(&a, "installing:Préparation…".into());
+        std::thread::spawn(move || {
+            let r = update::install(|step| set(&a, format!("installing:{step}")));
+            match r {
+                Ok(()) => set(&a, "ready".into()),
+                Err(e) => set(&a, format!("error:{e}")),
+            }
+        });
+        return;
+    }
+    set(&a, "checking".into());
+    app.rt.spawn(async move {
+        match update::check().await {
+            Ok((0, _)) => set(&a, "uptodate".into()),
+            Ok((n, titles)) => set(&a, format!("available:{n}|{}", titles.join("|"))),
+            Err(e) => set(&a, format!("error:{e}")),
+        }
+    });
 }
 
 /// Réglage de l'appareil à bascule (prefs.json).
@@ -2331,6 +2392,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             refresh_settings(app);
         }
         "switch" => end_session(app, false),
+        "update" => update_action(app),
         "prefer_local" => {
             let now_remote = config::load().prefer_remote;
             set_prefer_remote(app, !now_remote);
@@ -3238,6 +3300,7 @@ fn main() -> anyhow::Result<()> {
         bg_id: Mutex::new(String::new()),
         views: Mutex::new(Vec::new()),
         rows_base: Mutex::new(String::new()),
+        update_state: Mutex::new(String::new()),
         bg_hash: AtomicU64::new(0),
         stack_base: Mutex::new(String::new()),
         bg_gen: AtomicU64::new(0),

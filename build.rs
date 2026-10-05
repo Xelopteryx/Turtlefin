@@ -1,4 +1,15 @@
 fn main() {
+    // Commit compilé (Paramètres > À propos, mise à jour) : vide hors d'un dépôt git.
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    println!("cargo:rustc-env=TURTLEFIN_COMMIT={commit}");
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/refs/heads");
     // Style imposé : "fluent-dark" (rendu 100 % Slint). Sans ça, Slint peut
     // choisir le style "native" qui dépend de Qt si Qt est installé.
     let config = slint_build::CompilerConfiguration::new().with_style("fluent-dark".into());
