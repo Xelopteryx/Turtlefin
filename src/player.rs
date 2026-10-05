@@ -647,6 +647,7 @@ pub async fn play(
     if !cur.reported_stop {
         report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
     }
+    *app.last_play.lock().unwrap() = Some((cur.pos, cur.dur, cur.ended));
     // Arrêt du lecteur : le thread d'événements se termine, puis l'interface libère le rendu
     // au prochain affichage, ce qui détruit le lecteur (et rend sa mémoire).
     let _ = player.command(&["quit"]);

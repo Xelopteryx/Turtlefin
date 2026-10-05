@@ -104,6 +104,10 @@ struct App {
     dl_current: Mutex<Option<(String, String, f32)>>,
     /// Pas de serveur joignable : seuls les téléchargements sont accessibles.
     offline: AtomicBool,
+    /// Écran Téléchargements : série puis saison ouvertes (vides : liste générale).
+    dl_path: Mutex<(String, String)>,
+    /// Fin de la dernière lecture : (position, durée, fin atteinte), pour les lectures hors ligne.
+    last_play: Mutex<Option<(f64, f64, bool)>>,
     /// Essais : élément à lancer au démarrage (--play) et position de départ forcée.
     play_arg: Mutex<Option<String>>,
     play_start: Mutex<Option<f64>>,
@@ -705,16 +709,19 @@ fn end_session(app: &Arc<App>, forget: bool) {
 /// Ouvre la session : accueil (onglet affiché) avec ce client.
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
+    app.offline.store(false, Ordering::SeqCst);
+    let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
+    sync_offline_plays(&app, &client);
     app.stack.lock().unwrap().clear();
     // Essais : --play=ID[@SECONDES] lance directement la lecture.
     let arg = app.play_arg.lock().unwrap().take();
     if let Some(id) = arg.as_deref().and_then(|p| p.strip_prefix("open:")) {
-        // Essais : --open=ID ouvre directement une fiche (après l'accueil).
+        // Essais : --open=ID ouvre directement une fiche (après l'accueil), --open=downloads les téléchargements.
         let (a, id) = (app.clone(), id.to_string());
         app.rt.spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             let a2 = a.clone();
-            let _ = a.ui().upgrade_in_event_loop(move |_| push_detail(&a2, id));
+            let _ = a.ui().upgrade_in_event_loop(move |_| if id == "downloads" { open_downloads(&a2) } else { push_detail(&a2, id) });
         });
     } else if let Some(p) = arg {
         let (id, at) = p.split_once('@').map(|(i, t)| (i.to_string(), t.parse::<f64>().ok())).unwrap_or((p.clone(), None));
@@ -757,7 +764,10 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
     };
     match sections {
         Ok(s) => {
-            app.offline.store(false, Ordering::SeqCst);
+            if app.offline.swap(false, Ordering::SeqCst) {
+                let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
+                sync_offline_plays(&app, &client);
+            }
             present_sections(&app, &client, s)
         }
         // Serveur injoignable (pas un refus d'accès) : on bascule sur les téléchargements.
@@ -2107,6 +2117,9 @@ fn start_detail(app: &Arc<App>, id: String) {
 }
 
 fn go_back(app: &Arc<App>) {
+    if dl_up(app) {
+        return;
+    }
     let top = {
         let mut s = app.stack.lock().unwrap();
         s.pop();
@@ -2414,7 +2427,38 @@ async fn resolve_playable(client: &api::Client, item: api::Item) -> anyhow::Resu
 async fn play_local(app: Arc<App>, e: downloads::Entry) {
     let subs = e.subs.iter().map(|(f, l)| (e.dir().join(f).to_string_lossy().into_owned(), l.clone())).collect();
     let url = e.media_path().to_string_lossy().into_owned();
-    play_flow_with(app, None, Some(url), Some((e.title.clone(), e.subtitle.clone())), subs).await;
+    if e.position > 0.0 && !e.played {
+        *app.play_start.lock().unwrap() = Some(e.position);
+    }
+    *app.last_play.lock().unwrap() = None;
+    play_flow_with(app.clone(), None, Some(url), Some((e.title.clone(), e.subtitle.clone())), subs).await;
+    // Position et « vu » gardés sur le disque, renvoyés au serveur dès qu'il répond.
+    if let Some((pos, dur, ended)) = app.last_play.lock().unwrap().take() {
+        downloads::record_play(&e.id, pos, dur, ended);
+    }
+    if let Some(client) = app.client() {
+        if !app.offline.load(Ordering::SeqCst) {
+            sync_offline_plays(&app, &client);
+        }
+    }
+    let a = app.clone();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        if u.get_screen().as_str() == "downloads" {
+            refresh_downloads(&a);
+        }
+    });
+}
+
+/// Lectures faites hors ligne renvoyées au serveur (position, « vu »).
+fn sync_offline_plays(app: &Arc<App>, client: &api::Client) {
+    let (c, ui) = (client.clone(), app.ui());
+    app.rt.spawn(async move {
+        let n = downloads::sync(&c).await;
+        if n > 0 {
+            let msg = if n == 1 { "1 lecture hors ligne synchronisée avec le serveur.".to_string() } else { format!("{n} lectures hors ligne synchronisées avec le serveur.") };
+            let _ = ui.upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+    });
 }
 
 async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) {
@@ -2475,7 +2519,8 @@ async fn play_flow_with(
                 });
                 (Some(target), start)
             }
-            _ => (None, 0.0),
+            // Fichier local : reprise éventuelle (téléchargement déjà commencé).
+            _ => (None, app.play_start.lock().unwrap().take().unwrap_or(0.0)),
         };
         let sync = app.sp.lock().unwrap().group.is_some() && test_url.is_none();
         let req = player::PlayRequest { item, start_secs, test_url, local_title, local_subs, sync };
@@ -2564,6 +2609,8 @@ fn main() -> anyhow::Result<()> {
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
         offline: AtomicBool::new(false),
+        dl_path: Mutex::new((String::new(), String::new())),
+        last_play: Mutex::new(None),
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
@@ -2680,6 +2727,11 @@ fn main() -> anyhow::Result<()> {
     ui.on_dl_play({
         let app = app.clone();
         move |id| play_download(&app, &id)
+    });
+
+    ui.on_dl_open({
+        let app = app.clone();
+        move |id| dl_open(&app, &id)
     });
 
     ui.on_dl_delete({
@@ -3019,38 +3071,241 @@ fn push_dl_status(app: &Arc<App>) {
     let _ = app.ui().upgrade_in_event_loop(move |u| u.set_dl_status(status.into()));
 }
 
-/// Grille de l'écran Téléchargements (affiches lues sur le disque).
+/// Carte de l'écran Téléchargements : identifiant ("series:<id>", "season:<id>" ou élément),
+/// textes, image sur le disque, dossier (s'ouvre) ou élément (se lit), lignes d'infos.
+struct DlCard {
+    id: String,
+    title: String,
+    subtitle: String,
+    image: std::path::PathBuf,
+    folder: bool,
+    count: i32,
+    progress: f32,
+    /// Infos du bas : titre, ligne de détails, résumé.
+    info: (String, String, String),
+}
+
+fn fmt_size(b: u64) -> String {
+    if b >= 1 << 30 {
+        format!("{:.1} Go", b as f64 / (1u64 << 30) as f64)
+    } else {
+        format!("{} Mo", b >> 20)
+    }
+}
+
+fn fmt_mins(secs: f64) -> String {
+    let m = (secs / 60.0).round() as i64;
+    if m >= 60 { format!("{} h {:02}", m / 60, m % 60) } else { format!("{m} min") }
+}
+
+/// Ligne de détails d'un élément : année, durée, note, état de lecture, taille.
+fn dl_details(e: &downloads::Entry) -> String {
+    let mut v: Vec<String> = Vec::new();
+    if let Some(y) = e.year {
+        v.push(y.to_string());
+    }
+    if e.runtime_secs > 0.0 {
+        v.push(fmt_mins(e.runtime_secs));
+    }
+    if let Some(r) = e.rating {
+        v.push(format!("★ {r:.1}"));
+    }
+    if e.played {
+        v.push("Vu".into());
+    } else if e.position > 0.0 {
+        v.push(format!("Reprise à {}", fmt_mins(e.position)));
+    }
+    v.push(fmt_size(e.size));
+    if e.dirty {
+        v.push("à synchroniser".into());
+    }
+    v.join("  ·  ")
+}
+
+fn season_label(e: &downloads::Entry) -> String {
+    if !e.season_name.is_empty() {
+        e.season_name.clone()
+    } else if let Some(n) = e.season_index {
+        format!("Saison {n}")
+    } else {
+        "Épisodes".into()
+    }
+}
+
+fn plural(n: usize, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
+}
+
+/// Cartes du niveau affiché : séries et films, saisons d'une série, épisodes d'une saison.
+fn dl_cards(entries: &[downloads::Entry], series: &str, season: &str) -> (Vec<DlCard>, String, bool) {
+    let progress = |e: &downloads::Entry| if e.played || e.runtime_secs <= 0.0 { 0.0 } else { (e.position / e.runtime_secs) as f32 };
+    let item_card = |e: &downloads::Entry, title: String, subtitle: String, image: std::path::PathBuf| DlCard {
+        id: e.id.clone(),
+        title: title.clone(),
+        subtitle,
+        image,
+        folder: false,
+        count: 0,
+        progress: progress(e),
+        info: (if e.kind == "Episode" { format!("{} — {}", e.title, e.subtitle) } else { title }, dl_details(e), e.overview.clone()),
+    };
+    if !season.is_empty() {
+        // Épisodes de la saison, dans l'ordre.
+        let mut eps: Vec<&downloads::Entry> = entries.iter().filter(|e| e.series_id == series && e.season_id == season).collect();
+        eps.sort_by_key(|e| e.episode_index.unwrap_or(u32::MAX));
+        let title = eps.first().map(|e| format!("{} · {}", e.series_name, season_label(e))).unwrap_or_default();
+        let cards = eps
+            .iter()
+            .map(|e| {
+                let name = e.subtitle.split(" · ").last().unwrap_or(&e.subtitle).to_string();
+                let t = match e.episode_index {
+                    Some(n) => format!("{n}. {name}"),
+                    None => name,
+                };
+                item_card(e, t, dl_details(e), e.thumb_path())
+            })
+            .collect();
+        return (cards, title, true);
+    }
+    if !series.is_empty() {
+        // Saisons de la série.
+        let eps: Vec<&downloads::Entry> = entries.iter().filter(|e| e.series_id == series).collect();
+        let mut seasons: Vec<(Option<u32>, String)> = Vec::new();
+        for e in &eps {
+            if !seasons.iter().any(|(_, id)| *id == e.season_id) {
+                seasons.push((e.season_index, e.season_id.clone()));
+            }
+        }
+        seasons.sort_by_key(|(i, _)| i.unwrap_or(u32::MAX));
+        let title = eps.first().map(|e| e.series_name.clone()).unwrap_or_default();
+        let cards = seasons
+            .iter()
+            .filter_map(|(_, sid)| {
+                let in_season: Vec<&&downloads::Entry> = eps.iter().filter(|e| e.season_id == *sid).collect();
+                let first = in_season.first()?;
+                let size: u64 = in_season.iter().map(|e| e.size).sum();
+                let n = in_season.len();
+                Some(DlCard {
+                    id: format!("season:{sid}"),
+                    title: season_label(first),
+                    subtitle: plural(n, "épisode", "épisodes"),
+                    image: first.season_poster(),
+                    folder: true,
+                    count: n as i32,
+                    progress: 0.0,
+                    info: (
+                        format!("{} — {}", first.series_name, season_label(first)),
+                        format!("{}  ·  {}", plural(n, "épisode téléchargé", "épisodes téléchargés"), fmt_size(size)),
+                        first.series_overview.clone(),
+                    ),
+                })
+            })
+            .collect();
+        return (cards, title, false);
+    }
+    // Liste générale : une carte par série (dans l'ordre du dernier téléchargement), films à part.
+    let mut cards: Vec<DlCard> = Vec::new();
+    for e in entries {
+        if e.kind == "Episode" && !e.series_id.is_empty() {
+            if cards.iter().any(|c| c.id == format!("series:{}", e.series_id)) {
+                continue;
+            }
+            let eps: Vec<&downloads::Entry> = entries.iter().filter(|x| x.series_id == e.series_id).collect();
+            let n = eps.len();
+            let seasons = {
+                let mut v: Vec<&str> = eps.iter().map(|x| x.season_id.as_str()).collect();
+                v.sort();
+                v.dedup();
+                v.len()
+            };
+            let size: u64 = eps.iter().map(|x| x.size).sum();
+            cards.push(DlCard {
+                id: format!("series:{}", e.series_id),
+                title: e.series_name.clone(),
+                subtitle: plural(n, "épisode", "épisodes"),
+                image: e.series_poster(),
+                folder: true,
+                count: n as i32,
+                progress: 0.0,
+                info: (
+                    e.series_name.clone(),
+                    {
+                        let mut v = Vec::new();
+                        if let Some(y) = e.year {
+                            v.push(y.to_string());
+                        }
+                        v.push(plural(seasons, "saison", "saisons"));
+                        v.push(plural(n, "épisode téléchargé", "épisodes téléchargés"));
+                        v.push(fmt_size(size));
+                        v.join("  ·  ")
+                    },
+                    e.series_overview.clone(),
+                ),
+            });
+        } else {
+            let sub = e.year.map(|y| y.to_string()).unwrap_or_else(|| e.subtitle.clone());
+            cards.push(item_card(e, e.title.clone(), sub, e.poster_path()));
+        }
+    }
+    (cards, String::new(), false)
+}
+
+/// Écran Téléchargements : niveau affiché (affiches lues sur le disque).
 fn refresh_downloads(app: &Arc<App>) {
     let entries = downloads::list();
-    let k = if app.tv { 1.4 } else { 1.0 };
+    let (series, season) = app.dl_path.lock().unwrap().clone();
+    let (cards, title, landscape) = dl_cards(&entries, &series, &season);
+    // Plus rien à ce niveau (tout supprimé) : on remonte.
+    if cards.is_empty() && !series.is_empty() {
+        let mut p = app.dl_path.lock().unwrap();
+        if !p.1.is_empty() {
+            p.1.clear();
+        } else {
+            p.0.clear();
+        }
+        drop(p);
+        refresh_downloads(app);
+        return;
+    }
+    let level = if !season.is_empty() { 2 } else if !series.is_empty() { 1 } else { 0 };
     let card_w = if app.tv { 230.0 } else { 170.0 };
-    let _ = k;
-    let ui = app.ui();
-    let cards: Vec<(String, String, String)> = entries.iter().map(|e| (e.id.clone(), e.title.clone(), e.subtitle.clone())).collect();
-    let _ = ui.upgrade_in_event_loop(move |u| {
-        let rows: Vec<CardData> = cards
+    let shape = if landscape { Shape::card_top(400, 225, card_w * 1.6) } else { Shape::card_top(270, 405, card_w) };
+    let rows: Vec<(String, String, String, bool, i32, f32, (String, String, String))> =
+        cards.iter().map(|c| (c.id.clone(), c.title.clone(), c.subtitle.clone(), c.folder, c.count, c.progress, c.info.clone())).collect();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let data: Vec<CardData> = rows
             .iter()
-            .map(|(id, t, s)| CardData { id: id.clone().into(), title: t.clone().into(), subtitle: s.clone().into(), ..Default::default() })
+            .map(|(id, t, s, _, n, p, _)| CardData { id: id.into(), title: t.into(), subtitle: s.into(), count: *n, progress: *p, ..Default::default() })
             .collect();
-        u.set_dl_items(ModelRc::new(VecModel::from(rows)));
+        let folders: Vec<bool> = rows.iter().map(|r| r.3).collect();
+        let infos: Vec<DlInfo> = rows
+            .iter()
+            .map(|r| DlInfo { title: r.6 .0.clone().into(), details: r.6 .1.clone().into(), overview: r.6 .2.clone().into() })
+            .collect();
+        u.set_dl_items(ModelRc::new(VecModel::from(data)));
+        u.set_dl_folders(ModelRc::new(VecModel::from(folders)));
+        u.set_dl_infos(ModelRc::new(VecModel::from(infos)));
+        u.set_dl_level(level);
+        u.set_dl_landscape(landscape);
+        u.set_dl_title(if title.is_empty() { "Téléchargements".into() } else { title.into() });
         let n = u.get_dl_items().row_count() as i32;
         if u.get_dl_sel() >= n {
             u.set_dl_sel((n - 1).max(0));
         }
     });
-    for (i, e) in entries.into_iter().enumerate() {
+    for (i, c) in cards.into_iter().enumerate() {
         let ui = app.ui();
         app.rt.spawn(async move {
-            let path = e.poster_path();
+            let path = c.image.clone();
             let buf = tokio::task::spawn_blocking(move || {
                 let bytes = std::fs::read(path).ok()?;
-                decode(&bytes, Some(Shape::card_top(270, 405, card_w)))
+                decode(&bytes, Some(shape))
             })
             .await
             .ok()
             .flatten();
             let Some(buf) = buf else { return };
-            let id = e.id.clone();
+            let id = c.id.clone();
             let _ = ui.upgrade_in_event_loop(move |u| {
                 let model = u.get_dl_items();
                 if let Some(mut c) = model.row_data(i) {
@@ -3063,19 +3318,124 @@ fn refresh_downloads(app: &Arc<App>) {
             });
         });
     }
+    // Anciens téléchargements (sans série, saison, année...) : complétés si le serveur répond.
+    if let (Some(client), false) = (app.client(), app.offline.load(Ordering::SeqCst)) {
+        let old: Vec<String> = entries.iter().filter(|e| !e.meta).map(|e| e.id.clone()).collect();
+        if !old.is_empty() {
+            let a = app.clone();
+            app.rt.spawn(async move {
+                let mut changed = false;
+                for id in old {
+                    changed |= downloads::enrich(&client, &id).await;
+                }
+                if changed {
+                    let a2 = a.clone();
+                    let _ = a.ui().upgrade_in_event_loop(move |_| refresh_downloads(&a2));
+                }
+            });
+        }
+    }
+}
+
+/// Ouvre une série ou une saison de l'écran Téléchargements.
+fn dl_open(app: &Arc<App>, id: &str) {
+    {
+        let mut p = app.dl_path.lock().unwrap();
+        if let Some(sid) = id.strip_prefix("series:") {
+            *p = (sid.to_string(), String::new());
+        } else if let Some(sid) = id.strip_prefix("season:") {
+            p.1 = sid.to_string();
+        } else {
+            return;
+        }
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_dl_sel(0);
+        u.set_can_back(true);
+    }
+    refresh_downloads(app);
+}
+
+/// Remonte d'un niveau dans les téléchargements ; false si l'on est déjà à la liste générale.
+fn dl_up(app: &Arc<App>) -> bool {
+    let Some(u) = app.ui().upgrade() else { return false };
+    if u.get_screen().as_str() != "downloads" {
+        return false;
+    }
+    let from = {
+        let mut p = app.dl_path.lock().unwrap();
+        if !p.1.is_empty() {
+            format!("season:{}", std::mem::take(&mut p.1))
+        } else if !p.0.is_empty() {
+            format!("series:{}", std::mem::take(&mut p.0))
+        } else {
+            return false;
+        }
+    };
+    let root = app.dl_path.lock().unwrap().0.is_empty();
+    u.set_can_back(!root || !app.stack.lock().unwrap().is_empty());
+    refresh_downloads(app);
+    // La carte d'où l'on vient reste sélectionnée.
+    let a = app.clone();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let m = u.get_dl_items();
+        if let Some(i) = (0..m.row_count()).find(|&i| m.row_data(i).is_some_and(|c| c.id.as_str() == from)) {
+            u.set_dl_sel(i as i32);
+        }
+        let _ = a;
+    });
+    true
 }
 
 /// Mode hors ligne : écran Téléchargements, avec un message.
 fn go_offline(app: &Arc<App>) {
-    app.offline.store(true, Ordering::SeqCst);
+    let was = app.offline.swap(true, Ordering::SeqCst);
     let a = app.clone();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
+        u.set_offline(true);
         open_downloads(&a);
         u.set_toast("Serveur injoignable : mode hors ligne (téléchargements).".into());
+    });
+    if !was {
+        watch_reconnect(app);
+    }
+}
+
+/// Hors ligne : le serveur est réessayé toutes les 30 s. Dès qu'il répond (et hors lecture), les
+/// lectures faites hors ligne lui sont envoyées et l'accueil revient.
+fn watch_reconnect(app: &Arc<App>) {
+    let a = app.clone();
+    app.rt.spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            if !a.offline.load(Ordering::SeqCst) {
+                return;
+            }
+            if a.playing.load(Ordering::SeqCst) {
+                continue;
+            }
+            let mut saved = config::load();
+            if saved.token.is_empty() {
+                return;
+            }
+            let best = discovery::pick(&saved.server_local, &saved.server_remote, saved.prefer_remote).await;
+            if !best.is_empty() {
+                saved.server = best;
+            }
+            if !discovery::reachable(&saved.server).await {
+                continue;
+            }
+            let Ok(client) = api::Client::from_saved(&saved) else { return };
+            config::save(&saved);
+            let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast("Serveur de nouveau joignable : retour en ligne.".into()));
+            load_home(a.clone(), client).await;
+            return;
+        }
     });
 }
 
 fn open_downloads(app: &Arc<App>) {
+    *app.dl_path.lock().unwrap() = (String::new(), String::new());
     refresh_downloads(app);
     push_dl_status(app);
     if let Some(u) = app.ui().upgrade() {

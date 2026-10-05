@@ -1101,6 +1101,12 @@ impl Client {
         self.send_flag(m, &format!("/UserPlayedItems/{id}")).await
     }
 
+    /// Position, « vu » et date de lecture d'un élément (lectures faites hors ligne).
+    pub async fn set_user_data(&self, id: &str, body: &serde_json::Value) -> Result<()> {
+        let path = format!("/UserItems/{id}/UserData?userId={}", self.user_id);
+        self.post_json(&path, body).await
+    }
+
     /// Seerr : page d'un film / d'une série.
     pub async fn seerr_details(&self, tv: bool, tmdb: i64) -> Result<SeerrDetails> {
         let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}", if tv { "tv" } else { "movie" });

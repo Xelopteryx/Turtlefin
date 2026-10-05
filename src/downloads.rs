@@ -3,6 +3,7 @@
 //! Chaque élément téléchargé a son dossier `<données>/turtlefin/downloads/<id>/` :
 //! - `media.<ext>` : le fichier original (`/Items/{id}/Download`, droit « téléchargement » requis) ;
 //! - `poster.jpg`, `thumb.jpg` : affiche et vignette 16:9 ;
+//! - `series.jpg`, `season.jpg` (épisodes) : affiches de la série et de la saison ;
 //! - `sub_<n>.<ext>` : sous-titres externes ;
 //! - `info.json` : titre, sous-titre, résumé, sous-titres (écrit en dernier : sa présence signifie
 //!   « téléchargement complet »).
@@ -29,6 +30,25 @@ pub struct Entry {
     /// Sous-titres externes : (nom de fichier, langue).
     pub subs: Vec<(String, String)>,
     pub size: u64,
+    /// Épisode : série et saison (regroupement de l'écran Téléchargements).
+    pub series_id: String,
+    pub series_name: String,
+    pub series_overview: String,
+    pub season_id: String,
+    pub season_name: String,
+    pub season_index: Option<u32>,
+    pub episode_index: Option<u32>,
+    pub year: Option<u32>,
+    pub rating: Option<f32>,
+    pub runtime_secs: f64,
+    /// Lecture hors ligne : position (s), vu, date de la dernière lecture (RFC 3339).
+    pub position: f64,
+    pub played: bool,
+    pub last_played: String,
+    /// Position / « vu » à renvoyer au serveur.
+    pub dirty: bool,
+    /// Métadonnées complètes (série, saison, année...) : faux pour un téléchargement plus ancien.
+    pub meta: bool,
 }
 
 impl Entry {
@@ -41,6 +61,134 @@ impl Entry {
     pub fn poster_path(&self) -> PathBuf {
         self.dir().join("poster.jpg")
     }
+    /// Affiche de la série (sinon celle de l'élément).
+    pub fn series_poster(&self) -> PathBuf {
+        let p = self.dir().join("series.jpg");
+        if p.exists() { p } else { self.poster_path() }
+    }
+    /// Affiche de la saison (sinon celle de la série).
+    pub fn season_poster(&self) -> PathBuf {
+        let p = self.dir().join("season.jpg");
+        if p.exists() { p } else { self.series_poster() }
+    }
+    pub fn thumb_path(&self) -> PathBuf {
+        let p = self.dir().join("thumb.jpg");
+        if p.exists() { p } else { self.poster_path() }
+    }
+}
+
+/// Réécrit `info.json` (position, « vu », métadonnées complétées).
+pub fn save(e: &Entry) {
+    if let Ok(t) = serde_json::to_string_pretty(e) {
+        let _ = std::fs::write(e.dir().join("info.json"), t);
+    }
+}
+
+/// Fin d'une lecture hors ligne : position et « vu » gardés pour le serveur.
+pub fn record_play(id: &str, pos: f64, dur: f64, ended: bool) {
+    let Some(mut e) = get(id) else { return };
+    if dur > 0.0 {
+        e.runtime_secs = dur;
+    }
+    // Comme Jellyfin : vu au-delà de 90 %, reprise effacée sous 5 % ou après la fin.
+    let played = ended || (dur > 0.0 && pos >= dur * 0.9);
+    e.played = e.played || played;
+    e.position = if played || (dur > 0.0 && pos < dur * 0.05) { 0.0 } else { pos };
+    e.last_played = now_rfc3339();
+    e.dirty = true;
+    save(&e);
+}
+
+/// Date et heure actuelles (UTC) au format attendu par Jellyfin.
+fn now_rfc3339() -> String {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    // Jours depuis 1970 -> date civile (algorithme de Howard Hinnant).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
+/// Renvoie au serveur les lectures faites hors ligne (position, « vu »). Rend le nombre envoyé.
+pub async fn sync(client: &Client) -> usize {
+    let mut n = 0;
+    for mut e in list().into_iter().filter(|e| e.dirty) {
+        let body = serde_json::json!({
+            "PlaybackPositionTicks": (e.position * 10_000_000.0) as i64,
+            "Played": e.played,
+            "LastPlayedDate": e.last_played,
+        });
+        if client.set_user_data(&e.id, &body).await.is_ok() {
+            e.dirty = false;
+            save(&e);
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Métadonnées et affiches de série / saison : `item` est l'élément tel que donné par le serveur.
+async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
+    e.meta = true;
+    let (title, subtitle) = item.titles();
+    e.title = title;
+    e.subtitle = subtitle;
+    if let Some(o) = &item.overview {
+        e.overview = o.clone();
+    }
+    e.series_id = item.series_id.clone().unwrap_or_default();
+    e.series_name = item.series_name.clone().unwrap_or_default();
+    e.season_id = item.season_id.clone().unwrap_or_default();
+    e.season_name = item.season_name.clone().unwrap_or_default();
+    e.season_index = item.parent_index_number;
+    e.episode_index = item.index_number;
+    e.year = item.production_year;
+    e.rating = item.community_rating;
+    if let Some(t) = item.run_time_ticks {
+        e.runtime_secs = t as f64 / 1e7;
+    }
+    let dir = e.dir();
+    if !dir.join("poster.jpg").exists() {
+        if let Some(b) = client.image_first(&item.poster_candidates(), "Primary", Size::Fill(400, 600)).await {
+            save_bytes(&dir.join("poster.jpg"), &b).await;
+        }
+    }
+    if !e.series_id.is_empty() {
+        if let Ok(series) = client.item(&e.series_id).await {
+            e.series_overview = series.overview.clone().unwrap_or_default();
+            if e.year.is_none() {
+                e.year = series.production_year;
+            }
+        }
+        let series_ref = [(e.series_id.clone(), item.series_primary_image_tag.clone())];
+        if let Some(b) = client.image_first(&series_ref, "Primary", Size::Fill(400, 600)).await {
+            save_bytes(&dir.join("series.jpg"), &b).await;
+        }
+    }
+    if !e.season_id.is_empty() {
+        if let Some(b) = client.image_first(&[(e.season_id.clone(), None)], "Primary", Size::Fill(400, 600)).await {
+            save_bytes(&dir.join("season.jpg"), &b).await;
+        }
+    }
+}
+
+/// Téléchargement d'avant le regroupement par série : métadonnées complétées (une fois).
+pub async fn enrich(client: &Client, id: &str) -> bool {
+    let Some(mut e) = get(id) else { return false };
+    if e.meta {
+        return false;
+    }
+    let Ok(item) = client.item(id).await else { return false };
+    fill_meta(client, &mut e, &item).await;
+    save(&e);
+    true
 }
 
 pub fn root() -> PathBuf {
@@ -152,7 +300,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     tokio::fs::rename(&part, dir.join(&media)).await?;
 
     let (title, subtitle) = item.titles();
-    let entry = Entry {
+    let mut entry = Entry {
         id: item.id.clone(),
         kind: item.kind.clone(),
         title,
@@ -161,7 +309,13 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         media,
         subs,
         size: done,
+        ..Default::default()
     };
+    if let Some(ud) = &item.user_data {
+        entry.position = ud.playback_position_ticks as f64 / 1e7;
+        entry.played = ud.played;
+    }
+    fill_meta(client, &mut entry, &item).await;
     tokio::fs::write(dir.join("info.json"), serde_json::to_string_pretty(&entry)?).await?;
     progress(1.0);
     Ok(())

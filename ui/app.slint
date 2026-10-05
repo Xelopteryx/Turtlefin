@@ -761,6 +761,32 @@ component HeaderRight inherits Rectangle {
         padding-top: (root.height - 44px * root.k) / 2;
         padding-bottom: (root.height - 44px * root.k) / 2;
 
+        // Mode hors ligne : pastille verte à la place des icônes qui demandent le serveur.
+        if root.offline: Rectangle {
+            width: offline-label.preferred-width + 48px * root.k;
+            border-radius: self.height / 2;
+            background: #14532d;
+            border-width: 1px;
+            border-color: #4ade80;
+            HorizontalLayout {
+                padding-left: 12px * root.k;
+                spacing: 8px * root.k;
+                alignment: start;
+                Text {
+                    text: "●";
+                    color: #4ade80;
+                    font-size: 11px * root.k;
+                    vertical-alignment: center;
+                }
+                offline-label := Text {
+                    text: "Hors ligne";
+                    color: #bbf7d0;
+                    font-size: 15px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+            }
+        }
         if !root.offline: HeaderIcon {
             icon: "party";
             k: root.k;
@@ -810,6 +836,12 @@ component HeaderRight inherits Rectangle {
             vertical-alignment: center;
         }
     }
+}
+
+export struct DlInfo {
+    title: string,
+    details: string,
+    overview: string,
 }
 
 export component AppWindow inherits Window {
@@ -904,8 +936,13 @@ export component AppWindow inherits Window {
     in-out property <int> sr-sel;           // 0 bouton Demander · 1 Fermer
     in-out property <length> sr-scroll;
 
-    // Téléchargements
+    // Téléchargements : liste générale (séries, films) > saisons d'une série > épisodes d'une saison
     in property <[CardData]> dl-items;
+    in property <[bool]> dl-folders;        // la carte s'ouvre (série, saison) au lieu de se lire
+    in property <[DlInfo]> dl-infos;        // infos de la carte sélectionnée (bas de l'écran)
+    in property <int> dl-level;             // 0 liste générale · 1 série · 2 saison
+    in property <bool> dl-landscape;        // épisodes : vignettes 16:9
+    in property <string> dl-title: "Téléchargements";
     in property <string> dl-status;
     in-out property <int> dl-sel;
     in-out property <bool> dl-dialog;       // Lire / Supprimer / Annuler
@@ -998,6 +1035,7 @@ export component AppWindow inherits Window {
     callback row-seen(int /* key */, int /* index sélectionné */);
     callback servers-search();
     callback dl-play(string);
+    callback dl-open(string);               // "series:<id>" | "season:<id>"
     callback seerr-action();
     callback track-pick(string, string, string); // type, langue ("" défaut, "off"), libellé
     callback search-open();
@@ -1525,7 +1563,7 @@ export component AppWindow inherits Window {
                 can-back: false;
                 show-home: false;
                 title: "Turtlefin";
-                title-color: Theme.accent2;
+                title-color: root.offline ? #4ade80 : Theme.accent2;
                 sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
                 activate(i) => {
                     root.nav-activate(i);
@@ -3142,13 +3180,25 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-h;
 
         property <length> gap: 18px * root.k;
-        property <length> cw: root.card-w;
-        property <length> ch: root.card-w * 1.5 + 56px * root.k;
+        property <float> ratio: root.dl-landscape ? 0.5625 : 1.5;
+        property <length> cw: root.dl-landscape ? root.card-w * 1.6 : root.card-w;
+        property <length> ch: self.cw * self.ratio + 56px * root.k;
         property <length> top: root.dl-status != "" ? 44px * root.k : 8px * root.k;
+        // Bandeau d'infos de la carte sélectionnée, en bas.
+        property <length> info-h: root.dl-items.length > 0 ? 132px * root.k : 0px;
         property <int> cols: max(1, floor((self.width - 64px * root.k + self.gap) / (self.cw + self.gap)));
         property <int> rows: ceil(root.dl-items.length / self.cols);
         property <int> sel-row: floor(root.dl-sel / self.cols);
         property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
+
+        function activate() {
+            if (root.dl-sel < root.dl-folders.length && root.dl-folders[root.dl-sel]) {
+                root.dl-open(root.dl-items[root.dl-sel].id);
+            } else {
+                root.dl-dsel = 0;
+                root.dl-dialog = true;
+            }
+        }
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -3181,7 +3231,12 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.go-home();
+                    // Saison -> série -> liste générale -> accueil
+                    if (root.dl-level > 0) {
+                        root.run-action("back");
+                    } else {
+                        root.go-home();
+                    }
                     return EventResult.accept;
                 }
                 if (root.dl-items.length == 0) {
@@ -3205,8 +3260,7 @@ export component AppWindow inherits Window {
                         root.nav-enter();
                     }
                 } else if (event.text == Key.Return) {
-                    root.dl-dsel = 0;
-                    root.dl-dialog = true;
+                    dls.activate();
                 }
                 return EventResult.accept;
             }
@@ -3224,7 +3278,8 @@ export component AppWindow inherits Window {
         }
 
         if root.dl-items.length == 0: Text {
-            text: "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.";
+            text: root.offline ? "Aucun téléchargement : rien à regarder hors ligne."
+                : "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.";
             color: Theme.muted;
             font-size: 18px * root.k;
             horizontal-alignment: center;
@@ -3233,7 +3288,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             y: dls.top;
-            height: parent.height - dls.top;
+            height: parent.height - dls.top - dls.info-h;
             clip: true;
 
             Rectangle {
@@ -3246,14 +3301,55 @@ export component AppWindow inherits Window {
                     width: dls.cw;
                     height: dls.ch;
                     data: card;
-                    ratio: 1.5;
+                    ratio: dls.ratio;
                     k: root.k;
                     focused: !root.h-focus && i == root.dl-sel;
                     clicked => {
                         root.dl-sel = i;
-                        root.dl-dsel = 0;
-                        root.dl-dialog = true;
+                        dls.activate();
                     }
+                }
+            }
+        }
+
+        // Infos de la carte sélectionnée : titre, détails (année, durée, état, taille), résumé.
+        if root.dl-sel < root.dl-infos.length: Rectangle {
+            x: 32px * root.k;
+            y: parent.height - dls.info-h;
+            width: parent.width - 64px * root.k;
+            height: dls.info-h - 16px * root.k;
+            border-radius: 14px * root.k;
+            background: #ffffff0d;
+            border-width: 1px;
+            border-color: #ffffff1a;
+
+            VerticalLayout {
+                padding: 14px * root.k;
+                padding-left: 20px * root.k;
+                padding-right: 20px * root.k;
+                spacing: 4px * root.k;
+                alignment: start;
+                Text {
+                    text: root.dl-infos[root.dl-sel].title;
+                    color: Theme.text;
+                    font-size: 18px * root.k;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.dl-infos[root.dl-sel].details;
+                    color: Theme.accent2;
+                    font-size: 14px * root.k;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.dl-infos[root.dl-sel].overview;
+                    color: Theme.muted;
+                    font-size: 14px * root.k;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    height: 40px * root.k;
                 }
             }
         }
@@ -3602,7 +3698,8 @@ export component AppWindow inherits Window {
         k: root.k;
         can-back: root.can-back;
         show-home: true;
-        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? "Téléchargements" : root.screen == "search" ? "Recherche"
+        title-color: root.offline ? #4ade80 : Theme.text;
+        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? "Recherche"
             : root.screen == "party" ? "Watch party" : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
@@ -3974,12 +4071,36 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Message d'état (accueil et fiche)
-    if (root.screen == "home" || root.screen == "detail" || root.screen == "library" || root.screen == "downloads" || root.screen == "party") && !root.playing: Text {
-        x: 32px;
-        y: parent.height - 32px;
-        text: root.toast;
-        color: Theme.muted;
-        font-size: 13px;
+    // Message d'état : bulle en bas, au-dessus du contenu, effacée après 6 s.
+    property <bool> toast-on;
+    changed toast => {
+        root.toast-on = root.toast != "";
+    }
+    Timer {
+        interval: 6s;
+        running: root.toast-on;
+        triggered => {
+            root.toast-on = false;
+        }
+    }
+    if root.toast-on && root.screen != "login" && !root.playing: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 24px * root.k;
+        width: min(parent.width - 64px * root.k, toast-text.preferred-width + 40px * root.k);
+        height: toast-text.preferred-height + 20px * root.k;
+        border-radius: 12px * root.k;
+        background: #0b1620f2;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        toast-text := Text {
+            x: 20px * root.k;
+            width: parent.width - 40px * root.k;
+            text: root.toast;
+            color: Theme.text;
+            font-size: 15px * root.k;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 }

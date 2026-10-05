@@ -1,4 +1,4 @@
-# Turtlefin : passation de projet (état au 4 octobre 2026)
+# Turtlefin : passation de projet (état au 5 octobre 2026)
 
 Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
 Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.3.1.
@@ -150,13 +150,38 @@ Principes :
    créer / rejoindre / quitter vérifiés entre `test` (Pi) et `test2` (PC) ; lancement synchronisé et pause / reprise
    communes vérifiés (même image des deux côtés). **Saut synchronisé non vérifié** (tests clavier ratés).
 
+### Lots du 5 octobre 2026 : vérifiés sur le PC (captures), pas encore sur le Pi
+1. Barre du haut sur toutes les pages (watch party, dé, recherche, avatar, heure), fiche à deux lignes de boutons
+   (icônes / pastilles), pastilles d'épisodes restants et de statut Seerr sur les affiches, page Seerr plein écran TV.
+   Avatar : GetAvatar `SetAvatar` répond 500 pour tout le monde (plugin) → repli `POST /UserImage` (base64).
+2. **Clavier à l'écran** refait (`ui/osk.slint`, façon téléphone : lettres AZERTY / chiffres-symboles / accents),
+   réutilisé par la recherche et la connexion.
+3. **Écran de connexion** « Qui regarde ? » : comptes enregistrés sur l'appareil (`accounts.json` : jeton, jamais le
+   mot de passe), comptes publics du serveur (`/Users/Public`), « Autre compte » (formulaire). Menu « Changer de
+   compte ». Connexion par tuile enregistrée vérifiée (session `test` ouverte sans mot de passe). Jeton refusé → le
+   compte est oublié et le mot de passe demandé.
+4. **Avatars GIF animés** (tuiles de connexion, en-tête, choix d'avatar) : toutes les images décodées une fois
+   (150 au plus, ~100 Ko chacune), une minuterie Slint les fait défiler, en pause pendant la lecture et quand
+   l'avatar n'est pas affiché. Réglage **Paramètres → Affichage → GIF figés** (`still_gifs` dans `session.json`) :
+   première image seulement, image réduite par le serveur. Le réglage lui-même n'a pas été essayé à l'écran.
+5. **Téléchargements** : liste générale (séries, films) → saisons → épisodes (vignettes 16:9), bandeau d'infos de la
+   carte sélectionnée (année, durée, note, reprise / vu, taille, résumé). `info.json` garde série, saison, numéros,
+   année, note, durée, et `series.jpg` / `season.jpg` ; les anciens téléchargements sont complétés dès que le
+   serveur répond (`downloads::enrich`, champ `meta`).
+6. **Hors ligne** : pastille verte « Hors ligne » dans l'en-tête, titre de la barre en vert. Une lecture locale note sa
+   position et « vu » (règles Jellyfin : vu après 90 %, pas de reprise sous 5 %) avec `dirty: true` ; le serveur est
+   réessayé toutes les 30 s, et au retour : `POST /UserItems/{id}/UserData` (position, vu, date), puis l'accueil.
+   Vérifié : reprise à 5 min envoyée, l'épisode est apparu dans « Reprendre ».
+7. Messages (toast) : bulle centrée en bas, effacée après 6 s.
+
+Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
+Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=targetelease\libmpv-2.dll`.
+
 ### Pas fait
-- **M4** : recherche (cartes à poster comme le JS `search_suggestion_poster.js`), réglages, manette/télécommande.
-- Langues audio / sous-titres préférées (lire `GET /Users/{id}` → `Configuration`: `AudioLanguagePreference`, `SubtitleLanguagePreference`, `SubtitleMode`, `PlayDefaultAudioTrack` et poser `alang` / `slang` sur le lecteur).
-- Défilement à la molette, survol souris qui déplace le focus.
-- Écran de connexion « vrai » (sélecteur de profils avec avatars via `/Users/Public`, Quick Connect, clavier à l'écran pour la télé). La connexion en ligne de commande couvre le kiosque en attendant.
+- Manette / télécommande ; défilement à la molette, survol souris qui déplace le focus.
+- Quick Connect sur l'écran de connexion ; clavier à l'écran pour la saisie manuelle d'un serveur.
+- Favoris faits hors ligne (rien ne permet d'en ajouter hors ligne pour l'instant).
 - Fond (backdrop) en option, avec logos transparents.
-- Passer l'intro (segments média Jellyfin 10.10+), avatar utilisateur dans l'en-tête, picker d'avatar (`Avatar_picker.js` du thème).
 - Passerelle XeLauncher ; démarrage automatique sur le Pi ; compilation/paquetage.
 
 ## 6. Reprise du CSS/JS du thème (correspondances)
