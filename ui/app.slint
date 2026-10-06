@@ -432,10 +432,13 @@ component Card inherits Rectangle {
     changed hero-tick => {
         if (Hero.want-id != "" ? root.data.id == Hero.want-id && root.data.has-image : root.focused && root.data.has-image) {
             Hero.seq += 1;
-            Hero.x = root.absolute-position.x - root.width * 0.03;
-            Hero.y = root.absolute-position.y - root.height * 0.03;
-            Hero.w = root.width * 1.06;
-            Hero.h = root.img-h * 1.06;
+            // absolute-position tient déjà compte de l'agrandissement de la carte (transform-scale,
+            // centré) : c'est le coin de l'image telle qu'elle est dessinée. Taille : à l'échelle
+            // actuelle (pas forcément 1,06 si la carte est encore en train de grossir).
+            Hero.x = root.absolute-position.x;
+            Hero.y = root.absolute-position.y;
+            Hero.w = root.width * root.transform-scale;
+            Hero.h = root.img-h * root.transform-scale;
             Hero.img = root.data.image;
             Hero.wide = root.ratio < 1;
             Hero.data = root.data;
@@ -1388,7 +1391,8 @@ export component AppWindow inherits Window {
         (root.hero-ready && (root.hero-big ? root.hero-faded
             : root.hero-seerr ? root.sr.has-poster || root.hero-gave-up
             : root.screen != "detail" || root.detail.has-poster || root.hero-gave-up))
-        || (!root.hero-dest && root.hero-flying));
+        // Retour : la carte reprend la main une fois posée et la page arrivée (plus rien ne bouge).
+        || (!root.hero-dest && root.hero-flying && !root.page-anim));
     changed hero-done => {
         if (root.hero-done) {
             root.hero-on = false;
@@ -1458,8 +1462,24 @@ export component AppWindow inherits Window {
             root.hero-on = false;
         }
     }
+    // Retour en vol : la page d'arrivée fait encore son entrée (rangées qui glissent, léger zoom) ;
+    // la carte redonne sa position à chaque image et l'image suit, sans viser une place périmée.
+    Timer {
+        interval: 16ms;
+        running: root.hero-on && !root.hero-dest && root.hero-flying;
+        triggered => {
+            Hero.tick += 1;
+        }
+    }
     property <int> hero-seq: Hero.seq;
     changed hero-seq => {
+        if (root.hero-pending == "" && root.hero-on && !root.hero-dest && root.hero-flying) {
+            root.hero-fx = Hero.x;
+            root.hero-fy = Hero.y;
+            root.hero-fw = Hero.w;
+            root.hero-fh = Hero.h;
+            return;
+        }
         if (root.hero-pending == "" && root.hero-wait) {
             root.hero-fx = Hero.x;
             root.hero-fy = Hero.y;
@@ -6639,7 +6659,11 @@ export component AppWindow inherits Window {
         y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
         height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
-        border-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
+        // Carte : coins du haut arrondis, bas carrés · affiche : 4 coins arrondis · plein écran : aucun.
+        border-top-left-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
+        border-top-right-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
+        border-bottom-left-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
+        border-bottom-right-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
         clip: true;
         Image {
             width: parent.width;
