@@ -150,6 +150,8 @@ struct App {
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
     home_stale: AtomicBool,
+    /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
+    home_keep: Mutex<Option<(String, String)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
     player_tx: Mutex<Option<tokio::sync::mpsc::UnboundedSender<String>>>,
 }
@@ -1066,6 +1068,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
     }
 
     let user_name = client.user_name.clone();
+    let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
         let mut y = 0.0_f32;
         let rows: Vec<Section> = sections
@@ -1108,10 +1111,18 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
             return;
         }
         let empty = rows.is_empty();
+        let keep = app2.home_keep.lock().unwrap().take();
+        let find = |same_row: bool| -> Option<(usize, usize)> {
+            let (title, id) = keep.as_ref()?;
+            rows.iter().enumerate().filter(|(_, r)| !same_row || r.title.as_str() == title).find_map(|(si, r)| {
+                (0..r.items.row_count()).find(|&i| r.items.row_data(i).is_some_and(|c| c.id.as_str() == id)).map(|i| (si, i))
+            })
+        };
+        let (sel_s, sel_i) = find(true).or_else(|| find(false)).unwrap_or((0, 0));
         u.set_sections(ModelRc::new(VecModel::from(rows)));
         u.set_user_name(user_name.into());
-        u.set_sel_section(0);
-        u.set_sel_item(0);
+        u.set_sel_section(sel_s as i32);
+        u.set_sel_item(sel_i as i32);
         // Rien à afficher (aucun favori...) : la sélection reste dans l'en-tête.
         if empty {
             u.set_h_focus(true);
@@ -2991,7 +3002,14 @@ fn sync_can_back(app: &Arc<App>) {
 }
 
 /// Retour direct à l'accueil (bouton Accueil, menu).
+/// Retour à l'accueil sur la carte d'où l'on vient (retour, fin de lecture, Échap).
 fn go_home(app: &Arc<App>) {
+    go_home_at(app, false);
+}
+
+/// `top` : bouton maison, « Accueil » du menu -> l'accueil depuis le haut, première carte.
+/// Sinon la sélection reste sur la carte d'où l'on vient, même si l'accueil est rechargé.
+fn go_home_at(app: &Arc<App>, top: bool) {
     // Hors ligne : les téléchargements tiennent lieu d'accueil.
     if app.offline.load(Ordering::SeqCst) {
         open_downloads(app);
@@ -3009,6 +3027,18 @@ fn go_home(app: &Arc<App>) {
     *app.library.lock().unwrap() = None;
     let stale = app.home_stale.swap(false, Ordering::SeqCst);
     if let Some(u) = app.ui().upgrade() {
+        if top {
+            *app.home_keep.lock().unwrap() = None;
+            u.set_sel_section(0);
+            u.set_sel_item(0);
+        } else if stale {
+            // Carte sélectionnée avant de partir : retrouvée par son id après le rechargement.
+            let secs = u.get_sections();
+            let keep = secs.row_data(u.get_sel_section().max(0) as usize).and_then(|s| {
+                s.items.row_data(u.get_sel_item().max(0) as usize).map(|c| (s.title.to_string(), c.id.to_string()))
+            });
+            *app.home_keep.lock().unwrap() = keep;
+        }
         u.set_detail(DetailData::default());
         u.set_child_items(ModelRc::default());
         u.set_lib_items(ModelRc::default());
@@ -3770,6 +3800,7 @@ fn main() -> anyhow::Result<()> {
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
+        home_keep: Mutex::new(None),
         player_tx: Mutex::new(None),
     });
 
@@ -4100,7 +4131,7 @@ fn main() -> anyhow::Result<()> {
                 if let Some(u) = app.ui().upgrade() {
                     u.set_tab("home".into());
                 }
-                go_home(&app);
+                go_home_at(&app, true);
             } else if a == "requests" {
                 *app.tab.lock().unwrap() = "requests".to_string();
                 if let Some(u) = app.ui().upgrade() {

@@ -1361,6 +1361,12 @@ export component AppWindow inherits Window {
     property <length> hero-tw: root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
     property <length> hero-th: root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr;
+    // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
+    property <int> hero-crop: root.hero-big && root.hero-fw > 0
+        ? round(min(1, 5 * root.hero-p) * root.hero-img.width * Theme.radius * 1.15 / (root.hero-fw / 1.06)) : 0;
+    // Fiche ouverte depuis une vignette 16:9 : opacité de la page (0 au début du vol, 1 à la fin).
+    property <float> hero-page-a: root.hero-on && root.hero-big && root.hero-dest
+        ? clamp((root.hero-q - 0.45) / 0.55, 0, 1) : 1;
     // L'affiche de la page ouverte est cachée tant que l'image partagée vole (elle prend le relais).
     property <bool> hero-covers: root.hero-on && root.hero-dest;
     property <string> hero-from-id;          // retour : page quittée (l'image attend qu'elle soit partie)
@@ -2243,6 +2249,10 @@ export component AppWindow inherits Window {
             source: root.hero-img;
             image-fit: cover;
             opacity: root.hero-alpha;
+            // Vignette 16:9 qui devient le fond : ses coins arrondis sont dans les pixels ; le haut
+            // de l'image est rogné au fil de l'agrandissement pour qu'ils ne grandissent pas avec elle.
+            source-clip-y: root.hero-crop;
+            source-clip-height: root.hero-img.height - root.hero-crop;
         }
         Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha * root.hero-p);
@@ -3741,6 +3751,9 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Fiche détail
     if root.screen == "detail" && !root.playing: dt := Rectangle {
+        // Vignette 16:9 qui devient le fond : la fiche apparaît en fondu pendant la fin de
+        // l'agrandissement, au lieu de surgir d'un coup par-dessus l'image encore en vol.
+        opacity: root.hero-page-a;
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
         property <length> icons-w: max(0px, icons-row.preferred-width - (root.detail.buttons.length - root.detail.icon-count) * self.btn-gap);
@@ -6598,7 +6611,9 @@ export component AppWindow inherits Window {
 
     // Voile de transition : la page qui part s'efface dans la couleur de fond.
     if root.veil > 0.001 && !root.playing: Rectangle {
-        background: Theme.bg.transparentize(1 - root.veil);
+        // Sous une vignette qui grandit jusqu'au plein écran : léger assombrissement seulement
+        // (pas de « fondu au noir » avant que l'image ne couvre tout).
+        background: Theme.bg.transparentize(1 - root.veil * (root.hero-on && root.hero-big && root.hero-dest ? 0.45 : 1));
         TouchArea { }
     }
 
@@ -6660,8 +6675,9 @@ export component AppWindow inherits Window {
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
         height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
         // Carte : coins du haut arrondis, bas carrés · affiche : 4 coins arrondis · plein écran : aucun.
-        border-top-left-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
-        border-top-right-radius: root.hero-big ? Theme.radius * (1 - root.hero-p) : Theme.radius;
+        // Vignette qui devient le fond : les coins du haut disparaissent dès le début du vol.
+        border-top-left-radius: root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
+        border-top-right-radius: root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
         border-bottom-left-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
         border-bottom-right-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
         clip: true;
@@ -6671,6 +6687,10 @@ export component AppWindow inherits Window {
             source: root.hero-img;
             image-fit: cover;
             opacity: root.hero-alpha;
+            // Vignette 16:9 qui devient le fond : ses coins arrondis sont dans les pixels ; le haut
+            // de l'image est rogné au fil de l'agrandissement pour qu'ils ne grandissent pas avec elle.
+            source-clip-y: root.hero-crop;
+            source-clip-height: root.hero-img.height - root.hero-crop;
         }
         // Pastilles de la carte, à leur taille de carte.
         if root.hero-p < 0.999 && !root.hero-big: CardArt {
