@@ -10,7 +10,8 @@ Version actuelle : **0.4.0**.
 
 - **Comptes** : écran « Qui regarde ? » avec avatars (GIF animés compris), jusqu'à 12 comptes enregistrés sur
   l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans ressaisie, « Gérer les comptes »
-  pour en retirer. Recherche des serveurs sur le réseau local et Tailscale, adresse locale et distante du même serveur.
+  pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil (local et VPN) ; une adresse
+  principale et une adresse de secours, essayée quand la principale ne répond pas (Paramètres → Réseau).
 - **Accueil** : Mes médias, Reprendre, À suivre, Récemment ajouté ; onglets Favoris et Demandes (Seerr).
   Affiches avec épisodes restants, coche « vu », note ; fond d'écran tiré du média sélectionné.
 - **Fiches** : film, série, saison, épisode ; lecture, favori, vu, téléchargement, choix audio / sous-titres retenu
@@ -21,8 +22,9 @@ Version actuelle : **0.4.0**.
 - **Hors ligne** : téléchargements présentés comme l'accueil, fiches complètes sans serveur ; les lectures,
   « vu » et favoris faits hors ligne sont renvoyés au compte à la reconnexion.
 - **Recherche** (bibliothèque + Seerr), média au hasard, clavier à l'écran pour la télé.
-- **Paramètres** : langues audio et sous-titres, taille des sous-titres, épisode suivant automatique, intro
-  passée automatiquement, interface TV, fond d'écran, notes, heure, cache d'images, **mise à jour depuis GitHub**.
+- **Paramètres** : photo de profil (avatars du plugin GetAvatar, rangés par catégorie), langues audio et
+  sous-titres, taille des sous-titres, épisode suivant automatique, intro passée automatiquement, interface TV,
+  fond d'écran, notes, heure, adresses du serveur, cache d'images, **mise à jour depuis GitHub**.
 - Transitions animées partout (affiche qui vole vers la fiche, menu qui glisse, rangées en cascade).
 
 ## Installer

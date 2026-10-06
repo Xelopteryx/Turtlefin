@@ -5,6 +5,11 @@
 
 import { Theme } from "theme.slint";
 
+// Vrai clavier branché (mode TV) : un caractère imprimable est écrit tel quel (Rust décide).
+export global OskKeys {
+    pure callback printable(string) -> bool;
+}
+
 export component Osk inherits Rectangle {
     in property <float> k: 1.0;
     in property <string> text;
@@ -97,6 +102,9 @@ export component Osk inherits Rectangle {
             root.press();
         } else if (t == Key.Backspace) {
             root.edited(root.erase(root.text));
+        } else if (OskKeys.printable(t)) {
+            // Vrai clavier : le caractère tapé va directement dans le champ.
+            root.edited(root.text + t);
         } else {
             return false;
         }

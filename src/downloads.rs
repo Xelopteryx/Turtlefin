@@ -7,7 +7,9 @@
 //! - `sub_<n>.<ext>` : sous-titres externes ;
 //! - `info.json` : titre, sous-titre, résumé, sous-titres (écrit en dernier : sa présence signifie
 //!   « téléchargement complet »).
-//! Pendant le transfert, le média s'appelle `media.<ext>.part`.
+//! Pendant le transfert, le média s'appelle `media.<ext>.part` ; un transfert interrompu (réseau
+//! coupé, appli fermée) reprend là où il s'était arrêté (requête `Range`). La file d'attente est
+//! gardée dans `queue.json` et reprend au lancement suivant.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -256,6 +258,26 @@ pub async fn enrich(client: &Client, id: &str) -> bool {
     true
 }
 
+/// Le serveur refuse le téléchargement (droit retiré, élément supprimé...) : réessayer ne sert à rien.
+#[derive(Debug)]
+pub struct Refused(pub String);
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for Refused {}
+
+/// File d'attente gardée sur le disque : (id, titre), l'élément en cours en premier.
+pub fn save_queue(q: &[(String, String)]) {
+    let _ = std::fs::create_dir_all(root());
+    let _ = std::fs::write(root().join("queue.json"), serde_json::to_string(q).unwrap_or_default());
+}
+
+pub fn load_queue() -> Vec<(String, String)> {
+    std::fs::read_to_string(root().join("queue.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
 pub fn root() -> PathBuf {
     directories::ProjectDirs::from("", "", "turtlefin")
         .map(|d| d.data_dir().join("downloads"))
@@ -343,25 +365,53 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         .unwrap_or_else(|| "mkv".to_string());
     let media = format!("media.{ext}");
     let part = dir.join(format!("{media}.part"));
-    let mut resp = http.get(client.download_url(&item.id)).header("Authorization", client.auth()).send().await?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("le serveur refuse le téléchargement ({})", resp.status()));
+    // Transfert interrompu : on reprend après ce qui est déjà sur le disque.
+    let have = tokio::fs::metadata(&part).await.map(|m| m.len()).unwrap_or(0);
+    let mut req = http.get(client.download_url(&item.id)).header("Authorization", client.auth());
+    if have > 0 {
+        req = req.header("Range", format!("bytes={have}-"));
     }
-    let total = resp.content_length().unwrap_or(0);
-    let mut file = tokio::fs::File::create(&part).await?;
-    let mut done: u64 = 0;
-    let mut last = std::time::Instant::now();
+    let mut resp = req.send().await?;
+    let status = resp.status().as_u16();
     use tokio::io::AsyncWriteExt;
-    while let Some(chunk) = resp.chunk().await? {
-        file.write_all(&chunk).await?;
-        done += chunk.len() as u64;
-        if total > 0 && last.elapsed() > Duration::from_millis(500) {
-            last = std::time::Instant::now();
+    let (mut file, mut done, total) = match status {
+        206 => {
+            let f = tokio::fs::OpenOptions::new().append(true).open(&part).await?;
+            (Some(f), have, have + resp.content_length().unwrap_or(0))
+        }
+        // Le fichier provisoire était déjà complet.
+        416 if have > 0 => (None, have, have),
+        s if (200..300).contains(&s) => {
+            let total = resp.content_length().unwrap_or(0);
+            (Some(tokio::fs::File::create(&part).await?), 0, total)
+        }
+        s => return Err(Refused(format!("le serveur refuse le téléchargement ({s})")).into()),
+    };
+    if let Some(f) = file.as_mut() {
+        if total > 0 {
             progress(done as f32 / total as f32);
         }
+        let mut last = std::time::Instant::now();
+        loop {
+            // Réseau muet (connexion ouverte mais plus rien ne passe) : on n'attend pas indéfiniment.
+            let chunk = match tokio::time::timeout(Duration::from_secs(30), resp.chunk()).await {
+                Ok(c) => c?,
+                Err(_) => return Err(anyhow!("plus aucune donnée reçue depuis 30 s")),
+            };
+            let Some(chunk) = chunk else { break };
+            f.write_all(&chunk).await?;
+            done += chunk.len() as u64;
+            if total > 0 && last.elapsed() > Duration::from_millis(500) {
+                last = std::time::Instant::now();
+                progress(done as f32 / total as f32);
+            }
+        }
+        f.flush().await?;
     }
-    file.flush().await?;
     drop(file);
+    if total > 0 && done < total {
+        return Err(anyhow!("transfert incomplet ({done} octets sur {total})"));
+    }
     tokio::fs::rename(&part, dir.join(&media)).await?;
 
     let (title, subtitle) = item.titles();

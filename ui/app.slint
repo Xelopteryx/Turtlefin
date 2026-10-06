@@ -7,7 +7,8 @@ import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs } from "theme.slint";
 import { CardData } from "card.slint";
-import { Osk } from "osk.slint";
+import { Osk, OskKeys } from "osk.slint";
+export { OskKeys }
 import { Marquee } from "marquee.slint";
 
 export { CardData, Prefs }
@@ -27,8 +28,8 @@ export struct ServerData {
     id: string,
     name: string,
     version: string,
-    local: string,  // adresse sur le réseau local, vide si inconnue
-    remote: string, // adresse distante (Tailscale ou autre), vide si inconnue
+    main: string,   // adresse principale, vide si inconnue
+    backup: string, // adresse de secours (autre réseau, VPN...), vide si inconnue
 }
 
 export struct FactData {
@@ -1077,6 +1078,10 @@ component HeaderRight inherits Rectangle {
     in property <string> clock;
     in property <bool> offline;
     in property <int> party-count;
+    // Téléchargement en cours : pastille avec flèche, pourcentage et jauge (ambre : en pause).
+    in property <string> dl-text;
+    in property <float> dl-p;
+    in property <bool> dl-paused;
     callback activate(int);
 
     // Impulsion (0 -> 1, trois fois) quand le groupe change.
@@ -1105,6 +1110,44 @@ component HeaderRight inherits Rectangle {
         padding-top: (root.height - 44px * root.k) / 2;
         padding-bottom: (root.height - 44px * root.k) / 2;
 
+        if root.dl-text != "": Rectangle {
+            width: dl-label.preferred-width + 52px * root.k;
+            border-radius: self.height / 2;
+            background: #ffffff14;
+            border-width: 1px;
+            border-color: root.dl-paused ? #f59e0b : #ffffff2e;
+            clip: true;
+            // Jauge : le fond se remplit avec l'avancement.
+            Rectangle {
+                x: 0px;
+                width: parent.width * clamp(root.dl-p, 0, 1);
+                animate width { duration: 500ms; easing: ease-out; }
+                background: @linear-gradient(130deg, Theme.accent1.transparentize(0.45) 0%, Theme.accent2.transparentize(0.45) 100%);
+            }
+            HorizontalLayout {
+                padding-left: 12px * root.k;
+                spacing: 6px * root.k;
+                alignment: start;
+                Path {
+                    width: 16px * root.k;
+                    height: 16px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    viewbox-width: 16;
+                    viewbox-height: 16;
+                    fill: transparent;
+                    stroke: root.dl-paused ? #fbbf24 : white;
+                    stroke-width: 2px * root.k;
+                    commands: "M 8 2 L 8 11 M 4 7 L 8 11 L 12 7 M 3 14 L 13 14";
+                }
+                dl-label := Text {
+                    text: root.dl-text;
+                    color: root.dl-paused ? #fde68a : white;
+                    font-size: 14px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+            }
+        }
         // Mode hors ligne : pastille verte à la place des icônes qui demandent le serveur.
         if root.offline: Rectangle {
             width: offline-label.preferred-width + 48px * root.k;
@@ -1538,7 +1581,11 @@ export component AppWindow inherits Window {
         }
     }
 
+    property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
+        if (root.screen == "detail") {
+            root.d-t0 = animation-tick();
+        }
         root.loading = false;
         if (root.screen != "login") {
             root.page-enter();
@@ -1570,6 +1617,7 @@ export component AppWindow inherits Window {
     property <bool> sw-next;
     property <bool> sw-kids;
     public function detail-swap() {
+        root.d-t0 = animation-tick();
         root.sw-title = false;
         root.sw-sub = false;
         root.sw-icons = false;
@@ -1736,7 +1784,7 @@ export component AppWindow inherits Window {
     in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
     in property <string> choice-b;
 
-    // Paramètres : catégories à gauche (0 Profil · 1 Lecture · 2 Réseau · 3 Affichage · 4 Compte), lignes à droite
+    // Paramètres : catégories à gauche (0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 À propos), lignes à droite
     in-out property <int> set-cat;
     // Liste de choix d'un réglage (Paramètres) : clé du réglage ("" : fermée), titre, options.
     in-out property <string> ch-key;
@@ -1747,8 +1795,53 @@ export component AppWindow inherits Window {
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
     in property <[SettingRow]> set-rows;
+    // Ligne réglable suivante (dir = 1) ou précédente (-1) à partir de `sel` ; depuis -1 avec dir = 1 :
+    // la première. Les lignes d'information sont sautées ; s'il n'y en a pas d'autre, `sel` revient.
+    pure callback settings-step(int /* sel */, int /* dir */) -> int;
+    // Choix de l'avatar (Compte > Photo de profil)
+    in-out property <bool> av-open;
+    in property <[CardData]> av-groups;     // catégories : nom (title) et nombre d'avatars (count)
+    in property <int> av-total;
+    in-out property <int> av-group;
+    in-out property <int> av-zone;          // 0 catégories · 1 grille
+    in-out property <int> av-sel;
+    in-out property <int> av-top;           // première rangée affichée de la grille
+    in-out property <int> g-top;            // première catégorie affichée
+    in-out property <int> av-press;         // incrémenté à chaque choix (rebond de la case)
+    in property <string> av-busy;           // avatar en cours d'envoi
+    in property <string> av-current;        // avatar appliqué pendant cette session
+    callback avatar-group(int);
+    callback avatar-focus(int);
+    callback avatar-want(int);              // la grille montre les N premiers avatars : images à charger
+    changed av-sel => {
+        root.avatar-focus(root.av-sel);
+    }
+    // Choix fermé : images et animation des avatars libérées.
+    changed av-open => {
+        if (!root.av-open) {
+            root.avatar-focus(-1);
+        }
+    }
+    // Saisie d'une adresse (Réseau) : 0 fermée · 1 principale · 2 secours
+    in-out property <int> addr-edit;
+    in-out property <string> addr-text;
+    in-out property <string> addr-err;
+    in property <bool> addr-busy;
+    in-out property <bool> addr-osk;
+    in-out property <int> addr-field;       // 0 champ · 1 Enregistrer · 2 Annuler
+    callback addr-save(int, string);
+    // Fenêtre fermée : la page des paramètres reprend le clavier.
+    changed addr-edit => {
+        if (root.addr-edit == 0) {
+            root.refocus += 1;
+        }
+    }
+    function addr-close() {
+        root.addr-edit = 0;
+        root.addr-osk = false;
+        root.addr-err = "";
+    }
     in property <[CardData]> avatar-items;
-    in property <bool> has-getavatar;
     in property <image> avatar;
     in property <bool> has-avatar;
     in property <bool> offline;             // pas de serveur : téléchargements seulement
@@ -1771,6 +1864,9 @@ export component AppWindow inherits Window {
     in property <bool> dl-landscape;        // épisodes : vignettes 16:9
     in property <string> dl-title: "Téléchargements";
     in property <string> dl-status;
+    in property <string> dl-pill;           // pastille de la barre du haut : « 42 % », « En pause »
+    in property <float> dl-p;
+    in property <bool> dl-paused;
     in-out property <int> dl-sel;
     in-out property <bool> dl-dialog;       // Lire / Supprimer / Annuler
     in-out property <int> dl-dsel;
@@ -1819,6 +1915,8 @@ export component AppWindow inherits Window {
     // Lecture (rempli par player.rs / video.rs)
     in property <image> video-frame;
     in property <bool> p-ready;
+    in property <bool> p-buffering;          // mise en mémoire (réseau lent)
+    in property <bool> p-lost;               // connexion au serveur perdue (reprise automatique)
     in property <string> p-title;
     in property <string> p-subtitle;
     in property <bool> p-paused;
@@ -1879,11 +1977,21 @@ export component AppWindow inherits Window {
     public function back-anim-pub() {
         root.back-anim();
     }
+    callback cancel-open();                  // Échap pendant un chargement (Rust annule l'ouverture)
+    // Ouverture d'une fiche échouée : on reste sur la page affichée, l'image partagée revient à sa carte.
+    public function open-failed() {
+        root.loading = false;
+        root.hero-pending = "";
+        if (root.hero-id != "") {
+            root.hero-return();
+            root.hero-from-id = "";
+        }
+    }
     callback server-pick(int);
-    callback manual-submit(string, string); // adresse locale, adresse distante
+    callback manual-submit(string, string); // adresse principale, adresse de secours
     in-out property <string> manual-local;
     in-out property <string> manual-remote;
-    in-out property <int> manual-field;     // 0 locale · 1 distante · 2 Valider · 3 Annuler
+    in-out property <int> manual-field;     // 0 principale · 1 secours · 2 Valider · 3 Annuler
     in-out property <bool> manual-osk;      // mode TV : le clavier à l'écran écrit dans le champ
     in-out property <string> manual-local-err;
     function open-manual() {
@@ -1900,7 +2008,7 @@ export component AppWindow inherits Window {
     }
     function manual-go() {
         if (root.manual-local == "" && root.manual-remote == "") {
-            root.manual-local-err = "Saisis au moins l'adresse locale du serveur.";
+            root.manual-local-err = "Saisis au moins l'adresse principale du serveur.";
             root.manual-field = 0;
             return;
         }
@@ -1940,11 +2048,16 @@ export component AppWindow inherits Window {
     }
     // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
-    property <int> nav-n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
+    // Retour visible aussi dans une sous-page sans pile (choix de l'avatar) : il la ferme.
+    property <bool> sub-back: root.screen == "settings" && root.av-open;
+    property <bool> back-ok: root.can-back || root.sub-back;
+    property <int> nav-n: 1 + (root.back-ok ? 1 : 0) + (root.show-home ? 1 : 0);
 
     function nav-activate(i: int) {
         root.h-focus = false;
-        if (i == 0 && root.can-back) {
+        if (i == 0 && root.sub-back) {
+            root.av-open = false;
+        } else if (i == 0 && root.can-back) {
             root.back-anim();
         } else if (i == root.nav-n - 1) {
             root.open-menu();
@@ -2019,7 +2132,8 @@ export component AppWindow inherits Window {
     function nav-enter() {
         root.h-focus = true;
         // Hors accueil, le bouton maison est sélectionné d'abord (après le bouton retour s'il y en a un).
-        root.h-sel = root.screen != "home" && root.can-back ? 1 : 0;
+        // Dans une sous-page (choix de l'avatar), c'est Retour qui est sélectionné.
+        root.h-sel = root.sub-back ? 0 : root.screen != "home" && root.can-back ? 1 : 0;
     }
 
     function tab-index() -> int {
@@ -2132,6 +2246,100 @@ export component AppWindow inherits Window {
         property <length> btn-h: 46 * self.u;
         property <length> gap: 12 * self.u;
 
+        // Animations au temps (rien n'est redessiné en dehors) :
+        // - arrivée : titre qui descend, tuiles qui apparaissent en cascade, boutons qui montent ;
+        // - compte retiré : sa tuile rétrécit, puis les suivantes glissent à sa place ;
+        // - compte choisi : sa tuile grossit, les autres s'estompent pendant la connexion.
+        property <bool> in-anim;
+        property <duration> in-t0;
+        property <float> in-q: self.in-anim ? clamp((animation-tick() - self.in-t0) / 900ms, 0, 1) : 1;
+        function play-in() {
+            lg.in-t0 = animation-tick();
+            lg.in-anim = true;
+        }
+        Timer {
+            interval: 950ms;
+            running: lg.in-anim;
+            triggered => {
+                lg.in-anim = false;
+            }
+        }
+        // Élément n° i de la cascade : 0 -> 1 avec une courbe qui ralentit.
+        pure function in-e(i: float) -> float {
+            let x = clamp(lg.in-q * 2.2 - i * 0.14, 0, 1);
+            return 1 - (1 - x) * (1 - x) * (1 - x);
+        }
+        // Suppression : la tuile `gone-id` s'efface (260 ms), Rust la retire, puis les tuiles qui
+        // suivaient glissent d'un cran vers la gauche (`shift-from`).
+        property <string> gone-id;
+        property <int> shift-from: -1;
+        property <bool> sh-anim;
+        property <duration> sh-t0;
+        property <float> sh-q: self.sh-anim ? clamp((animation-tick() - self.sh-t0) / 320ms, 0, 1) : 1;
+        function forget(id: string, i: int) {
+            if (lg.gone-id != "") {
+                return;
+            }
+            lg.gone-id = id;
+            lg.shift-from = i;
+        }
+        Timer {
+            interval: 260ms;
+            running: lg.gone-id != "";
+            triggered => {
+                root.login-forget(lg.gone-id);
+                lg.gone-id = "";
+                lg.sh-t0 = animation-tick();
+                lg.sh-anim = true;
+            }
+        }
+        Timer {
+            interval: 340ms;
+            running: lg.sh-anim;
+            triggered => {
+                lg.sh-anim = false;
+                lg.shift-from = -1;
+            }
+        }
+        // Compte choisi (connexion en cours).
+        property <string> picking;
+        // Seul un compte enregistré se connecte tout de suite (les autres ouvrent le formulaire).
+        function pick(i: int) {
+            if (root.login-tiles[i].subtitle == "Enregistré") {
+                lg.picking = root.login-tiles[i].id;
+            }
+            root.login-pick(root.login-tiles[i].id);
+        }
+        property <bool> was-busy: root.busy;
+        changed was-busy => {
+            if (!root.busy) {
+                lg.picking = "";
+            }
+        }
+        // Retour du formulaire vers les comptes : la cascade est rejouée.
+        property <string> mode: root.login-mode;
+        changed mode => {
+            if (lg.mode == "pick") {
+                lg.play-in();
+            }
+            lg.form-t0 = animation-tick();
+            lg.form-anim = true;
+        }
+        property <bool> form-anim;
+        property <duration> form-t0;
+        property <float> form-q: self.form-anim ? clamp((animation-tick() - self.form-t0) / 420ms, 0, 1) : 1;
+        property <float> form-e: 1 - (1 - self.form-q) * (1 - self.form-q) * (1 - self.form-q);
+        Timer {
+            interval: 440ms;
+            running: lg.form-anim;
+            triggered => {
+                lg.form-anim = false;
+            }
+        }
+        init => {
+            lg.play-in();
+        }
+
         function submit() {
             // Un compte a toujours un nom d'utilisateur (le mot de passe peut être vide sur Jellyfin).
             if (root.login-user == "") {
@@ -2158,6 +2366,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.busy) {
                     return EventResult.accept;
                 }
@@ -2194,7 +2411,7 @@ export component AppWindow inherits Window {
                                 root.login-edit = false;
                                 root.login-sel = 0;
                             } else if (root.login-tiles[root.login-sel].subtitle == "Enregistré") {
-                                root.login-forget(root.login-tiles[root.login-sel].id);
+                                lg.forget(root.login-tiles[root.login-sel].id, root.login-sel);
                             }
                         } else if (root.login-sel == lg.n) {
                             root.menu-action("server");
@@ -2202,7 +2419,7 @@ export component AppWindow inherits Window {
                             root.login-edit = true;
                             root.login-sel = 0;
                         } else {
-                            root.login-pick(root.login-tiles[root.login-sel].id);
+                            lg.pick(root.login-sel);
                         }
                     }
                     return EventResult.accept;
@@ -2254,7 +2471,8 @@ export component AppWindow inherits Window {
         animate osk-p { duration: 280ms; easing: ease-in-out; }
         Text {
             visible: lg.osk-p < 0.99;
-            y: 40 * lg.u - lg.osk-p * 30 * lg.u;
+            y: 40 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0)) * 40 * lg.u;
+            opacity: lg.in-e(0);
             width: parent.width;
             text: "Turtlefin";
             color: Theme.accent2;
@@ -2264,7 +2482,8 @@ export component AppWindow inherits Window {
         }
         Text {
             visible: lg.osk-p < 0.99;
-            y: 100 * lg.u - lg.osk-p * 30 * lg.u;
+            y: 100 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0.5)) * 30 * lg.u;
+            opacity: lg.in-e(0.5);
             width: parent.width;
             text: root.server-name != "" ? root.server-name + "  ·  " + root.server : root.server;
             color: Theme.muted;
@@ -2284,7 +2503,8 @@ export component AppWindow inherits Window {
             // Comptes enregistrés (pour « Gérer les comptes »).
             property <int> saved: lg.saved-count;
             Text {
-                y: 170 * lg.u;
+                y: 170 * lg.u + (1 - lg.in-e(1)) * 24 * lg.u;
+                opacity: lg.in-e(1);
                 width: parent.width;
                 text: root.login-edit ? "Choisis un compte à retirer de cet appareil" : "Qui regarde ?";
                 color: white;
@@ -2293,16 +2513,22 @@ export component AppWindow inherits Window {
                 horizontal-alignment: center;
             }
             for t[i] in root.login-tiles: tile := Rectangle {
-                x: parent.row-x + i * parent.step;
-                y: 240 * lg.u;
+                // Après une suppression, les tuiles suivantes partent de leur ancienne place.
+                x: parent.row-x + i * parent.step + (lg.shift-from >= 0 && i >= lg.shift-from ? (1 - lg.sh-q) * (1 - lg.sh-q) * parent.step : 0px);
+                y: 240 * lg.u + (1 - self.e) * 50 * lg.u;
                 width: lg.tile;
                 height: lg.tile + 70 * lg.u;
+                property <float> e: lg.in-e(1.5 + i);
                 property <bool> removable: t.subtitle == "Enregistré";
                 property <bool> sel: (i == root.login-sel) || tile-area.has-hover;
-                // Gestion : seuls les comptes enregistrés restent nets.
-                opacity: root.login-edit && !self.removable ? 0.35 : 1;
-                transform-scale: self.sel ? 1.08 : 1.0;
-                animate transform-scale { duration: 120ms; }
+                property <bool> gone: t.id == lg.gone-id;
+                property <bool> chosen: lg.picking != "" && t.id == lg.picking;
+                // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
+                property <float> dim: self.gone ? 0 : root.login-edit && !self.removable ? 0.35 : lg.picking != "" && !self.chosen ? 0.25 : 1;
+                animate dim { duration: 240ms; easing: ease-out; }
+                opacity: self.dim * self.e;
+                transform-scale: self.gone ? 0.3 : self.chosen ? 1.18 : (self.sel ? 1.08 : 1.0) * (0.7 + 0.3 * self.e);
+                animate transform-scale { duration: 240ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 Rectangle {
                     y: 0px;
                     width: lg.tile;
@@ -2376,16 +2602,17 @@ export component AppWindow inherits Window {
                         root.login-sel = i;
                         if (root.login-edit) {
                             if (tile.removable) {
-                                root.login-forget(t.id);
+                                lg.forget(t.id, i);
                             }
                         } else {
-                            root.login-pick(t.id);
+                            lg.pick(i);
                         }
                     }
                 }
             }
             HorizontalLayout {
-                y: 240 * lg.u + lg.tile + 110 * lg.u;
+                y: 240 * lg.u + lg.tile + 110 * lg.u + (1 - lg.in-e(3)) * 30 * lg.u;
+                opacity: lg.in-e(3);
                 width: parent.width;
                 height: 46 * lg.u;
                 alignment: center;
@@ -2427,11 +2654,35 @@ export component AppWindow inherits Window {
 
         if root.login-mode == "form": form-card := FocusScope {
             x: (parent.width - lg.card-w) / 2;
-            y: lg.card-y;
+            y: lg.card-y + (1 - lg.form-e) * 50 * lg.u;
+            opacity: lg.form-e;
             width: lg.card-w;
             height: lg.card-h;
+            // Bureau : juste après l'apparition du formulaire, le champ à remplir prend le clavier (le
+            // demander à la création du champ ne suffit pas : la page le reprend dans la foulée).
+            Timer {
+                interval: 60ms;
+                running: !root.tv-mode;
+                triggered => {
+                    self.running = false;
+                    if (root.login-field == 1) {
+                        pass-field.focus-input();
+                    } else {
+                        user-field.focus-input();
+                    }
+                }
+            }
             // Bureau : Échap depuis un champ revient aux comptes.
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (event.text == Key.Escape) {
                     root.login-mode = "pick";
                     return EventResult.accept;
@@ -2470,7 +2721,7 @@ export component AppWindow inherits Window {
                 user-field := Field {
                     k: lg.u / 1px;
                     label: "Nom d'utilisateur";
-                    hint: "ex. Sebastien";
+                    hint: "ex. Heisenberg";
                     text <=> root.login-user;
                     shown: root.login-user;
                     tv: root.tv-mode;
@@ -2479,7 +2730,7 @@ export component AppWindow inherits Window {
                     error: root.login-user-err;
                     property <int> want: root.login-focus-tick;
                     changed want => {
-                        if (!root.tv-mode) {
+                        if (!root.tv-mode && root.login-field == 0) {
                             self.focus-input();
                         }
                     }
@@ -2506,6 +2757,12 @@ export component AppWindow inherits Window {
                     tv: root.tv-mode;
                     selected: root.tv-mode && !root.login-osk && root.login-field == 1;
                     editing: root.login-osk && root.login-field == 1;
+                    property <int> want: root.login-focus-tick;
+                    changed want => {
+                        if (!root.tv-mode && root.login-field == 1) {
+                            self.focus-input();
+                        }
+                    }
                     init => {
                         if (!root.tv-mode && root.login-field == 1) {
                             self.focus-input();
@@ -2646,11 +2903,14 @@ export component AppWindow inherits Window {
                 }
             }
 
+            // Onglets au centre, mais jamais sur le nom ni sur les icônes de droite (fenêtre étroite).
             HorizontalLayout {
-                width: parent.width;
+                property <length> lo: 250px * root.k;
+                property <length> hi: parent.width - (root.dl-pill != "" ? 480px : 345px) * root.k;
+                width: self.preferred-width;
                 height: parent.height;
-                alignment: center;
-                spacing: 36px * root.k;
+                x: max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
+                spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
 
                 Tab {
                     text: "Accueil";
@@ -2695,6 +2955,9 @@ export component AppWindow inherits Window {
                 avatar: root.avatar;
                 clock: root.clock;
                 offline: root.offline;
+                dl-text: root.dl-pill;
+                dl-p: root.dl-p;
+                dl-paused: root.dl-paused;
                 activate(i) => {
                     root.right-activate(i);
                 }
@@ -2720,6 +2983,15 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 // Sélection dans l'en-tête : menu, onglets, recherche, profil
                 if (root.h-focus) {
                     if (event.text == Key.LeftArrow) {
@@ -2855,6 +3127,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -2887,12 +3168,7 @@ export component AppWindow inherits Window {
             alignment: start;
             spacing: 14px * root.k;
 
-            Text {
-                text: "Watch party";
-                color: Theme.text;
-                font-size: 30px * root.k;
-                font-weight: 700;
-            }
+            // (Le titre « Watch party » est déjà dans la barre du haut.)
             Text {
                 text: root.sp-active
                     ? "Tu es dans « " + root.sp-name + " ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
@@ -3042,6 +3318,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -3148,6 +3433,15 @@ export component AppWindow inherits Window {
                     root.search-changed(self.text);
                 }
                 key-pressed(event) => {
+                    // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                    if (event.repeat && event.text == Key.Return) {
+                        return EventResult.accept;
+                    }
+                    // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                    if (root.loading && event.text == Key.Escape) {
+                        root.cancel-open();
+                        return EventResult.accept;
+                    }
                     if (event.text == Key.DownArrow || event.text == Key.Return) {
                         root.refocus += 1;
                         return EventResult.accept;
@@ -3264,6 +3558,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -3320,6 +3623,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -3418,6 +3730,20 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
+                // Fiche qui vient de s'afficher : un Entrée de trop (celui qui l'a ouverte) ne lance
+                // pas la lecture.
+                if (event.text == Key.Return && animation-tick() - root.d-t0 < 600ms) {
+                    return EventResult.accept;
+                }
                 if (root.tp-kind != "") {
                     if (event.text == Key.UpArrow) {
                         root.tp-sel = max(0, root.tp-sel - 1);
@@ -4020,6 +4346,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -4114,6 +4449,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.manual-open || root.choice-a != "") {
                     return EventResult.reject;
                 }
@@ -4169,10 +4513,10 @@ export component AppWindow inherits Window {
                 spacing: 8px * root.k;
                 alignment: start;
                 Text {
-                    text: root.srv-searching ? "Recherche sur le réseau local et Tailscale"
+                    text: root.srv-searching ? "Recherche sur tes réseaux (local et VPN)"
                         : root.servers.length == 0 ? "Aucun serveur trouvé : saisis son adresse."
-                        : root.servers.length == 1 ? "1 serveur trouvé sur le réseau local et Tailscale"
-                        : root.servers.length + " serveurs trouvés sur le réseau local et Tailscale";
+                        : root.servers.length == 1 ? "1 serveur trouvé sur tes réseaux (local et VPN)"
+                        : root.servers.length + " serveurs trouvés sur tes réseaux (local et VPN)";
                     color: Theme.muted;
                     font-size: 15px * root.k;
                     vertical-alignment: center;
@@ -4189,7 +4533,7 @@ export component AppWindow inherits Window {
             for s[i] in root.servers: srv-card := Rectangle {
                 height: 92px * root.k;
                 property <bool> sel: !root.h-focus && i == root.srv-sel;
-                property <bool> current: root.server != "" && (s.local == root.server || s.remote == root.server);
+                property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                     : (srv-area.has-hover ? #ffffff26 : #ffffff12);
@@ -4262,7 +4606,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     Text {
-                        text: "Local : " + (s.local != "" ? s.local : "—") + "      Distante : " + (s.remote != "" ? s.remote : "—");
+                        text: "Principale : " + (s.main != "" ? s.main : "—") + "      Secours : " + (s.backup != "" ? s.backup : "—");
                         color: #ffffffcc;
                         font-size: 13px * root.k;
                         overflow: elide;
@@ -4301,7 +4645,7 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Saisie d'une adresse : deux adresses possibles pour le même serveur (locale, distante).
+        // Saisie d'une adresse : deux adresses possibles pour le même serveur (principale, secours).
         // Mode TV : ↑ ↓ pour choisir, Entrée pour écrire au clavier à l'écran.
         property <float> mo-p: root.manual-open ? 1 : 0;
         animate mo-p { duration: 220ms; easing: ease-out; }
@@ -4329,6 +4673,15 @@ export component AppWindow inherits Window {
                     }
                 }
                 key-pressed(event) => {
+                    // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                    if (event.repeat && event.text == Key.Return) {
+                        return EventResult.accept;
+                    }
+                    // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                    if (root.loading && event.text == Key.Escape) {
+                        root.cancel-open();
+                        return EventResult.accept;
+                    }
                     if (root.tv-mode && root.manual-osk) {
                         if (m-osk.key(event.text)) {
                             return EventResult.accept;
@@ -4395,7 +4748,7 @@ export component AppWindow inherits Window {
                     }
                     local-f := Field {
                         k: root.k;
-                        label: "Réseau local";
+                        label: "Adresse principale";
                         hint: "192.168.1.32:8097";
                         text <=> root.manual-local;
                         shown: root.manual-local;
@@ -4418,8 +4771,8 @@ export component AppWindow inherits Window {
                     }
                     remote-f := Field {
                         k: root.k;
-                        label: "Adresse distante (Tailscale ou autre) · facultative";
-                        hint: "100.111.157.87:8097";
+                        label: "Adresse de secours · facultative, si la principale ne répond pas";
+                        hint: "10.8.0.5:8096";
                         text <=> root.manual-remote;
                         shown: root.manual-remote;
                         tv: root.tv-mode;
@@ -4529,6 +4882,15 @@ export component AppWindow inherits Window {
                         }
                     }
                     key-pressed(event) => {
+                        // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                        if (event.repeat && event.text == Key.Return) {
+                            return EventResult.accept;
+                        }
+                        // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                        if (root.loading && event.text == Key.Escape) {
+                            root.cancel-open();
+                            return EventResult.accept;
+                        }
                         if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
                             choice.pick = 0;
                         } else if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
@@ -4606,6 +4968,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
@@ -4704,16 +5075,99 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cats: ["Profil", "Lecture", "Sous-titres", "Affichage", "Réseau", "Compte", "À propos"];
+        property <[string]> cats: ["Compte", "Lecture", "Sous-titres", "Affichage", "Réseau", "À propos"];
         property <length> left-w: 260px * root.k;
-        property <length> av: 96px * root.k;
-        property <int> av-cols: max(1, floor((self.width - self.left-w - 120px * root.k) / (self.av + 18px * root.k)));
-        // Profil : les lignes sont les avatars ; autres catégories : les lignes de réglage.
-        property <int> n: root.set-cat == 0 ? root.avatar-items.length : root.set-rows.length;
-        // Première ligne réglable (les lignes d'information ne se sélectionnent pas).
-        property <int> first: root.set-cat == 0 || root.set-rows.length == 0 ? 0
-            : root.set-rows[0].kind != "info" ? 0 : root.set-rows.length > 1 && root.set-rows[1].kind != "info" ? 1
-            : root.set-rows.length > 2 && root.set-rows[2].kind != "info" ? 2 : 3;
+
+        // Choix de l'avatar : catégories à gauche (s'il y en a plusieurs), grille qui défile à droite.
+        property <bool> av-multi: root.av-groups.length > 1;
+        property <length> av: 104px * root.k;                   // diamètre d'un avatar
+        property <length> av-cw: self.av + 30px * root.k;        // case : avatar + marge (il grossit quand il est choisi)
+        property <length> av-ch: self.av + 50px * root.k;        // case : avatar + nom
+        property <length> av-gx: self.av-multi ? 32px * root.k + 250px * root.k + 24px * root.k : 32px * root.k;
+        property <length> av-gw: self.width - self.av-gx - 32px * root.k;
+        property <length> av-gh: self.height - 80px * root.k - 16px * root.k;
+        property <int> av-cols: max(1, floor((self.av-gw - 28px * root.k) / self.av-cw));
+        property <int> av-rows: max(1, floor((self.av-gh - 28px * root.k) / self.av-ch));
+        property <int> av-lines: ceil(root.avatar-items.length / self.av-cols);
+        // Images à charger : rangées visibles et les deux suivantes (le reste attend le défilement).
+        property <int> av-want: (root.av-top + self.av-rows + 2) * self.av-cols;
+        changed av-want => {
+            root.avatar-want(self.av-want);
+        }
+        property <length> g-h: 46px * root.k;
+        property <int> g-vis: max(1, floor(self.av-gh / (self.g-h + 6px * root.k)));
+        // Garde la rangée de l'avatar choisi à l'écran (défilement de la grille).
+        function av-follow() {
+            let r = floor(root.av-sel / sets.av-cols);
+            if (r < root.av-top) {
+                root.av-top = r;
+            } else if (r >= root.av-top + sets.av-rows) {
+                root.av-top = r - sets.av-rows + 1;
+            }
+        }
+        function g-follow() {
+            if (root.av-group < root.g-top) {
+                root.g-top = root.av-group;
+            } else if (root.av-group >= root.g-top + sets.g-vis) {
+                root.g-top = root.av-group - sets.g-vis + 1;
+            }
+        }
+        function av-scroll(d: int) {
+            root.av-top = max(0, min(sets.av-lines - sets.av-rows, root.av-top + d));
+        }
+
+        // Animations au temps (rien n'est redessiné en dehors) : lignes de la catégorie choisie en
+        // cascade, avatars en cascade à l'ouverture du choix et à chaque changement de catégorie.
+        property <bool> rw-anim;
+        property <duration> rw-t0;
+        property <float> rw-q: self.rw-anim ? clamp((animation-tick() - self.rw-t0) / 650ms, 0, 1) : 1;
+        function rows-in() {
+            sets.rw-t0 = animation-tick();
+            sets.rw-anim = true;
+        }
+        Timer {
+            interval: 680ms;
+            running: sets.rw-anim;
+            triggered => {
+                sets.rw-anim = false;
+            }
+        }
+        pure function rw-e(i: int) -> float {
+            let x = clamp(sets.rw-q * 2.2 - i * 0.16, 0, 1);
+            return 1 - (1 - x) * (1 - x) * (1 - x);
+        }
+        property <bool> ai-anim;
+        property <duration> ai-t0;
+        property <float> ai-q: self.ai-anim ? clamp((animation-tick() - self.ai-t0) / 700ms, 0, 1) : 1;
+        function av-in() {
+            sets.ai-t0 = animation-tick();
+            sets.ai-anim = true;
+        }
+        Timer {
+            interval: 720ms;
+            running: sets.ai-anim;
+            triggered => {
+                sets.ai-anim = false;
+            }
+        }
+        // Rangée n° r à l'écran (0 = la première visible).
+        pure function ai-e(r: int) -> float {
+            let x = clamp(sets.ai-q * 2.4 - r * 0.22, 0, 1);
+            return 1 - (1 - x) * (1 - x) * (1 - x);
+        }
+        property <bool> avo: root.av-open;
+        changed avo => {
+            if (root.av-open) {
+                sets.av-in();
+            }
+        }
+        property <int> avg: root.av-group;
+        changed avg => {
+            sets.av-in();
+        }
+        init => {
+            sets.rows-in();
+        }
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -4729,6 +5183,86 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
+                // Saisie d'une adresse : la fenêtre a son propre clavier.
+                if (root.addr-edit > 0) {
+                    return EventResult.reject;
+                }
+                if (root.av-open) {
+                    if (root.nav-key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.av-open = false;
+                        return EventResult.accept;
+                    }
+                    if (root.av-zone == 0) {
+                        // Catégories d'avatars ; ↑ depuis la première : barre du haut.
+                        if (event.text == Key.UpArrow && root.av-group == 0) {
+                            root.nav-enter();
+                        } else if (event.text == Key.UpArrow && root.av-group > 0) {
+                            root.av-group -= 1;
+                            sets.g-follow();
+                            root.avatar-group(root.av-group);
+                        } else if (event.text == Key.DownArrow && root.av-group < root.av-groups.length - 1) {
+                            root.av-group += 1;
+                            sets.g-follow();
+                            root.avatar-group(root.av-group);
+                        } else if ((event.text == Key.RightArrow || event.text == Key.Return) && root.avatar-items.length > 0) {
+                            root.av-zone = 1;
+                            root.avatar-focus(root.av-sel);
+                        }
+                        return EventResult.accept;
+                    }
+                    // Grille
+                    if (root.avatar-items.length == 0) {
+                        if (event.text == Key.LeftArrow && sets.av-multi) {
+                            root.av-zone = 0;
+                        } else if (event.text == Key.UpArrow) {
+                            root.nav-enter();
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.RightArrow) {
+                        if (mod(root.av-sel, sets.av-cols) < sets.av-cols - 1 && root.av-sel < root.avatar-items.length - 1) {
+                            root.av-sel += 1;
+                        }
+                    } else if (event.text == Key.LeftArrow) {
+                        if (mod(root.av-sel, sets.av-cols) == 0) {
+                            if (sets.av-multi) {
+                                root.av-zone = 0;
+                            }
+                        } else {
+                            root.av-sel -= 1;
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        // Dernière rangée incomplète : on va sur le dernier avatar.
+                        if (floor(root.av-sel / sets.av-cols) < sets.av-lines - 1) {
+                            root.av-sel = min(root.avatar-items.length - 1, root.av-sel + sets.av-cols);
+                        }
+                    } else if (event.text == Key.UpArrow) {
+                        if (root.av-sel >= sets.av-cols) {
+                            root.av-sel -= sets.av-cols;
+                        } else {
+                            root.nav-enter();
+                        }
+                    } else if (event.text == Key.Return) {
+                        if (root.av-busy == "") {
+                            root.av-press += 1;
+                            root.avatar-pick(root.avatar-items[root.av-sel].id);
+                        }
+                    }
+                    sets.av-follow();
+                    return EventResult.accept;
+                }
                 // Liste de choix ouverte : ↑ ↓ choisir, Entrée valider, Échap / ← fermer.
                 if (root.ch-key != "") {
                     if (event.text == Key.UpArrow) {
@@ -4762,49 +5296,29 @@ export component AppWindow inherits Window {
                         } else {
                             root.set-cat -= 1;
                             root.settings-category();
+                            sets.rows-in();
                         }
                     } else if (event.text == Key.DownArrow) {
-                        root.set-cat = min(sets.cats.length - 1, root.set-cat + 1);
-                        root.settings-category();
+                        if (root.set-cat < sets.cats.length - 1) {
+                            root.set-cat += 1;
+                            root.settings-category();
+                            sets.rows-in();
+                        }
                     } else if (event.text == Key.RightArrow || event.text == Key.Return) {
-                        if (sets.n > 0) {
+                        // Première ligne réglable (les lignes d'information ne se sélectionnent pas).
+                        let f = root.settings-step(-1, 1);
+                        if (f >= 0) {
                             root.set-in = true;
-                            root.set-sel = sets.first;
+                            root.set-sel = f;
                         }
                     }
                     return EventResult.accept;
                 }
-                if (root.set-cat == 0) {
-                    // Grille d'avatars
-                    if (event.text == Key.RightArrow) {
-                        root.set-sel = min(sets.n - 1, root.set-sel + 1);
-                    } else if (event.text == Key.LeftArrow) {
-                        if (mod(root.set-sel, sets.av-cols) == 0) {
-                            root.set-in = false;
-                        } else {
-                            root.set-sel -= 1;
-                        }
-                    } else if (event.text == Key.DownArrow) {
-                        // Seulement s'il y a une ligne en dessous (sinon on resterait pas sur la même colonne).
-                        if (root.set-sel + sets.av-cols < sets.n) {
-                            root.set-sel += sets.av-cols;
-                        }
-                    } else if (event.text == Key.UpArrow) {
-                        root.set-sel = max(0, root.set-sel - sets.av-cols);
-                    } else if (event.text == Key.Return) {
-                        root.avatar-pick(root.avatar-items[root.set-sel].id);
-                    }
-                    return EventResult.accept;
-                }
-                // Lignes d'information sautées.
+                // Lignes : les lignes d'information sont sautées, quel que soit leur nombre.
                 if (event.text == Key.UpArrow) {
-                    let a = root.set-sel - 1;
-                    let b = root.set-sel - 2;
-                    root.set-sel = a >= 0 && root.set-rows[a].kind != "info" ? a : b >= 0 && root.set-rows[b].kind != "info" ? b : root.set-sel;
+                    root.set-sel = root.settings-step(root.set-sel, -1);
                 } else if (event.text == Key.DownArrow) {
-                    let a = root.set-sel + 1;
-                    let b = root.set-sel + 2;
-                    root.set-sel = a < sets.n && root.set-rows[a].kind != "info" ? a : b < sets.n && root.set-rows[b].kind != "info" ? b : root.set-sel;
+                    root.set-sel = root.settings-step(root.set-sel, 1);
                 } else if (event.text == Key.LeftArrow) {
                     root.set-in = false;
                 } else if (event.text == Key.Return || (event.text == Key.RightArrow && root.set-rows[root.set-sel].kind == "choice")) {
@@ -4814,16 +5328,30 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Catégories
+        // Catégories : la surbrillance glisse jusqu'à la catégorie choisie (dégradé quand la
+        // sélection est dans la colonne, gris quand elle est dans les lignes).
+        Rectangle {
+            x: 32px * root.k;
+            y: 64px * root.k + root.set-cat * 52px * root.k;
+            animate y { duration: 300ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
+            width: sets.left-w - 32px * root.k;
+            height: 46px * root.k;
+            border-radius: 10px * root.k;
+            background: #ffffff1f;
+            Rectangle {
+                border-radius: parent.border-radius;
+                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                opacity: !root.set-in && !root.h-focus ? 1 : 0;
+                animate opacity { duration: 200ms; }
+            }
+        }
         for c[i] in sets.cats: Rectangle {
             x: 32px * root.k;
             y: 64px * root.k + i * 52px * root.k;
             width: sets.left-w - 32px * root.k;
             height: 46px * root.k;
             border-radius: 10px * root.k;
-            background: (!root.set-in && !root.h-focus && i == root.set-cat) || cat-area.has-hover
-                ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                : i == root.set-cat ? #ffffff1f : transparent;
+            background: cat-area.has-hover && i != root.set-cat ? #ffffff14 : transparent;
             Text {
                 x: 18px * root.k;
                 height: parent.height;
@@ -4835,9 +5363,12 @@ export component AppWindow inherits Window {
             }
             cat-area := TouchArea {
                 clicked => {
-                    root.set-cat = i;
+                    if (root.set-cat != i) {
+                        root.set-cat = i;
+                        root.settings-category();
+                        sets.rows-in();
+                    }
                     root.set-in = false;
-                    root.settings-category();
                 }
             }
         }
@@ -4853,98 +5384,33 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
         }
 
-        // Panneau de droite
+        // Panneau de droite : lignes de réglage (libellé, aide dessous, valeur ou interrupteur à droite).
+        // Marge autour des lignes : la ligne choisie grossit un peu sans être rognée.
+        property <length> pad: 14px * root.k;
         Rectangle {
-            x: sets.left-w + 32px * root.k;
-            y: 64px * root.k;
-            width: parent.width - self.x - 32px * root.k;
+            x: sets.left-w + 32px * root.k - sets.pad;
+            y: 64px * root.k - sets.pad;
+            width: parent.width - self.x - 32px * root.k + sets.pad;
             height: parent.height - self.y - 24px * root.k;
             clip: true;
 
-            // Profil : nom, avatar actuel, avatars proposés
-            if root.set-cat == 0: Rectangle {
-                Rectangle {
-                    width: 72px * root.k;
-                    height: self.width;
-                    x: 0px;
-                    y: 0px;
-                    border-radius: self.width / 2;
-                    background: #ffffff1f;
-                    if root.has-avatar: Image {
-                        width: parent.width;
-                        height: parent.height;
-                        source: root.avatar;
-                        image-fit: fill;
-                    }
-                }
-                Text {
-                    x: 90px * root.k;
-                    y: 8px * root.k;
-                    text: root.user-name;
-                    color: white;
-                    font-size: 24px * root.k;
-                    font-weight: 700;
-                }
-                Text {
-                    x: 90px * root.k;
-                    y: 42px * root.k;
-                    text: root.has-getavatar ? "Choisis un avatar parmi ceux proposés par le serveur."
-                        : "Aucun avatar proposé (plugin GetAvatar absent ou vide).";
-                    color: Theme.muted;
-                    font-size: 14px * root.k;
-                }
-                for a[i] in root.avatar-items: Rectangle {
-                    x: mod(i, sets.av-cols) * (sets.av + 18px * root.k);
-                    y: 100px * root.k + floor(i / sets.av-cols) * (sets.av + 40px * root.k);
-                    width: sets.av;
-                    height: sets.av + 30px * root.k;
-                    Rectangle {
-                        width: sets.av;
-                        height: sets.av;
-                        y: 0px;
-                        border-radius: self.width / 2;
-                        background: #ffffff14;
-                        border-width: (root.set-in && i == root.set-sel) || av-area.has-hover ? 4px * root.k : 0px;
-                        border-color: Theme.accent2;
-                        if a.has-image: Image {
-                            x: 6px * root.k;
-                            y: 6px * root.k;
-                            width: parent.width - 12px * root.k;
-                            height: parent.height - 12px * root.k;
-                            source: a.image;
-                            image-fit: fill;
-                        }
-                    }
-                    Marquee {
-                        y: sets.av + 6px * root.k;
-                        width: parent.width;
-                        text: a.title;
-                        text-color: Theme.muted;
-                        font-size: 12px * root.k;
-                        horizontal-alignment: center;
-                        active: root.set-in && i == root.set-sel;
-                        height: self.preferred-height;
-                    }
-                    av-area := TouchArea {
-                        clicked => {
-                            root.set-in = true;
-                            root.set-sel = i;
-                            root.avatar-pick(a.id);
-                        }
-                    }
-                }
-            }
-
-            // Autres catégories : lignes de réglage (libellé, aide dessous, valeur ou interrupteur à droite).
-            if root.set-cat != 0: VerticalLayout {
+            VerticalLayout {
                 alignment: start;
                 spacing: 10px * root.k;
+                padding: sets.pad;
 
-                for r[i] in root.set-rows: set-row := Rectangle {
-                    height: r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
+                for r[i] in root.set-rows: set-row-box := Rectangle {
+                    height: r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
+                  set-row := Rectangle {
+                    x: (1 - sets.rw-e(i)) * 60px * root.k;
+                    width: parent.width;
+                    height: parent.height;
+                    opacity: sets.rw-e(i);
                     border-radius: 12px * root.k;
                     property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
+                    property <bool> still: r.kind == "info" || r.kind == "profile";
                     background: r.kind == "info" ? transparent
+                        : r.kind == "profile" ? #ffffff0d
                         : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                         : self.sel ? #ffffff2e : row-area.has-hover ? #ffffff1f : #ffffff12;
                     border-width: self.sel && r.kind != "action" ? 2px : 0px;
@@ -4952,21 +5418,37 @@ export component AppWindow inherits Window {
                     transform-scale: self.sel ? 1.015 : 1.0;
                     animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
+                    // Compte : avatar et nom
+                    if r.kind == "profile": Rectangle {
+                        x: 18px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 72px * root.k;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: #ffffff1f;
+                        if root.has-avatar: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: root.avatar;
+                            image-fit: fill;
+                        }
+                    }
                     VerticalLayout {
-                        x: 20px * root.k;
-                        width: parent.width - 300px * root.k;
+                        x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
+                        // Place à droite seulement pour une valeur, un choix ou un interrupteur.
+                        width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") ? 20px * root.k : 280px * root.k);
                         alignment: center;
                         spacing: 3px * root.k;
                         if r.label != "": Text {
                             text: r.label;
                             color: white;
-                            font-size: 16px * root.k;
-                            font-weight: r.kind == "action" ? 700 : 600;
+                            font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
+                            font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                             overflow: elide;
                         }
                         if r.hint != "": Text {
                             text: r.hint;
-                            color: r.kind == "info" ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
+                            color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
                             font-size: 13px * root.k;
                             wrap: word-wrap;
                         }
@@ -5001,10 +5483,10 @@ export component AppWindow inherits Window {
                             commands: "M 2 4 L 6 8 L 10 4";
                         }
                     }
-                    // Action avec une valeur (taille du cache...)
+                    // Action avec une valeur (taille du cache, « Modifier »...)
                     if r.kind == "action" && r.value != "": Text {
-                        x: parent.width - 200px * root.k;
-                        width: 180px * root.k;
+                        x: parent.width - 260px * root.k;
+                        width: 240px * root.k;
                         height: parent.height;
                         text: r.value;
                         color: #ffffffd9;
@@ -5012,6 +5494,7 @@ export component AppWindow inherits Window {
                         font-weight: 600;
                         horizontal-alignment: right;
                         vertical-alignment: center;
+                        overflow: elide;
                     }
                     if r.kind == "toggle": Rectangle {
                         x: parent.width - self.width - 20px * root.k;
@@ -5030,13 +5513,14 @@ export component AppWindow inherits Window {
                         }
                     }
                     row-area := TouchArea {
-                        enabled: r.kind != "info";
+                        enabled: !set-row.still;
                         clicked => {
                             root.set-in = true;
                             root.set-sel = i;
                             root.settings-activate(r.key);
                         }
                     }
+                  }
                 }
             }
         }
@@ -5120,6 +5604,477 @@ export component AppWindow inherits Window {
                 }
             }
         }
+
+        // ---------------------------------------------------- Choix de la photo de profil
+        // Page au premier plan : catégories (une par « entreprise » des noms d'avatars), grille qui
+        // défile pour garder l'avatar choisi à l'écran. Entrée applique l'avatar (arc qui tourne,
+        // puis coche verte) ; Échap revient au compte.
+        property <float> av-p: root.av-open ? 1 : 0;
+        animate av-p { duration: 260ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        if sets.av-p > 0.01: Rectangle {
+            background: Theme.bg;
+            opacity: sets.av-p;
+            transform-scale: 0.94 + 0.06 * sets.av-p;
+            TouchArea { }
+
+            Text {
+                x: 32px * root.k;
+                y: 8px * root.k;
+                height: 44px * root.k;
+                text: "Photo de profil";
+                color: Theme.text;
+                font-size: 28px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Text {
+                x: 32px * root.k;
+                y: 48px * root.k;
+                height: 22px * root.k;
+                text: root.av-total == 0 ? "Chargement des avatars…"
+                    : root.av-groups.length > 1 ? root.av-total + " avatars en " + root.av-groups.length + " catégories · Entrée pour choisir, Échap pour revenir"
+                    : root.av-total + " avatars · Entrée pour choisir, Échap pour revenir";
+                color: Theme.muted;
+                font-size: 14px * root.k;
+                vertical-alignment: center;
+            }
+            // Avatar actuel, en haut à droite
+            Text {
+                x: parent.width - 32px * root.k - 56px * root.k - 12px * root.k - self.width;
+                y: 10px * root.k;
+                height: 56px * root.k;
+                text: "Actuelle";
+                color: Theme.muted;
+                font-size: 14px * root.k;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                x: parent.width - 32px * root.k - self.width;
+                y: 10px * root.k;
+                width: 56px * root.k;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: #ffffff1f;
+                border-width: 2px * root.k;
+                border-color: Theme.accent2;
+                if root.has-avatar: Image {
+                    x: 3px * root.k;
+                    y: 3px * root.k;
+                    width: parent.width - 6px * root.k;
+                    height: parent.height - 6px * root.k;
+                    source: root.avatar;
+                    image-fit: fill;
+                }
+            }
+
+            // Catégories
+            if sets.av-multi: Rectangle {
+                x: 32px * root.k;
+                y: 80px * root.k;
+                width: 250px * root.k;
+                height: sets.av-gh;
+                clip: true;
+                TouchArea {
+                    scroll-event(e) => {
+                        if (e.delta-y < 0) {
+                            root.g-top = max(0, min(root.av-groups.length - sets.g-vis, root.g-top + 1));
+                        } else if (e.delta-y > 0) {
+                            root.g-top = max(0, root.g-top - 1);
+                        }
+                        return EventResult.accept;
+                    }
+                }
+                Rectangle {
+                    y: (root.av-group - root.g-top) * (sets.g-h + 6px * root.k);
+                    animate y { duration: 300ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
+                    height: sets.g-h;
+                    border-radius: 10px * root.k;
+                    background: #ffffff1f;
+                    Rectangle {
+                        border-radius: parent.border-radius;
+                        background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                        opacity: !root.h-focus && root.av-zone == 0 ? 1 : 0;
+                        animate opacity { duration: 200ms; }
+                    }
+                }
+                for g[i] in root.av-groups: Rectangle {
+                    y: (i - root.g-top) * (sets.g-h + 6px * root.k);
+                    animate y { duration: 200ms; easing: ease-out; }
+                    height: sets.g-h;
+                    border-radius: 10px * root.k;
+                    background: avg-area.has-hover && i != root.av-group ? #ffffff14 : transparent;
+                    Text {
+                        x: 16px * root.k;
+                        width: parent.width - 70px * root.k;
+                        height: parent.height;
+                        text: g.title;
+                        color: white;
+                        font-size: 16px * root.k;
+                        font-weight: i == root.av-group ? 700 : 500;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: parent.width - 60px * root.k;
+                        width: 46px * root.k;
+                        height: parent.height;
+                        text: g.count;
+                        color: #ffffffb3;
+                        font-size: 13px * root.k;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                    avg-area := TouchArea {
+                        clicked => {
+                            root.av-group = i;
+                            root.av-zone = 0;
+                            root.avatar-group(i);
+                        }
+                    }
+                }
+            }
+
+            // Grille des avatars de la catégorie
+            Rectangle {
+                x: sets.av-gx;
+                y: 80px * root.k;
+                width: sets.av-gw;
+                height: sets.av-gh;
+                clip: true;
+                TouchArea {
+                    scroll-event(e) => {
+                        if (e.delta-y < 0) {
+                            sets.av-scroll(1);
+                        } else if (e.delta-y > 0) {
+                            sets.av-scroll(-1);
+                        }
+                        return EventResult.accept;
+                    }
+                }
+                Rectangle {
+                    x: 14px * root.k;
+                    y: 14px * root.k - root.av-top * sets.av-ch;
+                    animate y { duration: 260ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                    for a[i] in root.avatar-items: cell := Rectangle {
+                        property <int> line: floor(i / sets.av-cols);
+                        // Seules les rangées proches de l'écran sont dessinées.
+                        visible: self.line >= root.av-top - 1 && self.line <= root.av-top + sets.av-rows;
+                        property <float> e: sets.ai-e(self.line - root.av-top);
+                        x: mod(i, sets.av-cols) * sets.av-cw;
+                        y: self.line * sets.av-ch + (1 - self.e) * 40px * root.k;
+                        opacity: self.e;
+                        width: sets.av-cw;
+                        height: sets.av-ch;
+                        property <bool> sel: !root.h-focus && root.av-zone == 1 && i == root.av-sel;
+                        property <bool> lit: self.sel || av-area.has-hover;
+                        property <bool> busy: a.id == root.av-busy;
+                        property <bool> done: a.id == root.av-current;
+                        // Appui : la case s'écrase puis rebondit.
+                        property <int> press: root.av-press;
+                        property <bool> squash;
+                        changed press => {
+                            if (self.sel) {
+                                self.squash = true;
+                                squash-t.running = true;
+                            }
+                        }
+                        squash-t := Timer {
+                            interval: 110ms;
+                            running: false;
+                            triggered => {
+                                self.running = false;
+                                cell.squash = false;
+                            }
+                        }
+                        ring := Rectangle {
+                            x: (sets.av-cw - sets.av) / 2;
+                            y: 6px * root.k;
+                            width: sets.av;
+                            height: sets.av;
+                            border-radius: self.width / 2;
+                            background: cell.lit ? #ffffff26 : #ffffff12;
+                            border-width: cell.lit ? 4px * root.k : cell.done ? 3px * root.k : 0px;
+                            border-color: cell.done ? #4ade80 : Theme.accent2;
+                            transform-scale: cell.squash ? 0.92 : cell.lit ? 1.14 : 1.0;
+                            animate transform-scale { duration: 240ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            animate background { duration: 160ms; }
+                            // Image en fondu à son arrivée.
+                            Image {
+                                x: 6px * root.k;
+                                y: 6px * root.k;
+                                width: parent.width - 12px * root.k;
+                                height: parent.height - 12px * root.k;
+                                source: a.image;
+                                image-fit: fill;
+                                opacity: !a.has-image ? 0 : cell.busy ? 0.45 : 1.0;
+                                animate opacity { duration: 220ms; }
+                            }
+                            // Avatar en cours d'envoi : arc qui tourne.
+                            if cell.busy: Path {
+                                width: parent.width;
+                                height: parent.height;
+                                viewbox-width: 100;
+                                viewbox-height: 100;
+                                fill: transparent;
+                                stroke: white;
+                                stroke-width: 4px * root.k;
+                                commands: "M 50 6 A 44 44 0 0 1 94 50";
+                                transform-rotation: mod(animation-tick() / 1ms, 900) / 900 * 360deg;
+                            }
+                            // Avatar appliqué : coche verte qui apparaît en rebond.
+                            Rectangle {
+                                x: parent.width - self.width + 2px * root.k;
+                                y: parent.height - self.height + 2px * root.k;
+                                width: 30px * root.k;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: #16a34a;
+                                border-width: 2px * root.k;
+                                border-color: Theme.bg;
+                                transform-scale: cell.done ? 1.0 : 0.0;
+                                animate transform-scale { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                                Path {
+                                    width: 16px * root.k;
+                                    height: 16px * root.k;
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    viewbox-width: 16;
+                                    viewbox-height: 16;
+                                    fill: transparent;
+                                    stroke: white;
+                                    stroke-width: 2.4px * root.k;
+                                    commands: "M 2.5 8.5 L 6.5 12.5 L 13.5 3.5";
+                                }
+                            }
+                        }
+                        Marquee {
+                            x: 4px * root.k;
+                            y: sets.av + 16px * root.k;
+                            width: parent.width - 8px * root.k;
+                            text: a.title;
+                            text-color: cell.lit ? white : Theme.muted;
+                            font-size: 13px * root.k;
+                            horizontal-alignment: center;
+                            active: cell.sel;
+                            height: self.preferred-height;
+                        }
+                        av-area := TouchArea {
+                            x: ring.x;
+                            y: ring.y;
+                            width: ring.width;
+                            height: ring.height;
+                            clicked => {
+                                root.av-zone = 1;
+                                root.av-sel = i;
+                                if (root.av-busy == "") {
+                                    root.av-press += 1;
+                                    root.avatar-pick(a.id);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Barre de défilement (s'il y a plus de rangées que l'écran n'en montre).
+                if sets.av-lines > sets.av-rows: Rectangle {
+                    x: parent.width - 6px * root.k;
+                    width: 4px * root.k;
+                    height: parent.height;
+                    border-radius: 2px * root.k;
+                    background: #ffffff14;
+                    Rectangle {
+                        y: parent.height * root.av-top / sets.av-lines;
+                        animate y { duration: 260ms; easing: ease-out; }
+                        height: parent.height * sets.av-rows / sets.av-lines;
+                        border-radius: 2px * root.k;
+                        background: #ffffff66;
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------- Saisie d'une adresse (Réseau)
+        // Mode TV : ↑ ↓ pour choisir, Entrée pour écrire au clavier à l'écran.
+        property <float> ad-p: root.addr-edit > 0 ? 1 : 0;
+        animate ad-p { duration: 220ms; easing: ease-out; }
+        property <float> adk-p: root.addr-edit > 0 && root.tv-mode && root.addr-osk ? 1 : 0;
+        animate adk-p { duration: 260ms; easing: ease-in-out; }
+        if sets.ad-p > 0.01: Rectangle {
+            y: -root.header-h;
+            height: parent.height + root.header-h;
+            background: #000000b3.transparentize(1 - sets.ad-p);
+            TouchArea { }
+
+            property <length> dw: min(self.width - 64px * root.k, 620px * root.k);
+            property <length> dh: 290px * root.k;
+            adlg := FocusScope {
+                x: (parent.width - parent.dw) / 2;
+                y: (1 - sets.adk-p) * (parent.height - parent.dh) / 2 + sets.adk-p * 20px * root.k
+                    + (1 - sets.ad-p) * 30px * root.k;
+                width: parent.dw;
+                height: parent.dh;
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                    if (event.repeat && event.text == Key.Return) {
+                        return EventResult.accept;
+                    }
+                    // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                    if (root.loading && event.text == Key.Escape) {
+                        root.cancel-open();
+                        return EventResult.accept;
+                    }
+                    if (root.tv-mode && root.addr-osk) {
+                        if (ad-osk.key(event.text)) {
+                            return EventResult.accept;
+                        }
+                        if (event.text == Key.Escape) {
+                            root.addr-osk = false;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        root.addr-close();
+                        return EventResult.accept;
+                    }
+                    if (!root.tv-mode) {
+                        return EventResult.reject;
+                    }
+                    // Champ (0), puis Enregistrer (1) et Annuler (2, à gauche).
+                    if (event.text == Key.UpArrow) {
+                        root.addr-field = 0;
+                    } else if (event.text == Key.DownArrow) {
+                        root.addr-field = root.addr-field == 0 ? 1 : root.addr-field;
+                    } else if (event.text == Key.LeftArrow && root.addr-field == 1) {
+                        root.addr-field = 2;
+                    } else if (event.text == Key.RightArrow && root.addr-field == 2) {
+                        root.addr-field = 1;
+                    } else if (event.text == Key.Return) {
+                        if (root.addr-field == 0) {
+                            root.addr-osk = true;
+                        } else if (root.addr-field == 1) {
+                            root.addr-save(root.addr-edit, root.addr-text);
+                        } else {
+                            root.addr-close();
+                        }
+                    } else if (event.text == Key.Backspace) {
+                        root.addr-close();
+                    }
+                    return EventResult.accept;
+                }
+
+                Rectangle {
+                    border-radius: 20px * root.k;
+                    background: Theme.glass;
+                    border-width: 1px;
+                    border-color: Theme.glass-border;
+                }
+                VerticalLayout {
+                    padding: 26px * root.k;
+                    spacing: 6px * root.k;
+                    alignment: start;
+
+                    Text {
+                        text: root.addr-edit == 1 ? "Adresse principale" : "Adresse de secours";
+                        color: white;
+                        font-size: 22px * root.k;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: root.addr-edit == 1 ? "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
+                            : "Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune.";
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: 4px * root.k;
+                    }
+                    Field {
+                        k: root.k;
+                        label: "Adresse du serveur";
+                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : "10.8.0.5:8096";
+                        text <=> root.addr-text;
+                        shown: root.addr-text;
+                        tv: root.tv-mode;
+                        selected: root.tv-mode && !root.addr-osk && root.addr-field == 0;
+                        editing: root.addr-osk;
+                        error: root.addr-err;
+                        init => {
+                            if (!root.tv-mode) {
+                                self.focus-input();
+                            }
+                        }
+                        accepted => {
+                            root.addr-save(root.addr-edit, root.addr-text);
+                        }
+                        clicked => {
+                            root.addr-field = 0;
+                            root.addr-osk = true;
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 14px * root.k;
+                        height: 44px * root.k;
+
+                        ActionButton {
+                            text: "Annuler";
+                            font: 15px * root.k;
+                            focused: root.tv-mode && !root.addr-osk && root.addr-field == 2;
+                            clicked => {
+                                root.addr-close();
+                            }
+                        }
+                        ActionButton {
+                            text: root.addr-busy ? "Vérification…" : "Enregistrer";
+                            font: 15px * root.k;
+                            focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
+                            clicked => {
+                                root.addr-save(root.addr-edit, root.addr-text);
+                            }
+                        }
+                    }
+                }
+            }
+
+            ad-osk := Osk {
+                x: (parent.width - self.width) / 2;
+                y: adlg.y + parent.dh + 16px * root.k + (1 - sets.adk-p) * 60px * root.k;
+                width: min(parent.width - 80px * root.k, 760px * root.k);
+                visible: root.tv-mode && sets.adk-p > 0.01;
+                k: root.k;
+                active: root.addr-osk;
+                text: root.addr-text;
+                ok-label: "Enregistrer";
+                erase(t) => {
+                    return root.text-backspace("\u{8}" + t);
+                }
+                edited(t) => {
+                    root.addr-text = t;
+                }
+                done => {
+                    root.addr-osk = false;
+                    root.addr-save(root.addr-edit, root.addr-text);
+                }
+                leave-up => {
+                    root.addr-osk = false;
+                }
+                leave-down => {
+                    root.addr-osk = false;
+                    root.addr-field = 1;
+                }
+            }
+
+            if root.addr-busy && sets.adk-p < 0.5: Bubble {
+                x: (parent.width - self.width) / 2;
+                y: parent.height - self.height - 28px * root.k;
+                k: root.k;
+                max-w: parent.width - 80px * root.k;
+                text: "Vérification de l'adresse…";
+            }
+        }
     }
 
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
@@ -5129,7 +6084,7 @@ export component AppWindow inherits Window {
         y: 0px;
         width: parent.width;
         k: root.k;
-        can-back: root.can-back;
+        can-back: root.back-ok;
         show-home: true;
         enter: root.page-e;
         title-color: root.offline ? #4ade80 : Theme.text;
@@ -5153,6 +6108,9 @@ export component AppWindow inherits Window {
         avatar: root.avatar;
         clock: root.clock;
         offline: root.offline;
+        dl-text: root.dl-pill;
+        dl-p: root.dl-p;
+        dl-paused: root.dl-paused;
         activate(i) => {
             root.right-activate(i);
         }
@@ -5202,6 +6160,15 @@ export component AppWindow inherits Window {
                     }
                 }
                 key-pressed(event) => {
+                    // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                    if (event.repeat && event.text == Key.Return) {
+                        return EventResult.accept;
+                    }
+                    // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                    if (root.loading && event.text == Key.Escape) {
+                        root.cancel-open();
+                        return EventResult.accept;
+                    }
                     if (!root.menu-open) {
                         return EventResult.reject;
                     }
@@ -5327,6 +6294,15 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+                if (event.repeat && event.text == Key.Return) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
                 if (event.text == Key.LeftArrow) {
                     root.sr-sel = 0;
                 } else if (event.text == Key.RightArrow) {
@@ -5522,6 +6498,8 @@ export component AppWindow inherits Window {
         k: root.k;
         frame: root.video-frame;
         ready: root.p-ready;
+        buffering: root.p-buffering;
+        lost: root.p-lost;
         title: root.p-title;
         subtitle: root.p-subtitle;
         paused: root.p-paused;
@@ -5562,6 +6540,55 @@ export component AppWindow inherits Window {
     if root.veil > 0.001 && !root.playing: Rectangle {
         background: Theme.bg.transparentize(1 - root.veil);
         TouchArea { }
+    }
+
+    // Chargement qui traîne (réseau lent) : après 1,2 s, une pastille discrète le signale en bas.
+    property <bool> slow-load;
+    Timer {
+        interval: 1200ms;
+        running: root.loading && !root.slow-load;
+        triggered => {
+            root.slow-load = true;
+        }
+    }
+    changed loading => {
+        if (!root.loading) {
+            root.slow-load = false;
+        }
+    }
+    property <float> slow-p: root.slow-load && root.loading ? 1 : 0;
+    animate slow-p { duration: 300ms; easing: ease-out; }
+    if root.slow-p > 0.01 && !root.playing: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 40px * root.k + (1 - root.slow-p) * 20px * root.k;
+        opacity: root.slow-p;
+        width: slow-t.preferred-width + 80px * root.k;
+        height: 48px * root.k;
+        border-radius: self.height / 2;
+        background: Theme.glass;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        Path {
+            x: 18px * root.k;
+            y: (parent.height - self.height) / 2;
+            width: 20px * root.k;
+            height: 20px * root.k;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            fill: transparent;
+            stroke: Theme.accent2;
+            stroke-width: 3px * root.k;
+            commands: "M 50 8 A 42 42 0 0 1 92 50";
+            transform-rotation: mod(animation-tick() / 1ms, 900) / 900 * 360deg;
+        }
+        slow-t := Text {
+            x: 50px * root.k;
+            height: parent.height;
+            text: "Chargement… (Échap pour annuler)";
+            color: Theme.text;
+            font-size: 15px * root.k;
+            vertical-alignment: center;
+        }
     }
 
     // Image partagée (au-dessus du voile) pendant qu'elle vole ; un grand fond arrivé passe derrière

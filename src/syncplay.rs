@@ -67,19 +67,32 @@ fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-/// Connexion WebSocket au serveur (reconnexion automatique). À lancer une fois par session.
-pub fn connect(client: Client, state: Shared, tx: tokio::sync::mpsc::UnboundedSender<Event>) {
-    tokio::spawn(async move {
-        loop {
-            if let Err(e) = run(&client, &state, &tx).await {
-                eprintln!("turtlefin : watch party, connexion perdue ({e}), nouvel essai dans 5 s");
-            }
-            if tx.is_closed() {
+/// Connexion WebSocket au serveur, avec reconnexion automatique. Une par session : la tâche est
+/// arrêtée à la fin de la session. Jeton refusé (401 / 403 : compte déconnecté ou retiré) : on
+/// arrête, réessayer ne servirait à rien.
+pub async fn connect(client: Client, state: Shared, tx: tokio::sync::mpsc::UnboundedSender<Event>) {
+    // Serveur injoignable : 5 s, puis 10, 20, 40, 60 s au plus entre deux essais.
+    let mut wait = 5;
+    loop {
+        let start = std::time::Instant::now();
+        if let Err(e) = run(&client, &state, &tx).await {
+            let msg = e.to_string();
+            if msg.contains("401") || msg.contains("403") {
+                eprintln!("turtlefin : watch party, connexion refusée ({msg}) : jeton plus valable, arrêt");
                 return;
             }
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            // Connexion qui a tenu un moment : on repart du délai le plus court.
+            if start.elapsed() > Duration::from_secs(60) {
+                wait = 5;
+            }
+            eprintln!("turtlefin : watch party, connexion perdue ({msg}), nouvel essai dans {wait} s");
         }
-    });
+        if tx.is_closed() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(wait)).await;
+        wait = (wait * 2).min(60);
+    }
 }
 
 async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>) -> Result<()> {

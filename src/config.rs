@@ -9,11 +9,16 @@ use std::path::PathBuf;
 pub struct Saved {
     /// Adresse utilisée pour la session en cours.
     pub server: String,
-    /// Adresse du serveur sur le réseau local (vide si inconnue).
-    pub server_local: String,
-    /// Adresse distante du même serveur : Tailscale ou autre (vide si inconnue).
-    pub server_remote: String,
-    /// Paramètres réseau : passer par l'adresse distante même si la locale répond.
+    /// Adresse principale du serveur (vide si inconnue).
+    #[serde(alias = "server_local")]
+    pub server_main: String,
+    /// Adresse de secours du même serveur, essayée quand la principale ne répond pas (facultative).
+    #[serde(alias = "server_remote")]
+    pub server_backup: String,
+    /// L'adresse de secours a été retirée dans les paramètres : elle n'est plus complétée toute seule.
+    pub backup_cleared: bool,
+    /// Ancien réglage (adresse distante d'abord) : lu une fois pour ranger les adresses, puis retiré.
+    #[serde(skip_serializing)]
     pub prefer_remote: bool,
     /// Affichage : avatars GIF figés sur leur première image (moins de calcul).
     pub still_gifs: bool,
@@ -45,8 +50,21 @@ pub fn load() -> Saved {
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default();
+    let mut dirty = false;
+    if s.prefer_remote {
+        // L'adresse « distante » était préférée : elle devient la principale.
+        std::mem::swap(&mut s.server_main, &mut s.server_backup);
+        if s.server_main.is_empty() {
+            std::mem::swap(&mut s.server_main, &mut s.server_backup);
+        }
+        s.prefer_remote = false;
+        dirty = true;
+    }
     if s.device_id.is_empty() {
         s.device_id = uuid::Uuid::new_v4().to_string();
+        dirty = true;
+    }
+    if dirty {
         save(&s);
     }
     s

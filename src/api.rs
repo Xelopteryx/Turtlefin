@@ -743,7 +743,46 @@ impl Client {
     /// Bibliothèques de l'utilisateur.
     pub async fn views(&self) -> Result<Vec<Item>> {
         let r: ItemsResp = self.get("/UserViews", &[("userId", &self.user_id)]).await?;
-        Ok(r.items)
+        let mut views = r.items;
+        // Bibliothèque sans image sur le serveur : la vignette prend le fond du dernier film ou de la
+        // dernière série ajoutés (plutôt qu'une case vide).
+        let bare: Vec<(usize, tokio::task::JoinHandle<Option<Item>>)> = views
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v.image_tags.as_ref().is_none_or(|t| !t.contains_key("Primary") && !t.contains_key("Thumb")))
+            .map(|(i, v)| {
+                let (c, id) = (self.clone(), v.id.clone());
+                (i, tokio::spawn(async move { c.latest_with_backdrop(&id).await }))
+            })
+            .collect();
+        for (i, h) in bare {
+            if let Ok(Some(it)) = h.await {
+                views[i].parent_backdrop_item_id = Some(it.id.clone());
+                views[i].parent_backdrop_image_tags = it.backdrop_image_tags.clone();
+            }
+        }
+        Ok(views)
+    }
+
+    /// Dernier film ou série ajouté à une bibliothèque, ayant une image de fond.
+    async fn latest_with_backdrop(&self, parent: &str) -> Option<Item> {
+        let r: ItemsResp = self
+            .get(
+                "/Items",
+                &[
+                    ("userId", &self.user_id),
+                    ("parentId", parent),
+                    ("recursive", "true"),
+                    ("includeItemTypes", "Movie,Series"),
+                    ("imageTypes", "Backdrop"),
+                    ("sortBy", "DateCreated"),
+                    ("sortOrder", "Descending"),
+                    ("limit", "1"),
+                ],
+            )
+            .await
+            .ok()?;
+        r.items.into_iter().find(|i| i.backdrop_image_tags.as_ref().is_some_and(|t| !t.is_empty()))
     }
 
     /// « Reprendre la lecture ».
@@ -862,8 +901,9 @@ impl Client {
         self.get_bytes(&format!("/Users/{}/Images/Primary?{size}t={t}", self.user_id)).await.ok()
     }
 
-    /// Plugin GetAvatar : avatars proposés (id, nom). Vide si le plugin est absent.
-    pub async fn avatars(&self) -> Vec<(String, String)> {
+    /// Plugin GetAvatar : avatars proposés (id, nom, catégorie ; catégorie vide = ajouté à la main
+    /// sur le serveur, « Uncategorized » pour le plugin). Vide si le plugin est absent.
+    pub async fn avatars(&self) -> Vec<(String, String, String)> {
         let v: serde_json::Value = match self.get("/GetAvatar/Avatars", &[]).await {
             Ok(v) => v,
             Err(_) => return Vec::new(),
@@ -871,7 +911,13 @@ impl Client {
         v.as_array()
             .into_iter()
             .flatten()
-            .filter_map(|a| Some((a["Id"].as_str()?.to_string(), a["Name"].as_str().unwrap_or("").to_string())))
+            .filter_map(|a| {
+                Some((
+                    a["Id"].as_str()?.to_string(),
+                    a["Name"].as_str().unwrap_or("").to_string(),
+                    a["Category"].as_str().unwrap_or("").to_string(),
+                ))
+            })
             .collect()
     }
 

@@ -100,6 +100,10 @@ fn new_player() -> Result<Arc<Mpv>> {
             m.set_option("audio-device", "auto");
         }
     }
+    // Coupure courte du réseau : ffmpeg se reconnecte tout seul et reprend au même octet. Réseau muet :
+    // abandon au bout de 20 s (la lecture reprend alors quand le serveur répond, voir `play`).
+    m.set_option("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=10");
+    m.set_option("network-timeout", "20");
     // Plafonne le cache réseau.
     m.set_option("demuxer-max-bytes", "100MiB");
     m.set_option("demuxer-max-back-bytes", "25MiB");
@@ -119,7 +123,7 @@ fn new_player() -> Result<Arc<Mpv>> {
         }
     }
     m.initialize()?;
-    for p in ["time-pos", "duration", "pause", "chapter-list", "track-list"] {
+    for p in ["time-pos", "duration", "pause", "chapter-list", "track-list", "paused-for-cache"] {
         m.observe(p);
     }
     Ok(Arc::new(m))
@@ -285,6 +289,10 @@ pub async fn play(
     }
     // Prêt à signaler au groupe (après le chargement ou un saut).
     let mut sp_wait_ready = sync;
+    // Lecture d'un flux du serveur (pas d'un fichier local) : une fin prématurée est une coupure.
+    let streaming = req.test_url.is_none() && client.is_some();
+    // Connexion perdue : position où reprendre quand le serveur répondra de nouveau.
+    let mut lost_at: Option<f64> = None;
     let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
     if let Some((t, s)) = req.local_title {
         let _ = ui.upgrade_in_event_loop(move |u| {
@@ -349,6 +357,11 @@ pub async fn play(
                                 }
                             }
                         }
+                        "paused-for-cache" => {
+                            // Réseau lent : l'image s'arrête le temps de remplir le cache (indicateur).
+                            let b = v.as_bool().unwrap_or(false);
+                            let _ = ui.upgrade_in_event_loop(move |u| u.set_p_buffering(b));
+                        }
                         "duration" => {
                             cur.dur = v.as_f64().unwrap_or(0.0);
                             push_time(&ui, &cur);
@@ -407,6 +420,31 @@ pub async fn play(
                         if switching {
                             // Fin de l'ancien fichier, provoquée par le changement d'élément.
                             switching = false;
+                        } else if streaming && (lost_at.is_some() || (eof && cur.dur > 60.0 && cur.pos < cur.dur - 15.0)) {
+                            // Le flux s'arrête bien avant la fin (ou la reprise a échoué) : c'est le réseau,
+                            // pas la fin de l'épisode. Rien n'est marqué « vu » ; on reprend au même
+                            // endroit dès que le serveur répond.
+                            let at = lost_at.unwrap_or(cur.pos);
+                            lost_at = Some(at);
+                            eprintln!("turtlefin : flux interrompu à {at:.0} s ({error:?}), reprise dès le retour du serveur");
+                            let _ = ui.upgrade_in_event_loop(|u| {
+                                u.set_p_lost(true);
+                                u.set_p_buffering(false);
+                            });
+                            if let (Some(c), Some(tx)) = (client.cloned(), app.player_tx.lock().unwrap().clone()) {
+                                tokio::spawn(async move {
+                                    loop {
+                                        tokio::time::sleep(Duration::from_secs(3)).await;
+                                        if tx.is_closed() {
+                                            return;
+                                        }
+                                        if crate::discovery::reachable(&c.server).await {
+                                            let _ = tx.send("reload".to_string());
+                                            return;
+                                        }
+                                    }
+                                });
+                            }
                         } else if let Some(e) = error {
                             result = Err(anyhow!("mpv n'a pas pu lire ce média ({e})"));
                             break;
@@ -524,6 +562,29 @@ pub async fn play(
                         sp_start = start.parse().ok();
                         Ok(())
                     }
+                    // Serveur de nouveau joignable après une coupure : le flux reprend où il s'était arrêté.
+                    "reload" => match lost_at {
+                        Some(at) => {
+                            let keep = (cur.up_shown, cur.intro_shown);
+                            match load(&player, client, cur.item.clone(), at, None, &episodes, &ui) {
+                                Ok(n) => {
+                                    cur = n;
+                                    (cur.up_shown, cur.intro_shown) = keep;
+                                    last_sec = -1;
+                                    lost_at = None;
+                                    prepare_extras(&app, client, &mut cur).await;
+                                    report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
+                                    let _ = ui.upgrade_in_event_loop(|u| {
+                                        u.set_p_lost(false);
+                                        u.set_toast("Connexion rétablie : la lecture reprend.".into());
+                                    });
+                                    Ok(())
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
+                        None => Ok(()),
+                    },
                     "pause" => player.command(&["cycle", "pause"]),
                     "seek" => player.command(&["seek", arg, "relative"]),
                     "seek-to" => {
@@ -665,7 +726,14 @@ pub async fn play(
     if !cur.reported_stop {
         report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
     }
+    if let Some(at) = lost_at {
+        cur.pos = at;
+    }
     *app.last_play.lock().unwrap() = Some((cur.pos, cur.dur, cur.ended));
+    let _ = ui.upgrade_in_event_loop(|u| {
+        u.set_p_lost(false);
+        u.set_p_buffering(false);
+    });
     // Arrêt du lecteur : le thread d'événements se termine, puis l'interface libère le rendu
     // au prochain affichage, ce qui détruit le lecteur (et rend sa mémoire).
     let _ = player.command(&["quit"]);

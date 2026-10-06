@@ -26,6 +26,7 @@ anyhow = "1"
 directories = "6"
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+if-addrs = "0.15.0"
 
 [build-dependencies]
 slint-build = "1"

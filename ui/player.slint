@@ -251,6 +251,8 @@ export component PlayerView inherits Rectangle {
     in property <float> k: 1.0;
     in property <image> frame;
     in property <bool> ready;
+    in property <bool> buffering;
+    in property <bool> lost;
     in property <string> title;
     in property <string> subtitle;
     in property <bool> paused;
@@ -425,6 +427,41 @@ export component PlayerView inherits Rectangle {
         vertical-alignment: center;
     }
 
+    // Réseau lent (image arrêtée le temps de remplir le cache) ou connexion perdue : pastille au
+    // centre avec un arc qui tourne ; la lecture reprend seule.
+    if root.ready && (root.buffering || root.lost): Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: wait-t.preferred-width + 90px * root.k;
+        height: 60px * root.k;
+        border-radius: self.height / 2;
+        background: #000000b3;
+        border-width: 1px;
+        border-color: root.lost ? #f59e0b : #ffffff33;
+        Path {
+            x: 18px * root.k;
+            y: (parent.height - self.height) / 2;
+            width: 26px * root.k;
+            height: 26px * root.k;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            fill: transparent;
+            stroke: root.lost ? #fbbf24 : white;
+            stroke-width: 3px * root.k;
+            commands: "M 50 8 A 42 42 0 0 1 92 50";
+            transform-rotation: mod(animation-tick() / 1ms, 900) / 900 * 360deg;
+        }
+        wait-t := Text {
+            x: 58px * root.k;
+            height: parent.height;
+            text: root.lost ? "Connexion au serveur perdue · reprise automatique dès son retour" : "Mise en mémoire…";
+            color: white;
+            font-size: 16px * root.k;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+
     // Souris sur la vidéo : affiche les commandes ; clic = pause ; double-clic = plein écran.
     TouchArea {
         mouse-cursor: root.osd ? MouseCursor.default : MouseCursor.none;
@@ -467,6 +504,10 @@ export component PlayerView inherits Rectangle {
         }
 
         key-pressed(event) => {
+            // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
+            if (event.repeat && event.text == Key.Return) {
+                return EventResult.accept;
+            }
             if (event.text == Key.F11 || event.text == "f") {
                 root.toggle-fullscreen();
                 return EventResult.accept;
@@ -567,11 +608,9 @@ export component PlayerView inherits Rectangle {
                 } else if (event.text == Key.Return) {
                     root.toggle-pause();
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    if (root.osd) {
-                        root.hide();
-                    } else {
-                        root.command("stop");
-                    }
+                    // Aucune commande choisie (commandes masquées, ou affichées toutes seules au
+                    // démarrage / par la souris) : Échap quitte la lecture, sans étape de plus.
+                    root.command("stop");
                 }
                 return EventResult.accept;
             }

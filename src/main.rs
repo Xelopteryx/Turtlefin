@@ -91,11 +91,20 @@ struct App {
     missing_seasons: Mutex<(String, i64, Vec<i64>)>,
     /// Watch party (SyncPlay) : état du groupe, connexion déjà ouverte.
     sp: syncplay::Shared,
-    sp_connected: AtomicBool,
+    /// Fiche en cours d'ouverture : les appuis suivants sur Entrée sont ignorés jusqu'à la fin.
+    opening: AtomicBool,
+    /// Connexion de la watch party de la session en cours : (jeton, tâche WebSocket, tâche des événements).
+    sp_conn: Mutex<Option<(String, tokio::task::JoinHandle<()>, tokio::task::JoinHandle<()>)>>,
     /// Configuration du compte Jellyfin (Paramètres > Lecture).
     user_cfg: Mutex<serde_json::Value>,
-    /// Avatars GetAvatar proposés : (id, nom).
-    avatars: Mutex<Vec<(String, String)>>,
+    /// Avatars GetAvatar proposés, rangés par catégorie.
+    avatars: Mutex<Vec<AvatarGroup>>,
+    /// Catégorie d'avatars affichée (les chargements d'images d'une autre catégorie s'arrêtent).
+    av_gen: AtomicU64,
+    /// Avatars de la catégorie affichée, nombre d'images déjà demandées, file de téléchargement.
+    av_shown: Mutex<(Vec<(String, String)>, usize, Arc<tokio::sync::Semaphore>)>,
+    /// Avatar sélectionné (seul celui-ci est animé).
+    av_focus_gen: AtomicU64,
     /// Dernière recherche lancée (les réponses plus anciennes sont ignorées).
     search_gen: AtomicU64,
     /// Page Seerr affichée.
@@ -105,6 +114,8 @@ struct App {
     /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
     dl_queue: Mutex<std::collections::VecDeque<(String, String)>>,
     dl_current: Mutex<Option<(String, String, f32)>>,
+    /// Transfert en pause (réseau perdu) : nombre d'essais ratés d'affilée (0 = pas en pause).
+    dl_fails: std::sync::atomic::AtomicU32,
     /// Pas de serveur joignable : seuls les téléchargements sont accessibles.
     offline: AtomicBool,
     /// D'où part la pile de pages : "downloads" (fiches des téléchargements) ou l'accueil.
@@ -127,7 +138,7 @@ struct App {
     play_start: Mutex<Option<f64>>,
     /// Serveurs trouvés par la dernière recherche.
     found: Mutex<Vec<discovery::Found>>,
-    /// Serveur choisi, en attente de connexion : (adresse locale, adresse distante).
+    /// Serveur choisi, en attente de connexion : (adresse principale, adresse de secours).
     pending_server: Mutex<Option<(String, String)>>,
     /// Saisie manuelle en cours : adresses déjà validées et celle qui attend un choix http/https.
     manual: Mutex<(Option<String>, Option<String>, Vec<String>)>,
@@ -499,7 +510,7 @@ fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
                 list.retain_mut(|a| {
                     let shown = match a.slot {
                         AnimSlot::Login(_) => screen == "login",
-                        AnimSlot::Picker(_) => screen == "settings",
+                        AnimSlot::Picker(_) => screen == "settings" && u.get_av_open(),
                         AnimSlot::Header => screen != "login",
                     };
                     if !shown || now < a.due {
@@ -657,31 +668,26 @@ async fn start_session(app: Arc<App>, client: api::Client) {
         {
             let old = config::load();
             let mut saved = client.to_saved();
-            saved.prefer_remote = old.prefer_remote;
             saved.still_gifs = old.still_gifs;
             saved.no_backdrop = old.no_backdrop;
             // Adresses du serveur : celles choisies à l'écran des serveurs, sinon déduites de l'adresse saisie.
             match app.pending_server.lock().unwrap().take() {
-                Some((local, remote)) => {
-                    saved.server_local = local;
-                    saved.server_remote = remote;
+                Some((main, backup)) => {
+                    saved.server_main = main;
+                    saved.server_backup = backup;
                 }
-                None => {
-                    if discovery::is_local_url(&client.server) {
-                        saved.server_local = client.server.clone();
-                    } else {
-                        saved.server_remote = client.server.clone();
-                    }
-                }
+                None => saved.server_main = client.server.clone(),
             }
             // Le même serveur (même identifiant) garde ses adresses connues.
             let server_id = discovery::probe(&reqwest::Client::new(), &client.server).await.map(|i| i.0).unwrap_or_default();
-            if !server_id.is_empty() && server_id == old.server_id {
-                if saved.server_local.is_empty() {
-                    saved.server_local = old.server_local.clone();
-                }
-                if saved.server_remote.is_empty() {
-                    saved.server_remote = old.server_remote.clone();
+            if !server_id.is_empty() && server_id == old.server_id && saved.server_backup.is_empty() {
+                if saved.server_main == old.server_main || saved.server_main == old.server_backup {
+                    // Adresse déjà connue : les deux adresses enregistrées restent telles quelles.
+                    saved.server_main = old.server_main.clone();
+                    saved.server_backup = old.server_backup.clone();
+                } else {
+                    // Nouvelle adresse du même serveur : l'ancienne principale passe en secours.
+                    saved.server_backup = old.server_main.clone();
                 }
             }
             saved.server_id = server_id.clone();
@@ -863,6 +869,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
             config::forget_account(&c.user_id);
         }
     }
+    stop_syncplay(app);
     config::clear_token();
     *app.client.lock().unwrap() = None;
     app.bg_id.lock().unwrap().clear();
@@ -899,12 +906,17 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     // Essais : --play=ID[@SECONDES] lance directement la lecture.
     let arg = app.play_arg.lock().unwrap().take();
     if let Some(id) = arg.as_deref().and_then(|p| p.strip_prefix("open:")) {
-        // Essais : --open=ID ouvre directement une fiche (après l'accueil), --open=downloads les téléchargements.
+        // Essais : --open=ID ouvre directement une fiche (après l'accueil), --open=downloads les téléchargements,
+        // --open=settings les paramètres.
         let (a, id) = (app.clone(), id.to_string());
         app.rt.spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             let a2 = a.clone();
-            let _ = a.ui().upgrade_in_event_loop(move |_| if id == "downloads" { open_downloads(&a2) } else { push_detail(&a2, id) });
+            let _ = a.ui().upgrade_in_event_loop(move |_| match id.as_str() {
+                "downloads" => open_downloads(&a2),
+                "settings" => open_settings(&a2),
+                _ => push_detail(&a2, id),
+            });
         });
     } else if let Some(p) = arg {
         let (id, at) = p.split_once('@').map(|(i, t)| (i.to_string(), t.parse::<f64>().ok())).unwrap_or((p.clone(), None));
@@ -930,6 +942,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     }
     load_header_avatar(&app, &client);
     start_syncplay(&app, &client);
+    resume_downloads(&app, &client);
     app.can_download.store(client.can_download().await, Ordering::SeqCst);
     load_tab(app, client).await;
 }
@@ -1347,15 +1360,21 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
 // ---------------------------------------------------------------------------
 // Watch party (SyncPlay)
 // ---------------------------------------------------------------------------
+/// Connexion de la watch party pour le compte de la session (celle d'un autre compte est fermée).
 fn start_syncplay(app: &Arc<App>, client: &api::Client) {
-    if app.sp_connected.swap(true, Ordering::SeqCst) {
+    let mut conn = app.sp_conn.lock().unwrap();
+    if conn.as_ref().is_some_and(|(token, ..)| *token == client.token) {
         return;
+    }
+    if let Some((_, ws, events)) = conn.take() {
+        ws.abort();
+        events.abort();
     }
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<syncplay::Event>();
     let (c, sp) = (client.clone(), app.sp.clone());
-    app.rt.spawn(async move { syncplay::connect(c, sp, tx) });
+    let ws = app.rt.spawn(syncplay::connect(c, sp, tx));
     let app2 = app.clone();
-    app.rt.spawn(async move {
+    let events = app.rt.spawn(async move {
         while let Some(ev) = rx.recv().await {
             match ev {
                 syncplay::Event::Group => refresh_party(&app2),
@@ -1389,6 +1408,15 @@ fn start_syncplay(app: &Arc<App>, client: &api::Client) {
             }
         }
     });
+    *conn = Some((client.token.clone(), ws, events));
+}
+
+/// Fin de session : la connexion de la watch party du compte est fermée.
+fn stop_syncplay(app: &Arc<App>) {
+    if let Some((_, ws, events)) = app.sp_conn.lock().unwrap().take() {
+        ws.abort();
+        events.abort();
+    }
 }
 
 /// Écran Watch party : groupe actuel ou liste des groupes.
@@ -1820,7 +1848,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
 }
 
 // ---------------------------------------------------------------------------
-// Serveurs : recherche (local + Tailscale), saisie manuelle, paramètres réseau
+// Serveurs : recherche (réseaux de la machine, VPN compris), saisie manuelle, paramètres réseau
 // ---------------------------------------------------------------------------
 fn open_servers(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
@@ -1848,8 +1876,8 @@ fn search_servers(app: &Arc<App>) {
                     id: f.id.clone().into(),
                     name: f.name.clone().into(),
                     version: f.version.clone().into(),
-                    local: f.local.clone().unwrap_or_default().into(),
-                    remote: f.remote.clone().unwrap_or_default().into(),
+                    main: f.main.clone().unwrap_or_default().into(),
+                    backup: f.backup.clone().unwrap_or_default().into(),
                 })
                 .collect();
             let n = rows.len() as i32;
@@ -1861,13 +1889,12 @@ fn search_servers(app: &Arc<App>) {
     });
 }
 
-/// Serveur choisi : écran de connexion sur la meilleure adresse.
-fn choose_server(app: &Arc<App>, local: String, remote: String) {
-    let prefer_remote = config::load().prefer_remote;
-    *app.pending_server.lock().unwrap() = Some((local.clone(), remote.clone()));
+/// Serveur choisi : écran de connexion sur la principale si elle répond, sinon sur celle de secours.
+fn choose_server(app: &Arc<App>, main: String, backup: String) {
+    *app.pending_server.lock().unwrap() = Some((main.clone(), backup.clone()));
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let best = discovery::pick(&local, &remote, prefer_remote).await;
+        let best = discovery::pick(&main, &backup).await;
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             u.set_server(best.into());
             u.set_manual_open(false);
@@ -1966,11 +1993,12 @@ fn manual_choice(app: &Arc<App>, url: String) {
     }
 }
 
-/// Une des deux adresses du serveur est inconnue : recherche discrète en arrière-plan du même
-/// serveur (même identifiant) pour la compléter, puis passage sur l'adresse préférée.
+/// Pas d'adresse de secours : recherche discrète en arrière-plan du même serveur (même identifiant)
+/// à une autre adresse (autre réseau, VPN...), puis passage sur la principale si elle répond.
 fn complete_addresses(app: &Arc<App>, client: &api::Client) {
     let saved = config::load();
-    if !saved.server_local.is_empty() && !saved.server_remote.is_empty() {
+    // Adresse de secours retirée exprès dans les paramètres : on ne la remet pas.
+    if !saved.server_backup.is_empty() || saved.backup_cleared {
         return;
     }
     let (app2, base) = (app.clone(), client.server.clone());
@@ -1979,13 +2007,14 @@ fn complete_addresses(app: &Arc<App>, client: &api::Client) {
         let Some((id, ..)) = discovery::probe(&http, &base).await else { return };
         let Some(f) = discovery::discover().await.into_iter().find(|f| f.id == id) else { return };
         let mut s = config::load();
-        if s.server_local.is_empty() {
-            s.server_local = f.local.unwrap_or_default();
+        // Adresse de secours : une adresse trouvée du même serveur, autre que la principale.
+        if s.server_main.is_empty() {
+            s.server_main = base.clone();
         }
-        if s.server_remote.is_empty() {
-            s.server_remote = f.remote.unwrap_or_default();
+        if s.server_backup.is_empty() {
+            s.server_backup = [f.main, f.backup].into_iter().flatten().find(|a| *a != s.server_main).unwrap_or_default();
         }
-        let best = discovery::pick(&s.server_local, &s.server_remote, s.prefer_remote).await;
+        let best = discovery::pick(&s.server_main, &s.server_backup).await;
         if !best.is_empty() && best != base {
             s.server = best.clone();
             if let Some(c) = app2.client.lock().unwrap().as_mut() {
@@ -1997,7 +2026,7 @@ fn complete_addresses(app: &Arc<App>, client: &api::Client) {
 }
 
 // ---------------------------------------------------------------------------
-// Paramètres : Profil (avatar), Lecture, Réseau, Affichage, Compte
+// Paramètres : Compte (avatar), Lecture, Sous-titres, Affichage, Réseau, À propos
 // ---------------------------------------------------------------------------
 const LANGS: [(&str, &str); 9] = [
     ("", "Aucune préférence"),
@@ -2052,8 +2081,9 @@ fn cache_size() -> u64 {
     std::fs::read_dir(dir).map(|d| d.flatten().filter_map(|e| e.metadata().ok()).map(|m| m.len()).sum()).unwrap_or(0)
 }
 
-/// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » / « action » / « info »).
-/// Catégories : 0 Profil · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Compte · 6 À propos.
+/// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » /
+/// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
+/// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let row = |key: &str, label: &str, hint: &str, value: String, kind: &str, on: bool| SettingRow {
         key: key.into(),
@@ -2067,6 +2097,29 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let c = app.user_cfg.lock().unwrap().clone();
     let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
     match cat {
+        0 => {
+            let saved = config::load();
+            let (who, srv) = app.client().map(|c| (c.user_name, c.server)).unwrap_or((saved.user_name.clone(), String::new()));
+            let (n, groups) = {
+                let g = app.avatars.lock().unwrap();
+                (g.iter().map(|g| g.items.len()).sum::<usize>(), g.len())
+            };
+            let place = if srv.is_empty() { "Hors ligne".to_string() } else { format!("Connecté à {srv}") };
+            let mut v = vec![row("profile", &who, &place, String::new(), "profile", false)];
+            if n > 0 {
+                let hint = if groups > 1 {
+                    format!("{n} avatars proposés par le serveur, en {groups} catégories.")
+                } else {
+                    format!("{n} avatars proposés par le serveur.")
+                };
+                v.push(row("avatar", "Photo de profil", &hint, "Changer".into(), "action", false));
+            } else {
+                v.push(row("info", "", "Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide).", String::new(), "info", false));
+            }
+            v.push(row("switch", "Changer de compte", "Les comptes enregistrés restent disponibles.", String::new(), "action", false));
+            v.push(row("logout", "Se déconnecter", "Le compte est retiré de cet appareil.", String::new(), "action", false));
+            v
+        }
         1 => vec![
             row("alang", "Langue audio préférée", "Choisie à l'ouverture d'un film ou d'un épisode, si elle existe.", label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
             row("defaudio", "Piste audio par défaut du fichier", "Sans langue préférée, la piste marquée « par défaut » est lue.", String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
@@ -2090,24 +2143,25 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         4 => {
             let saved = config::load();
             let current = app.client().map(|c| c.server).unwrap_or_default();
-            vec![
-                row("prefer_local", "Privilégier l'adresse locale", "Si elle répond, sinon l'adresse distante (Tailscale...).", String::new(), "toggle", !saved.prefer_remote),
-                row("info", "", &format!("Adresse locale : {}", if saved.server_local.is_empty() { "inconnue" } else { &saved.server_local }), String::new(), "info", false),
-                row("info", "", &format!("Adresse distante : {}", if saved.server_remote.is_empty() { "inconnue" } else { &saved.server_remote }), String::new(), "info", false),
-                row("info", "", &format!("Utilisée en ce moment : {current}"), String::new(), "info", false),
-                row("server", "Sélectionner un serveur", "", String::new(), "action", false),
-            ]
+            let main = if saved.server_main.is_empty() { "Aucune".to_string() } else { saved.server_main.clone() };
+            let backup = if saved.server_backup.is_empty() {
+                "Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)".to_string()
+            } else {
+                format!("{} · essayée quand la principale ne répond pas", saved.server_backup)
+            };
+            let mut v = vec![
+                row("addr_main", "Adresse principale", &main, "Modifier".into(), "action", false),
+                row("addr_backup", "Adresse de secours", &backup, "Modifier".into(), "action", false),
+            ];
+            if !saved.server_main.is_empty() && !saved.server_backup.is_empty() {
+                v.push(row("swap", "Échanger les deux adresses", "L'adresse de secours devient la principale.", String::new(), "action", false));
+            }
+            let now = if current.is_empty() { "Hors ligne : aucune adresse ne répond.".to_string() } else { format!("Connecté en ce moment par {current}") };
+            v.push(row("info", "", &now, String::new(), "info", false));
+            v.push(row("server", "Rechercher un autre serveur", "Serveurs Jellyfin trouvés sur tes réseaux (local et VPN).", String::new(), "action", false));
+            v
         }
         5 => {
-            let who = app.client().map(|c| c.user_name).unwrap_or_default();
-            vec![
-                row("info", "", &format!("Connecté en tant que {who}"), String::new(), "info", false),
-                row("switch", "Changer de compte", "Les comptes enregistrés restent disponibles.", String::new(), "action", false),
-                row("logout", "Se déconnecter", "Le compte est retiré de cet appareil.", String::new(), "action", false),
-                row("quit", "Fermer l'application", "", String::new(), "action", false),
-            ]
-        }
-        6 => {
             let size = cache_size();
             let srv = app.client().map(|c| c.server).unwrap_or_default();
             let up = app.update_state.lock().unwrap().clone();
@@ -2131,11 +2185,25 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 row("update", label, &hint, value, "action", false),
                 row("info", "", &format!("Serveur : {srv}"), String::new(), "info", false),
                 row("info", "", &format!("Appareil : {}", app.device_id), String::new(), "info", false),
-                row("clearcache", "Vider le cache d'images", "Affiches et vignettes gardées sur le disque ; elles seront retéléchargées.", format!("{} Mo", size >> 20), "action", false),
+                row("clearcache", "Vider le cache d'images", "Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés.", format!("{} Mo", size >> 20), "action", false),
+                row("quit", "Fermer Turtlefin", "Quitte l'application.", String::new(), "action", false),
             ]
         }
         _ => Vec::new(),
     }
+}
+
+/// Ligne réglable suivante (`dir` = 1) ou précédente (-1) : les lignes d'information sont sautées.
+fn settings_step(rows: &ModelRc<SettingRow>, sel: i32, dir: i32) -> i32 {
+    let n = rows.row_count() as i32;
+    let mut i = sel + dir;
+    while (0..n).contains(&i) {
+        if rows.row_data(i as usize).is_some_and(|r| r.kind != "info" && r.kind != "profile") {
+            return i;
+        }
+        i += dir;
+    }
+    if sel < 0 { -1 } else { sel }
 }
 
 /// Choix proposés pour un réglage « choice » : (titre, [(valeur, libellé)], valeur actuelle).
@@ -2274,6 +2342,8 @@ fn open_settings(app: &Arc<App>) {
         u.set_set_cat(0);
         u.set_set_sel(0);
         u.set_set_in(false);
+        u.set_av_open(false);
+        u.set_addr_edit(0);
         u.set_h_focus(false);
         u.set_screen("settings".into());
     }
@@ -2281,33 +2351,225 @@ fn open_settings(app: &Arc<App>) {
     load_avatars(app);
 }
 
-/// Avatars proposés par GetAvatar (images décodées une fois, GIF compris : première image).
+/// Avatars d'une catégorie : (id, nom).
+#[derive(Clone)]
+struct AvatarGroup {
+    name: String,
+    items: Vec<(String, String)>,
+}
+
+const NO_CATEGORY: &str = "Sans catégorie";
+
+/// Catégorie d'un avatar : celle du plugin, sinon le début du nom (« Netflix-03 » -> « Netflix »),
+/// sinon « Sans catégorie » (avatars ajoutés à la main sur le serveur : « Uncategorized »).
+fn avatar_group(name: &str, category: &str) -> String {
+    let c = category.trim();
+    if !c.is_empty() && !c.eq_ignore_ascii_case("uncategorized") {
+        return c.to_string();
+    }
+    let name = name.trim();
+    if uuid::Uuid::parse_str(name).is_ok() {
+        return NO_CATEGORY.into();
+    }
+    let name = ["gif", "png", "jpg", "jpeg", "webp"]
+        .iter()
+        .find_map(|e| name.strip_suffix(&format!(".{e}")).or_else(|| name.strip_suffix(&format!(".{}", e.to_uppercase()))))
+        .unwrap_or(name);
+    // « Entreprise-12 », « Entreprise 12 », « Entreprise_12 » : le nombre suit un séparateur.
+    let stem = name.trim_end_matches(|ch: char| ch.is_ascii_digit());
+    if stem.len() < name.len() && stem.ends_with(['-', '_', ' ', '#']) {
+        let stem = stem.trim_end_matches(['-', '_', ' ', '.', '#']).trim();
+        if stem.chars().any(char::is_alphabetic) {
+            return stem.to_string();
+        }
+    }
+    NO_CATEGORY.into()
+}
+
+/// Rangement des avatars : catégories par ordre alphabétique (« Sans catégorie » à la fin),
+/// avatars par numéro dans chaque catégorie.
+fn group_avatars(list: Vec<(String, String, String)>) -> Vec<AvatarGroup> {
+    let mut groups: Vec<AvatarGroup> = Vec::new();
+    for (id, name, cat) in list {
+        let g = avatar_group(&name, &cat);
+        let name = if uuid::Uuid::parse_str(name.trim()).is_ok() { "Sans nom".to_string() } else { name };
+        match groups.iter_mut().find(|x| x.name.to_lowercase() == g.to_lowercase()) {
+            Some(x) => x.items.push((id, name)),
+            None => {
+                // Nom affiché : première lettre en majuscule (« netflix » -> « Netflix »).
+                let mut ch = g.chars();
+                let shown = ch.next().map(|f| f.to_uppercase().collect::<String>() + ch.as_str()).unwrap_or_default();
+                groups.push(AvatarGroup { name: shown, items: vec![(id, name)] });
+            }
+        }
+    }
+    let num = |n: &str| -> (String, u64) {
+        let stem = n.trim_end_matches(|c: char| c.is_ascii_digit());
+        (stem.to_lowercase(), n[stem.len()..].parse().unwrap_or(0))
+    };
+    for g in &mut groups {
+        g.items.sort_by_key(|(_, n)| num(n));
+    }
+    groups.sort_by_key(|g| (g.name == NO_CATEGORY, g.name.to_lowercase()));
+    groups
+}
+
+/// Avatars proposés par GetAvatar : la liste seulement (les images sont chargées à l'ouverture du
+/// choix, catégorie par catégorie).
 fn load_avatars(app: &Arc<App>) {
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let list = client.avatars().await;
-        *app2.avatars.lock().unwrap() = list.clone();
-        let names: Vec<(String, String)> = list.clone();
+        let groups = group_avatars(client.avatars().await);
+        *app2.avatars.lock().unwrap() = groups.clone();
+        let a3 = app2.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
-            let rows: Vec<CardData> = names.iter().map(|(id, n)| CardData { id: id.clone().into(), title: n.clone().into(), ..Default::default() }).collect();
-            u.set_avatar_items(ModelRc::new(VecModel::from(rows)));
-            u.set_has_getavatar(!names.is_empty());
+            let rows: Vec<CardData> =
+                groups.iter().map(|g| CardData { id: g.name.clone().into(), title: g.name.clone().into(), count: g.items.len() as i32, ..Default::default() }).collect();
+            u.set_av_total(groups.iter().map(|g| g.items.len() as i32).sum());
+            u.set_av_groups(ModelRc::new(VecModel::from(rows)));
+            if u.get_screen().as_str() == "settings" {
+                refresh_settings(&a3);
+                if u.get_av_open() {
+                    show_avatar_group(&a3, u.get_av_group());
+                }
+            }
         });
-        for (i, (id, _)) in list.into_iter().enumerate() {
-            let (c, ui) = (client.clone(), app2.ui());
-            app2.rt.spawn(async move {
-                let Ok(bytes) = c.get_bytes(&format!("/GetAvatar/Image/{id}")).await else { return };
-                let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 160, h: 160, radius: 0.5, top_only: false }))
-                    .await
-                    .ok()
-                    .flatten()
-                else {
-                    return;
-                };
-                let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Picker(i), &id, frames));
-            });
+    });
+}
+
+/// Ouvre le choix de l'avatar (Compte > Photo de profil).
+fn open_avatar_picker(app: &Arc<App>) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let multi = app.avatars.lock().unwrap().len() > 1;
+    u.set_av_group(0);
+    u.set_g_top(0);
+    // Plusieurs catégories : la sélection commence sur la liste des catégories (un Entrée de trop
+    // ne change pas l'avatar).
+    u.set_av_zone(if multi { 0 } else { 1 });
+    u.set_av_open(true);
+    show_avatar_group(app, 0);
+}
+
+/// Taille des avatars dans la grille (pixels).
+const AV_PX: u32 = 144;
+
+/// Image fixe d'un avatar gardée sur le disque (première image, réduite, ronde : quelques dizaines
+/// de Ko au lieu d'un GIF de plus d'un Mo).
+fn avatar_still_path(id: &str) -> Option<std::path::PathBuf> {
+    api::image_cache_dir().map(|d| d.join(format!("avatar_{id}_{AV_PX}.png")))
+}
+
+/// Avatars d'une catégorie : la grille est remplie tout de suite (sans image), puis les images des
+/// rangées visibles sont chargées (voir `avatar_want`). Seul l'avatar sélectionné est animé.
+fn show_avatar_group(app: &Arc<App>, gi: i32) {
+    let Some(group) = app.avatars.lock().unwrap().get(gi.max(0) as usize).cloned() else { return };
+    app.av_gen.fetch_add(1, Ordering::SeqCst);
+    stop_anims(|s| matches!(s, AnimSlot::Picker(_)));
+    *app.av_shown.lock().unwrap() = (group.items.clone(), 0, Arc::new(tokio::sync::Semaphore::new(4)));
+    if let Some(u) = app.ui().upgrade() {
+        let rows: Vec<CardData> = group.items.iter().map(|(id, n)| CardData { id: id.clone().into(), title: n.clone().into(), ..Default::default() }).collect();
+        u.set_avatar_items(ModelRc::new(VecModel::from(rows)));
+        u.set_av_top(0);
+        u.set_av_sel(0);
+    }
+    // Premières rangées tout de suite ; la grille demande la suite en défilant.
+    avatar_want(app, 48);
+}
+
+/// La grille montre (ou va montrer) les `n` premiers avatars : images fixes de ceux qui manquent.
+fn avatar_want(app: &Arc<App>, n: i32) {
+    let Some(client) = app.client() else { return };
+    let gen = app.av_gen.load(Ordering::SeqCst);
+    let (todo, permits) = {
+        let mut shown = app.av_shown.lock().unwrap();
+        let end = (n.max(0) as usize).min(shown.0.len());
+        if end <= shown.1 {
+            return;
         }
+        let todo: Vec<(usize, String)> = (shown.1..end).map(|i| (i, shown.0[i].0.clone())).collect();
+        shown.1 = end;
+        (todo, shown.2.clone())
+    };
+    for (i, id) in todo {
+        let (c, a, permits) = (client.clone(), app.clone(), permits.clone());
+        app.rt.spawn(async move {
+            let _p = permits.acquire().await.ok()?;
+            if a.av_gen.load(Ordering::SeqCst) != gen {
+                return None;
+            }
+            let path = avatar_still_path(&id);
+            let buf = match path.as_ref().and_then(|p| std::fs::read(p).ok()) {
+                Some(png) => tokio::task::spawn_blocking(move || decode(&png, None)).await.ok()??,
+                None => {
+                    let bytes = c.get_bytes(&format!("/GetAvatar/Image/{id}")).await.ok()?;
+                    tokio::task::spawn_blocking(move || {
+                        let buf = decode(&bytes, Some(Shape { w: AV_PX, h: AV_PX, radius: 0.5, top_only: false }))?;
+                        if let Some(p) = path {
+                            let _ = std::fs::create_dir_all(p.parent()?);
+                            let _ = image::save_buffer(&p, buf.as_bytes(), buf.width(), buf.height(), image::ExtendedColorType::Rgba8);
+                        }
+                        Some(buf)
+                    })
+                    .await
+                    .ok()??
+                }
+            };
+            if a.av_gen.load(Ordering::SeqCst) != gen {
+                return None;
+            }
+            let _ = a.ui().upgrade_in_event_loop(move |u| {
+                // L'avatar sélectionné déjà animé garde son animation.
+                let animated = ANIMS.with_borrow(|l| l.iter().any(|x| x.slot == AnimSlot::Picker(i)));
+                if !animated {
+                    anim_set(&u, AnimSlot::Picker(i), &id, slint::Image::from_rgba8(buf));
+                }
+            });
+            Some(())
+        });
+    }
+}
+
+/// Avatar sélectionné dans la grille : animé (GIF) après une courte pause ; les autres restent sur
+/// leur première image. -1 : choix fermé, tout est libéré.
+fn avatar_focus(app: &Arc<App>, i: i32) {
+    let my = app.av_focus_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    stop_anims(|s| matches!(s, AnimSlot::Picker(_)));
+    let Some(u) = app.ui().upgrade() else { return };
+    if i < 0 {
+        app.av_gen.fetch_add(1, Ordering::SeqCst);
+        u.set_avatar_items(ModelRc::new(VecModel::from(Vec::<CardData>::new())));
+        return;
+    }
+    if STILL_GIFS.load(Ordering::Relaxed) || u.get_av_zone() != 1 {
+        return;
+    }
+    let Some(card) = u.get_avatar_items().row_data(i as usize) else { return };
+    let Some(client) = app.client() else { return };
+    let (a, id) = (app.clone(), card.id.to_string());
+    app.rt.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(180)).await;
+        if a.av_focus_gen.load(Ordering::SeqCst) != my {
+            return;
+        }
+        // Fichier d'origine (souvent plus d'un Mo) : pas gardé sur le disque, seule l'image fixe l'est.
+        let Ok(bytes) = client.get_bytes(&format!("/GetAvatar/Image/{id}")).await else { return };
+        if !bytes.starts_with(b"GIF8") {
+            return;
+        }
+        let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: AV_PX, h: AV_PX, radius: 0.5, top_only: false }))
+            .await
+            .ok()
+            .flatten()
+        else {
+            return;
+        };
+        let a2 = a.clone();
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            if a2.av_focus_gen.load(Ordering::SeqCst) == my && u.get_av_open() {
+                show_frames(&u, AnimSlot::Picker(i as usize), &id, frames);
+            }
+        });
     });
 }
 
@@ -2333,22 +2595,33 @@ fn load_header_avatar(app: &Arc<App>, client: &api::Client) {
     });
 }
 
+/// Avatar choisi : envoyé au serveur ; la case tourne pendant l'envoi, puis reçoit une coche.
 fn set_avatar(app: &Arc<App>, id: String) {
     let Some(client) = app.client() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_av_busy(id.clone().into());
+    }
     let app2 = app.clone();
     app.rt.spawn(async move {
         let r = match client.set_avatar(&id).await {
             Ok(()) => Ok(()),
             Err(_) => client.upload_avatar(&id).await,
         };
+        let ok = r.is_ok();
         let msg = match r {
             Ok(()) => {
                 load_header_avatar(&app2, &client);
-                "Avatar modifié.".to_string()
+                "Photo de profil modifiée.".to_string()
             }
             Err(e) => format!("Avatar impossible : {}", human_err(&e)),
         };
-        let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_av_busy("".into());
+            if ok {
+                u.set_av_current(id.into());
+            }
+            u.set_toast(msg.into());
+        });
     });
 }
 
@@ -2393,10 +2666,6 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         }
         "switch" => end_session(app, false),
         "update" => update_action(app),
-        "prefer_local" => {
-            let now_remote = config::load().prefer_remote;
-            set_prefer_remote(app, !now_remote);
-        }
         "backdrop" => {
             let mut saved = config::load();
             saved.no_backdrop = !saved.no_backdrop;
@@ -2421,6 +2690,28 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             load_avatars(app);
         }
         "server" => open_servers(app),
+        "avatar" => open_avatar_picker(app),
+        "addr_main" | "addr_backup" => {
+            let saved = config::load();
+            if let Some(u) = app.ui().upgrade() {
+                let main = key == "addr_main";
+                u.set_addr_text(if main { saved.server_main } else { saved.server_backup }.into());
+                u.set_addr_err("".into());
+                u.set_addr_osk(false);
+                u.set_addr_field(0);
+                u.set_addr_edit(if main { 1 } else { 2 });
+            }
+        }
+        "swap" => {
+            let mut s = config::load();
+            std::mem::swap(&mut s.server_main, &mut s.server_backup);
+            config::save(&s);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast("Adresses échangées.".into());
+            }
+            refresh_settings(app);
+            repick_server(app);
+        }
         "logout" => {
             if let Some(u) = app.ui().upgrade() {
                 u.invoke_logout();
@@ -2433,15 +2724,12 @@ fn settings_activate(app: &Arc<App>, key: &str) {
     }
 }
 
-/// Préférence réseau : enregistrée, puis la meilleure adresse est choisie tout de suite.
-fn set_prefer_remote(app: &Arc<App>, prefer: bool) {
-    let mut saved = config::load();
-    saved.prefer_remote = prefer;
-    config::save(&saved);
-    refresh_settings(app);
+/// Adresses changées : la principale si elle répond, sinon celle de secours, tout de suite.
+fn repick_server(app: &Arc<App>) {
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let best = discovery::pick(&saved.server_local, &saved.server_remote, prefer).await;
+        let saved = config::load();
+        let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
         if best.is_empty() {
             return;
         }
@@ -2449,11 +2737,81 @@ fn set_prefer_remote(app: &Arc<App>, prefer: bool) {
             c.set_server(&best);
         }
         let mut s = config::load();
-        s.server = best.clone();
+        s.server = best;
         config::save(&s);
         let a3 = app2.clone();
-        let _ = app2.ui().upgrade_in_event_loop(move |_| refresh_settings(&a3));
-        let _ = best;
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            if u.get_screen().as_str() == "settings" {
+                refresh_settings(&a3);
+            }
+        });
+    });
+}
+
+/// Adresse saisie dans Paramètres > Réseau (1 principale, 2 secours) : vérifiée (http et https si
+/// rien n'est précisé), elle doit mener au même serveur. Vide : l'adresse de secours est retirée.
+fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    let text = text.trim().trim_end_matches('/').to_string();
+    let fail = |a: &Arc<App>, msg: String| {
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_addr_busy(false);
+            u.set_addr_err(msg.into());
+        });
+    };
+    if text.is_empty() {
+        if which == 1 {
+            fail(app, "L'adresse principale ne peut pas être vide.".into());
+            return;
+        }
+        let mut s = config::load();
+        s.server_backup.clear();
+        s.backup_cleared = true;
+        config::save(&s);
+        if let Some(u) = app.ui().upgrade() {
+            u.set_addr_edit(0);
+            u.set_toast("Adresse de secours retirée.".into());
+        }
+        refresh_settings(app);
+        repick_server(app);
+        return;
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_addr_busy(true);
+        u.set_addr_err("".into());
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let hits = discovery::resolve(&text).await;
+        // http et https répondent : https (son certificat a été accepté).
+        let Some((url, id, name)) = hits.iter().find(|h| h.0.starts_with("https://")).or(hits.first()).cloned() else {
+            fail(&app2, format!("Aucun serveur Jellyfin ne répond à « {text} »."));
+            return;
+        };
+        let mut s = config::load();
+        if !s.server_id.is_empty() && id != s.server_id {
+            fail(&app2, format!("Cette adresse mène à un autre serveur ({name}). Pour en changer : « Rechercher un autre serveur »."));
+            return;
+        }
+        let other = if which == 1 { &s.server_backup } else { &s.server_main };
+        if *other == url {
+            fail(&app2, if which == 1 { "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses ».".into() } else { "C'est déjà l'adresse principale.".into() });
+            return;
+        }
+        if which == 1 {
+            s.server_main = url.clone();
+        } else {
+            s.server_backup = url.clone();
+            s.backup_cleared = false;
+        }
+        config::save(&s);
+        let a3 = app2.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_addr_busy(false);
+            u.set_addr_edit(0);
+            u.set_toast(format!("Adresse enregistrée : {url}").into());
+            refresh_settings(&a3);
+        });
+        repick_server(&app2);
     });
 }
 
@@ -2477,13 +2835,11 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
         e.push((v.name.clone(), format!("lib:{}", v.id), false));
     }
     e.push(("Compte".into(), String::new(), true));
-    for (label, action) in [
-        ("Changer de compte", "switch"),
-        ("Sélectionner un serveur", "server"),
-        ("Paramètres", "settings"),
-        ("Se déconnecter", "logout"),
-        ("Fermer l'application", "quit"),
-    ] {
+    for (label, action) in [("Changer de compte", "switch"), ("Sélectionner un serveur", "server"), ("Se déconnecter", "logout")] {
+        e.push((label.into(), action.into(), false));
+    }
+    e.push(("Application".into(), String::new(), true));
+    for (label, action) in [("Paramètres", "settings"), ("Fermer Turtlefin", "quit")] {
         e.push((label.into(), action.into(), false));
     }
     let _ = app.ui().upgrade_in_event_loop(move |u| {
@@ -2529,9 +2885,26 @@ fn push_detail(app: &Arc<App>, id: String) {
             *app.lib_return.lock().unwrap() = Some((lib, u.get_l_sel().max(0) as usize));
         }
     }
+    // Une fiche est déjà en train de s'ouvrir (Entrée répété, serveur lent) : on ne l'empile pas
+    // une seconde fois.
+    if app.opening.load(Ordering::SeqCst) {
+        return;
+    }
     app.stack.lock().unwrap().push(id.clone());
     sync_can_back(app);
     start_detail(app, id);
+}
+
+/// Échap pendant le chargement d'une page : le résultat sera ignoré, la page affichée reste.
+fn cancel_open(app: &Arc<App>) {
+    app.gen.fetch_add(1, Ordering::SeqCst);
+    if app.opening.swap(false, Ordering::SeqCst) {
+        app.stack.lock().unwrap().pop();
+        sync_can_back(app);
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.invoke_open_failed();
+    }
 }
 
 /// Le bouton Retour n'a de sens que si l'on a navigué depuis l'accueil.
@@ -2603,8 +2976,11 @@ fn start_detail(app: &Arc<App>, id: String) {
         begin_loading(&u);
     }
     let app2 = app.clone();
+    app.opening.store(true, Ordering::SeqCst);
     app.rt.spawn(async move {
-        load_detail(app2, client, id, my_gen).await;
+        load_detail(app2.clone(), client, id, my_gen).await;
+        // Fin du chargement (réussi, échoué ou devenu inutile) : Entrée ouvre de nouveau.
+        app2.opening.store(false, Ordering::SeqCst);
     });
 }
 
@@ -2780,7 +3156,11 @@ fn go_back(app: &Arc<App>) {
 async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64) {
     let ui = app.ui();
 
-    let item = match client.item(&id).await {
+    // Serveur qui ne répond plus : on abandonne au bout de 10 s plutôt que de bloquer la page.
+    let item = match tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
+        .await
+        .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")))
+    {
         Ok(i) => i,
         Err(e) => {
             if e.downcast_ref::<api::Unauthorized>().is_some() {
@@ -2790,18 +3170,15 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             if app.gen.load(Ordering::SeqCst) != my_gen {
                 return;
             }
-            // On annule cette ouverture et on revient à l'écran précédent.
-            let prev_empty = {
-                let mut s = app.stack.lock().unwrap();
-                s.pop();
-                s.is_empty()
-            };
+            // On annule cette ouverture : la page d'où l'on vient est toujours affichée (l'écran ne
+            // change qu'une fois la fiche chargée), l'image partagée revole vers sa carte.
+            app.stack.lock().unwrap().pop();
             let msg = format!("Impossible d'ouvrir la fiche : {}", human_err(&e));
+            let a = app.clone();
             let _ = ui.upgrade_in_event_loop(move |u| {
+                sync_can_back(&a);
+                u.invoke_open_failed();
                 u.set_toast(msg.into());
-                u.set_loading(false);
-                let screen = if prev_empty { "home" } else { "detail" };
-                u.set_screen(screen.into());
             });
             return;
         }
@@ -3226,6 +3603,9 @@ async fn play_flow_with(
         } else if let Some(id) = top {
             // Recharge la fiche : l'état « Reprendre » / « vu » a pu changer.
             start_detail(&app2, id);
+        } else if u.get_screen().as_str() == "home" {
+            // Lecture lancée depuis l'accueil (Reprendre, À suivre) : rangées à jour.
+            go_home(&app2);
         }
         if let Some(m) = msg {
             u.set_toast(m.into());
@@ -3289,12 +3669,17 @@ fn main() -> anyhow::Result<()> {
         search_gen: AtomicU64::new(0),
         user_cfg: Mutex::new(serde_json::Value::Null),
         sp: Arc::default(),
-        sp_connected: AtomicBool::new(false),
+        sp_conn: Mutex::new(None),
+        opening: AtomicBool::new(false),
         avatars: Mutex::new(Vec::new()),
+        av_gen: AtomicU64::new(0),
+        av_shown: Mutex::new((Vec::new(), 0, Arc::new(tokio::sync::Semaphore::new(4)))),
+        av_focus_gen: AtomicU64::new(0),
         detail_streams: Mutex::new(Default::default()),
         missing_seasons: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
+        dl_fails: std::sync::atomic::AtomicU32::new(0),
         offline: AtomicBool::new(false),
         last_play: Mutex::new(None),
         bg_id: Mutex::new(String::new()),
@@ -3456,7 +3841,7 @@ fn main() -> anyhow::Result<()> {
         move |i| {
             let f = app.found.lock().unwrap().get(i as usize).cloned();
             if let Some(f) = f {
-                choose_server(&app, f.local.unwrap_or_default(), f.remote.unwrap_or_default());
+                choose_server(&app, f.main.unwrap_or_default(), f.backup.unwrap_or_default());
             }
         }
     });
@@ -3484,6 +3869,43 @@ fn main() -> anyhow::Result<()> {
     ui.on_avatar_pick({
         let app = app.clone();
         move |id| set_avatar(&app, id.to_string())
+    });
+
+    ui.on_avatar_group({
+        let app = app.clone();
+        move |i| show_avatar_group(&app, i)
+    });
+
+    ui.on_avatar_want({
+        let app = app.clone();
+        move |n| avatar_want(&app, n)
+    });
+
+    ui.on_avatar_focus({
+        let app = app.clone();
+        move |i| avatar_focus(&app, i)
+    });
+
+    // Clavier à l'écran : un caractère imprimable d'un vrai clavier est écrit tel quel (les touches
+    // spéciales de Slint sont dans la zone d'usage privé d'Unicode).
+    ui.global::<OskKeys>().on_printable(|t| {
+        let mut c = t.chars();
+        matches!((c.next(), c.next()), (Some(ch), None) if !ch.is_control() && !('\u{e000}'..='\u{f8ff}').contains(&ch))
+    });
+
+    ui.on_cancel_open({
+        let app = app.clone();
+        move || cancel_open(&app)
+    });
+
+    ui.on_settings_step({
+        let weak = ui.as_weak();
+        move |sel, dir| weak.upgrade().map(|u| settings_step(&u.get_set_rows(), sel, dir)).unwrap_or(sel)
+    });
+
+    ui.on_addr_save({
+        let app = app.clone();
+        move |which, text| addr_save(&app, which, text.to_string())
     });
 
     // Rangées horizontales (voir `global Rows`) : défilement propre à chaque rangée, qui n'avance
@@ -3745,15 +4167,11 @@ fn main() -> anyhow::Result<()> {
         let a = app.clone();
         let mut saved = saved.clone();
         rt.spawn(async move {
-            // Ancienne session (une seule adresse) : on la range côté local ou distant.
-            if saved.server_local.is_empty() && saved.server_remote.is_empty() {
-                if discovery::is_local_url(&saved.server) {
-                    saved.server_local = saved.server.clone();
-                } else {
-                    saved.server_remote = saved.server.clone();
-                }
+            // Ancienne session (une seule adresse) : elle devient l'adresse principale.
+            if saved.server_main.is_empty() && saved.server_backup.is_empty() {
+                saved.server_main = saved.server.clone();
             }
-            let best = discovery::pick(&saved.server_local, &saved.server_remote, saved.prefer_remote).await;
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
             if !best.is_empty() {
                 saved.server = best;
             }
@@ -3831,22 +4249,35 @@ fn start_download(app: &Arc<App>) {
                 }
             }
         }
-        let msg = if added == 0 { "Déjà téléchargé.".to_string() } else { format!("Ajouté aux téléchargements ({added}).") };
+        let msg = if added > 0 {
+            format!("Ajouté aux téléchargements ({added}).")
+        } else if let Some(p) = app2.dl_current.lock().unwrap().as_ref().filter(|c| c.0 == id).map(|c| c.2) {
+            format!("Téléchargement en cours : {:.0} %.", p * 100.0)
+        } else if downloads::exists(&id) {
+            "Déjà téléchargé.".to_string()
+        } else {
+            "Déjà dans la file de téléchargement.".to_string()
+        };
+        persist_dl_queue(&app2);
         let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         run_downloads(&app2, &client);
     });
 }
 
 /// Traite la file, un élément à la fois (rien si un transfert est déjà en cours).
+/// Réseau perdu : l'élément reste en tête de file, la file se met en pause et réessaie toute seule
+/// (15 s, 30 s, 60 s, puis toutes les 2 min) ; le transfert reprend là où il s'était arrêté.
 fn run_downloads(app: &Arc<App>, client: &api::Client) {
     if app.dl_current.lock().unwrap().is_some() {
         return;
     }
     let Some((id, title)) = app.dl_queue.lock().unwrap().pop_front() else {
+        persist_dl_queue(app);
         push_dl_status(app);
         return;
     };
     *app.dl_current.lock().unwrap() = Some((id.clone(), title.clone(), 0.0));
+    persist_dl_queue(app);
     push_dl_status(app);
     let (app2, client2) = (app.clone(), client.clone());
     app.rt.spawn(async move {
@@ -3855,32 +4286,92 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
             if let Some(c) = app3.dl_current.lock().unwrap().as_mut() {
                 c.2 = p;
             }
+            app3.dl_fails.store(0, Ordering::SeqCst);
             push_dl_status(&app3);
         })
         .await;
         *app2.dl_current.lock().unwrap() = None;
-        if let Err(e) = r {
-            let msg = format!("Téléchargement impossible ({title}) : {}", human_err(&e));
-            let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        match r {
+            Ok(()) => {
+                app2.dl_fails.store(0, Ordering::SeqCst);
+            }
+            Err(e) if e.downcast_ref::<downloads::Refused>().is_some() || e.downcast_ref::<std::io::Error>().is_some() => {
+                let msg = format!("Téléchargement impossible ({title}) : {}", human_err(&e));
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            }
+            Err(e) => {
+                // Passager (réseau) : l'élément reprend sa place en tête de file, nouvel essai plus tard.
+                eprintln!("turtlefin : téléchargement interrompu ({title}) : {e}");
+                app2.dl_queue.lock().unwrap().push_front((id, title));
+                persist_dl_queue(&app2);
+                let n = app2.dl_fails.fetch_add(1, Ordering::SeqCst) + 1;
+                let wait = [15u64, 30, 60, 120][(n as usize - 1).min(3)];
+                if n == 1 {
+                    let _ = app2.ui().upgrade_in_event_loop(|u| {
+                        u.set_toast("Connexion perdue : le téléchargement reprendra tout seul.".into());
+                    });
+                }
+                push_dl_status(&app2);
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+                // Le compte a pu changer (ou la session se terminer) entre-temps.
+                if let Some(c) = app2.client() {
+                    run_downloads(&app2, &c);
+                }
+                return;
+            }
         }
         refresh_downloads(&app2);
         run_downloads(&app2, &client2);
     });
 }
 
+/// File gardée sur le disque (l'élément en cours d'abord) : elle reprend au lancement suivant.
+fn persist_dl_queue(app: &Arc<App>) {
+    let mut q: Vec<(String, String)> = app.dl_current.lock().unwrap().iter().map(|(i, t, _)| (i.clone(), t.clone())).collect();
+    q.extend(app.dl_queue.lock().unwrap().iter().cloned());
+    downloads::save_queue(&q);
+}
+
+/// Ouverture de session : la file laissée au dernier lancement reprend.
+fn resume_downloads(app: &Arc<App>, client: &api::Client) {
+    {
+        let mut q = app.dl_queue.lock().unwrap();
+        if !q.is_empty() || app.dl_current.lock().unwrap().is_some() {
+            return;
+        }
+        q.extend(downloads::load_queue().into_iter().filter(|(id, _)| !downloads::exists(id)));
+        if q.is_empty() {
+            return;
+        }
+    }
+    run_downloads(app, client);
+}
+
 fn push_dl_status(app: &Arc<App>) {
     let waiting = app.dl_queue.lock().unwrap().len();
-    let status = match app.dl_current.lock().unwrap().clone() {
+    let paused = app.dl_fails.load(Ordering::SeqCst) > 0;
+    let cur = app.dl_current.lock().unwrap().clone();
+    let (status, pill, p) = match cur {
         Some((_, title, p)) => {
             let mut s = format!("Téléchargement : {title} — {:.0} %", p * 100.0);
             if waiting > 0 {
                 s.push_str(&format!(" · {waiting} en attente"));
             }
-            s
+            (s, format!("{:.0} %", p * 100.0), p)
         }
-        None => String::new(),
+        None if paused && waiting > 0 => (
+            format!("Téléchargements en pause (connexion perdue) · {waiting} en attente · reprise automatique"),
+            "En pause".to_string(),
+            0.0,
+        ),
+        None => (String::new(), String::new(), 0.0),
     };
-    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_dl_status(status.into()));
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        u.set_dl_status(status.into());
+        u.set_dl_pill(pill.into());
+        u.set_dl_p(p);
+        u.set_dl_paused(paused);
+    });
 }
 
 fn fmt_size(b: u64) -> String {
@@ -4439,7 +4930,7 @@ fn watch_reconnect(app: &Arc<App>) {
             if saved.token.is_empty() {
                 return;
             }
-            let best = discovery::pick(&saved.server_local, &saved.server_remote, saved.prefer_remote).await;
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
             if !best.is_empty() {
                 saved.server = best;
             }
@@ -4471,4 +4962,40 @@ fn play_download(app: &Arc<App>, id: &str) {
     let Some(e) = downloads::get(id) else { return };
     let a = app.clone();
     app.rt.spawn(async move { play_local(a, e).await });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn avatar_categories() {
+        assert_eq!(avatar_group("Netflix-03", ""), "Netflix");
+        assert_eq!(avatar_group("disney_plus-12.gif", ""), "disney_plus");
+        assert_eq!(avatar_group("Pixar 7", "Uncategorized"), "Pixar");
+        assert_eq!(avatar_group("chat", ""), NO_CATEGORY);
+        assert_eq!(avatar_group("6dfcf071-9965-412c-86c0-8b293e780760", ""), NO_CATEGORY);
+        assert_eq!(avatar_group("abc123", ""), NO_CATEGORY);
+        assert_eq!(avatar_group("Steam-101", "Steam"), "Steam");
+        assert_eq!(avatar_group("Netflix-03", "Studios"), "Studios");
+        let g = group_avatars(vec![
+            ("1".into(), "netflix-10".into(), String::new()),
+            ("2".into(), "Netflix-2".into(), String::new()),
+            ("3".into(), "chat".into(), String::new()),
+            ("4".into(), "Apple-1".into(), String::new()),
+        ]);
+        let names: Vec<&str> = g.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, ["Apple", "Netflix", NO_CATEGORY]);
+        assert_eq!(g[1].items.iter().map(|i| i.0.as_str()).collect::<Vec<_>>(), ["2", "1"]);
+    }
+
+    /// Recherche réelle sur les réseaux de la machine : `cargo test --release -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn discover_now() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let t = std::time::Instant::now();
+        let found = rt.block_on(discovery::discover());
+        println!("{} ms : {:#?}", t.elapsed().as_millis(), found);
+    }
 }

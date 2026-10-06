@@ -280,6 +280,59 @@ Principes :
    `cargo build --release` dans le dossier source (`CARGO_MANIFEST_DIR`), puis relance. Vérifié sur le Pi :
    0.3.1 -> 0.4.0 en 5 min 40 s. Windows : l'exécutable en cours est renommé `.old.exe` avant la compilation.
 
+### Lot du 6 octobre 2026 (retours de l'utilisateur) : vérifié sur le PC (faux serveur + vrai serveur) et sur le Pi
+35. **Paramètres réorganisés** : catégories Compte (profil + « Photo de profil », Changer de compte, Se déconnecter),
+   Lecture, Sous-titres, Affichage, Réseau, À propos (« Fermer Turtlefin » y est, et sous « Application » dans le menu).
+   Navigation : `settings-step` (Rust) saute toutes les lignes d'information (avant : 2 au plus, d'où « Vider le
+   cache » et « Sélectionner un serveur » inaccessibles sans souris). Lignes dans un cadre avec marge : la ligne
+   choisie (zoom 1,015) n'est plus rognée. `--open=settings` pour les essais.
+36. **Choix de l'avatar** (page au premier plan, `av-open`) : catégories = `Category` du plugin, sinon début du nom
+   « Entreprise-NN » (`avatar_group`, nom en UUID = « Sans catégorie »). Grille qui défile (`av-top`), barre de
+   défilement, molette ; avatar choisi agrandi avec rebond ; Entrée : arc qui tourne pendant l'envoi, puis coche
+   verte + message. Ouverture sur la liste des catégories (un Entrée de trop ne change pas l'avatar).
+   Mémoire : images chargées seulement pour les rangées visibles (`avatar-want`), image fixe ronde gardée sur le
+   disque (`avatar_<id>_144.png`, ~35 Ko ; les GIF du serveur font ~1,3 Mo), seul l'avatar sélectionné est animé
+   (GIF téléchargé à la sélection, pas gardé). Vrai serveur : 300 avatars, PC 166 Mo, Pi 190 Mo.
+37. **Adresses** : `server_main` (principale) et `server_backup` (secours, facultative) remplacent locale / distante
+   et `prefer_remote` (ancienne session convertie : si l'adresse distante était préférée, elle devient la principale).
+   Paramètres → Réseau : modifier chaque adresse (clavier à l'écran en TV ; vérifiée, doit mener au même serveur ;
+   vide = pas de secours, `backup_cleared`), échanger, rechercher un autre serveur. Recherche (`discovery.rs`) :
+   sous-réseau de chaque interface active (VPN compris, /22 au plus, sinon le /24), voisins ARP, pairs des VPN
+   maillés en /32 (seul l'outil `tailscale` est interrogé, sans le nommer dans l'interface). Plus aucune mention
+   de Tailscale dans l'interface ni le README.
+38. Pi (vrai serveur, mode TV) : images lentes rares (une à 41-45 ms à l'ouverture d'une fiche ou du choix d'avatar,
+   sinon < 15 ms). Avatar sélectionné animé : ~22 % d'un cœur tant qu'il est affiché.
+
+39. Retours du 6 octobre (2) : choix de l'avatar avec ↑ vers la barre du haut et bouton ← visible (`sub-back` :
+   Retour ferme la sous-page). Animations : surbrillance des catégories qui glisse, lignes en cascade à chaque
+   catégorie (`rows-in`), choix de l'avatar qui entre en zoom, avatars en cascade (`av-in`), images en fondu ;
+   connexion : arrivée en cascade (`play-in`), tuile choisie qui grossit / autres estompées (`picking`), compte
+   retiré qui rétrécit puis tuiles qui glissent (`forget` + `shift-from`), formulaire qui monte en fondu.
+   Exemple de nom : « Heisenberg ».
+40. Watch party : une connexion WebSocket par session (`sp_conn` : jeton + tâches, fermée par `end_session`,
+   rouverte pour le compte suivant) ; arrêt sur 401 / 403 ; délai croissant 5 -> 60 s entre les essais. Avant :
+   une seule connexion par lancement, gardée avec le jeton du premier compte (403 en boucle après sa suppression).
+41. Fiche : échec d'ouverture (erreur serveur, 10 s sans réponse) -> on reste sur la page d'origine, l'image
+   repart vers sa carte (`open-failed`) ; avant, l'écran passait sur une fiche vide. Entrée : pas de répétition
+   quand la touche est maintenue (`event.repeat`, tous les écrans et le lecteur), fiche en cours d'ouverture =
+   appuis ignorés (`App.opening`), Entrée ignoré 600 ms à l'arrivée d'une fiche (`d-t0`) : un appui de trop ne
+   lance plus la lecture.
+
+42. Séance de tests (6 octobre, après-midi, PC + Pi, comptes test / test2, relais réseau coupable) :
+   - Téléchargements : reprise là où le transfert s'est arrêté (`Range`), file gardée dans `queue.json` et reprise
+     au lancement, pause automatique si le réseau tombe (15 s -> 2 min), pastille « 42 % » / « En pause » dans
+     la barre du haut, délai de 30 s sans données. Vérifié octet par octet après coupure.
+   - Lecture : une coupure réseau marquait l'épisode « vu » (fin de flux prise pour la fin du fichier). Désormais
+     reprise automatique au même endroit quand le serveur répond (pastille « Connexion perdue »), options de
+     reconnexion ffmpeg, pastille « Mise en mémoire… » (`paused-for-cache`). Échap quitte la lecture même si les
+     commandes sont affichées sans sélection.
+   - Accueil rechargé après une lecture lancée depuis l'accueil (Reprendre / À suivre périmés avant).
+   - Bibliothèques sans image : vignette = fond du dernier film / série ajouté.
+   - Fiche : Échap annule un chargement en cours ; pastille « Chargement… (Échap pour annuler) » après 1,2 s.
+   - Connexion (bureau) : le champ prend vraiment le clavier ; clavier à l'écran : un vrai clavier tape dedans.
+   - Onglets de l'en-tête qui ne chevauchent plus les icônes en fenêtre étroite ; titre « Watch party » en double retiré.
+   - Watch party PC (test2) + Pi (test) : rejoindre, lecture commune, pause et saut partagés, départ annoncé.
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
