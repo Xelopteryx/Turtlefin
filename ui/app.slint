@@ -3062,6 +3062,31 @@ export component AppWindow inherits Window {
                 return EventResult.reject;
             }
 
+            // Molette : un cran = une rangée (comme ↑ ↓) ; Maj + molette ou molette horizontale : dans
+            // la rangée (comme ← →). La sélection suit, la page défile comme au clavier.
+            TouchArea {
+                scroll-event(e) => {
+                    if (root.sections.length == 0 || root.h-focus) {
+                        return EventResult.reject;
+                    }
+                    let side = e.modifiers.shift ? e.delta-y : e.delta-x;
+                    if (side != 0) {
+                        if (side < 0 && root.sel-item < root.sections[root.sel-section].items.length - 1) {
+                            root.sel-item += 1;
+                        } else if (side > 0 && root.sel-item > 0) {
+                            root.sel-item -= 1;
+                        }
+                    } else if (e.delta-y < 0 && root.sel-section < root.sections.length - 1) {
+                        root.sel-item = root.home-pick(root.sel-section, root.sel-section + 1);
+                        root.sel-section += 1;
+                    } else if (e.delta-y > 0 && root.sel-section > 0) {
+                        root.sel-item = root.home-pick(root.sel-section, root.sel-section - 1);
+                        root.sel-section -= 1;
+                    }
+                    return EventResult.accept;
+                }
+            }
+
             if root.sections.length == 0: Text {
                 text: root.tab == "favorites" ? "Aucun favori pour l'instant."
                     : root.tab == "requests" ? "Aucune demande pour l'instant." : "Rien à afficher.";
@@ -4387,6 +4412,21 @@ export component AppWindow inherits Window {
                 }
                 lib.maybe-more();
                 return EventResult.accept;
+            }
+            // Molette : une ligne d'affiches par cran (comme ↑ ↓).
+            TouchArea {
+                scroll-event(e) => {
+                    if (root.lib-items.length == 0 || root.h-focus) {
+                        return EventResult.reject;
+                    }
+                    if (e.delta-y < 0 && lib.sel-row < lib.rows - 1) {
+                        root.l-sel = min(root.lib-items.length - 1, root.l-sel + lib.cols);
+                    } else if (e.delta-y > 0 && lib.sel-row > 0) {
+                        root.l-sel -= lib.cols;
+                    }
+                    lib.maybe-more();
+                    return EventResult.accept;
+                }
             }
         }
 
@@ -6625,8 +6665,12 @@ export component AppWindow inherits Window {
     property <bool> toast-on;
     changed toast => {
         root.toast-on = root.toast != "";
+        // Nouveau message pendant qu'un autre est affiché : il a droit à ses 6 s.
+        if (root.toast-on) {
+            toast-timer.restart();
+        }
     }
-    Timer {
+    toast-timer := Timer {
         interval: 6s;
         running: root.toast-on;
         triggered => {

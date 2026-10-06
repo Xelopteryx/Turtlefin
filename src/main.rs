@@ -93,6 +93,8 @@ struct App {
     sp: syncplay::Shared,
     /// Fiche en cours d'ouverture : les appuis suivants sur Entrée sont ignorés jusqu'à la fin.
     opening: AtomicBool,
+    /// Surveillance des adresses du serveur : jeton de la session surveillée (une boucle par session).
+    addr_watch: Mutex<String>,
     /// Connexion de la watch party de la session en cours : (jeton, tâche WebSocket, tâche des événements).
     sp_conn: Mutex<Option<(String, tokio::task::JoinHandle<()>, tokio::task::JoinHandle<()>)>>,
     /// Configuration du compte Jellyfin (Paramètres > Lecture).
@@ -114,6 +116,8 @@ struct App {
     /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
     dl_queue: Mutex<std::collections::VecDeque<(String, String)>>,
     dl_current: Mutex<Option<(String, String, f32)>>,
+    /// Tâche du transfert en cours (pour l'annuler).
+    dl_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Transfert en pause (réseau perdu) : nombre d'essais ratés d'affilée (0 = pas en pause).
     dl_fails: std::sync::atomic::AtomicU32,
     /// Pas de serveur joignable : seuls les téléchargements sont accessibles.
@@ -247,7 +251,11 @@ fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
     if e.downcast_ref::<api::Unauthorized>().is_some() {
         config::clear_token();
     }
-    show_login_error(ui, format!("{}", human_err(&e)));
+    // Message seul : première lettre en majuscule.
+    let m = human_err(&e);
+    let mut c = m.chars();
+    let m = c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default();
+    show_login_error(ui, format!("{m}."));
 }
 
 /// Forme finale d'une image de carte : taille exacte et coins arrondis intégrés aux pixels.
@@ -899,6 +907,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
 /// Ouvre la session : accueil (onglet affiché) avec ce client.
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
+    watch_addresses(&app, &client);
     app.offline.store(false, Ordering::SeqCst);
     let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
     sync_offline_plays(&app, &client);
@@ -2724,6 +2733,62 @@ fn settings_activate(app: &Arc<App>, key: &str) {
     }
 }
 
+/// Pendant la session, toutes les 20 s : l'adresse utilisée ne répond plus -> l'autre (si elle
+/// répond) ; on est sur la secours et la principale répond de nouveau -> retour sur la principale.
+fn watch_addresses(app: &Arc<App>, client: &api::Client) {
+    {
+        let mut w = app.addr_watch.lock().unwrap();
+        if *w == client.token {
+            return;
+        }
+        *w = client.token.clone();
+    }
+    let (a, token) = (app.clone(), client.token.clone());
+    app.rt.spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+            let Some(cur) = a.client() else { return };
+            if cur.token != token {
+                return;
+            }
+            check_address(&a).await;
+        }
+    });
+}
+
+/// Choisit tout de suite la meilleure adresse (principale si elle répond, sinon secours) et bascule
+/// si besoin. Renvoie true si l'adresse a changé.
+pub(crate) async fn check_address(app: &Arc<App>) -> bool {
+    let Some(cur) = app.client() else { return false };
+    let s = config::load();
+    if s.server_backup.is_empty() || app.offline.load(Ordering::SeqCst) {
+        return false;
+    }
+    let on_main = cur.server == s.server_main;
+    // Sur la principale et elle répond : rien à faire (cas courant, une seule requête).
+    if on_main && discovery::reachable(&cur.server).await {
+        return false;
+    }
+    let best = discovery::pick(&s.server_main, &s.server_backup).await;
+    if best.is_empty() || best == cur.server || !discovery::reachable(&best).await {
+        return false;
+    }
+    if let Some(c) = app.client.lock().unwrap().as_mut() {
+        c.set_server(&best);
+    }
+    let mut s2 = config::load();
+    s2.server = best.clone();
+    config::save(&s2);
+    let msg = if best == s.server_main {
+        "Adresse principale de nouveau joignable : retour dessus.".to_string()
+    } else {
+        format!("Adresse principale injoignable : passage par l'adresse de secours ({best}).")
+    };
+    eprintln!("turtlefin : {msg}");
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+    true
+}
+
 /// Adresses changées : la principale si elle répond, sinon celle de secours, tout de suite.
 fn repick_server(app: &Arc<App>) {
     let app2 = app.clone();
@@ -3157,10 +3222,20 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let ui = app.ui();
 
     // Serveur qui ne répond plus : on abandonne au bout de 10 s plutôt que de bloquer la page.
-    let item = match tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
+    let mut client = client;
+    let mut res = tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
         .await
-        .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")))
-    {
+        .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")));
+    // Échec réseau : l'adresse de secours répond peut-être (bascule, puis un nouvel essai).
+    if res.as_ref().is_err_and(|e| e.downcast_ref::<api::Unauthorized>().is_none()) && check_address(&app).await {
+        if let Some(c) = app.client() {
+            client = c;
+            res = tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")));
+        }
+    }
+    let item = match res {
         Ok(i) => i,
         Err(e) => {
             if e.downcast_ref::<api::Unauthorized>().is_some() {
@@ -3671,6 +3746,7 @@ fn main() -> anyhow::Result<()> {
         sp: Arc::default(),
         sp_conn: Mutex::new(None),
         opening: AtomicBool::new(false),
+        addr_watch: Mutex::new(String::new()),
         avatars: Mutex::new(Vec::new()),
         av_gen: AtomicU64::new(0),
         av_shown: Mutex::new((Vec::new(), 0, Arc::new(tokio::sync::Semaphore::new(4)))),
@@ -3679,6 +3755,7 @@ fn main() -> anyhow::Result<()> {
         missing_seasons: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
         dl_current: Mutex::new(None),
+        dl_task: Mutex::new(None),
         dl_fails: std::sync::atomic::AtomicU32::new(0),
         offline: AtomicBool::new(false),
         last_play: Mutex::new(None),
@@ -4177,8 +4254,15 @@ fn main() -> anyhow::Result<()> {
             }
             config::save(&saved);
             // Serveur injoignable : téléchargements seulement (s'il y en a).
-            if !discovery::reachable(&saved.server).await && !downloads::list().is_empty() {
-                go_offline(&a);
+            if !discovery::reachable(&saved.server).await {
+                if !downloads::list().is_empty() {
+                    go_offline(&a);
+                    return;
+                }
+                // Rien hors ligne (démarrage avant le réseau, serveur éteint) : écran de connexion, et
+                // la session se rouvre toute seule dès que le serveur répond (télé sans clavier).
+                show_login_error(&a.ui(), "Serveur injoignable : nouvel essai automatique toutes les 5 s…".into());
+                retry_start(a);
                 return;
             }
             match api::Client::from_saved(&saved) {
@@ -4202,6 +4286,41 @@ fn main() -> anyhow::Result<()> {
     // Fermeture : on quitte la watch party (sinon le serveur garde une session fantôme dans le groupe).
     leave_party_blocking(&app, &rt);
     Ok(())
+}
+
+/// Démarrage sans serveur joignable : toutes les 5 s, tant que l'écran de connexion attend (personne
+/// n'a commencé à saisir un autre compte), la session enregistrée est rouverte dès que le serveur répond.
+fn retry_start(app: Arc<App>) {
+    let token = config::load().token;
+    app.rt.clone().spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let mut saved = config::load();
+            if saved.token.is_empty() || saved.token != token || app.client().is_some() {
+                return;
+            }
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                let _ = tx.send(u.get_screen().as_str() == "login" && u.get_login_mode().as_str() == "pick" && !u.get_busy());
+            });
+            if !rx.await.unwrap_or(false) {
+                continue;
+            }
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+            if best.is_empty() || !discovery::reachable(&best).await {
+                continue;
+            }
+            saved.server = best;
+            config::save(&saved);
+            let Ok(client) = api::Client::from_saved(&saved) else { return };
+            let _ = app.ui().upgrade_in_event_loop(|u| {
+                u.set_error_text("".into());
+                u.set_screen("loading".into());
+            });
+            load_home(app, client).await;
+            return;
+        }
+    });
 }
 
 /// Quitte la watch party en cours, en attendant la réponse du serveur (2 s au plus).
@@ -4236,6 +4355,33 @@ fn start_download(app: &Arc<App>) {
             },
             _ => vec![item],
         };
+        // Déjà en cours ou en attente : un nouvel appui sur ⬇ annule (l'élément, ou toute la série / saison).
+        let ids: Vec<String> = list.iter().map(|i| i.id.clone()).collect();
+        let pending_cur = app2.dl_current.lock().unwrap().as_ref().map(|c| c.0.clone()).filter(|c| ids.contains(c));
+        let removed = {
+            let mut q = app2.dl_queue.lock().unwrap();
+            let before = q.len();
+            q.retain(|(i, _)| !ids.contains(i));
+            before - q.len()
+        };
+        if removed > 0 || pending_cur.is_some() {
+            let mut n = removed;
+            if let Some(cur) = pending_cur {
+                if let Some(h) = app2.dl_task.lock().unwrap().take() {
+                    h.abort();
+                }
+                *app2.dl_current.lock().unwrap() = None;
+                downloads::remove(&cur);
+                n += 1;
+            }
+            app2.dl_fails.store(0, Ordering::SeqCst);
+            persist_dl_queue(&app2);
+            push_dl_status(&app2);
+            let msg = if n == 1 { "Téléchargement annulé.".to_string() } else { format!("{n} téléchargements annulés.") };
+            let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            run_downloads(&app2, &client);
+            return;
+        }
         let mut added = 0;
         {
             let mut q = app2.dl_queue.lock().unwrap();
@@ -4250,7 +4396,7 @@ fn start_download(app: &Arc<App>) {
             }
         }
         let msg = if added > 0 {
-            format!("Ajouté aux téléchargements ({added}).")
+            format!("Ajouté aux téléchargements ({added}). Appuie de nouveau sur Télécharger pour annuler.")
         } else if let Some(p) = app2.dl_current.lock().unwrap().as_ref().filter(|c| c.0 == id).map(|c| c.2) {
             format!("Téléchargement en cours : {:.0} %.", p * 100.0)
         } else if downloads::exists(&id) {
@@ -4280,7 +4426,7 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
     persist_dl_queue(app);
     push_dl_status(app);
     let (app2, client2) = (app.clone(), client.clone());
-    app.rt.spawn(async move {
+    let task = app.rt.spawn(async move {
         let app3 = app2.clone();
         let r = downloads::download(&client2, &id, move |p| {
             if let Some(c) = app3.dl_current.lock().unwrap().as_mut() {
@@ -4320,9 +4466,11 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
                 return;
             }
         }
+        *app2.dl_task.lock().unwrap() = None;
         refresh_downloads(&app2);
         run_downloads(&app2, &client2);
     });
+    *app.dl_task.lock().unwrap() = Some(task);
 }
 
 /// File gardée sur le disque (l'élément en cours d'abord) : elle reprend au lancement suivant.

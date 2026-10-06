@@ -33,7 +33,15 @@ pub async fn check() -> Result<(u32, Vec<String>)> {
         .timeout(std::time::Duration::from_secs(15))
         .build()?;
     let url = format!("https://api.github.com/repos/{REPO}/compare/{local}...main");
-    let v: serde_json::Value = http.get(url).send().await?.error_for_status()?.json().await?;
+    let resp = http.get(url).send().await.map_err(|_| anyhow!("GitHub injoignable (connexion Internet ?)"))?;
+    match resp.status().as_u16() {
+        // Commit inconnu de GitHub : cette version contient des modifications pas encore publiées.
+        404 => return Err(anyhow!("cette version contient des modifications pas encore publiées sur GitHub ; rien à installer")),
+        403 | 429 => return Err(anyhow!("GitHub limite les vérifications : réessaie dans une heure")),
+        s if !(200..300).contains(&s) => return Err(anyhow!("GitHub a répondu {s}")),
+        _ => {}
+    }
+    let v: serde_json::Value = resp.json().await?;
     let ahead = v["ahead_by"].as_u64().unwrap_or(0) as u32;
     let titles = v["commits"]
         .as_array()

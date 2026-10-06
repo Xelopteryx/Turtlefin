@@ -431,14 +431,20 @@ pub async fn play(
                                 u.set_p_lost(true);
                                 u.set_p_buffering(false);
                             });
-                            if let (Some(c), Some(tx)) = (client.cloned(), app.player_tx.lock().unwrap().clone()) {
+                            if let Some(tx) = app.player_tx.lock().unwrap().clone() {
+                                let a = app.clone();
                                 tokio::spawn(async move {
                                     loop {
                                         tokio::time::sleep(Duration::from_secs(3)).await;
                                         if tx.is_closed() {
                                             return;
                                         }
-                                        if crate::discovery::reachable(&c.server).await {
+                                        // L'adresse en vigueur, ou l'autre (bascule sur la secours).
+                                        let ok = match a.client() {
+                                            Some(c) => crate::discovery::reachable(&c.server).await || crate::check_address(&a).await,
+                                            None => false,
+                                        };
+                                        if ok {
                                             let _ = tx.send("reload".to_string());
                                             return;
                                         }
@@ -566,7 +572,10 @@ pub async fn play(
                     "reload" => match lost_at {
                         Some(at) => {
                             let keep = (cur.up_shown, cur.intro_shown);
-                            match load(&player, client, cur.item.clone(), at, None, &episodes, &ui) {
+                            // Adresse peut-être changée entre-temps (secours) : le client à jour.
+                            let fresh = app.client();
+                            let c = fresh.as_ref().or(client);
+                            match load(&player, c, cur.item.clone(), at, None, &episodes, &ui) {
                                 Ok(n) => {
                                     cur = n;
                                     (cur.up_shown, cur.intro_shown) = keep;

@@ -333,6 +333,19 @@ Principes :
    - Onglets de l'en-tête qui ne chevauchent plus les icônes en fenêtre étroite ; titre « Watch party » en double retiré.
    - Watch party PC (test2) + Pi (test) : rejoindre, lecture commune, pause et saut partagés, départ annoncé.
 
+43. Suite des tests (6 octobre, soir) :
+   - Adresses : surveillance pendant la session (`watch_addresses`, 20 s) et vérification immédiate quand
+     une fiche échoue (`check_address`) : principale morte -> secours, principale revenue -> retour dessus ;
+     la reprise d'une lecture coupée passe aussi par l'adresse en vigueur.
+   - Téléchargements : ⬇ de nouveau annule (élément, saison ou série ; transfert en cours interrompu, son
+     dossier supprimé). Messages : la minuterie de 6 s repart à chaque nouveau message (avant, un message
+     arrivé pendant un autre disparaissait avec lui).
+   - Démarrage sans serveur et sans téléchargement : écran de connexion + nouvel essai toutes les 5 s, la
+     session se rouvre seule (`retry_start`) : utile au kiosque quand le Wi-Fi arrive après l'appli.
+   - Molette : accueil (rangées, Maj = dans la rangée) et bibliothèques (lignes).
+   - Mise à jour : commit absent de GitHub (404) -> message clair au lieu de l'erreur HTTP.
+   - Session révoquée côté serveur : retour à la connexion, la tuile redemande le mot de passe (vérifié).
+
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
 Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
