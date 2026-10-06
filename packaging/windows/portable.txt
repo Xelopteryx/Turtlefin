@@ -1,0 +1,2 @@
+Ce fichier rend Turtlefin portable : configuration, cache et téléchargements restent dans le dossier « data » à côté de turtlefin.exe.
+Supprime-le pour utiliser les dossiers de l'utilisateur à la place.

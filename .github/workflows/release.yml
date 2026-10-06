@@ -1,0 +1,114 @@
+# Publication d'une version : compile Turtlefin pour Windows (x64, x86) et Linux (x86_64,
+# aarch64 / Raspberry Pi), fabrique les paquets et les attache à une publication GitHub.
+#
+# Déclenchement : pousser une étiquette de version, par exemple
+#   git tag v0.9.0 && git push origin v0.9.0
+# (ou à la main depuis l'onglet Actions, pour essayer sans publier).
+#
+# Fichiers produits (noms attendus par la mise à jour intégrée, voir src/update.rs) :
+#   Turtlefin-<v>-windows-x64-setup.exe   Turtlefin-<v>-windows-x64-portable.zip
+#   Turtlefin-<v>-windows-x86-setup.exe   Turtlefin-<v>-windows-x86-portable.zip
+#   Turtlefin-<v>-linux-x86_64.AppImage   turtlefin_<v>_amd64.deb
+#   Turtlefin-<v>-linux-aarch64.AppImage  turtlefin_<v>_arm64.deb
+name: Publication
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, x86]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch == 'x64' && 'x86_64-pc-windows-msvc' || 'i686-pc-windows-msvc' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+      - name: Inno Setup et NASM
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          choco install nasm -y --no-progress
+      - name: Paquets
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: packaging\windows\build.ps1 -Arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            target/dist/*.exe
+            target/dist/*.zip
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            deb: amd64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            deb: arm64
+            runner: ubuntu-22.04-arm
+    # Ubuntu 22.04 : glibc 2.35, l'AppImage fonctionne donc sur les distributions de 2022 et après
+    # (Debian 12, Raspberry Pi OS Bookworm, Ubuntu 22.04...).
+    runs-on: ${{ matrix.runner }}
+    env:
+      TURTLEFIN_DIST: release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libfontconfig1-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libwayland-dev libmpv-dev file wget
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+      - name: Compilation
+        run: cargo build --release
+      - name: AppImage
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          sh packaging/linux/build-appimage.sh "$VERSION"
+      - name: Paquet .deb
+        run: |
+          cargo install cargo-deb --locked
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          cargo deb --no-build --output "target/turtlefin_${VERSION}_${{ matrix.deb }}.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            target/*.AppImage
+            target/*.deb
+
+  publish:
+    needs: [windows, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publication GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

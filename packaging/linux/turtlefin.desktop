@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Turtlefin
+GenericName=Client Jellyfin
+Comment=Client Jellyfin natif, léger et animé, pensé pour la télé
+Exec=turtlefin
+Icon=turtlefin
+Terminal=false
+Categories=AudioVideo;Video;Player;
+Keywords=jellyfin;media;video;tv;
+StartupWMClass=turtlefin

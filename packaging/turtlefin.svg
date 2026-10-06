@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Icône provisoire (en attendant le logo de Turtlefin) : carapace stylisée sur fond sombre. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a95bc2"/>
+      <stop offset="1" stop-color="#00a4db"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#010e18"/>
+  <path d="M128 52 L186 86 L186 154 L128 188 L70 154 L70 86 Z" fill="none" stroke="url(#g)" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M128 92 L152 106 L152 134 L128 148 L104 134 L104 106 Z" fill="url(#g)"/>
+  <path d="M128 52 L128 92 M186 86 L152 106 M186 154 L152 134 M128 188 L128 148 M70 154 L104 134 M70 86 L104 106" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+</svg>

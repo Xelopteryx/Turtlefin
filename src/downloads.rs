@@ -279,8 +279,8 @@ pub fn load_queue() -> Vec<(String, String)> {
 }
 
 pub fn root() -> PathBuf {
-    directories::ProjectDirs::from("", "", "turtlefin")
-        .map(|d| d.data_dir().join("downloads"))
+    crate::paths::data_dir()
+        .map(|d| d.join("downloads"))
         .unwrap_or_else(|| PathBuf::from("downloads"))
 }
 

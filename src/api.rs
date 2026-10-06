@@ -645,15 +645,11 @@ fn build_http() -> Result<reqwest::Client> {
 
 /// Dossier du cache d'images (Paramètres > À propos : taille, vidage).
 pub fn image_cache_dir() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "turtlefin").map(|d| d.cache_dir().join("img"))
+    crate::paths::cache_dir().map(|d| d.join("img"))
 }
 
 fn image_cache_path(item_id: &str, kind: &str, tag: Option<&str>, size_key: &str) -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "turtlefin").map(|d| {
-        d.cache_dir()
-            .join("img")
-            .join(format!("{item_id}_{kind}_{}_{size_key}.bin", tag.unwrap_or("none")))
-    })
+    image_cache_dir().map(|d| d.join(format!("{item_id}_{kind}_{}_{size_key}.bin", tag.unwrap_or("none"))))
 }
 
 impl Client {

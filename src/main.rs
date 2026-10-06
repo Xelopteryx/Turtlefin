@@ -3,6 +3,7 @@ mod config;
 mod discovery;
 mod downloads;
 mod mpv;
+mod paths;
 mod player;
 mod syncplay;
 mod update;
@@ -718,6 +719,12 @@ async fn start_session(app: Arc<App>, client: api::Client) {
 // ---------------------------------------------------------------------------
 fn login_opened(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
+    // Premier lancement (aucun serveur connu) : la recherche des serveurs plutôt qu'un écran de
+    // connexion vers une adresse vide.
+    if u.get_server().trim().is_empty() {
+        open_servers(app);
+        return;
+    }
     let server = api::normalize_server(&u.get_server());
     u.set_login_mode("pick".into());
     u.set_login_sel(0);
@@ -2193,12 +2200,13 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 "ready" => ("Redémarrer Turtlefin", "La nouvelle version est prête.".to_string(), String::new()),
                 s if s.starts_with("available:") => {
                     let rest = &s["available:".len()..];
-                    let (n, titles) = rest.split_once('|').unwrap_or((rest, ""));
-                    ("Mettre à jour", format!("Nouveautés : {}", titles.replace('|', " · ")), format!("{n} nouveauté(s)"))
+                    let (label, notes) = rest.split_once('|').unwrap_or((rest, ""));
+                    let hint = if notes.is_empty() { "Une nouvelle version est disponible.".to_string() } else { format!("Nouveautés : {}", notes.replace('|', " · ")) };
+                    ("Mettre à jour", hint, label.to_string())
                 }
                 s if s.starts_with("installing:") => ("Mise à jour en cours", s["installing:".len()..].to_string(), String::new()),
                 s if s.starts_with("error:") => ("Rechercher une mise à jour", format!("Échec : {}", &s["error:".len()..]), String::new()),
-                _ => ("Rechercher une mise à jour", "Compare cette version à celle publiée sur GitHub.".to_string(), String::new()),
+                _ => ("Rechercher une mise à jour", format!("Compare cette version à celle publiée sur GitHub ({}).", update::kind_label()), String::new()),
             };
             vec![
                 row("info", "", &format!("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", env!("CARGO_PKG_VERSION"), if short.is_empty() { "version locale" } else { short }), String::new(), "info", false),
@@ -2333,8 +2341,8 @@ fn update_action(app: &Arc<App>) {
     set(&a, "checking".into());
     app.rt.spawn(async move {
         match update::check().await {
-            Ok((0, _)) => set(&a, "uptodate".into()),
-            Ok((n, titles)) => set(&a, format!("available:{n}|{}", titles.join("|"))),
+            Ok(None) => set(&a, "uptodate".into()),
+            Ok(Some((label, notes))) => set(&a, format!("available:{label}|{}", notes.join("|"))),
             Err(e) => set(&a, format!("error:{e}")),
         }
     });

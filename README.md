@@ -4,7 +4,7 @@
 (lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur Windows et sur Linux, en particulier sur un
 Raspberry Pi 5 branché à une télé, où il remplace Jellyfin Desktop (trop gourmand, il finissait par planter).
 
-Version actuelle : **0.4.0**.
+Version actuelle : **0.9.0**.
 
 ## Ce qu'il sait faire
 
@@ -29,9 +29,43 @@ Version actuelle : **0.4.0**.
 
 ## Installer
 
-Turtlefin se compile sur l'appareil (le bouton de mise à jour se sert ensuite de ce même dossier).
+Les versions prêtes à l'emploi sont sur la page
+[Releases](https://github.com/Xelopteryx/Turtlefin/releases) : rien à compiler.
 
-### Raspberry Pi / Debian / Ubuntu
+| Système | Fichier | Remarques |
+|---|---|---|
+| Windows 64 bits | `Turtlefin-<version>-windows-x64-setup.exe` | Installeur : choix du dossier, et du mode **installé** (menu Démarrer, désinstallation) ou **portable** |
+| Windows 64 bits, sans installer | `Turtlefin-<version>-windows-x64-portable.zip` | Décompresser où l'on veut (clé USB...) et lancer `turtlefin.exe` |
+| Windows 32 bits | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | Pour les vieux PC |
+| Linux, toutes distributions | `Turtlefin-<version>-linux-x86_64.AppImage` | Version portable : `chmod +x` puis lancer le fichier |
+| Raspberry Pi (64 bits), Linux ARM | `Turtlefin-<version>-linux-aarch64.AppImage` | Idem |
+| Debian, Ubuntu, Raspberry Pi OS | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Version installée : `sudo apt install ./turtlefin_….deb` |
+
+Les versions Windows et AppImage contiennent tout (lecteur libmpv compris). Le paquet `.deb` utilise la libmpv
+du système (`libmpv2`, installée automatiquement par apt). Les AppImage et paquets demandent une distribution de
+2022 ou plus récente (Ubuntu 22.04, Debian 12, Raspberry Pi OS Bookworm…).
+
+**Version portable** : un fichier `portable` à côté de `turtlefin.exe` fait garder la configuration, les comptes,
+le cache et les téléchargements dans le dossier `data` à côté du programme ; rien n'est écrit ailleurs.
+
+### Mettre à jour
+
+**Paramètres → À propos → Rechercher une mise à jour** compare la version installée à la dernière publiée,
+puis « Mettre à jour » s'occupe de tout selon la façon dont Turtlefin est installé :
+
+| Installation | Mise à jour |
+|---|---|
+| Windows, installé | le nouvel installeur est téléchargé puis relancé en silence dans le même dossier |
+| Windows, portable | la nouvelle archive est téléchargée et ses fichiers remplacent les anciens |
+| AppImage | le nouveau fichier remplace l'ancien |
+| Paquet .deb | le paquet est installé avec `pkexec` (le mot de passe administrateur est demandé) |
+| Compilé depuis les sources | `git pull` puis recompilation dans le même dossier |
+
+« Redémarrer Turtlefin » lance ensuite la nouvelle version.
+
+### Compiler soi-même
+
+Linux (Debian, Ubuntu, Raspberry Pi OS) :
 
 ```sh
 sudo apt install git build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libmpv2 libmpv-dev
@@ -41,18 +75,20 @@ cd ~/turtlefin && cargo build --release      # premier build : une dizaine de mi
 ./target/release/turtlefin --tv
 ```
 
-### Windows
+Windows : installer Rust (https://rustup.rs), les « Outils de build Visual Studio » (charge de travail C++) et git,
+puis `cargo build --release` ; placer `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` de
+[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) à côté de
+`target/release/turtlefin.exe`.
 
-1. Installer Rust (https://rustup.rs) et les « Outils de build Visual Studio » (charge de travail C++), puis git.
-2. `git clone https://github.com/Xelopteryx/Turtlefin.git` puis `cargo build --release` dans le dossier.
-3. Télécharger `mpv-dev-x86_64-….7z` sur https://github.com/shinchiro/mpv-winbuild-cmake/releases et placer
-   `libmpv-2.dll` à côté de `target/release/turtlefin.exe`.
+### Fabriquer les paquets
 
-### Mettre à jour
-
-**Paramètres → À propos → Rechercher une mise à jour** compare la version installée à GitHub, puis
-« Mettre à jour » télécharge et recompile (quelques minutes sur un Pi ; l'appli reste utilisable), et
-« Redémarrer Turtlefin » lance la nouvelle version. À la main : `git pull && cargo build --release`.
+- **Automatiquement** : pousser une étiquette de version (`git tag v0.9.0 && git push origin v0.9.0`). GitHub
+  Actions (`.github/workflows/release.yml`) compile pour Windows x64 / x86 et Linux x86_64 / aarch64, fabrique
+  tous les fichiers ci-dessus et les publie dans une Release.
+- **À la main, Windows** : `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64`
+  (ou `x86`). Il faut Inno Setup 6, 7-Zip et, pour x86, NASM. Résultat dans `target\dist`.
+- **À la main, Linux** : `TURTLEFIN_DIST=release cargo build --release`, puis
+  `sh packaging/linux/build-appimage.sh <version>` (AppImage) et `cargo deb --no-build` (paquet, avec cargo-deb).
 
 ## Lancer
 
@@ -75,12 +111,13 @@ turtlefin "Nom" --server=http://… --tv      connexion directe (mot de passe : 
 
 | Où | Quoi |
 |---|---|
-| dossier de config de l'OS, `turtlefin/` | `session.json` (session en cours), `accounts.json` (comptes enregistrés), `prefs.json` (réglages de l'appareil), `tracks.json` (pistes par série), `userdata.json` (vu / favoris faits hors ligne) |
-| dossier de données, `turtlefin/downloads/` | téléchargements (média, affiches, fond, logo, `info.json`) |
+| dossier de config, `turtlefin/` | `session.json` (session en cours), `accounts.json` (comptes enregistrés), `prefs.json` (réglages de l'appareil), `tracks.json` (pistes par série), `userdata.json` (vu / favoris faits hors ligne) |
+| dossier de données, `turtlefin/downloads/` | téléchargements (média, affiches, fond, logo, `info.json`), `queue.json` (file en attente) |
 | dossier de cache, `turtlefin/img/` | images (vidable dans À propos) |
 
 Sous Linux : `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`.
 Sous Windows : `%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`.
+Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `cache`, `downloads`).
 
 ## Diagnostic
 

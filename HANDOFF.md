@@ -1,7 +1,7 @@
-# Turtlefin : passation de projet (état au 5 octobre 2026, version 0.4.0)
+# Turtlefin : passation de projet (état au 6 octobre 2026, version 0.9.0)
 
 Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.4.0.
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.9.0 (l'utilisateur estime l'appli finie à 99 % ; il prépare un logo).
 
 **Branches** : `main` (état d'origine), `interface-lua` (mpv en processus séparé + interface de lecture en script Lua), `libmpv` (lecteur intégré, voir ci-dessous). Le choix entre `interface-lua` et `libmpv` dépend de la mesure RAM/CPU sur le Pi (section 9).
 
@@ -61,7 +61,11 @@ src/mpv.rs      liaison minimale libmpv (chargement dynamique) : lecteur, propri
 src/video.rs    texture OpenGL de la vidéo, branchée sur le rappel de rendu de Slint
 src/player.rs   lecture : options mpv, rapports au serveur, pistes, chapitres, épisode précédent/suivant, enchaînement
 src/config.rs   session sauvegardée (serveur + jeton, jamais le mot de passe), chmod 0600 sous Unix
-README.md       usage, touches, variables d'environnement, diagnostics
+src/paths.rs    dossiers config / cache / données ; version portable (fichier `portable` à côté de l'exe -> `data\`)
+src/update.rs   mise à jour selon l'installation (sources, Windows installé / portable, AppImage, .deb)
+packaging/      windows/ (turtlefin.iss Inno Setup, build.ps1), linux/ (build-appimage.sh, .desktop), turtlefin.svg (icône provisoire)
+.github/workflows/release.yml   compilation et publication sur étiquette `v*`
+README.md       usage, installation, touches, variables d'environnement, diagnostics
 ```
 
 Principes :
@@ -345,6 +349,25 @@ Principes :
    - Molette : accueil (rangées, Maj = dans la rangée) et bibliothèques (lignes).
    - Mise à jour : commit absent de GitHub (404) -> message clair au lieu de l'erreur HTTP.
    - Session révoquée côté serveur : retour à la connexion, la tuile redemande le mot de passe (vérifié).
+
+44. **Version 0.9.0 et paquets** (6 octobre, nuit). `Style.css` et le fichier de notes retirés du dépôt
+   (gardés en local, dans `.gitignore` ; `Style.css` reste dans l'historique git).
+   - `paths.rs` : tous les dossiers passent par là ; mode portable = fichier `portable` à côté de l'exécutable.
+   - Paquets : Windows x64 / x86 (installeur Inno Setup avec page « Installation / Portable » et choix du
+     dossier, + archive portable), Linux x86_64 / aarch64 (AppImage avec libmpv embarquée, `.deb` via cargo-deb
+     qui dépend de `libmpv2 | libmpv1`). Noms des fichiers : voir l'en-tête de `release.yml` (ils sont attendus
+     tels quels par `update.rs`). Compilés par la CI avec `TURTLEFIN_DIST=release` (sinon `update::kind()` croit
+     à une version compilée sur place).
+   - Vérifié en local : installeur x64 en silence (fichiers, menu Démarrer, entrée de désinstallation, relance,
+     désinstallation propre), archive portable (tout dans `data\`), x86 (lecture en streaming), AppImage
+     aarch64 sur le Pi (lecture), `.deb` arm64 (contenu et dépendances, pas installé). **La CI n'a jamais tourné**
+     (rien n'est poussé) et la mise à jour par Releases n'a pas pu être essayée sans publication.
+   - x86 : les libmpv 32 bits de shinchiro publiées depuis juillet 2026 plantent au démarrage (« OpenSSL internal
+     error: assertion failed: lock != NULL », mpv.exe seul compris) ; `build.ps1` fige celle du 10 juin 2026
+     (`MPV_TAG` pour changer). shinchiro ne garde qu'une trentaine de versions : la copier ailleurs avant qu'elle
+     disparaisse. aws-lc (chiffrement) demande NASM pour compiler en 32 bits.
+   - Premier lancement sans serveur connu : page « Choisir un serveur » au lieu d'une connexion vers une adresse vide.
+   - Pas de licence dans le dépôt (à choisir par l'utilisateur) ; pas encore de logo (icône provisoire).
 
 Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
 
