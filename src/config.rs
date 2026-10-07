@@ -320,6 +320,10 @@ pub struct UiPrefs {
     /// du serveur ; vide : écran « Qui regarde ? ».
     pub autostart_user: String,
     pub autostart_server: String,
+    /// Volume de Turtlefin (0 à 100, celui de mpv : ni Windows ni le système de son).
+    pub volume: u32,
+    /// Tutoriel déjà proposé (premier lancement).
+    pub tutorial_offered: bool,
 }
 
 impl Default for UiPrefs {
@@ -334,6 +338,8 @@ impl Default for UiPrefs {
             language: String::new(),
             autostart_user: String::new(),
             autostart_server: String::new(),
+            volume: 100,
+            tutorial_offered: false,
         }
     }
 }

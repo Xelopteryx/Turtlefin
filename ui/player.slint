@@ -73,6 +73,57 @@ component Icon inherits Rectangle {
         fill: root.tint;
         commands: "M 3 6 L 12 12 L 3 18 Z M 12 6 L 21 12 L 12 18 Z";
     }
+    // Haut-parleur (volume, muet), note (piste audio), cadre CC (sous-titres).
+    if root.name == "volume" || root.name == "mute": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.tint;
+        commands: "M 3 9 L 7 9 L 12 4.5 L 12 19.5 L 7 15 L 3 15 Z";
+    }
+    if root.name == "volume": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 12;
+        stroke-line-cap: round;
+        commands: "M 15.5 9 Q 17.5 12 15.5 15 M 18.5 6.5 Q 22 12 18.5 17.5";
+    }
+    if root.name == "mute": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 12;
+        stroke-line-cap: round;
+        commands: "M 16 9 L 21 15 M 21 9 L 16 15";
+    }
+    if root.name == "audio": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.tint;
+        commands: "M 9 5 L 20 3 L 20 16 A 3 3 0 1 1 18 13.2 L 18 7.4 L 11 8.7 L 11 18 A 3 3 0 1 1 9 15.2 Z";
+    }
+    if root.name == "subs": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 12;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 3 5.5 L 21 5.5 L 21 18.5 L 3 18.5 Z M 6.5 11.5 L 11 11.5 M 13 11.5 L 17.5 11.5 M 6.5 15 L 14 15";
+    }
     if root.name == "back": Path {
         width: parent.width;
         height: parent.height;
@@ -91,18 +142,42 @@ component PlayerButton inherits Rectangle {
     in property <bool> enabled: true;
     in property <length> size: 48px;
     in property <length> font: 16px;
+    // Incrémenté à chaque activation (clavier ou souris) : le bouton s'enfonce puis rebondit.
+    in property <int> press;
     callback clicked();
 
     property <bool> lit: root.enabled && (root.focused || area.has-hover);
+    property <duration> t0;
+    property <bool> anim;
+    changed press => {
+        self.t0 = animation-tick();
+        self.anim = true;
+    }
+    property <float> q: self.anim ? clamp((animation-tick() - self.t0) / 380ms, 0, 1) : 1;
+    // 0 -> enfoncé (0,82) -> léger dépassement -> repos.
+    property <float> push: self.q < 0.3 ? -0.18 * self.q / 0.3 : -0.18 * (1 - (self.q - 0.3) / 0.7) * cos((self.q - 0.3) / 0.7 * 540deg);
+    Timer {
+        interval: 400ms;
+        running: root.anim;
+        triggered => {
+            root.anim = false;
+        }
+    }
     // Bouton inactif estompé par la couleur, pas par « opacity » : une opacité partielle sur un
     // élément qui a des enfants le fait dessiner hors écran à chaque image.
     property <color> ink: root.enabled ? white : #ffffff59;
 
     width: root.text == "" ? root.size : label.preferred-width + root.size;
     height: root.size;
+    property <float> lit-s: root.lit ? 1.12 : 1.0;
+    animate lit-s { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+    // Le zoom est sur un rectangle intérieur : ignoré sur la racine d'un composant à minuterie.
+    face := Rectangle {
+    width: parent.width;
+    height: parent.height;
     border-radius: self.height / 2;
-    transform-scale: root.lit ? 1.12 : 1.0;
-    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    transform-scale: root.lit-s + root.push;
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
     border-width: root.lit ? 0px : 1px;
     border-color: #ffffff40;
@@ -132,6 +207,7 @@ component PlayerButton inherits Rectangle {
         clicked => {
             root.clicked();
         }
+    }
     }
 }
 
@@ -287,12 +363,17 @@ export component PlayerView inherits Rectangle {
 
     property <bool> osd: true;   // commandes affichées
     property <int> idle: 0;      // secondes sans activité
-    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes
-    property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 audio · 6 sous-titres
+    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes · 6 volume
+    property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 volume · 6 audio · 7 sous-titres
+    // Volume de Turtlefin (mpv), 0 à 100 ; réglé par la barre du bouton volume.
+    in-out property <int> volume: 100;
+    // Appui sur un bouton (animation) : numéro du bouton et compteur.
+    property <int> press-btn: -1;
+    property <int> press-n;
     // Bouton utilisable (les autres sont cachés et sautés par la sélection).
     pure function btn-ok(i: int) -> bool {
         return i == 0 ? root.has-prev : i == 1 || i == 3 ? root.chapter-count > 0 : i == 4 ? root.has-next
-            : i == 5 ? root.audio-tracks.length > 1 : i == 6 ? root.sub-tracks.length > 0 : true;
+            : i == 6 ? root.audio-tracks.length > 1 : i == 7 ? root.sub-tracks.length > 0 : true;
     }
     // Bouton utilisable suivant dans la direction d (sinon on reste sur place).
     pure function btn-step(from: int, d: int) -> int {
@@ -300,16 +381,32 @@ export component PlayerView inherits Rectangle {
         let b = from + 2 * d;
         let c = from + 3 * d;
         let e = from + 4 * d;
-        return a >= 0 && a <= 6 && root.btn-ok(a) ? a
-            : b >= 0 && b <= 6 && root.btn-ok(b) ? b
-            : c >= 0 && c <= 6 && root.btn-ok(c) ? c
-            : e >= 0 && e <= 6 && root.btn-ok(e) ? e : from;
+        return a >= 0 && a <= 7 && root.btn-ok(a) ? a
+            : b >= 0 && b <= 7 && root.btn-ok(b) ? b
+            : c >= 0 && c <= 7 && root.btn-ok(c) ? c
+            : e >= 0 && e <= 7 && root.btn-ok(e) ? e : from;
     }
     property <string> menu: "";  // "" | "audio" | "sub"
+    // Dernier menu ouvert : son contenu reste affiché pendant qu'il disparaît.
+    property <string> menu-last: "audio";
+    changed menu => {
+        if (root.menu != "") {
+            root.menu-last = root.menu;
+        }
+    }
+    property <float> menu-p: root.menu != "" && root.osd ? 1 : 0;
+    animate menu-p { duration: 240ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Barre du volume affichée (zone 6) : même animation.
+    property <float> vol-p: root.zone == 6 && root.osd ? 1 : 0;
+    animate vol-p { duration: 240ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    function set-volume(v: int) {
+        root.volume = max(0, min(100, v));
+        root.command("volume:" + root.volume);
+    }
     property <int> menu-sel: 0;
     property <int> menu-rows: 8;
     property <int> menu-top: max(0, root.menu-sel - root.menu-rows + 1);
-    property <[TrackData]> menu-items: root.menu == "audio" ? root.audio-tracks : root.sub-tracks;
+    property <[TrackData]> menu-items: root.menu-last == "audio" ? root.audio-tracks : root.sub-tracks;
     property <bool> dragging;
     property <float> drag-frac;
     property <length> m: 24px * root.k;
@@ -358,7 +455,7 @@ export component PlayerView inherits Rectangle {
             root.menu = kind;
             root.menu-sel = kind == "audio" ? root.audio-current : root.sub-current;
             root.zone = 2;
-            root.btn = kind == "audio" ? 5 : 6;
+            root.btn = kind == "audio" ? 6 : 7;
         }
         root.show();
     }
@@ -380,6 +477,8 @@ export component PlayerView inherits Rectangle {
     }
 
     function activate(i: int) {
+        root.press-btn = i;
+        root.press-n += 1;
         if (i == 0) {
             if (root.has-prev) {
                 root.command("episode:-1");
@@ -399,8 +498,12 @@ export component PlayerView inherits Rectangle {
                 root.command("episode:1");
             }
         } else if (i == 5) {
-            root.open-menu("audio");
+            root.menu = "";
+            root.zone = root.zone == 6 ? 2 : 6;
+            root.btn = 5;
         } else if (i == 6) {
+            root.open-menu("audio");
+        } else if (i == 7) {
             root.open-menu("sub");
         }
         root.show();
@@ -616,7 +719,7 @@ export component PlayerView inherits Rectangle {
             }
 
             if (event.text == Key.Escape || event.text == Key.Backspace) {
-                if (root.zone == 5) {
+                if (root.zone == 5 || root.zone == 6) {
                     root.zone = 2;
                 } else {
                     root.hide();
@@ -653,6 +756,16 @@ export component PlayerView inherits Rectangle {
                     }
                 } else if (event.text == Key.Return) {
                     root.activate(root.btn);
+                }
+            } else if (root.zone == 6) {
+                // Barre du volume : ← → par 5 %, Entrée / ↑ / ↓ referment.
+                if (event.text == Key.LeftArrow) {
+                    root.set-volume(root.volume - 5);
+                } else if (event.text == Key.RightArrow) {
+                    root.set-volume(root.volume + 5);
+                } else if (event.text == Key.Return || event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                    root.zone = 2;
+                    root.btn = 5;
                 }
             } else if (root.zone == 5) {
                 // Épisodes de la saison
@@ -846,6 +959,7 @@ export component PlayerView inherits Rectangle {
                     icon: "prev-ep";
                     enabled: root.has-prev;
                     focused: root.zone == 2 && root.btn == 0;
+                    press: root.press-btn == 0 ? root.press-n : 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(0);
@@ -856,6 +970,7 @@ export component PlayerView inherits Rectangle {
                     icon: "prev-chap";
                     enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 1;
+                    press: root.press-btn == 1 ? root.press-n : 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(1);
@@ -865,6 +980,7 @@ export component PlayerView inherits Rectangle {
                     size: 52px * root.k;
                     icon: root.paused ? "play" : "pause";
                     focused: root.zone == 2 && root.btn == 2;
+                    press: root.press-btn == 2 ? root.press-n : 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(2);
@@ -875,6 +991,7 @@ export component PlayerView inherits Rectangle {
                     icon: "next-chap";
                     enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 3;
+                    press: root.press-btn == 3 ? root.press-n : 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(3);
@@ -885,6 +1002,7 @@ export component PlayerView inherits Rectangle {
                     icon: "next-ep";
                     enabled: root.has-next;
                     focused: root.zone == 2 && root.btn == 4;
+                    press: root.press-btn == 4 ? root.press-n : 0;
                     clicked => {
                         root.zone = 0;
                         root.activate(4);
@@ -902,31 +1020,41 @@ export component PlayerView inherits Rectangle {
                 spacing: 12px * root.k;
 
                 PlayerButton {
-                    enabled: root.audio-tracks.length > 1;
                     size: 44px * root.k;
-                    font: 16px * root.k;
-                    text: Tr.t(Tr.l, "Audio");
-                    focused: root.zone == 2 && root.btn == 5;
+                    icon: root.volume == 0 ? "mute" : "volume";
+                    focused: (root.zone == 2 || root.zone == 6) && root.btn == 5;
+                    press: root.press-btn == 5 ? root.press-n : 0;
                     clicked => {
                         root.activate(5);
                     }
                 }
                 PlayerButton {
-                    enabled: root.sub-tracks.length > 0;
+                    enabled: root.audio-tracks.length > 1;
                     size: 44px * root.k;
-                    font: 16px * root.k;
-                    text: Tr.t(Tr.l, "Sous-titres");
+                    icon: "audio";
                     focused: root.zone == 2 && root.btn == 6;
+                    press: root.press-btn == 6 ? root.press-n : 0;
                     clicked => {
                         root.activate(6);
                     }
                 }
+                PlayerButton {
+                    enabled: root.sub-tracks.length > 0;
+                    size: 44px * root.k;
+                    icon: "subs";
+                    focused: root.zone == 2 && root.btn == 7;
+                    press: root.press-btn == 7 ? root.press-n : 0;
+                    clicked => {
+                        root.activate(7);
+                    }
+                }
             }
 
+            // Heure de fin : au-dessus de la barre, entre le temps écoulé et la durée.
             Text {
-                y: parent.height - 28px * root.k;
+                y: 12px * root.k;
                 width: parent.width;
-                height: 20px * root.k;
+                height: 24px * root.k;
                 text: root.end-text;
                 color: Theme.muted;
                 font-size: 14px * root.k;
@@ -936,11 +1064,13 @@ export component PlayerView inherits Rectangle {
         }
 
         // Menu des pistes, au-dessus du panneau, à droite.
-        if root.menu != "": Rectangle {
+        // Monte de 24 px en apparaissant, redescend en disparaissant.
+        if root.menu-p > 0.01: Rectangle {
             width: 440px * root.k;
             height: 64px * root.k + max(1, min(root.menu-items.length, root.menu-rows)) * 46px * root.k + 10px * root.k;
             x: parent.width - self.width - root.m;
-            y: panel.y - self.height - 16px * root.k;
+            y: panel.y - self.height - 16px * root.k + (1 - root.menu-p) * 24px * root.k;
+            opacity: root.menu-p;
             border-radius: 16px;
             background: Theme.glass;
             border-width: 1px;
@@ -952,7 +1082,7 @@ export component PlayerView inherits Rectangle {
                 x: root.m;
                 y: 16px * root.k;
                 height: 32px * root.k;
-                text: root.menu == "audio" ? Tr.t(Tr.l, "Piste audio") : Tr.t(Tr.l, "Sous-titres");
+                text: root.menu-last == "audio" ? Tr.t(Tr.l, "Piste audio") : Tr.t(Tr.l, "Sous-titres");
                 color: Theme.text;
                 font-size: 22px * root.k;
                 font-weight: 700;
@@ -1006,6 +1136,86 @@ export component PlayerView inherits Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    // ------------------------------------------------------------ Volume
+    // Barre horizontale : ← → (5 %) ou souris. Volume de Turtlefin seulement.
+    if root.osd && root.vol-p > 0.01: Rectangle {
+        width: 420px * root.k;
+        height: 76px * root.k;
+        x: parent.width - self.width - root.m;
+        y: parent.height - root.m - 160px * root.k - self.height - 16px * root.k + (1 - root.vol-p) * 24px * root.k;
+        opacity: root.vol-p;
+        border-radius: 16px;
+        background: Theme.glass;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+
+        TouchArea { }
+
+        Icon {
+            x: 22px * root.k;
+            y: (parent.height - self.height) / 2;
+            width: 28px * root.k;
+            height: 28px * root.k;
+            name: root.volume == 0 ? "mute" : "volume";
+        }
+        vbar := Rectangle {
+            x: 66px * root.k;
+            y: (parent.height - self.height) / 2;
+            width: parent.width - 66px * root.k - 90px * root.k;
+            height: 28px * root.k;
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                height: 8px * root.k;
+                border-radius: self.height / 2;
+                background: #ffffff33;
+            }
+            Rectangle {
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                width: max(8px * root.k, parent.width * root.volume / 100);
+                animate width { duration: 120ms; easing: ease-out; }
+                height: 8px * root.k;
+                border-radius: self.height / 2;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
+            Rectangle {
+                width: 22px * root.k;
+                height: self.width;
+                x: parent.width * root.volume / 100 - self.width / 2;
+                animate x { duration: 120ms; easing: ease-out; }
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                background: white;
+                border-width: 3px;
+                border-color: Theme.accent2;
+            }
+            vtouch := TouchArea {
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        root.set-volume(round(clamp(self.mouse-x / self.width, 0, 1) * 100));
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        root.set-volume(round(clamp(self.mouse-x / self.width, 0, 1) * 100));
+                    }
+                    root.show();
+                }
+            }
+        }
+        Text {
+            x: parent.width - 76px * root.k;
+            width: 60px * root.k;
+            height: parent.height;
+            text: root.volume + " %";
+            color: white;
+            font-size: 17px * root.k;
+            font-weight: 600;
+            horizontal-alignment: right;
+            vertical-alignment: center;
         }
     }
 

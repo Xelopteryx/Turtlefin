@@ -12,7 +12,7 @@ import { TrackData } from "player.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
-    in property <[int]> state;            // 7 points · 0 attente · 1 en cours · 2 ok · 3 échec · 4 ok, à configurer
+    in property <[int]> state;            // 7 points · 0 attente · 1 en cours · 2 ok · 3 échec · 4 à configurer (orange)
     in property <[string]> labels;
     in property <string> text;            // vérification en cours
     in property <string> fail;            // échec : explication
@@ -86,7 +86,9 @@ export component BootLogo inherits Rectangle {
     }
     pure function dot-color(s: int, x: float, y: float) -> brush {
         return root.phase >= 1 ? root.logo-color(x, y)
-            : s == 2 || s == 4 ? #22c55e
+            : s == 2 ? #22c55e
+            // À configurer (aucun serveur choisi au premier lancement) : orange, pas vert.
+            : s == 4 ? #f59e0b
             : s == 3 ? #ef4444
             : s == 1 ? Theme.accent2.transparentize(0.6 - 0.5 * root.pulse)
             : #ffffff2e;

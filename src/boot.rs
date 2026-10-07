@@ -222,7 +222,16 @@ pub async fn run(app: Arc<App>, start: Start) {
 
         let result = check(i, &start).await;
         match result {
-            Ok(ok) => set_state(&app, i, if ok { 2 } else { 4 }),
+            Ok(true) => set_state(&app, i, 2),
+            Ok(false) => {
+                // Pas encore de serveur : point orange et explication, la recherche suit.
+                set_state(&app, i, 4);
+                let txt = tr("Aucun serveur choisi : la recherche des serveurs va suivre.");
+                ui(&app, move |u| u.set_boot_text(txt.into()));
+                if animate {
+                    tokio::time::sleep(Duration::from_millis(1400)).await;
+                }
+            }
             Err(msg) => {
                 eprintln!("turtlefin : démarrage : {msg}");
                 set_state(&app, i, 3);

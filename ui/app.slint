@@ -1971,6 +1971,7 @@ export component AppWindow inherits Window {
     in property <string> p-pos-text;
     in property <string> p-dur-text;
     in property <string> p-end-text;
+    in-out property <int> p-volume: 100;
     in property <[float]> p-chapters;
     in property <int> p-chapter-count;
     in property <bool> p-has-prev;
@@ -6687,6 +6688,7 @@ export component AppWindow inherits Window {
         pos-text: root.p-pos-text;
         dur-text: root.p-dur-text;
         end-text: root.p-end-text;
+        volume <=> root.p-volume;
         chapters: root.p-chapters;
         chapter-count: root.p-chapter-count;
         has-prev: root.p-has-prev;

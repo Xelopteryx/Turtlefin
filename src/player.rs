@@ -77,6 +77,8 @@ fn new_player() -> Result<Arc<Mpv>> {
     m.set_option("hwdec", &hwdec_mode());
     // Le lecteur reste ouvert entre deux épisodes ; on ne lit ni mpv.conf ni les scripts de l'utilisateur.
     m.set_option("idle", "yes");
+    // Volume de Turtlefin seulement (gardé d'une vidéo à l'autre).
+    m.set_option("volume", &crate::config::ui_prefs().volume.min(100).to_string());
     m.set_option("keep-open", "no");
     m.set_option("config", "no");
     m.set_option("terminal", "no");
@@ -610,6 +612,13 @@ pub async fn play(
                         }
                     }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
+                    "volume" => {
+                        let v = arg.parse::<u32>().unwrap_or(100).min(100);
+                        let mut p = crate::config::ui_prefs();
+                        p.volume = v;
+                        crate::config::save_ui_prefs(&p);
+                        player.set_property("volume", &v.to_string())
+                    }
                     // Changement de piste pendant la lecture : retenu pour la série / le film.
                     "aid" | "sid" => {
                         let r = player.set_property(verb, arg);
@@ -999,6 +1008,7 @@ fn load(
         u.set_p_pos_text("".into());
         u.set_p_dur_text("".into());
         u.set_p_end_text("".into());
+        u.set_p_volume(crate::config::ui_prefs().volume.min(100) as i32);
         u.set_p_chapters(ModelRc::default());
         u.set_p_chapter_count(0);
     });
