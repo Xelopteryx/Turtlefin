@@ -3,7 +3,8 @@
 #
 # Déclenchement : pousser une étiquette de version, par exemple
 #   git tag v0.9.0 && git push origin v0.9.0
-# (ou à la main depuis l'onglet Actions, pour essayer sans publier).
+# Essai sans publier : pousser sur la branche « ci » (git push origin main:ci), ou lancer à la main
+# depuis l'onglet Actions.
 #
 # Fichiers produits (noms attendus par la mise à jour intégrée, voir src/update.rs) :
 #   Turtlefin-<v>-windows-x64-setup.exe   Turtlefin-<v>-windows-x64-portable.zip
@@ -15,6 +16,8 @@ name: Publication
 on:
   push:
     tags: ["v*"]
+    # Branche « ci » : tout est compilé et empaqueté, rien n'est publié (essai de la chaîne).
+    branches: ["ci"]
   workflow_dispatch:
 
 permissions:
