@@ -71,13 +71,13 @@ for s in (16, 24, 32, 48, 64, 128, 256, 512):
 big.resize((256, 256), Image.LANCZOS).save(
     os.path.join(out, 'turtlefin.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
-# Icône de l'installeur : un disque (CD) avec l'icône de l'appli dans le coin bas droit, pour qu'on
-# voie tout de suite que c'est un installeur et pas l'appli.
+# Icône de l'installeur : l'icône de l'appli avec un petit disque (CD) dans le coin bas droit, pour
+# qu'on voie tout de suite que c'est un installeur et pas l'appli.
 def setup_icon():
     import math
     from PIL import ImageFilter
     img = Image.new('RGBA', (N, N), (0, 0, 0, 0))
-    cx, cy, r = N * 0.43, N * 0.43, N * 0.42
+    cx, cy, r = N * 0.5, N * 0.5, N * 0.46
     # Reflets du disque : dégradé conique argent / bleuté / violet, calculé à basse définition.
     small = Image.new('RGB', (256, 256))
     px = small.load()
@@ -108,14 +108,12 @@ def setup_icon():
     ring = r * 0.34
     d.ellipse([cx - ring, cy - ring, cx + ring, cy + ring], fill=(235, 240, 246, 255), outline=(170, 180, 195, 255), width=2 * K)
     d.ellipse([cx - hole, cy - hole, cx + hole, cy + hole], fill=(0, 0, 0, 0), outline=(140, 150, 165, 255), width=2 * K)
-    # Icône de l'appli dans le coin bas droit.
-    tile = big.resize((int(N * 0.56), int(N * 0.56)), Image.LANCZOS)
-    tshadow = Image.new('RGBA', (N, N), (0, 0, 0, 0))
-    ox = oy = N - tile.width
-    tshadow.paste((0, 0, 0, 120), (ox, oy + 4 * K), tile.getchannel('A'))
-    img.alpha_composite(tshadow.filter(ImageFilter.GaussianBlur(5 * K)))
-    img.alpha_composite(tile, (ox, oy))
-    return img
+    # Le disque, réduit, dans le coin bas droit de l'icône de l'appli.
+    cd = img.resize((int(N * 0.52), int(N * 0.52)), Image.LANCZOS)
+    out_img = big.copy()
+    ox = oy = N - cd.width
+    out_img.alpha_composite(cd, (ox, oy))
+    return out_img
 
 
 setup = setup_icon()
