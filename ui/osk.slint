@@ -1,6 +1,7 @@
 // Clavier à l'écran (mode TV), à la manière d'un clavier de téléphone : trois dispositions
 // (lettres AZERTY · chiffres et symboles · accents), grosses touches, Maj à un coup.
-// Flèches : se déplacer ; Entrée : taper la touche ; Retour arrière : effacer.
+// Flèches : se déplacer ; Entrée : taper la touche (ou valider après une saisie au vrai clavier) ;
+// Retour arrière : effacer.
 // Le clavier ne modifie jamais `text` lui-même : il propose le nouveau texte par `edited`.
 
 import { Theme } from "theme.slint";
@@ -47,6 +48,9 @@ export component Osk inherits Rectangle {
     property <[[string]]> keys: root.mode == 0 ? root.letters : root.mode == 1 ? root.symbols : root.accents;
     property <int> r: 0;
     property <int> c: 0;
+    // Dernière saisie au vrai clavier : Entrée valide (« Suivant » / OK) au lieu de taper la touche
+    // en surbrillance. Une flèche rend la main au clavier à l'écran.
+    property <bool> typed;
     property <length> gap: 8px * root.k;
     property <length> kh: 48px * root.k;
 
@@ -82,6 +86,14 @@ export component Osk inherits Rectangle {
     }
 
     public function key(t: string) -> bool {
+        if (t == Key.LeftArrow || t == Key.RightArrow || t == Key.UpArrow || t == Key.DownArrow) {
+            root.typed = false;
+        }
+        if (t == Key.Return && root.typed) {
+            root.typed = false;
+            root.done();
+            return true;
+        }
         if (t == Key.LeftArrow) {
             root.c = max(0, root.c - 1);
         } else if (t == Key.RightArrow) {
@@ -105,6 +117,7 @@ export component Osk inherits Rectangle {
         } else if (OskKeys.printable(t)) {
             // Vrai clavier : le caractère tapé va directement dans le champ.
             root.edited(root.text + t);
+            root.typed = true;
         } else {
             return false;
         }

@@ -1265,6 +1265,9 @@ export struct DlInfo {
 export component AppWindow inherits Window {
     title: "Turtlefin";
     icon: @image-url("../packaging/icons/turtlefin-64.png");
+    // Interface TV sous Windows : fenêtre sans bordure sur tout l'écran (voir set_tv_window).
+    in property <bool> frameless;
+    no-frame: root.frameless;
     background: Theme.bg;
     default-font-family: "Montserrat";
     preferred-width: 1280px;
@@ -1888,6 +1891,7 @@ export component AppWindow inherits Window {
     in property <image> avatar;
     in property <bool> has-avatar;
     in property <bool> offline;             // pas de serveur : téléchargements seulement
+    in property <bool> signed-in;           // une session est ouverte (en ligne ou hors ligne)
 
     // Page Seerr (premier plan)
     in-out property <bool> sr-open;
@@ -5071,8 +5075,13 @@ export component AppWindow inherits Window {
                 if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
+                // Hors ligne, la liste des téléchargements tient lieu d'accueil : Échap ouvre le menu.
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.nav-out("go-home", "");
+                    if (root.offline && root.dl-level == 0) {
+                        root.open-menu();
+                    } else {
+                        root.nav-out("go-home", "");
+                    }
                     return EventResult.accept;
                 }
                 if (root.dl-sections.length == 0) {
@@ -5084,6 +5093,10 @@ export component AppWindow inherits Window {
                 if (event.text == Key.RightArrow) {
                     root.dl-item = min(root.dl-sections[root.dl-sec].items.length - 1, root.dl-item + 1);
                 } else if (event.text == Key.LeftArrow) {
+                    // Tout à gauche : le menu s'ouvre (comme sur l'accueil).
+                    if (root.dl-item == 0) {
+                        root.open-menu();
+                    }
                     root.dl-item = max(0, root.dl-item - 1);
                 } else if (event.text == Key.DownArrow) {
                     if (root.dl-sec < root.dl-sections.length - 1) {
@@ -6231,7 +6244,9 @@ export component AppWindow inherits Window {
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
     property <bool> bar-screen: root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile"
         || root.screen == "search" || root.screen == "party" || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads";
-    if root.bar-screen && !root.playing: NavBar {
+    // Sans session (premier lancement, « Changer de serveur » depuis la connexion) : pas de barre,
+    // ses boutons (accueil, watch party, hasard, recherche, compte) n'auraient rien à ouvrir.
+    if root.bar-screen && !root.playing && (root.signed-in || root.offline): NavBar {
         y: 0px;
         width: parent.width;
         k: root.k;
@@ -6246,7 +6261,7 @@ export component AppWindow inherits Window {
             root.nav-activate(i);
         }
     }
-    if root.bar-screen && !root.playing: HeaderRight {
+    if root.bar-screen && !root.playing && (root.signed-in || root.offline): HeaderRight {
         x: parent.width / 2;
         y: 0px;
         width: parent.width / 2;

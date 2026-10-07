@@ -1063,7 +1063,8 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Épisode suivant (générique)
-    if root.up-mode == "next": Rectangle {
+    // Cachée tant qu'un menu Audio / Sous-titres est ouvert (elle le recouvrait).
+    if root.up-mode == "next" && root.menu == "": Rectangle {
         x: parent.width - self.width - root.m;
         y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
         animate y { duration: 160ms; easing: ease-out; }

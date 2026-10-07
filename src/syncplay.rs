@@ -112,6 +112,9 @@ async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedS
                 let msg = msg?;
                 let Ok(text) = msg.to_text() else { continue };
                 let Ok(v) = serde_json::from_str::<Value>(text) else { continue };
+                if debug() && v["MessageType"] != "KeepAlive" {
+                    eprintln!("turtlefin : watch party ← {}", text.chars().take(400).collect::<String>());
+                }
                 match v["MessageType"].as_str().unwrap_or("") {
                     "ForceKeepAlive" => {
                         let secs = v["Data"].as_u64().unwrap_or(60).max(10);
@@ -204,8 +207,18 @@ fn command(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, d: &V
 // ---------------------------------------------------------------------------
 // Requêtes au serveur
 // ---------------------------------------------------------------------------
+/// Journal de la watch party (`TURTLEFIN_DEBUG_SYNCPLAY=1`) : messages reçus et requêtes envoyées.
+fn debug() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("TURTLEFIN_DEBUG_SYNCPLAY").is_some())
+}
+
 async fn post(client: &Client, path: &str, body: Value) -> Result<()> {
-    client.post_json(&format!("/SyncPlay/{path}"), &body).await
+    let r = client.post_json(&format!("/SyncPlay/{path}"), &body).await;
+    if debug() || r.is_err() {
+        eprintln!("turtlefin : watch party → {path} {body} : {:?}", r.as_ref().map(|_| "ok"));
+    }
+    r
 }
 
 /// Groupes existants : (identifiant, nom, participants).

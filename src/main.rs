@@ -4,6 +4,8 @@
 
 mod api;
 mod boot;
+#[cfg(windows)]
+mod winfull;
 mod config;
 mod discovery;
 mod downloads;
@@ -904,6 +906,9 @@ fn end_session(app: &Arc<App>, forget: bool) {
     stop_syncplay(app);
     config::clear_token();
     *app.client.lock().unwrap() = None;
+    if let Some(u) = app.ui().upgrade() {
+        u.set_signed_in(false);
+    }
     app.bg_id.lock().unwrap().clear();
     *app.tab.lock().unwrap() = "home".to_string();
     app.stack.lock().unwrap().clear();
@@ -933,7 +938,10 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     watch_addresses(&app, &client);
     app.offline.store(false, Ordering::SeqCst);
-    let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
+    let _ = app.ui().upgrade_in_event_loop(|u| {
+        u.set_offline(false);
+        u.set_signed_in(true);
+    });
     sync_offline_plays(&app, &client);
     app.stack.lock().unwrap().clear();
     // Essais : --play=ID[@SECONDES] lance directement la lecture.
@@ -1941,6 +1949,18 @@ fn choose_server(app: &Arc<App>, main: String, backup: String) {
     let app2 = app.clone();
     app.rt.spawn(async move {
         let best = discovery::pick(&main, &backup).await;
+        // Pas encore de session (premier lancement) : le serveur choisi est gardé tout de suite,
+        // sinon il faudrait le rechoisir si l'appli est fermée avant la connexion.
+        if app2.client().is_none() {
+            let mut s = config::load();
+            if s.token.is_empty() {
+                s.server = best.clone();
+                s.server_main = main.clone();
+                s.server_backup = backup.clone();
+                s.server_id.clear();
+                config::save(&s);
+            }
+        }
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             u.set_server(best.into());
             u.set_manual_open(false);
@@ -2728,7 +2748,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             app.tv_flag.store(on, Ordering::Relaxed);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tv_mode(on);
-                u.window().set_fullscreen(on);
+                set_tv_window(&u, on);
             }
             refresh_settings(app);
         }
@@ -3792,6 +3812,94 @@ async fn play_flow_with(
 // ---------------------------------------------------------------------------
 /// Windows : journal dans une console, seulement si demandé (`--console`). Lancé depuis un
 /// terminal, l'appli écrit dans ce terminal ; sinon une fenêtre de console s'ouvre.
+/// Interface TV : la fenêtre couvre tout l'écran. Sous Windows, fenêtre sans bordure plutôt que le
+/// vrai plein écran (voir winfull.rs : sinon AMD Software la prend pour un jeu) ;
+/// `TURTLEFIN_TRUE_FULLSCREEN=1` garde le plein écran de Slint.
+fn set_tv_window(ui: &AppWindow, on: bool) {
+    #[cfg(windows)]
+    if std::env::var_os("TURTLEFIN_TRUE_FULLSCREEN").is_none() {
+        tv_window_later(ui.as_weak(), on, 40);
+        return;
+    }
+    ui.window().set_fullscreen(on);
+}
+
+/// Fenêtre (pas l'interface TV) sur un petit écran : 1280 x 720 plus le cadre dépasse la zone de
+/// travail d'un écran 1366 x 768 (bas caché sous la barre des tâches). On la réduit et la centre.
+#[cfg(windows)]
+fn fit_window_later(weak: slint::Weak<AppWindow>, tries: u32) {
+    slint::Timer::single_shot(std::time::Duration::from_millis(25), move || {
+        let Some(u) = weak.upgrade() else { return };
+        let Some((_, (wx, wy, ww, wh))) = winfull::monitor() else {
+            if tries > 0 {
+                fit_window_later(weak, tries - 1);
+            }
+            return;
+        };
+        // Cadre de Windows autour de la zone utile : ~16 px en largeur, ~40 px en hauteur.
+        let size = u.window().size();
+        let (cw, ch) = ((size.width as i32).min(ww - 16), (size.height as i32).min(wh - 40));
+        if cw < size.width as i32 || ch < size.height as i32 {
+            u.window().set_size(slint::PhysicalSize::new(cw as u32, ch as u32));
+            u.window().set_position(slint::PhysicalPosition::new(wx + (ww - cw - 16) / 2, wy + (wh - ch - 40) / 2));
+        }
+    });
+}
+
+#[cfg(windows)]
+thread_local! {
+    /// Interface TV : surveillance de la définition de l'écran (voir tv_window_later).
+    static TV_WATCH: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Windows : la fenêtre n'existe qu'une fois la boucle d'événements lancée ; on réessaie toutes les
+/// 25 ms (une seconde au plus), puis repli sur le plein écran de Slint.
+#[cfg(windows)]
+fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
+    slint::Timer::single_shot(std::time::Duration::from_millis(25), move || {
+        let Some(u) = weak.upgrade() else { return };
+        let Some(((mx, my, mw, mh), (wx, wy, ww, wh))) = winfull::monitor() else {
+            if tries > 0 {
+                tv_window_later(weak, on, tries - 1);
+            } else {
+                u.window().set_fullscreen(on);
+            }
+            return;
+        };
+        // D'abord le cadre (appliqué par Slint au tour suivant), puis la taille : posée avec le cadre,
+        // la taille de la zone utile lui serait ajoutée et la fenêtre dépasserait de l'écran.
+        u.set_frameless(on);
+        let weak = u.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(60), move || {
+            let Some(u) = weak.upgrade() else { return };
+            if on {
+                // Un pixel de plus en bas : plus pris pour un plein écran (le pixel est hors écran).
+                u.window().set_position(slint::PhysicalPosition::new(mx, my));
+                u.window().set_size(slint::PhysicalSize::new(mw as u32, mh as u32 + 1));
+                // L'écran peut changer de définition (télé, bureau à distance) : on suit toutes les 3 s.
+                let weak = u.as_weak();
+                let watch = slint::Timer::default();
+                watch.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(3), move || {
+                    let (Some(u), Some(((mx, my, mw, mh), _))) = (weak.upgrade(), winfull::monitor()) else { return };
+                    let (pos, size) = (u.window().position(), u.window().size());
+                    if pos.x != mx || pos.y != my || size.width != mw as u32 || size.height != mh as u32 + 1 {
+                        u.window().set_position(slint::PhysicalPosition::new(mx, my));
+                        u.window().set_size(slint::PhysicalSize::new(mw as u32, mh as u32 + 1));
+                    }
+                });
+                TV_WATCH.with(|w| *w.borrow_mut() = Some(watch));
+            } else {
+                TV_WATCH.with(|w| *w.borrow_mut() = None);
+                let s = u.window().scale_factor();
+                // Zone utile ; le cadre (≈ 40 px) s'y ajoute, d'où la marge.
+                let (cw, ch) = (((1280.0 * s) as i32).min(ww - 16), ((720.0 * s) as i32).min(wh - 48));
+                u.window().set_size(slint::PhysicalSize::new(cw as u32, ch as u32));
+                u.window().set_position(slint::PhysicalPosition::new(wx + (ww - cw - 16) / 2, wy + (wh - ch - 40) / 2));
+            }
+        });
+    });
+}
+
 fn open_console() {
     #[cfg(all(windows, not(debug_assertions)))]
     {
@@ -3855,7 +3963,10 @@ fn main() -> anyhow::Result<()> {
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
     if tv {
-        ui.window().set_fullscreen(true);
+        set_tv_window(&ui, true);
+    } else {
+        #[cfg(windows)]
+        fit_window_later(ui.as_weak(), 40);
     }
     apply_ui_prefs(&ui, &prefs);
 
