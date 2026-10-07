@@ -148,7 +148,7 @@ Development:
   libmpv-dev`, then `cargo build --release`.
 
 Publishing:
-- **Automatic**: `git tag v0.9.0 && git push origin v0.9.0`. `release.yml` builds Windows x64 / x86 and Linux
+- **Automatic**: `git tag -a v0.9.2 -m "What's new…" && git push origin v0.9.2` (the tag message becomes the release notes, shown by the built-in updater). `release.yml` builds Windows x64 / x86 and Linux
   x86_64 / aarch64, makes installers, archives, AppImages and `.deb` packages, and publishes them in a Release.
   File names (header of `release.yml`) are expected as-is by `update.rs` and the install scripts.
 - **Windows by hand**: `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (or

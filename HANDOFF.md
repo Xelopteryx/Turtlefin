@@ -150,7 +150,7 @@ Développement :
   libmpv-dev` puis `cargo build --release`.
 
 Publication :
-- **Automatique** : `git tag v0.9.0 && git push origin v0.9.0`. `release.yml` compile Windows x64 / x86 et Linux
+- **Automatique** : `git tag -a v0.9.2 -m "Nouveautés…" && git push origin v0.9.2` (le message de l'étiquette devient les notes de version, montrées par la mise à jour intégrée). `release.yml` compile Windows x64 / x86 et Linux
   x86_64 / aarch64, fabrique installeurs, archives, AppImage et `.deb`, et les publie dans une Release. Les noms de
   fichiers (en-tête de `release.yml`) sont attendus tels quels par `update.rs` et les scripts d'installation.
 - **Windows à la main** : `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (ou

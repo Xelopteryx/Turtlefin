@@ -52,7 +52,7 @@ fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
     let mut cli = Cli { user: None, pass: None, server: None, tv: None, test_video: None, play: None, no_intro: false };
 
-    for a in std::env::args().skip(1) {
+    for a in update::launch_args() {
         match a.as_str() {
             "--tv" => cli.tv = Some(true),
             "--console" => {}

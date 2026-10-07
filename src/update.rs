@@ -157,7 +157,7 @@ async fn check_release() -> Result<Option<(String, Vec<String>)>> {
         .unwrap_or("")
         .lines()
         .map(|l| l.trim().trim_start_matches(['-', '*', '#', ' ']).trim().to_string())
-        .filter(|l| !l.is_empty())
+        .filter(|l| !l.is_empty() && !l.contains("://") && !l.starts_with("Full Changelog"))
         .take(4)
         .collect();
     Ok(Some((trf("Version {}", &[&version]), notes)))
@@ -326,6 +326,27 @@ fn replace_files(src: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Options de lancement : celles de la ligne de commande, ou (relance par l'installeur après une mise
+/// à jour, qui ne les connaît pas) celles notées par `restart` dans `restart-args`, lues une fois.
+pub fn launch_args() -> Vec<String> {
+    // Restes d'une mise à jour (fichiers verrouillés renommés en .old, voir replace_files).
+    if let Some(dir) = crate::paths::exe_dir() {
+        for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            if e.path().extension().is_some_and(|x| x == "old") {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if !args.is_empty() {
+        return args;
+    }
+    let Some(file) = crate::paths::config_dir().map(|d| d.join("restart-args")) else { return args };
+    let saved = std::fs::read_to_string(&file).ok();
+    let _ = std::fs::remove_file(&file);
+    saved.map(|t| t.lines().filter(|l| !l.is_empty()).map(str::to_string).collect()).unwrap_or_default()
+}
+
 /// Relance l'application (nouvelle version) avec les mêmes options, en appliquant d'abord le
 /// fichier en attente (installeur Windows, paquet .deb).
 pub fn restart() {
@@ -335,6 +356,10 @@ pub fn restart() {
         // L'installeur remplace les fichiers une fois l'appli fermée, puis la relance.
         (Kind::WinInstalled, Some(setup)) => {
             let dir = crate::paths::exe_dir().unwrap_or_default();
+            // L'installeur relance Turtlefin sans options : elles l'attendent dans un fichier.
+            if let Some(cfg) = crate::paths::config_dir() {
+                let _ = std::fs::write(cfg.join("restart-args"), args.join("\n"));
+            }
             // Installé pour tous (Program Files) : l'installeur doit l'être aussi (Windows demande
             // alors les droits administrateur), sinon il ne peut pas écrire dans le dossier.
             let all_users = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
