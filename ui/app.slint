@@ -845,7 +845,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : white;
             animate stroke { duration: 300ms; }
             stroke-width: (root.active ? 3.2px : 2.2px) * root.k;
             commands: "M 4 12.5 L 9.5 18 L 20 6.5";
@@ -859,7 +859,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : white;
             animate stroke { duration: 300ms; }
             stroke-width: 2.2px * root.k;
             commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10";
@@ -872,7 +872,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : white;
             stroke-width: 2.2px * root.k;
             commands: "M 4.5 20 L 19.5 20";
         }
@@ -3053,6 +3053,14 @@ export component AppWindow inherits Window {
                         if (root.sections.length > 0) {
                             root.h-focus = false;
                         }
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        // Échap : retour à la page ; onglet vide (rien où descendre) : le menu.
+                        if (root.sections.length > 0) {
+                            root.h-focus = false;
+                        } else {
+                            root.h-focus = false;
+                            root.open-menu();
+                        }
                     } else if (event.text == Key.Return) {
                         if (root.h-sel < root.nav-n) {
                             root.nav-activate(root.h-sel);
@@ -3065,6 +3073,12 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (root.sections.length == 0) {
+                    // Onglet vide (aucun favori...) : Échap / Retour ouvrent le menu comme sur l'accueil,
+                    // les autres touches montent dans la barre (les onglets).
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.open-menu();
+                        return EventResult.accept;
+                    }
                     root.h-focus = true;
                     root.h-sel = root.nav-n + root.tab-index();
                     return EventResult.accept;

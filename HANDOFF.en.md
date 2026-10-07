@@ -29,6 +29,8 @@ real-time blur or filter animations.
 | Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed while PipeWire held the HDMI output |
 | Memory | mpv cache capped (100 / 25 MiB), images requested at the right size, 16 items per row | Small machines (4 GB) |
 | Languages | Texts written in French in the code (source language), gettext translations in `lang/<code>/LC_MESSAGES/turtlefin.po`, built in | See section 6 |
+| TV interface (Windows) | Borderless window covering the screen + 1 px (`src/winfull.rs`, `set_tv_window`), not true full screen; follows resolution changes (every 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` for Slint's full screen | In OpenGL full screen, AMD Software treats the app as a game: “Press ALT + R” every time it comes back to the foreground |
+| Window (Windows, desktop) | Shrunk and centred when 1280 x 720 + frame exceeds the work area | 1366 x 768 screens: the bottom went under the taskbar |
 | Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one | User request: no console unless asked |
 | Command line | Always wins over settings (startup account, TV interface) | User request |
 | Password | Never stored (token only); on the command line, prefer `TURTLEFIN_PASSWORD` | Arguments are visible to other processes |
@@ -161,6 +163,10 @@ Publishing:
 - `--open=settings|downloads`, `--play=ID@SECONDS`, `--test-video=file` (player without a server).
 - `TURTLEFIN_DEBUG_FRAMES=1` (frames > 25 ms), `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console`.
 - A `prefs.json` written by PowerShell 5 has a BOM: config reading ignores it.
+- `TURTLEFIN_DEBUG_SYNCPLAY=1`: watch-party messages received and requests sent (failures are always logged).
+  Two instances on one PC: two different `TURTLEFIN_CONFIG_DIR`, `--desktop`.
+- Automated tests on Windows: `SetForegroundWindow` is only allowed after a key press (Alt); without it,
+  simulated keys go to another window (fake “frozen keyboard”).
 
 ## 9. Known issues / limits
 

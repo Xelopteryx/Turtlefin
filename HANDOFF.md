@@ -30,6 +30,8 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
 | Mémoire | Cache mpv plafonné (100 / 25 MiB), images demandées à la bonne taille, 16 éléments par rangée | Petites machines (4 Go) |
 | Langues | Textes écrits en français dans le code (langue source), traductions gettext dans `lang/<code>/LC_MESSAGES/turtlefin.po`, intégrées à la compilation | Voir section 6 |
+| Interface TV (Windows) | Fenêtre sans bordure qui couvre l'écran + 1 px (`src/winfull.rs`, `set_tv_window`), pas le vrai plein écran ; suit les changements de définition (toutes les 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` pour le plein écran de Slint | En plein écran OpenGL, AMD Software prend l'appli pour un jeu : « Appuyez sur ALT + R » à chaque retour au premier plan |
+| Fenêtre (Windows, bureau) | Réduite et centrée si 1280 x 720 + cadre dépasse la zone de travail | Écrans 1366 x 768 : le bas passait sous la barre des tâches |
 | Fenêtre console (Windows) | Sous-système « windows » en release ; `--console` en rattache / ouvre une | Demande de l'utilisateur : pas de console sans option |
 | Ligne de commande | Prime toujours sur les réglages (compte de démarrage, interface TV) | Demande de l'utilisateur |
 | Mot de passe | Jamais enregistré (jeton seulement) ; en ligne de commande, préférer `TURTLEFIN_PASSWORD` | Un argument est visible des autres processus |
@@ -163,6 +165,10 @@ Publication :
 - `--open=settings|downloads`, `--play=ID@SECONDES`, `--test-video=fichier` (lecteur sans serveur).
 - `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms), `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console`.
 - Un `prefs.json` écrit par PowerShell 5 a un BOM : la lecture des fichiers de config l'ignore.
+- `TURTLEFIN_DEBUG_SYNCPLAY=1` : messages de la watch party reçus et requêtes envoyées (les échecs sont
+  toujours écrits). Deux instances sur un même PC : deux `TURTLEFIN_CONFIG_DIR` différents, `--desktop`.
+- Essais automatisés sous Windows : `SetForegroundWindow` n'est accepté qu'après un appui clavier (Alt) ;
+  sans ça, les touches simulées partent dans une autre fenêtre (faux « clavier bloqué »).
 
 ## 9. Problèmes connus / limites
 
