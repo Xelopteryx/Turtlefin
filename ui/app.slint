@@ -3383,7 +3383,9 @@ export component AppWindow inherits Window {
                 }
             }
             init => {
-                if (root.tv-mode) {
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (root.menu-open) {
+                } else if (root.tv-mode) {
                     self.focus();
                 } else {
                     s-input.focus();
@@ -5476,140 +5478,200 @@ export component AppWindow inherits Window {
         // Panneau de droite : lignes de réglage (libellé, aide dessous, valeur ou interrupteur à droite).
         // Marge autour des lignes : la ligne choisie grossit un peu sans être rognée.
         property <length> pad: 14px * root.k;
-        Rectangle {
+        // Défilement des lignes (catégorie plus haute que l'écran) : suit la ligne choisie, molette.
+        property <length> set-scroll;
+        property <length> set-view-h;
+        property <length> set-list-h;
+        property <length> set-max: max(0px, self.set-list-h - self.set-view-h);
+        function set-follow(top: length, h: length) {
+            if (top - sets.set-scroll < 0px) {
+                sets.set-scroll = max(0px, top - sets.pad);
+            } else if (top + h - sets.set-scroll > sets.set-view-h - sets.pad * 2) {
+                sets.set-scroll = min(sets.set-max, top + h - sets.set-view-h + sets.pad * 2);
+            }
+        }
+        property <int> set-cat-now: root.set-cat;
+        changed set-cat-now => {
+            sets.set-scroll = 0px;
+        }
+        set-panel := Rectangle {
             x: sets.left-w + 32px * root.k - sets.pad;
             y: 64px * root.k - sets.pad;
             width: parent.width - self.x - 32px * root.k + sets.pad;
             height: parent.height - self.y - 24px * root.k;
             clip: true;
+            init => {
+                sets.set-view-h = self.height;
+            }
+            changed height => {
+                sets.set-view-h = self.height;
+                sets.set-scroll = min(sets.set-scroll, sets.set-max);
+            }
 
-            VerticalLayout {
-                alignment: start;
-                spacing: 10px * root.k;
-                padding: sets.pad;
+            // Barre de défilement (seulement si tout ne tient pas).
+            if sets.set-max > 0px: Rectangle {
+                x: parent.width - 5px * root.k;
+                y: sets.pad + (parent.height - sets.pad * 2) * (sets.set-scroll / sets.set-list-h);
+                width: 4px * root.k;
+                height: (parent.height - sets.pad * 2) * (sets.set-view-h / sets.set-list-h);
+                border-radius: 2px * root.k;
+                background: #ffffff40;
+                animate y { duration: 220ms; easing: ease-out; }
+            }
 
-                for r[i] in root.set-rows: set-row-box := Rectangle {
-                    height: r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
-                  set-row := Rectangle {
-                    x: (1 - sets.rw-e(i)) * 60px * root.k;
-                    width: parent.width;
-                    height: parent.height;
-                    opacity: sets.rw-e(i);
-                    border-radius: 12px * root.k;
-                    property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
-                    property <bool> still: r.kind == "info" || r.kind == "profile";
-                    background: r.kind == "info" ? transparent
-                        : r.kind == "profile" ? #ffffff0d
-                        : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : self.sel ? #ffffff2e : row-area.has-hover ? #ffffff1f : #ffffff12;
-                    border-width: self.sel && r.kind != "action" ? 2px : 0px;
-                    border-color: Theme.accent2;
-                    transform-scale: self.sel ? 1.015 : 1.0;
-                    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-
-                    // Compte : avatar et nom
-                    if r.kind == "profile": Rectangle {
-                        x: 18px * root.k;
-                        y: (parent.height - self.height) / 2;
-                        width: 72px * root.k;
-                        height: self.width;
-                        border-radius: self.width / 2;
-                        background: #ffffff1f;
-                        if root.has-avatar: Image {
-                            width: parent.width;
-                            height: parent.height;
-                            source: root.avatar;
-                            image-fit: fill;
-                        }
+            TouchArea {
+                scroll-event(e) => {
+                    if (sets.set-max <= 0px || e.delta-y == 0px) {
+                        return EventResult.reject;
                     }
-                    VerticalLayout {
-                        x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
-                        // Place à droite seulement pour une valeur, un choix ou un interrupteur.
-                        width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") ? 20px * root.k : 280px * root.k);
-                        alignment: center;
-                        spacing: 3px * root.k;
-                        if r.label != "": Text {
-                            text: r.label;
-                            color: white;
-                            font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
-                            font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
-                            overflow: elide;
-                        }
-                        if r.hint != "": Text {
-                            text: r.hint;
-                            color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
-                            font-size: 13px * root.k;
-                            wrap: word-wrap;
-                        }
+                    sets.set-scroll = max(0px, min(sets.set-max, sets.set-scroll - e.delta-y));
+                    return EventResult.accept;
+                }
+                set-list := VerticalLayout {
+                    y: -sets.set-scroll;
+                    animate y { duration: 220ms; easing: ease-out; }
+                    width: parent.width - 8px * root.k;
+                    height: self.preferred-height;
+                    changed height => {
+                        sets.set-list-h = self.height;
                     }
-                    // Choix : valeur actuelle dans une pastille, flèche vers la liste.
-                    if r.kind == "choice": Rectangle {
-                        x: parent.width - self.width - 18px * root.k;
-                        y: (parent.height - self.height) / 2;
-                        width: val-t.preferred-width + 48px * root.k;
-                        height: 34px * root.k;
-                        border-radius: self.height / 2;
-                        background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
-                        val-t := Text {
-                            x: 16px * root.k;
+                    init => {
+                        sets.set-list-h = self.height;
+                    }
+                    alignment: start;
+                    spacing: 10px * root.k;
+                    padding: sets.pad;
+
+                    for r[i] in root.set-rows: set-row-box := Rectangle {
+                        height: r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
+                        // Ligne choisie au clavier : on fait défiler pour qu'elle reste visible.
+                        property <bool> is-sel: root.set-in && i == root.set-sel;
+                        changed is-sel => {
+                            if (self.is-sel) {
+                                sets.set-follow(self.y, self.height);
+                            }
+                        }
+                      set-row := Rectangle {
+                        x: (1 - sets.rw-e(i)) * 60px * root.k;
+                        width: parent.width;
+                        height: parent.height;
+                        opacity: sets.rw-e(i);
+                        border-radius: 12px * root.k;
+                        property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
+                        property <bool> still: r.kind == "info" || r.kind == "profile";
+                        background: r.kind == "info" ? transparent
+                            : r.kind == "profile" ? #ffffff0d
+                            : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                            : self.sel ? #ffffff2e : row-area.has-hover ? #ffffff1f : #ffffff12;
+                        border-width: self.sel && r.kind != "action" ? 2px : 0px;
+                        border-color: Theme.accent2;
+                        transform-scale: self.sel ? 1.015 : 1.0;
+                        animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+                        // Compte : avatar et nom
+                        if r.kind == "profile": Rectangle {
+                            x: 18px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: 72px * root.k;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            background: #ffffff1f;
+                            if root.has-avatar: Image {
+                                width: parent.width;
+                                height: parent.height;
+                                source: root.avatar;
+                                image-fit: fill;
+                            }
+                        }
+                        VerticalLayout {
+                            x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
+                            // Place à droite seulement pour une valeur, un choix ou un interrupteur.
+                            width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") ? 20px * root.k : 280px * root.k);
+                            alignment: center;
+                            spacing: 3px * root.k;
+                            if r.label != "": Text {
+                                text: r.label;
+                                color: white;
+                                font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
+                                font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
+                                overflow: elide;
+                            }
+                            if r.hint != "": Text {
+                                text: r.hint;
+                                color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
+                                font-size: 13px * root.k;
+                                wrap: word-wrap;
+                            }
+                        }
+                        // Choix : valeur actuelle dans une pastille, flèche vers la liste.
+                        if r.kind == "choice": Rectangle {
+                            x: parent.width - self.width - 18px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: val-t.preferred-width + 48px * root.k;
+                            height: 34px * root.k;
+                            border-radius: self.height / 2;
+                            background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
+                            val-t := Text {
+                                x: 16px * root.k;
+                                height: parent.height;
+                                text: r.value;
+                                color: white;
+                                font-size: 15px * root.k;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                            Path {
+                                x: parent.width - self.width - 14px * root.k;
+                                y: (parent.height - self.height) / 2;
+                                width: 12px * root.k;
+                                height: 12px * root.k;
+                                viewbox-width: 12;
+                                viewbox-height: 12;
+                                fill: transparent;
+                                stroke: white;
+                                stroke-width: 2px * root.k;
+                                commands: "M 2 4 L 6 8 L 10 4";
+                            }
+                        }
+                        // Action avec une valeur (taille du cache, « Modifier »...)
+                        if r.kind == "action" && r.value != "": Text {
+                            x: parent.width - 260px * root.k;
+                            width: 240px * root.k;
                             height: parent.height;
                             text: r.value;
-                            color: white;
+                            color: #ffffffd9;
                             font-size: 15px * root.k;
                             font-weight: 600;
+                            horizontal-alignment: right;
                             vertical-alignment: center;
+                            overflow: elide;
                         }
-                        Path {
-                            x: parent.width - self.width - 14px * root.k;
+                        if r.kind == "toggle": Rectangle {
+                            x: parent.width - self.width - 20px * root.k;
                             y: (parent.height - self.height) / 2;
-                            width: 12px * root.k;
-                            height: 12px * root.k;
-                            viewbox-width: 12;
-                            viewbox-height: 12;
-                            fill: transparent;
-                            stroke: white;
-                            stroke-width: 2px * root.k;
-                            commands: "M 2 4 L 6 8 L 10 4";
-                        }
-                    }
-                    // Action avec une valeur (taille du cache, « Modifier »...)
-                    if r.kind == "action" && r.value != "": Text {
-                        x: parent.width - 260px * root.k;
-                        width: 240px * root.k;
-                        height: parent.height;
-                        text: r.value;
-                        color: #ffffffd9;
-                        font-size: 15px * root.k;
-                        font-weight: 600;
-                        horizontal-alignment: right;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                    if r.kind == "toggle": Rectangle {
-                        x: parent.width - self.width - 20px * root.k;
-                        y: (parent.height - self.height) / 2;
-                        width: 56px * root.k;
-                        height: 30px * root.k;
-                        border-radius: self.height / 2;
-                        background: r.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
-                        Rectangle {
-                            x: r.on ? parent.width - self.width - 4px * root.k : 4px * root.k;
-                            width: 22px * root.k;
-                            height: 22px * root.k;
+                            width: 56px * root.k;
+                            height: 30px * root.k;
                             border-radius: self.height / 2;
-                            background: white;
-                            animate x { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            background: r.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
+                            Rectangle {
+                                x: r.on ? parent.width - self.width - 4px * root.k : 4px * root.k;
+                                width: 22px * root.k;
+                                height: 22px * root.k;
+                                border-radius: self.height / 2;
+                                background: white;
+                                animate x { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            }
                         }
-                    }
-                    row-area := TouchArea {
-                        enabled: !set-row.still;
-                        clicked => {
-                            root.set-in = true;
-                            root.set-sel = i;
-                            root.settings-activate(r.key);
+                        row-area := TouchArea {
+                            enabled: !set-row.still;
+                            clicked => {
+                                root.set-in = true;
+                                root.set-sel = i;
+                                root.settings-activate(r.key);
+                            }
                         }
+                      }
                     }
-                  }
                 }
             }
         }

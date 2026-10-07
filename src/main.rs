@@ -1586,7 +1586,10 @@ fn search_changed(app: &Arc<App>, text: String) {
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
-        let items = found.unwrap_or_default();
+        let items = found.unwrap_or_else(|e| {
+            eprintln!("turtlefin : recherche « {term} » : {e:#}");
+            Vec::new()
+        });
         let mut sections: Vec<SectionData> = Vec::new();
         for (title, kinds, landscape) in [
             (tr("Films"), &["Movie", "BoxSet"][..], false),
@@ -3004,8 +3007,13 @@ fn push_detail(app: &Arc<App>, id: String) {
     if let Some(u) = app.ui().upgrade() {
         cache_current_page(app, &u);
         if app.stack.lock().unwrap().is_empty() {
-            let from_dl = u.get_screen().as_str() == "downloads";
-            *app.stack_base.lock().unwrap() = if from_dl { "downloads".into() } else { String::new() };
+            // Page d'où part la pile : le dernier retour y ramène (sinon : l'accueil).
+            let screen = u.get_screen();
+            let from_dl = screen.as_str() == "downloads";
+            *app.stack_base.lock().unwrap() = match screen.as_str() {
+                "downloads" | "search" => screen.to_string(),
+                _ => String::new(),
+            };
             if from_dl {
                 u.set_here_lib("downloads".into());
             }
@@ -3295,10 +3303,17 @@ fn go_back(app: &Arc<App>) {
         // Pile vide : accueil (rechargé si une lecture a eu lieu : Reprendre / À suivre à jour).
         None => {
             PAGES.with_borrow_mut(|p| p.clear());
-            if std::mem::take(&mut *app.stack_base.lock().unwrap()) == "downloads" {
-                open_downloads(app);
-            } else {
-                go_home(app)
+            match std::mem::take(&mut *app.stack_base.lock().unwrap()).as_str() {
+                "downloads" => open_downloads(app),
+                // Recherche : les résultats et la sélection sont toujours là.
+                "search" => {
+                    if let Some(u) = app.ui().upgrade() {
+                        u.set_h_focus(false);
+                        u.set_s_osk(false);
+                        u.set_screen("search".into());
+                    }
+                }
+                _ => go_home(app),
             }
         }
     }
