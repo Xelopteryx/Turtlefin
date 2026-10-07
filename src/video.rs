@@ -62,7 +62,19 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // aussi les moments de repos, où rien n'est redessiné.
     let mut started: Option<std::time::Instant> = None;
     let t_start = std::time::Instant::now();
+    // TURTLEFIN_DEBUG_FPS=1 : nombre d'images dessinées par seconde (avec
+    // SLINT_DEBUG_PERFORMANCE=refresh_full_speed pour un rendu continu : le maximum possible).
+    let debug_fps = std::env::var_os("TURTLEFIN_DEBUG_FPS").is_some();
+    let (mut fps_n, mut fps_t) = (0u32, std::time::Instant::now());
     ui.window().set_rendering_notifier(move |rs, api| {
+        if debug_fps && matches!(rs, slint::RenderingState::AfterRendering) {
+            fps_n += 1;
+            if fps_t.elapsed().as_secs_f64() >= 1.0 {
+                eprintln!("[{:.0} s] {fps_n} images/s", t_start.elapsed().as_secs_f64());
+                fps_n = 0;
+                fps_t = std::time::Instant::now();
+            }
+        }
         if debug_frames {
             match rs {
                 slint::RenderingState::BeforeRendering => started = Some(std::time::Instant::now()),
@@ -210,7 +222,7 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
         if skip {
             render.acknowledge();
         } else if let Some(t) = &st.target {
-            render.render(t.fbo.0.get(), t.w as i32, t.h as i32);
+            render.render(t.fbo.0.get(), t.w as i32, t.h as i32, stale);
         }
 
         // Rétablissement de l'état OpenGL attendu par Slint.

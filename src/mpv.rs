@@ -37,6 +37,9 @@ const RENDER_PARAM_API_TYPE: c_int = 1;
 const RENDER_PARAM_OPENGL_INIT_PARAMS: c_int = 2;
 const RENDER_PARAM_OPENGL_FBO: c_int = 3;
 const RENDER_PARAM_FLIP_Y: c_int = 4;
+const RENDER_PARAM_BLOCK_FOR_TARGET_TIME: c_int = 12;
+/// `mpv_render_context_update` : une nouvelle image vidéo est à dessiner.
+const RENDER_UPDATE_FRAME: u64 = 1;
 
 #[repr(C)]
 struct RawEvent {
@@ -522,21 +525,34 @@ impl Render {
         unsafe { (self.api.render_update)(self.ctx) };
     }
 
-    /// Dessine l'image courante dans le framebuffer `fbo` (taille w x h).
-    pub fn render(&self, fbo: u32, w: i32, h: i32) {
+    /// Dessine dans le framebuffer `fbo` (taille w x h) la nouvelle image vidéo, s'il y en a une
+    /// (ou toujours si `force` : texture recréée). Sans attendre l'heure d'affichage de l'image :
+    /// l'interface est redessinée à la fréquence de l'écran (60 i/s), pas à celle de la vidéo, et
+    /// garde l'image précédente entre deux images de la vidéo. Renvoie vrai si mpv a dessiné.
+    pub fn render(&self, fbo: u32, w: i32, h: i32, force: bool) -> bool {
+        // SAFETY : contexte valide.
+        let flags = unsafe { (self.api.render_update)(self.ctx) };
+        // Diagnostic : TURTLEFIN_MPV_BLOCK=1 rétablit l'ancien comportement (attente à chaque image).
+        static OLD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let old = *OLD.get_or_init(|| std::env::var_os("TURTLEFIN_MPV_BLOCK").is_some());
+        if flags & RENDER_UPDATE_FRAME == 0 && !force && !old {
+            return false;
+        }
         let mut target = OpenGlFbo { fbo: fbo as c_int, w, h, internal_format: 0 };
         let mut flip: c_int = 0;
+        let mut block: c_int = old as c_int;
         let mut params = [
             RenderParam { kind: RENDER_PARAM_OPENGL_FBO, data: &mut target as *mut _ as *mut c_void },
             RenderParam { kind: RENDER_PARAM_FLIP_Y, data: &mut flip as *mut _ as *mut c_void },
+            RenderParam { kind: RENDER_PARAM_BLOCK_FOR_TARGET_TIME, data: &mut block as *mut _ as *mut c_void },
             RenderParam { kind: RENDER_PARAM_INVALID, data: std::ptr::null_mut() },
         ];
         // SAFETY : contexte valide, paramètres valides le temps de l'appel.
         unsafe {
-            (self.api.render_update)(self.ctx);
             (self.api.render_render)(self.ctx, params.as_mut_ptr());
         }
         release_leaked_fences();
+        true
     }
 }
 
