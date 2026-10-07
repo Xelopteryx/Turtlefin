@@ -120,6 +120,13 @@ Points notables, non évidents dans le code :
   console seulement avec `--console`, logo = icône (exe, fenêtre, installeur, paquets Linux), installeur bilingue
   qui transmet sa langue, scripts d'installation en une commande, README / HANDOFF en deux langues.
 
+- **7 octobre 2026 (soir)** : lecture à la fréquence de l'écran (`Render::render` : mpv ne dessine que les
+  nouvelles images, `BLOCK_FOR_TARGET_TIME=0` ; avant, l'interface était bridée à celle de la vidéo, 26 i/s) ;
+  volume (bouton + barre, `prefs.volume`), icônes Audio / Sous-titres, appuis et panneaux animés ; fiche qui
+  s'écarte au lancement de la lecture (`play-go`, `po`) ; fragmentation des textes pendant le choix de la langue
+  (`Tr.fx`, `Tr.k`, `i18n::fragment`) ; icônes du menu et des catégories (`NavIcon`) ; visite guidée (`tour-step`,
+  proposée au démarrage, `--tutorial`, Paramètres → À propos) ; point serveur orange tant qu'aucun serveur.
+
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).
 

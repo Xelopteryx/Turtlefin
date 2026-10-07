@@ -23,7 +23,8 @@ Current version: **0.9.1** · Interface languages: English, Français, Español,
   Posters with remaining episodes, “watched” check mark, rating; background taken from the selected item.
 - **Detail pages**: movie, series, season, episode; play, favorite, watched, download, audio / subtitle choice
   remembered per series; “More like this” and Seerr suggestions; request the missing seasons of a series.
-- **Playback** (libmpv): remote-friendly controls, chapters, season episodes, “Skip intro”, next episode,
+- **Guided tour**: offered on first launch, replayable in Settings → About.
+- **Playback** (libmpv): remote-friendly controls, Turtlefin-only volume, chapters, season episodes, “Skip intro”, next episode,
   suggestions at the end of a series; position and “watched” sent back to the server.
 - **Watch party** (SyncPlay): watch the same thing at the same time on several devices.
 - **Offline**: downloads shown like the home screen, full detail pages without a server; what you watch,
@@ -111,6 +112,7 @@ turtlefin --tv                             full screen, large elements (TV)
 turtlefin --desktop                        window (overrides the “TV interface” setting)
 turtlefin --no-intro                       no startup animation
 turtlefin --console                        show the log window (Windows)
+turtlefin --tutorial                       guided tour when the home screen opens
 ```
 
 Command-line options always win over settings (startup account, TV interface).

@@ -32,6 +32,7 @@ slint::include_modules!();
 //   turtlefin "Cody"                       -> compte enregistré « Cody »
 //   turtlefin "Cody" "mot de passe" --tv   -> connexion automatique, plein écran
 //   options : --tv | --desktop | --server=URL | --no-intro (pas d'animation) | --console (journal)
+//             --tutorial (visite guidée à l'arrivée sur l'accueil)
 //   le mot de passe peut aussi venir de la variable TURTLEFIN_PASSWORD
 //   (un argument de ligne de commande est visible par les autres processus).
 // ---------------------------------------------------------------------------
@@ -57,6 +58,11 @@ fn parse_cli() -> Cli {
             "--tv" => cli.tv = Some(true),
             "--console" => {}
             "--no-intro" => cli.no_intro = true,
+            "--tutorial" => {
+                let mut p = config::ui_prefs();
+                p.tutorial_pending = true;
+                config::save_ui_prefs(&p);
+            }
             "--desktop" => cli.tv = Some(false),
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
@@ -933,6 +939,19 @@ fn end_session(app: &Arc<App>, forget: bool) {
     }
 }
 
+/// Visite guidée (ui : Tour) par-dessus l'accueil, après `delay_ms` (le temps qu'il s'affiche).
+fn start_tour(app: &Arc<App>, delay_ms: u64) {
+    let a = app.clone();
+    app.rt.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        let _ = a.ui().upgrade_in_event_loop(|u| {
+            if u.get_screen().as_str() == "home" && !u.get_playing() {
+                u.set_tour_step(0);
+            }
+        });
+    });
+}
+
 /// Ouvre la session : accueil (onglet affiché) avec ce client.
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
@@ -964,6 +983,13 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         *app.play_start.lock().unwrap() = at;
         let a = app.clone();
         app.rt.spawn(async move { play_flow(a, Some(id), None).await });
+    }
+    // Visite guidée en attente (acceptée au premier lancement, --tutorial) : sur l'accueil chargé.
+    if config::ui_prefs().tutorial_pending {
+        let mut p = config::ui_prefs();
+        p.tutorial_pending = false;
+        config::save_ui_prefs(&p);
+        start_tour(&app, 2500);
     }
     // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
     let seerr = client.seerr_user().await;
@@ -2258,6 +2284,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 row("update", label, &hint, value, "action", false),
                 row("info", "", &trf("Serveur : {}", &[&srv]), String::new(), "info", false),
                 row("info", "", &trf("Appareil : {}", &[&app.device_id]), String::new(), "info", false),
+                row("tour", tr("Visite guidée"), tr("Revoir la présentation de Turtlefin."), String::new(), "action", false),
                 row("clearcache", tr("Vider le cache d'images"), tr("Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés."), format!("{} Mo", size >> 20), "action", false),
                 row("quit", tr("Fermer Turtlefin"), tr("Quitte l'application."), String::new(), "action", false),
             ]
@@ -2752,6 +2779,10 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 set_tv_window(&u, on);
             }
             refresh_settings(app);
+        }
+        "tour" => {
+            go_home(app);
+            start_tour(app, 1200);
         }
         "clearcache" => {
             if let Some(dir) = api::image_cache_dir() {

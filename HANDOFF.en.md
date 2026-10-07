@@ -118,6 +118,13 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   only with `--console`, logo = icon (exe, window, installer, Linux packages), bilingual installer passing its
   language on, one-command install scripts, README / HANDOFF in two languages.
 
+- **October 7, 2026 (evening)**: playback at the screen's refresh rate (`Render::render`: mpv draws only new
+  frames, `BLOCK_FOR_TARGET_TIME=0`; before, the UI was capped at the video's rate, 26 fps); volume (button + bar,
+  `prefs.volume`), Audio / Subtitles icons, animated presses and panels; detail page moving aside when playback
+  starts (`play-go`, `po`); text fragmentation while choosing the language (`Tr.fx`, `Tr.k`, `i18n::fragment`);
+  menu and category icons (`NavIcon`); guided tour (`tour-step`, offered at startup, `--tutorial`, Settings →
+  About); orange server dot while no server is chosen.
+
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).
 

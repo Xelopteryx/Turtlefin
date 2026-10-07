@@ -1456,6 +1456,7 @@ export component AppWindow inherits Window {
     in-out property <int> boot-phase;
     in-out property <bool> boot-lang-open;
     in property <string> boot-lang-title;
+    in property <bool> boot-lang-fx: true;
     in property <[TrackData]> boot-langs;
     in-out property <int> boot-lang-sel;
     callback boot-continue();
@@ -2606,13 +2607,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -3221,14 +3222,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -3406,13 +3407,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -3596,7 +3597,7 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -3839,13 +3840,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -3904,13 +3905,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -4028,14 +4029,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -4646,13 +4647,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -4764,13 +4765,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -4993,7 +4994,7 @@ export component AppWindow inherits Window {
                 height: parent.dh;
                 init => {
                     // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                    if (!root.menu-open) {
+                    if (!root.menu-open && root.tour-step < 0) {
                         self.focus();
                     }
                 }
@@ -5202,7 +5203,7 @@ export component AppWindow inherits Window {
                 FocusScope {
                     init => {
                         // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                        if (!root.menu-open) {
+                        if (!root.menu-open && root.tour-step < 0) {
                             self.focus();
                         }
                     }
@@ -5282,13 +5283,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -5507,13 +5508,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -6583,7 +6584,7 @@ export component AppWindow inherits Window {
                         root.cancel-open();
                         return EventResult.accept;
                     }
-                    if (!root.menu-open) {
+                    if (!root.menu-open && root.tour-step < 0) {
                         return EventResult.reject;
                     }
                     if (event.text == Key.UpArrow) {
@@ -6711,7 +6712,7 @@ export component AppWindow inherits Window {
         FocusScope {
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open) {
+                if (!root.menu-open && root.tour-step < 0) {
                     self.focus();
                 }
             }
@@ -7100,6 +7101,256 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ------------------------------------------------------------ Visite guidée
+    // Par-dessus l'accueil : voile sombre, zone expliquée éclairée, bulle de texte. Entrée / → :
+    // suivant · ← : précédent · Échap : fin. Fiche et lecture : petits schémas dans la bulle.
+    in-out property <int> tour-step: -1;
+    property <int> tour-count: 8;
+    property <float> tour-p: root.tour-step >= 0 ? 1 : 0;
+    animate tour-p { duration: 300ms; easing: ease-out; }
+    property <int> tour-last: 0;
+    changed tour-step => {
+        if (root.tour-step >= 0) {
+            root.tour-last = root.tour-step;
+        } else {
+            root.refocus += 1;
+        }
+    }
+    // Zone éclairée de chaque étape (x, y, largeur, hauteur) ; largeur 0 : aucune.
+    property <length> tour-row-h: root.sections.length > 0 ? root.sections[0].h-px * 1px : 300px * root.k;
+    property <length> hx: root.tour-last == 1 ? 0px : root.tour-last == 2 ? 8px * root.k : root.tour-last == 3 ? root.width * 0.3
+        : root.tour-last == 4 ? root.width * 0.62 : 0px;
+    property <length> hy: root.tour-last == 1 ? root.header-h : root.tour-last >= 2 && root.tour-last <= 4 ? 4px * root.k : 0px;
+    property <length> hw: root.tour-last == 1 ? root.width : root.tour-last == 2 ? 230px * root.k : root.tour-last == 3 ? root.width * 0.32
+        : root.tour-last == 4 ? root.width * 0.37 : 0px;
+    property <length> hh: root.tour-last == 1 ? root.tour-row-h : root.tour-last >= 2 && root.tour-last <= 4 ? root.header-h - 8px * root.k : 0px;
+    animate hx, hy, hw, hh { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+
+    if root.tour-p > 0.01 && !root.playing: Rectangle {
+        opacity: root.tour-p;
+        TouchArea { }
+        // Voile autour de la zone éclairée (quatre bandes).
+        Rectangle { x: 0px; y: 0px; width: parent.width; height: root.hy; background: #000000c0; }
+        Rectangle { x: 0px; y: root.hy + root.hh; width: parent.width; height: max(0px, parent.height - root.hy - root.hh); background: #000000c0; }
+        Rectangle { x: 0px; y: root.hy; width: root.hx; height: root.hh; background: #000000c0; }
+        Rectangle { x: root.hx + root.hw; y: root.hy; width: max(0px, parent.width - root.hx - root.hw); height: root.hh; background: #000000c0; }
+        if root.hw > 1px: Rectangle {
+            x: root.hx;
+            y: root.hy;
+            width: root.hw;
+            height: root.hh;
+            border-radius: 14px * root.k;
+            border-width: 3px * root.k;
+            border-color: Theme.accent2;
+        }
+
+        tour-box := Rectangle {
+            property <bool> below: root.tour-last >= 2 && root.tour-last <= 4;
+            property <bool> has-art: root.tour-last == 5 || root.tour-last == 6;
+            width: min(parent.width - 80px * root.k, 620px * root.k);
+            height: 150px * root.k + (self.has-art ? 170px * root.k : 0px) + tour-body.preferred-height;
+            x: (parent.width - self.width) / 2;
+            y: self.below ? root.header-h + 40px * root.k
+                : root.tour-last == 1 ? min(parent.height - self.height - 30px * root.k, root.header-h + root.tour-row-h + 30px * root.k)
+                : (parent.height - self.height) / 2;
+            animate y, height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            border-radius: 20px * root.k;
+            background: #0b1520f2;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+
+            Text {
+                x: 28px * root.k;
+                y: 22px * root.k;
+                width: parent.width - 56px * root.k;
+                text: root.tour-last == 0 ? Tr.t(Tr.k, "Bienvenue dans Turtlefin") : root.tour-last == 1 ? Tr.t(Tr.k, "Tes médias")
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "Le menu") : root.tour-last == 3 ? Tr.t(Tr.k, "Les onglets")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "La barre du haut") : root.tour-last == 5 ? Tr.t(Tr.k, "La fiche d'un média")
+                    : root.tour-last == 6 ? Tr.t(Tr.k, "Pendant la lecture") : Tr.t(Tr.k, "C'est parti !");
+                color: white;
+                font-size: 24px * root.k;
+                font-weight: 700;
+            }
+            tour-body := Text {
+                x: 28px * root.k;
+                y: 66px * root.k;
+                width: parent.width - 56px * root.k;
+                wrap: word-wrap;
+                text: root.tour-last == 0 ? Tr.t(Tr.k, "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi.")
+                    : root.tour-last == 1 ? Tr.t(Tr.k, "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie.")
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres.")
+                    : root.tour-last == 3 ? Tr.t(Tr.k, "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr).")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil.")
+                    : root.tour-last == 5 ? Tr.t(Tr.k, "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions.")
+                    : root.tour-last == 6 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison.")
+                    : Tr.t(Tr.k, "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée.");
+                color: #ffffffd9;
+                font-size: 17px * root.k;
+            }
+
+            // Schéma de la fiche : affiche et boutons.
+            if root.tour-last == 5: Rectangle {
+                x: 28px * root.k;
+                y: tour-body.y + tour-body.preferred-height + 16px * root.k;
+                width: parent.width - 56px * root.k;
+                height: 150px * root.k;
+                border-radius: 12px * root.k;
+                background: #ffffff0d;
+                Rectangle {
+                    x: 16px * root.k;
+                    y: 15px * root.k;
+                    width: 80px * root.k;
+                    height: 120px * root.k;
+                    border-radius: 8px * root.k;
+                    background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+                }
+                for ic[i] in ["play", "heart", "check", "download"]: Rectangle {
+                    x: 120px * root.k + i * 54px * root.k;
+                    y: 40px * root.k;
+                    width: 44px * root.k;
+                    height: 44px * root.k;
+                    border-radius: 10px * root.k;
+                    background: i == 0 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
+                    if ic == "play": NavIcon { x: 11px * root.k; y: 11px * root.k; width: 22px * root.k; height: 22px * root.k; name: "play"; }
+                    if ic == "download": NavIcon { x: 11px * root.k; y: 11px * root.k; width: 22px * root.k; height: 22px * root.k; name: "downloads"; }
+                    if ic == "heart": Text { text: "♥"; color: #ff4d6d; font-size: 22px * root.k; horizontal-alignment: center; vertical-alignment: center; }
+                    if ic == "check": Text { text: "✓"; color: white; font-size: 22px * root.k; horizontal-alignment: center; vertical-alignment: center; }
+                }
+                for j in 3: Rectangle {
+                    x: 120px * root.k + j * 70px * root.k;
+                    y: 100px * root.k;
+                    width: 60px * root.k;
+                    height: 34px * root.k;
+                    border-radius: 6px * root.k;
+                    background: #ffffff14;
+                }
+            }
+
+            // Schéma du lecteur : panneau (barre + boutons) et, dessous, les épisodes qui montent.
+            if root.tour-last == 6: Rectangle {
+                x: 28px * root.k;
+                y: tour-body.y + tour-body.preferred-height + 16px * root.k;
+                width: parent.width - 56px * root.k;
+                height: 150px * root.k;
+                border-radius: 12px * root.k;
+                background: #000000;
+                clip: true;
+                property <float> t: mod(animation-tick() / 1ms, 2400) / 2400;
+                property <float> up: self.t < 0.4 ? 0 : self.t < 0.6 ? (self.t - 0.4) / 0.2 : self.t < 0.9 ? 1 : 1 - (self.t - 0.9) / 0.1;
+                Rectangle {
+                    x: 14px * root.k;
+                    y: 40px * root.k - parent.up * 44px * root.k;
+                    width: parent.width - 28px * root.k;
+                    height: 66px * root.k;
+                    border-radius: 10px * root.k;
+                    background: #ffffff1a;
+                    Rectangle {
+                        x: 14px * root.k;
+                        y: 14px * root.k;
+                        width: parent.width - 28px * root.k;
+                        height: 5px * root.k;
+                        border-radius: 3px * root.k;
+                        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                    }
+                    for b[i] in 5: Rectangle {
+                        x: parent.width / 2 - 75px * root.k + i * 32px * root.k;
+                        y: 32px * root.k;
+                        width: 24px * root.k;
+                        height: 24px * root.k;
+                        border-radius: 12px * root.k;
+                        background: i == 2 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
+                    }
+                }
+                for e[i] in 4: Rectangle {
+                    x: 14px * root.k + i * ((parent.width - 28px * root.k) / 4);
+                    y: parent.height + 6px * root.k - parent.up * 50px * root.k;
+                    width: (parent.width - 28px * root.k) / 4 - 10px * root.k;
+                    height: 40px * root.k;
+                    border-radius: 6px * root.k;
+                    background: i == 1 ? Theme.accent2 : #ffffff33;
+                }
+                Text {
+                    x: parent.width - 60px * root.k;
+                    y: 112px * root.k - parent.up * 30px * root.k;
+                    text: "↓";
+                    color: Theme.accent2;
+                    font-size: 26px * root.k;
+                    font-weight: 700;
+                    opacity: 1 - parent.up;
+                }
+            }
+
+            // Points d'avancement et boutons.
+            for d[i] in root.tour-count: Rectangle {
+                x: 28px * root.k + i * 16px * root.k;
+                y: parent.height - 40px * root.k;
+                width: (i == root.tour-last ? 22px : 8px) * root.k;
+                animate width { duration: 220ms; }
+                height: 8px * root.k;
+                border-radius: 4px * root.k;
+                background: i == root.tour-last ? Theme.accent2 : #ffffff40;
+            }
+            HorizontalLayout {
+                x: parent.width - self.preferred-width - 24px * root.k;
+                y: parent.height - 58px * root.k;
+                height: 40px * root.k;
+                spacing: 10px * root.k;
+                if root.tour-last < root.tour-count - 1: Rectangle {
+                    width: skip-t.preferred-width + 30px * root.k;
+                    border-radius: 10px * root.k;
+                    background: skip-a.has-hover ? #ffffff26 : #ffffff12;
+                    skip-t := Text { text: Tr.t(Tr.k, "Passer la visite"); color: #ffffffcc; font-size: 15px * root.k; horizontal-alignment: center; vertical-alignment: center; }
+                    skip-a := TouchArea { clicked => { root.tour-step = -1; } }
+                }
+                Rectangle {
+                    width: next-t.preferred-width + 36px * root.k;
+                    border-radius: 10px * root.k;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    next-t := Text {
+                        text: root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
+                        color: white;
+                        font-size: 15px * root.k;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        clicked => {
+                            root.tour-step = root.tour-last < root.tour-count - 1 ? root.tour-last + 1 : -1;
+                        }
+                    }
+                }
+            }
+        }
+
+        tour-fs := FocusScope {
+            property <int> st: root.tour-step;
+            changed st => {
+                if (root.tour-step >= 0) {
+                    self.focus();
+                }
+            }
+            init => {
+                if (root.tour-step >= 0) {
+                    self.focus();
+                }
+            }
+            key-pressed(event) => {
+                if (event.repeat) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.Return || event.text == Key.RightArrow || event.text == " ") {
+                    root.tour-step = root.tour-step < root.tour-count - 1 ? root.tour-step + 1 : -1;
+                } else if (event.text == Key.LeftArrow) {
+                    root.tour-step = max(0, root.tour-step - 1);
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.tour-step = -1;
+                }
+                return EventResult.accept;
+            }
+        }
+    }
+
     // Démarrage (au-dessus de tout) : vérifications, liaison du logo, puis zoom vers la page suivante.
     if root.boot-on: BootLogo {
         k: root.k;
@@ -7111,6 +7362,7 @@ export component AppWindow inherits Window {
         phase: root.boot-phase;
         lang-open: root.boot-lang-open;
         lang-title: root.boot-lang-title;
+        lang-fx: root.boot-lang-fx;
         langs: root.boot-langs;
         lang-sel <=> root.boot-lang-sel;
         continue-boot => {

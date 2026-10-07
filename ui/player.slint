@@ -1139,6 +1139,46 @@ export component PlayerView inherits Rectangle {
         }
     }
 
+    // ------------------------------------------------------------ Indice : épisodes dessous
+    // Commandes affichées et saison connue : petite languette sous le panneau (↓ pour l'ouvrir).
+    if root.osd && root.episodes.length > 0 && root.zone != 5 && root.ep-p < 0.01: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 2px * root.k;
+        width: ep-hint.preferred-width + 54px * root.k;
+        height: 22px * root.k;
+        border-top-left-radius: 10px * root.k;
+        border-top-right-radius: 10px * root.k;
+        background: Theme.glass;
+        Path {
+            x: 14px * root.k;
+            y: (parent.height - self.height) / 2;
+            width: 12px * root.k;
+            height: 12px * root.k;
+            viewbox-width: 12;
+            viewbox-height: 12;
+            fill: transparent;
+            stroke: Theme.accent2;
+            stroke-width: 2px * root.k;
+            commands: "M 2 4 L 6 8 L 10 4";
+        }
+        ep-hint := Text {
+            x: 34px * root.k;
+            height: parent.height;
+            text: Tr.t(Tr.k, "Épisodes");
+            color: #ffffffcc;
+            font-size: 13px * root.k;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        TouchArea {
+            clicked => {
+                root.zone = 5;
+                root.ep-sel = root.ep-current;
+                root.show();
+            }
+        }
+    }
+
     // ------------------------------------------------------------ Volume
     // Barre horizontale : ← → (5 %) ou souris. Volume de Turtlefin seulement.
     if root.osd && root.vol-p > 0.01: Rectangle {

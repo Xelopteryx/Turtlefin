@@ -19,6 +19,8 @@ export component BootLogo inherits Rectangle {
     in property <string> fail-hint;       // « Entrée pour continuer »
     in property <int> phase;              // 0 vérifications · 1 liaison · 2 zoom
     in property <bool> lang-open;
+    // Fragmenter les textes derrière (choix de la langue) ; pas pour la question de la visite guidée.
+    in property <bool> lang-fx: true;
     in property <string> lang-title;
     in property <[TrackData]> langs;
     in-out property <int> lang-sel;
@@ -268,7 +270,7 @@ export component BootLogo inherits Rectangle {
     // choix, les textes derrière se défont en « pixels » (Tr.fx) puis se reforment dans la langue choisie.
     property <float> lang-p: root.lang-open ? 1 : 0;
     animate lang-p { duration: 320ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-    property <int> fx-target: root.lang-open ? 72 : 0;
+    property <int> fx-target: root.lang-open && root.lang-fx ? 72 : 0;
     Timer {
         interval: 16ms;
         running: Tr.fx != root.fx-target;

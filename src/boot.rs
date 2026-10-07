@@ -220,6 +220,31 @@ pub async fn run(app: Arc<App>, start: Start) {
             });
         }
 
+        // Visite guidée : proposée une fois, juste après la langue (pas sans animation : --no-intro).
+        if i == 0 && animate && !config::ui_prefs().tutorial_offered {
+            let items = vec![
+                TrackData { id: "yes".into(), label: tr("Oui, montre-moi").into(), current: false },
+                TrackData { id: "no".into(), label: tr("Non merci").into(), current: false },
+            ];
+            let title = tr("Visite guidée ?");
+            ui(&app, move |u| {
+                u.set_boot_lang_fx(false);
+                u.set_boot_lang_title(title.into());
+                u.set_boot_langs(ModelRc::new(VecModel::from(items)));
+                u.set_boot_lang_sel(0);
+                u.set_boot_lang_open(true);
+            });
+            let answer = wait(&app, None).await;
+            let mut p = config::ui_prefs();
+            p.tutorial_offered = true;
+            p.tutorial_pending = answer == "yes";
+            config::save_ui_prefs(&p);
+            ui(&app, |u| {
+                u.set_boot_lang_open(false);
+                u.set_boot_lang_fx(true);
+            });
+        }
+
         let result = check(i, &start).await;
         match result {
             Ok(true) => set_state(&app, i, 2),

@@ -23,7 +23,8 @@ Version actuelle : **0.9.1** · Langues de l'interface : Français, English, Esp
   Affiches avec épisodes restants, coche « vu », note ; fond d'écran tiré du média sélectionné.
 - **Fiches** : film, série, saison, épisode ; lecture, favori, vu, téléchargement, choix audio / sous-titres retenu
   par série ; « Plus de ce genre » et suggestions Seerr ; demande des saisons manquantes d'une série.
-- **Lecture** (libmpv) : commandes à la télécommande, chapitres, épisodes de la saison, « Passer l'intro »,
+- **Visite guidée** : proposée au premier lancement, à revoir dans Paramètres → À propos.
+- **Lecture** (libmpv) : commandes à la télécommande, volume propre à Turtlefin, chapitres, épisodes de la saison, « Passer l'intro »,
   épisode suivant, suggestions en fin de série ; position et « vu » renvoyés au serveur.
 - **Watch party** (SyncPlay) : regarder la même chose en même temps sur plusieurs appareils.
 - **Hors ligne** : téléchargements présentés comme l'accueil, fiches complètes sans serveur ; les lectures,
@@ -112,6 +113,7 @@ turtlefin --tv                             plein écran, grands éléments (tél
 turtlefin --desktop                        fenêtre (prime sur le réglage « Interface TV »)
 turtlefin --no-intro                       pas d'animation de démarrage
 turtlefin --console                        fenêtre de journal (Windows)
+turtlefin --tutorial                       visite guidée à l'arrivée sur l'accueil
 ```
 
 La ligne de commande l'emporte toujours sur les réglages (compte de démarrage, interface TV).

@@ -1265,3 +1265,75 @@ msgstr "Languages added: {}. Pick it in “Interface language”."
 
 msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
 msgstr "No translation found. Put a <code>.po file in Downloads, on the Desktop or in {} (template: modele.po)."
+
+msgid "Aucun serveur choisi : la recherche des serveurs va suivre."
+msgstr "No server chosen yet: the server search comes next."
+
+msgid "Bienvenue dans Turtlefin"
+msgstr "Welcome to Turtlefin"
+
+msgid "C'est parti !"
+msgstr "Let's go!"
+
+msgid "La barre du haut"
+msgstr "The top bar"
+
+msgid "La fiche d'un média"
+msgstr "A media page"
+
+msgid "Le menu"
+msgstr "The menu"
+
+msgid "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions."
+msgstr "Play, favorite, watched and download; below: seasons, episodes and suggestions."
+
+msgid "Les onglets"
+msgstr "The tabs"
+
+msgid "Non merci"
+msgstr "No thanks"
+
+msgid "Oui, montre-moi"
+msgstr "Yes, show me"
+
+msgid "Passer la visite"
+msgstr "Skip the tour"
+
+msgid "Pendant la lecture"
+msgstr "During playback"
+
+msgid "Revoir la présentation de Turtlefin."
+msgstr "See the Turtlefin tour again."
+
+msgid "Terminer"
+msgstr "Done"
+
+msgid "Tes médias"
+msgstr "Your media"
+
+msgid "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi."
+msgstr "Everything works with the arrow keys, Enter to open and Back (or Esc) to go back. The mouse works too."
+
+msgid "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée."
+msgstr "You can watch this tour again in Settings → About → Guided tour."
+
+msgid "Visite guidée"
+msgstr "Guided tour"
+
+msgid "Visite guidée ?"
+msgstr "Guided tour?"
+
+msgid "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil."
+msgstr "Watch party to watch together, dice for a random pick, search, and your profile."
+
+msgid "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie."
+msgstr "← → scroll a row, ↑ ↓ move between rows. Enter opens the chosen poster."
+
+msgid "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres."
+msgstr "← on the first card (or Back) opens the menu: libraries, downloads, watch party, account and settings."
+
+msgid "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr)."
+msgstr "↑ from the first row: Home, Favorites and Requests (if the server offers Seerr)."
+
+msgid "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison."
+msgstr "← →: 10 s back or forward. ↓ shows the controls (volume, audio, subtitles); ↓ again: the season's episodes."

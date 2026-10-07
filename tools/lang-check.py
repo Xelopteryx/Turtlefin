@@ -16,7 +16,7 @@ def code_texts():
     ids = set()
     for f in glob.glob('ui/*.slint'):
         s = open(f, encoding='utf-8').read()
-        ids.update(un(m) for m in re.findall(r'Tr\.[tfp]\(Tr\.l,\s*' + LIT, s))
+        ids.update(un(m) for m in re.findall(r'Tr\.[tfp]\(Tr\.[lk],\s*' + LIT, s))
     for f in glob.glob('src/*.rs'):
         if not f.endswith('i18n.rs'):
             ids.update(un(m) for m in re.findall(r'(?<![\w])trf?\(\s*' + LIT, open(f, encoding='utf-8').read()))

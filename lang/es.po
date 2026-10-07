@@ -1265,3 +1265,75 @@ msgstr "Idiomas añadidos: {}. Elígelo en «Idioma de la interfaz»."
 
 msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
 msgstr "No se encontró ninguna traducción. Deja un archivo <código>.po en Descargas, en el Escritorio o en {} (plantilla: modele.po)."
+
+msgid "Aucun serveur choisi : la recherche des serveurs va suivre."
+msgstr "Aún no hay servidor: a continuación se buscarán servidores."
+
+msgid "Bienvenue dans Turtlefin"
+msgstr "Bienvenido a Turtlefin"
+
+msgid "C'est parti !"
+msgstr "¡Vamos!"
+
+msgid "La barre du haut"
+msgstr "La barra superior"
+
+msgid "La fiche d'un média"
+msgstr "La ficha de un contenido"
+
+msgid "Le menu"
+msgstr "El menú"
+
+msgid "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions."
+msgstr "Reproducir, favorito, visto y descargar; debajo: temporadas, episodios y sugerencias."
+
+msgid "Les onglets"
+msgstr "Las pestañas"
+
+msgid "Non merci"
+msgstr "No, gracias"
+
+msgid "Oui, montre-moi"
+msgstr "Sí, enséñamelo"
+
+msgid "Passer la visite"
+msgstr "Saltar la visita"
+
+msgid "Pendant la lecture"
+msgstr "Durante la reproducción"
+
+msgid "Revoir la présentation de Turtlefin."
+msgstr "Volver a ver la presentación de Turtlefin."
+
+msgid "Terminer"
+msgstr "Terminar"
+
+msgid "Tes médias"
+msgstr "Tus contenidos"
+
+msgid "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi."
+msgstr "Todo se hace con las flechas, Intro para abrir y Atrás (o Esc) para volver. El ratón también funciona."
+
+msgid "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée."
+msgstr "Puedes volver a ver esta visita en Ajustes → Acerca de → Visita guiada."
+
+msgid "Visite guidée"
+msgstr "Visita guiada"
+
+msgid "Visite guidée ?"
+msgstr "¿Visita guiada?"
+
+msgid "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil."
+msgstr "Watch party para ver en grupo, dado para un contenido al azar, búsqueda y tu perfil."
+
+msgid "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie."
+msgstr "← → desplazan una fila, ↑ ↓ pasan de una fila a otra. Intro abre el póster elegido."
+
+msgid "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres."
+msgstr "← en la primera tarjeta (o Atrás) abre el menú: bibliotecas, descargas, watch party, cuenta y ajustes."
+
+msgid "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr)."
+msgstr "↑ desde la primera fila: Inicio, Favoritos y Solicitudes (si el servidor ofrece Seerr)."
+
+msgid "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison."
+msgstr "← →: 10 s atrás o adelante. ↓ muestra los controles (volumen, audio, subtítulos); ↓ otra vez: los episodios de la temporada."
