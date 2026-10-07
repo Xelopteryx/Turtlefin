@@ -16,7 +16,8 @@ Version actuelle : **0.9.0** · Langues de l'interface : Français, English.
   l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans ressaisie, « Gérer les comptes »
   pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil (local et VPN) ; une adresse
   principale et une adresse de secours, essayée quand la principale ne répond pas (Paramètres → Réseau).
-- **Démarrage** : logo animé qui vérifie langue, affichage, lecteur vidéo, stockage, réseau et serveur, puis ouvre
+- **Démarrage** : logo animé dont les sept points sont de vraies vérifications (langue, affichage, lecteur vidéo,
+  stockage, configuration, réseau, et le serveur au centre) ; ils se relient ensuite pour former le logo, puis ouvre
   « Qui regarde ? » — ou directement le compte choisi dans Paramètres → Compte → **Ouvrir ce compte au démarrage**.
 - **Accueil** : Mes médias, Reprendre, À suivre, Récemment ajouté ; onglets Favoris et Demandes (Seerr).
   Affiches avec épisodes restants, coche « vu », note ; fond d'écran tiré du média sélectionné.

@@ -183,11 +183,6 @@ fn load() -> Result<Api, String> {
     Err(last_err)
 }
 
-/// libmpv peut-elle être chargée ? (vérification du démarrage)
-pub fn available() -> Result<(), String> {
-    api().map(|_| ()).map_err(|e| e.to_string())
-}
-
 fn api() -> Result<&'static Api> {
     static API: OnceLock<Result<Api, String>> = OnceLock::new();
     API.get_or_init(load).as_ref().map_err(|e| {
@@ -338,6 +333,17 @@ impl Mpv {
             }
         }
     }
+}
+
+/// Vérification du démarrage : crée un vrai lecteur mpv, l'initialise (sans sortie vidéo ni son)
+/// puis le détruit. Échoue si la bibliothèque manque, est incomplète ou ne démarre pas.
+pub fn self_test() -> Result<(), String> {
+    let m = Mpv::new().map_err(|e| e.to_string())?;
+    for (k, v) in [("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes")] {
+        m.set_option(k, v);
+    }
+    m.initialize().map_err(|e| e.to_string())?;
+    Ok(()) // `drop` : mpv_terminate_destroy
 }
 
 impl Drop for Mpv {

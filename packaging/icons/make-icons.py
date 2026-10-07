@@ -1,54 +1,64 @@
-"""Dessine le logo de packaging/turtlefin.svg (repère 256) en PNG et ICO. usage: draw.py <dossier de sortie>"""
+"""Icônes de Turtlefin (PNG de plusieurs tailles et ICO Windows), dessinées avec Pillow.
+
+Même géométrie que packaging/turtlefin.svg et l'animation de démarrage (ui/boot.slint) : repère 256,
+centre (128, 128), hexagone de rayon 68 (trait 14), rayons (trait 8), hexagone central plein,
+bouts et angles arrondis, dégradé #a95bc2 -> #00a4db à 135° sur le carré [53, 203] ; le tout agrandi
+x1,4 autour du centre sur un carré sombre aux coins arrondis.
+
+usage : python make-icons.py <dossier de sortie>
+"""
 import sys, os
 from PIL import Image, ImageDraw
 
 out = sys.argv[1]
-K = 8            # suréchantillonnage
+K = 8              # suréchantillonnage
 N = 256 * K
+SCALE = 1.4        # agrandissement du logo dans l'icône
+
+OUTER = [(128, 60), (187, 94), (187, 162), (128, 196), (69, 162), (69, 94)]
+INNER = [(128, 98), (154, 113), (154, 143), (128, 158), (102, 143), (102, 113)]
 
 
 def P(x, y):
-    return (x * K, y * K)
+    """Repère du logo -> pixels de l'image (agrandissement autour du centre)."""
+    return ((128 + (x - 128) * SCALE) * K, (128 + (y - 128) * SCALE) * K)
 
 
 def stroke(d, pts, w, closed):
     pts = [P(*p) for p in pts]
+    w = w * SCALE * K
     segs = list(zip(pts, pts[1:] + pts[:1])) if closed else list(zip(pts, pts[1:]))
     for a, b in segs:
-        d.line([a, b], fill=255, width=int(w * K))
-    r = w * K / 2
+        d.line([a, b], fill=255, width=round(w))
+    r = w / 2
     for x, y in pts:
         d.ellipse([x - r, y - r, x + r, y + r], fill=255)
 
 
-def logo(background=True):
+def logo():
     mask = Image.new('L', (N, N), 0)
     d = ImageDraw.Draw(mask)
-    outer = [(128, 52), (186, 86), (186, 154), (128, 188), (70, 154), (70, 86)]
-    inner = [(128, 92), (152, 106), (152, 134), (128, 148), (104, 134), (104, 106)]
-    stroke(d, outer, 14, True)
-    d.polygon([P(*p) for p in inner], fill=255)
-    for a, b in zip(outer, inner):
+    stroke(d, OUTER, 14, True)
+    for a, b in zip(OUTER, INNER):
         stroke(d, [a, b], 8, False)
+    d.polygon([P(*p) for p in INNER], fill=255)
 
-    # Dégradé #a95bc2 -> #00a4db en diagonale (x1=0,y1=0 -> x2=1,y2=1 de la boîte des formes).
-    x0, y0, x1, y1 = 70 * K - 7 * K, 52 * K - 7 * K, 186 * K + 7 * K, 188 * K + 7 * K
+    # Dégradé : t = 0 en (53, 53), 1 en (203, 203) du repère du logo.
     small = Image.new('RGB', (256, 256))
     px = small.load()
     a, b = (0xa9, 0x5b, 0xc2), (0x00, 0xa4, 0xdb)
     for j in range(256):
         for i in range(256):
-            u = (i * K - x0) / (x1 - x0)
-            v = (j * K - y0) / (y1 - y0)
-            t = max(0.0, min(1.0, (u + v) / 2))
+            x = 128 + (i + 0.5 - 128) / SCALE
+            y = 128 + (j + 0.5 - 128) / SCALE
+            t = max(0.0, min(1.0, (x - 53 + y - 53) / 300))
             px[i, j] = tuple(round(a[c] + (b[c] - a[c]) * t) for c in range(3))
     grad = small.resize((N, N), Image.BILINEAR)
 
     img = Image.new('RGBA', (N, N), (0, 0, 0, 0))
-    if background:
-        bgm = Image.new('L', (N, N), 0)
-        ImageDraw.Draw(bgm).rounded_rectangle([0, 0, N - 1, N - 1], radius=56 * K, fill=255)
-        img.paste((0x01, 0x0e, 0x18, 255), (0, 0), bgm)
+    bg = Image.new('L', (N, N), 0)
+    ImageDraw.Draw(bg).rounded_rectangle([0, 0, N - 1, N - 1], radius=56 * K, fill=255)
+    img.paste((0x01, 0x0e, 0x18, 255), (0, 0), bg)
     img.paste(grad, (0, 0), mask)
     return img
 

@@ -14,6 +14,14 @@ use slint::ComponentHandle;
 
 use crate::{mpv, AppWindow};
 
+/// Contexte OpenGL obtenu par la fenêtre (version et carte graphique), posé au premier rendu.
+/// Sert à la vérification « Affichage » du démarrage.
+static GL_INFO: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+pub fn gl_info() -> Option<String> {
+    GL_INFO.get().cloned()
+}
+
 /// Lecteur à afficher (posé par la lecture, lu au moment du rendu) et signal « rendu prêt ».
 static CURRENT: Mutex<Option<(Arc<mpv::Mpv>, Option<tokio::sync::oneshot::Sender<()>>)>> = Mutex::new(None);
 
@@ -74,6 +82,11 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
             slint::RenderingState::RenderingSetup => {
                 // SAFETY : le contexte OpenGL de la fenêtre est courant pendant ce rappel.
                 let gl = unsafe { glow::Context::from_loader_function_cstr(|s| get_proc_address(s)) };
+                // SAFETY : contexte courant ; simples lectures de chaînes.
+                let info = unsafe {
+                    format!("{} · {}", gl.get_parameter_string(glow::VERSION), gl.get_parameter_string(glow::RENDERER))
+                };
+                let _ = GL_INFO.set(info);
                 state = Some(State { gl, render: None, target: None });
             }
             slint::RenderingState::BeforeRendering => {

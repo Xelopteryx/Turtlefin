@@ -41,6 +41,23 @@ fn path() -> Option<PathBuf> {
     config_dir().map(|d| d.join("session.json"))
 }
 
+/// Vérification du démarrage, à faire avant toute lecture (un fichier abîmé serait remplacé par les
+/// valeurs par défaut au premier enregistrement) : noms des fichiers de configuration présents mais
+/// illisibles (JSON invalide ou lecture impossible).
+pub fn unreadable_files() -> Vec<&'static str> {
+    let Some(dir) = config_dir() else { return Vec::new() };
+    ["session.json", "accounts.json", "prefs.json", "tracks.json", "userdata.json"]
+        .into_iter()
+        .filter(|name| {
+            let p = dir.join(name);
+            p.exists()
+                && !std::fs::read_to_string(&p)
+                    .ok()
+                    .is_some_and(|t| serde_json::from_str::<serde_json::Value>(t.trim_start_matches('\u{feff}')).is_ok())
+        })
+        .collect()
+}
+
 /// Charge la session ; crée et enregistre un identifiant d'appareil au premier lancement.
 pub fn load() -> Saved {
     let mut s: Saved = path()

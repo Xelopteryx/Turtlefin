@@ -1,17 +1,18 @@
 // Démarrage : le logo de Turtlefin sert d'écran de vérification.
 //
-// Six points (les sommets de l'hexagone) : chacun est une vérification (langue, affichage, lecteur,
-// stockage, réseau, serveur), gris en attente, vert si tout va bien, rouge sinon (avec l'explication
-// et « Entrée pour continuer »). Quand les six sont au vert, ils se relient (contour puis rayons, aux
-// couleurs du thème), l'hexagone central apparaît, puis on zoome dedans vers la page suivante.
-// Le déroulement est piloté par Rust (boot dans main.rs) ; `--no-intro` le saute.
+// Sept points : les six sommets de l'hexagone (langue, affichage, lecteur vidéo, stockage,
+// configuration, réseau) et le centre (serveur). Chacun est une vraie vérification (boot.rs) : gris en
+// attente, vert si tout va bien, rouge sinon (avec l'explication et « Continuer »). Quand tout est
+// vert, les sommets se relient (contour), les rayons partent vers le centre, le point central devient
+// l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis on zoome dans le centre
+// vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
 import { Theme } from "theme.slint";
 import { TrackData } from "player.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
-    in property <[int]> state;            // 0 attente · 1 en cours · 2 ok · 3 échec · 4 ok, à configurer
+    in property <[int]> state;            // 7 points · 0 attente · 1 en cours · 2 ok · 3 échec · 4 ok, à configurer
     in property <[string]> labels;
     in property <string> text;            // vérification en cours
     in property <string> fail;            // échec : explication
@@ -28,13 +29,16 @@ export component BootLogo inherits Rectangle {
 
     background: Theme.bg;
 
-    // Géométrie (repère 256 x 256, centre de l'hexagone au centre).
+    // Géométrie commune avec l'icône (packaging/turtlefin.svg, packaging/icons/make-icons.py) :
+    // repère 256, centre (128, 128) ; hexagone de rayon 68 (trait 14), hexagone central plein de
+    // rayon 30, rayons (trait 8), bouts arrondis ; dégradé à 135° sur le carré [53, 203].
     property <[float]> px: [128, 187, 187, 128, 69, 69];
     property <[float]> py: [60, 94, 162, 196, 162, 94];
     property <[float]> ix: [128, 154, 154, 128, 102, 102];
     property <[float]> iy: [98, 113, 143, 158, 143, 113];
     property <length> side: min(self.width, self.height) * 0.46;
     property <length> u: self.side / 256;
+    property <brush> grad: @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
 
     // Horloges des phases (au temps : rien n'est redessiné en dehors).
     property <duration> t-link;
@@ -49,10 +53,13 @@ export component BootLogo inherits Rectangle {
             zoom-timer.running = true;
         }
     }
-    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / 800ms, 0, 1) : 1;
+    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / 900ms, 0, 1) : 1;
     property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 750ms, 0, 1);
+    // Liaison : contour (première moitié), puis rayons et hexagone central (seconde moitié).
+    property <float> edge-p: root.ease(clamp(root.lp * 2, 0, 1));
+    property <float> spoke-p: root.ease(clamp(root.lp * 2 - 1, 0, 1));
     link-timer := Timer {
-        interval: 850ms;
+        interval: 1100ms;
         running: false;
         triggered => {
             self.running = false;
@@ -70,12 +77,22 @@ export component BootLogo inherits Rectangle {
     // Point « en cours » : pulsation.
     property <float> pulse: 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 900) / 900 * 360deg);
 
-    pure function dot-color(s: int) -> brush {
-        return root.phase >= 1 ? Theme.accent2
+    pure function ease(t: float) -> float {
+        return 1 - (1 - t) * (1 - t) * (1 - t);
+    }
+    // Couleur du dégradé du logo à un endroit du repère (pour que les points s'y fondent).
+    pure function logo-color(x: float, y: float) -> color {
+        return Theme.accent1.mix(Theme.accent2, 1 - clamp((x - 53 + y - 53) / 300, 0, 1));
+    }
+    pure function dot-color(s: int, x: float, y: float) -> brush {
+        return root.phase >= 1 ? root.logo-color(x, y)
             : s == 2 || s == 4 ? #22c55e
             : s == 3 ? #ef4444
             : s == 1 ? Theme.accent2.transparentize(0.6 - 0.5 * root.pulse)
             : #ffffff2e;
+    }
+    pure function dot-size(s: int) -> float {
+        return s == 1 || s == 3 ? 26 : s == 0 ? 18 : 22;
     }
 
     // Fond : s'efface pendant le zoom (la page suivante est déjà dessous).
@@ -89,70 +106,80 @@ export component BootLogo inherits Rectangle {
         // Zoom dans le point central.
         transform-scale: 1 + root.zp * root.zp * 26;
 
-        // Contour, tracé arête par arête.
+        // Contour : chaque arête part de son sommet vers le suivant, toutes en même temps.
         for i in 6: Path {
-            property <float> f: clamp(root.lp * 12 - i, 0, 1);
-            visible: self.f > 0;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 256;
-            viewbox-height: 256;
+            visible: root.edge-p > 0;
+            // Slint réduit le dessin d'un chemin de l'épaisseur de son trait : on agrandit d'autant.
+            x: (53 - 7) * root.u;
+            y: (53 - 7) * root.u;
+            width: (150 + 14) * root.u;
+            height: (150 + 14) * root.u;
+            viewbox-x: 53;
+            viewbox-y: 53;
+            viewbox-width: 150;
+            viewbox-height: 150;
             fill: transparent;
-            stroke: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-            stroke-width: 9 * root.u;
+            stroke: root.grad;
+            stroke-width: 14 * root.u;
+            stroke-line-cap: round;
             commands: "M " + root.px[i] + " " + root.py[i] + " L "
-                + (root.px[i] + (root.px[mod(i + 1, 6)] - root.px[i]) * self.f) + " "
-                + (root.py[i] + (root.py[mod(i + 1, 6)] - root.py[i]) * self.f);
+                + (root.px[i] + (root.px[mod(i + 1, 6)] - root.px[i]) * root.edge-p) + " "
+                + (root.py[i] + (root.py[mod(i + 1, 6)] - root.py[i]) * root.edge-p);
         }
-        // Rayons vers l'hexagone central.
+        // Rayons, des sommets vers l'hexagone central.
         for i in 6: Path {
-            property <float> g: clamp(root.lp * 2 - 1, 0, 1);
-            visible: self.g > 0;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 256;
-            viewbox-height: 256;
+            visible: root.spoke-p > 0;
+            x: (53 - 4) * root.u;
+            y: (53 - 4) * root.u;
+            width: (150 + 8) * root.u;
+            height: (150 + 8) * root.u;
+            viewbox-x: 53;
+            viewbox-y: 53;
+            viewbox-width: 150;
+            viewbox-height: 150;
             fill: transparent;
-            stroke: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-            stroke-width: 5 * root.u;
+            stroke: root.grad;
+            stroke-width: 8 * root.u;
+            stroke-line-cap: round;
             commands: "M " + root.px[i] + " " + root.py[i] + " L "
-                + (root.px[i] + (root.ix[i] - root.px[i]) * self.g) + " "
-                + (root.py[i] + (root.iy[i] - root.py[i]) * self.g);
+                + (root.px[i] + (root.ix[i] - root.px[i]) * root.spoke-p) + " "
+                + (root.py[i] + (root.iy[i] - root.py[i]) * root.spoke-p);
         }
-        // Hexagone central (le 7e point) : apparaît avec les rayons.
+        // Hexagone central : le point du serveur grandit jusqu'à lui.
         Path {
-            property <float> g: clamp(root.lp * 2 - 1, 0, 1);
-            visible: self.g > 0;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 256;
-            viewbox-height: 256;
-            fill: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-            opacity: self.g;
-            commands: "M 128 98 L 154 113 L 154 143 L 128 158 L 102 143 L 102 113 Z";
-        }
-        // Point central discret pendant les vérifications.
-        Rectangle {
-            visible: root.lp == 0;
-            x: parent.width / 2 - self.width / 2;
-            y: parent.height / 2 - self.height / 2;
-            width: 10px * root.k;
-            height: self.width;
-            border-radius: self.width / 2;
-            background: #ffffff2e;
+            property <float> g: 0.25 + 0.75 * root.spoke-p;
+            visible: root.spoke-p > 0;
+            x: 53 * root.u;
+            y: 53 * root.u;
+            width: 150 * root.u;
+            height: 150 * root.u;
+            viewbox-x: 53;
+            viewbox-y: 53;
+            viewbox-width: 150;
+            viewbox-height: 150;
+            fill: root.grad;
+            commands: "M " + (128 + (root.ix[0] - 128) * self.g) + " " + (128 + (root.iy[0] - 128) * self.g)
+                + " L " + (128 + (root.ix[1] - 128) * self.g) + " " + (128 + (root.iy[1] - 128) * self.g)
+                + " L " + (128 + (root.ix[2] - 128) * self.g) + " " + (128 + (root.iy[2] - 128) * self.g)
+                + " L " + (128 + (root.ix[3] - 128) * self.g) + " " + (128 + (root.iy[3] - 128) * self.g)
+                + " L " + (128 + (root.ix[4] - 128) * self.g) + " " + (128 + (root.iy[4] - 128) * self.g)
+                + " L " + (128 + (root.ix[5] - 128) * self.g) + " " + (128 + (root.iy[5] - 128) * self.g) + " Z";
         }
 
-        // Les six points.
+        // Les six sommets. Pendant la liaison, chaque point prend la couleur du logo et la taille du
+        // trait : il devient l'angle arrondi du contour.
         for i in 6: Rectangle {
             property <int> s: root.state[i];
-            property <length> d: (root.s-big(self.s) ? 26 : 20) * root.u;
+            property <float> base: root.dot-size(self.s);
+            animate base { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            property <length> d: (self.base + (14 - self.base) * root.edge-p) * root.u;
             x: root.px[i] * root.u - self.d / 2;
             y: root.py[i] * root.u - self.d / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            background: root.dot-color(self.s);
-            animate width, height { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            background: root.dot-color(self.s, root.px[i], root.py[i]);
+            animate background { duration: 300ms; }
             // Libellé, à l'extérieur de l'hexagone.
             Text {
                 property <float> ox: (root.px[i] - 128) * 0.55;
@@ -165,12 +192,35 @@ export component BootLogo inherits Rectangle {
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
-                opacity: 1 - root.lp;
+                opacity: 1 - root.edge-p;
             }
         }
-    }
-    pure function s-big(s: int) -> bool {
-        return s == 1 || s == 3;
+        // Le centre (7e point) : le serveur, vérifié en dernier.
+        Rectangle {
+            property <int> s: root.state[6];
+            property <float> base: root.dot-size(self.s);
+            animate base { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            property <length> d: self.base * root.u;
+            x: 128 * root.u - self.d / 2;
+            y: 128 * root.u - self.d / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            background: root.dot-color(self.s, 128, 128);
+            animate background { duration: 300ms; }
+            opacity: 1 - root.spoke-p;
+            Text {
+                x: (parent.width - self.width) / 2;
+                y: parent.height + 6px * root.k;
+                width: 160px * root.k;
+                text: root.labels[6];
+                color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
+                font-size: 13px * root.k;
+                font-weight: 600;
+                horizontal-alignment: center;
+                opacity: 1 - root.edge-p;
+            }
+        }
     }
 
     // Vérification en cours, ou échec avec son explication.
@@ -178,7 +228,7 @@ export component BootLogo inherits Rectangle {
         y: logo.y + root.side + 24px * root.k;
         width: parent.width;
         spacing: 10px * root.k;
-        opacity: 1 - root.lp;
+        opacity: 1 - root.edge-p;
         alignment: start;
         Text {
             text: root.fail != "" ? root.fail : root.text;

@@ -40,7 +40,7 @@ build.rs          built commit, Slint style, bundled translations, exe icon (win
 lang/en/…/turtlefin.po   English translations (source: the French in the code)
 ui/theme.slint    theme tokens, global Prefs
 ui/app.slint      AppWindow and every screen (boot, login, loading, home, detail, library, settings…)
-ui/boot.slint     BootLogo: startup animation (6 dots, linking, zoom), language picker
+ui/boot.slint     BootLogo: startup animation (7 dots, linking, zoom), language picker
 ui/player.slint   playback screen; ui/osk.slint on-screen keyboard; ui/card.slint, ui/marquee.slint
 src/main.rs       CLI, shared App state (Arc), screens, navigation (stack + kept pages), settings
 src/boot.rs       startup sequence (checks, language, landing screen)
@@ -72,10 +72,22 @@ Principles:
 ## 4. Startup
 
 `main` applies the language (prefs.json, otherwise the `language` file written by the Windows installer), then
-starts `boot::run`. The `boot` screen (hexagon logo) shows 6 dots, one per check: **language** (asked if unknown),
-**display** (OpenGL), **video player** (libmpv loadable), **storage** (write test in the config folder),
-**network**, **server** (“to configure” on first run). Red = failure, with a message and “Continue”. All green:
-the dots link up in the theme colours, then the view zooms into the centre dot.
+starts `boot::run`. The `boot` screen shows 7 dots: the 6 corners of the hexagon, then the centre. Each one is a
+real check (`boot::check`):
+1. **language** (asked if unknown): the chosen language's translations load (`i18n::check`);
+2. **display**: the window got an OpenGL context (`video::gl_info`, version and graphics card in the log);
+3. **video player**: a real mpv player is created, initialized and destroyed (`mpv::self_test`);
+4. **storage**: a file is written, read back and deleted in the config, data and cache folders;
+5. **configuration**: `session.json`, `accounts.json`, `prefs.json`, `tracks.json`, `userdata.json` are readable
+   (`config::unreadable_files`, called at the very start of `main`, before a damaged file gets rewritten);
+6. **network**: an active interface or a route to the outside (`discovery::has_network`);
+7. **server** (the centre): the main address, otherwise the backup, answers `/System/Info/Public` **and** it is
+   the same server (id compared with the session's `server_id`); “to configure” on first run.
+
+Red = failure, with a message and “Continue” (automatic after 12 s). All green: the corners link up, the spokes
+grow towards the centre and the server dot becomes the filled hexagon — exactly the logo
+(`packaging/turtlefin.svg`, same geometry) —, then the view zooms into the centre. Beware: Slint shrinks a `Path`'s
+drawing by its stroke width; the logo paths are enlarged by that much so they land on the dots.
 
 Landing screen (`boot::route`), in order: name + password on the command line → sign in; name of a saved account →
 that account; startup account (`prefs.autostart_user` / `autostart_server`, setting Account → “Open this account

@@ -41,7 +41,7 @@ build.rs          commit compilé, style Slint, traductions intégrées, icône 
 lang/en/…/turtlefin.po   traductions anglaises (source : le français du code)
 ui/theme.slint    jetons de thème, global Prefs
 ui/app.slint      AppWindow et tous les écrans (boot, login, loading, home, detail, library, settings…)
-ui/boot.slint     BootLogo : animation de démarrage (6 points, liaison, zoom), choix de la langue
+ui/boot.slint     BootLogo : animation de démarrage (7 points, liaison, zoom), choix de la langue
 ui/player.slint   écran de lecture ; ui/osk.slint clavier à l'écran ; ui/card.slint, ui/marquee.slint
 src/main.rs       CLI, état partagé App (Arc), écrans, navigation (pile + pages gardées), paramètres
 src/boot.rs       séquence de démarrage (vérifications, langue, choix de l'écran d'arrivée)
@@ -73,10 +73,22 @@ Principes :
 ## 4. Démarrage
 
 `main` applique la langue (prefs.json, sinon fichier `language` écrit par l'installeur Windows), puis lance
-`boot::run`. L'écran `boot` (logo hexagonal) montre 6 points, un par vérification : **langue** (demandée si
-inconnue), **affichage** (OpenGL), **lecteur vidéo** (libmpv chargeable), **stockage** (écriture dans le dossier de
-config), **réseau**, **serveur** (« à configurer » au premier lancement). Rouge = échec, avec un message et
-« Continuer ». Tout vert : les points se relient aux couleurs du thème, puis zoom dans le point central.
+`boot::run`. L'écran `boot` montre 7 points : les 6 sommets de l'hexagone puis le centre. Chacun est une vraie
+vérification (`boot::check`) :
+1. **langue** (demandée si inconnue) : les traductions de la langue choisie se chargent (`i18n::check`) ;
+2. **affichage** : la fenêtre a obtenu un contexte OpenGL (`video::gl_info`, version et carte graphique au journal) ;
+3. **lecteur vidéo** : un vrai lecteur mpv est créé, initialisé puis détruit (`mpv::self_test`) ;
+4. **stockage** : écriture, relecture et suppression d'un fichier dans les dossiers de config, de données et de cache ;
+5. **configuration** : `session.json`, `accounts.json`, `prefs.json`, `tracks.json`, `userdata.json` lisibles
+   (`config::unreadable_files`, appelé au tout début de `main`, avant qu'un fichier abîmé soit réécrit) ;
+6. **réseau** : interface active ou route vers l'extérieur (`discovery::has_network`) ;
+7. **serveur** (le centre) : l'adresse principale, sinon de secours, répond à `/System/Info/Public` **et** c'est
+   le même serveur (identifiant comparé à `server_id` de la session) ; « à configurer » au premier lancement.
+
+Rouge = échec, avec un message et « Continuer » (seul au bout de 12 s). Tout vert : les sommets se relient, les
+rayons partent vers le centre et le point du serveur devient l'hexagone plein — exactement le logo
+(`packaging/turtlefin.svg`, même géométrie) —, puis zoom dans le centre. Attention : Slint réduit le dessin d'un
+`Path` de l'épaisseur de son trait ; les chemins du logo sont agrandis d'autant pour tomber sur les points.
 
 Écran d'arrivée (`boot::route`), dans l'ordre : nom + mot de passe en ligne de commande → connexion ; nom d'un
 compte enregistré → ce compte ; compte de démarrage (`prefs.autostart_user` / `autostart_server`, réglage

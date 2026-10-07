@@ -1222,3 +1222,30 @@ msgstr "unknown installation"
 
 msgid "En cours de diffusion"
 msgstr "Continuing"
+
+msgid "Dossier {} introuvable."
+msgstr "The {} folder was not found."
+
+msgid "Impossible d'écrire dans le dossier {} : {}"
+msgstr "Cannot write to the {} folder: {}"
+
+msgid "de configuration"
+msgstr "configuration"
+
+msgid "des téléchargements"
+msgstr "downloads"
+
+msgid "du cache"
+msgstr "cache"
+
+msgid "Traductions introuvables : l'interface reste en français."
+msgstr "Translations not found: the interface stays in French."
+
+msgid "Fichier de configuration illisible ({}) : réglages par défaut utilisés."
+msgstr "Unreadable configuration file ({}): default settings are used."
+
+msgid "Un autre serveur Jellyfin répond à cette adresse."
+msgstr "Another Jellyfin server answers at this address."
+
+msgid "Configuration"
+msgstr "Configuration"

@@ -285,6 +285,11 @@ pub async fn resolve(input: &str) -> Vec<(String, String, String)> {
     out
 }
 
+/// Identifiant du serveur Jellyfin qui répond à cette adresse (quelques secondes au plus).
+pub async fn server_id(base: &str) -> Option<String> {
+    probe(&http(), base).await.map(|(id, _, _)| id)
+}
+
 /// Le serveur répond-il (quelques secondes au plus) ?
 pub async fn reachable(base: &str) -> bool {
     probe(&http(), base).await.is_some()

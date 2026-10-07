@@ -1,13 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Logo de Turtlefin (le même hexagone que l'animation de démarrage, ui/boot.slint). PNG et ICO : packaging/icons/make-icons.py. -->
+  <!-- Logo de Turtlefin : la carapace que forment les sept points de l'animation de démarrage
+       (ui/boot.slint), avec exactement la même géométrie (repère 256, centre 128,128), agrandie x1,4
+       autour du centre pour l'icône. PNG et ICO : packaging/icons/make-icons.py. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="53" y1="53" x2="203" y2="203">
       <stop offset="0" stop-color="#a95bc2"/>
       <stop offset="1" stop-color="#00a4db"/>
     </linearGradient>
   </defs>
   <rect width="256" height="256" rx="56" fill="#010e18"/>
-  <path d="M128 52 L186 86 L186 154 L128 188 L70 154 L70 86 Z" fill="none" stroke="url(#g)" stroke-width="14" stroke-linejoin="round"/>
-  <path d="M128 92 L152 106 L152 134 L128 148 L104 134 L104 106 Z" fill="url(#g)"/>
-  <path d="M128 52 L128 92 M186 86 L152 106 M186 154 L152 134 M128 188 L128 148 M70 154 L104 134 M70 86 L104 106" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+  <g transform="translate(128 128) scale(1.4) translate(-128 -128)">
+    <path d="M128 60 L187 94 L187 162 L128 196 L69 162 L69 94 Z" fill="none" stroke="url(#g)" stroke-width="14" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M128 60 L128 98 M187 94 L154 113 M187 162 L154 143 M128 196 L128 158 M69 162 L102 143 M69 94 L102 113" stroke="url(#g)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M128 98 L154 113 L154 143 L128 158 L102 143 L102 113 Z" fill="url(#g)"/>
+  </g>
 </svg>

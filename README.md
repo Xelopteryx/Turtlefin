@@ -16,7 +16,8 @@ Current version: **0.9.0** · Interface languages: English, Français.
   (only the access token, never the password), switching accounts without typing again, “Manage accounts” to
   remove some. Server search on every network of the device (local and VPN); a main address and a backup address,
   used when the main one does not answer (Settings → Network).
-- **Startup**: animated logo that checks language, display, video player, storage, network and server, then opens
+- **Startup**: animated logo whose seven dots are real checks (language, display, video player, storage,
+  configuration, network, and the server in the centre); they then link up into the logo and it opens
   “Who's watching?” — or directly the account chosen in Settings → Account → **Open this account at startup**.
 - **Home**: My media, Continue watching, Next up, Recently added; Favorites and Requests (Seerr) tabs.
   Posters with remaining episodes, “watched” check mark, rating; background taken from the selected item.

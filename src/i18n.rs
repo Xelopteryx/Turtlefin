@@ -78,6 +78,23 @@ fn parse_po(text: &str) -> HashMap<String, String> {
     map
 }
 
+/// Vérification du démarrage : la langue est connue et ses traductions se lisent.
+/// Renvoie le nombre de textes traduits (0 pour le français, langue du code).
+pub fn check(code: &str) -> Result<usize, String> {
+    if code == "fr" || code.is_empty() {
+        return Ok(0);
+    }
+    if !LANGUAGES.iter().any(|(id, _)| *id == code) {
+        return Err(format!("langue inconnue « {code} »"));
+    }
+    let n = catalog(code).map(|t| parse_po(t).values().filter(|v| !v.is_empty()).count()).unwrap_or(0);
+    if n == 0 {
+        Err(format!("traductions « {code} » absentes"))
+    } else {
+        Ok(n)
+    }
+}
+
 /// Langue choisie à l'installation (Windows : l'installeur écrit « fr » ou « en » dans un fichier
 /// `language` à côté de l'exécutable). `None` si absente ou inconnue.
 pub fn installer_language() -> Option<String> {

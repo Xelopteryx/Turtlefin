@@ -3799,6 +3799,8 @@ fn main() -> anyhow::Result<()> {
         open_console();
     }
     let cli = parse_cli();
+    // Vérification « Configuration » du démarrage : avant toute lecture des fichiers (voir boot.rs).
+    let config_issues = config::unreadable_files();
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -4364,8 +4366,10 @@ fn main() -> anyhow::Result<()> {
         user: cli.user.clone(),
         pass: cli.pass.clone(),
         server: server_hint.clone(),
+        server_from_cli: cli.server.is_some(),
         no_intro: cli.no_intro || cli.test_video.is_some(),
         video_ok,
+        config_issues,
     };
     rt.spawn(boot::run(app.clone(), start));
 
