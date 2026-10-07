@@ -1996,6 +1996,26 @@ export component AppWindow inherits Window {
     callback login(string, string, string); // serveur, utilisateur, mot de passe
     callback open-item(string);
     callback run-action(string);            // "play" | "back" | "open:<id>"
+    // Lecture lancée depuis une fiche : la fiche s'écarte (affiche à gauche, infos à droite, rangées
+    // vers le bas), le fond plonge dans le noir, puis la lecture démarre ; au retour, tout revient.
+    in-out property <bool> play-go;
+    property <float> po: root.play-go ? 1 : 0;
+    property <length> po-right: root.po * (root.width - root.col-x + 64px);
+    property <length> po-down: root.po * root.height;
+    animate po { duration: 420ms; easing: cubic-bezier(0.55, 0, 0.35, 1); }
+    changed playing => {
+        if (!root.playing) {
+            root.play-go = false;
+        }
+    }
+    function detail-run(action: string) {
+        if (action == "play" && !root.play-go) {
+            root.play-go = true;
+            play-launch.running = true;
+        } else if (action != "play") {
+            root.run-action(action);
+        }
+    }
     callback logout();
     callback switch-account();
     callback login-opened();               // écran de connexion affiché : tuiles des comptes
@@ -2233,6 +2253,7 @@ export component AppWindow inherits Window {
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
     if root.bg-vis > 0.001 && !root.playing: Rectangle {
+        transform-scale: 1 + 0.12 * root.po;
         Image {
             width: parent.width;
             height: parent.height;
@@ -3788,6 +3809,22 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Fiche détail
+    play-launch := Timer {
+        interval: 400ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.run-action("play");
+        }
+    }
+    Timer {
+        interval: 8s;
+        running: root.play-go && !root.playing;
+        triggered => {
+            root.play-go = false;
+        }
+    }
+
     if root.screen == "detail" && !root.playing: dt := Rectangle {
         // Vignette 16:9 qui devient le fond : la fiche apparaît en fondu pendant la fin de
         // l'agrandissement, au lieu de surgir d'un coup par-dessus l'image encore en vol.
@@ -3919,7 +3956,7 @@ export component AppWindow inherits Window {
                     }
                     if (event.text == Key.Return) {
                         root.d-press += 1;
-                        root.run-action(root.detail.buttons[root.d-button].action);
+                        root.detail-run(root.detail.buttons[root.d-button].action);
                         return EventResult.accept;
                     }
                 }
@@ -4042,7 +4079,7 @@ export component AppWindow inherits Window {
 
         // Poster (portrait)
         Rectangle {
-            x: 32px;
+            x: 32px - root.po * (root.poster-w + 64px);
             y: 24px;
             width: root.poster-w;
             height: root.poster-w * 1.5;
@@ -4069,7 +4106,7 @@ export component AppWindow inherits Window {
 
         // Logo, ou titre en texte à défaut
         Rectangle {
-            x: root.col-x;
+            x: root.col-x + root.po-right;
             y: 24px;
             width: root.info-w;
             height: 84px * root.k;
@@ -4097,7 +4134,7 @@ export component AppWindow inherits Window {
         }
 
         Marquee {
-            x: root.col-x;
+            x: root.col-x + root.po-right;
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
@@ -4113,7 +4150,7 @@ export component AppWindow inherits Window {
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
-            x: root.col-x + (dt.btns-w - dt.icons-w) / 2;
+            x: root.col-x + (dt.btns-w - dt.icons-w) / 2 + root.po-right;
             opacity: root.sw-icons ? root.sw-e : 1;
             y: 24px + 118px * root.k;
             width: root.info-w;
@@ -4134,7 +4171,7 @@ export component AppWindow inherits Window {
                     root.d-zone = 0;
                     root.d-button = i;
                     root.d-press += 1;
-                    root.run-action(b.action);
+                    root.detail-run(b.action);
                 }
             }
         }
@@ -4142,7 +4179,7 @@ export component AppWindow inherits Window {
         chips-row := HorizontalLayout {
             opacity: root.sw-chips ? root.sw-e : 1;
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
-            x: root.col-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2;
+            x: root.col-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2 + root.po-right;
             y: 24px + 166px * root.k;
             width: root.info-w;
             height: 30px * root.k;
@@ -4162,14 +4199,14 @@ export component AppWindow inherits Window {
                     root.d-zone = 0;
                     root.d-button = i;
                     root.d-press += 1;
-                    root.run-action(b.action);
+                    root.detail-run(b.action);
                 }
             }
         }
 
         // Année · classification · durée · note
         Text {
-            x: root.col-x;
+            x: root.col-x + root.po-right;
             y: 24px + 202px * root.k - dt.lift;
             opacity: root.sw-misc ? root.sw-e : 1;
             width: root.info-w;
@@ -4183,7 +4220,7 @@ export component AppWindow inherits Window {
 
         // Résumé (bloc « verre » cliquable)
         if root.detail.overview != "": Rectangle {
-            x: root.col-x;
+            x: root.col-x + root.po-right;
             y: 24px + 232px * root.k - dt.lift;
             opacity: root.sw-ov ? root.sw-e : 1;
             width: root.info-w;
@@ -4215,7 +4252,7 @@ export component AppWindow inherits Window {
 
         // Bloc « À suivre » (séries) : colonne resserrée à droite, comme .nextUpSection
         if root.show-next: Rectangle {
-            x: parent.width - 32px - root.next-w;
+            x: parent.width - 32px - root.next-w + root.po * (root.next-w + 64px);
             y: 24px;
             opacity: root.sw-next ? root.sw-e : 1;
             width: root.next-w;
@@ -4285,7 +4322,7 @@ export component AppWindow inherits Window {
         // Saisons / épisodes / contenu
         if root.child-items.length > 0: SectionRow {
             // Glissement seulement : une opacité sur toute la rangée coûte cher sur les petites machines.
-            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px);
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + root.po-down;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
@@ -4305,7 +4342,7 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
-            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k;
+            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
@@ -6726,6 +6763,13 @@ export component AppWindow inherits Window {
         toggle-fullscreen => {
             root.full-screen = !root.full-screen;
         }
+    }
+
+    // Départ vers la lecture : tout plonge dans le noir (le lecteur est noir dessous).
+    if root.po > 0.01 && !root.playing: Rectangle {
+        background: black;
+        // Le noir n'arrive qu'en seconde moitié : on voit d'abord la fiche s'écarter.
+        opacity: clamp((root.po - 0.45) / 0.55, 0, 1);
     }
 
     // Voile de transition : la page qui part s'efface dans la couleur de fond.
