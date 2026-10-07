@@ -44,12 +44,16 @@ if (-not (Test-Path "$mpvDir\libmpv-2.dll")) {
     # x86 : les versions 32 bits publiées depuis juillet 2026 plantent au démarrage (« OpenSSL
     # internal error: assertion failed: lock != NULL », mpv.exe seul compris) : on garde celle du
     # 10 juin 2026, la dernière qui fonctionne. MPV_TAG permet d'en imposer une autre.
-    $tag = if ($env:MPV_TAG) { $env:MPV_TAG } elseif ($Arch -eq "x86") { "20260610" } else { "" }
+    # Elle a disparu du dépôt de shinchiro : une copie est gardée dans une pré-version de Turtlefin
+    # (libmpv-i686-20260610, ignorée par la mise à jour). MPV_TAG : autre version de shinchiro.
+    $tag = if ($env:MPV_TAG) { $env:MPV_TAG } else { "" }
+    $repo = "shinchiro/mpv-winbuild-cmake"
+    if (-not $tag -and $Arch -eq "x86") { $repo = "Xelopteryx/Turtlefin"; $tag = "libmpv-i686-20260610" }
     $api = if ($tag) { "tags/$tag" } else { "latest" }
     # Jeton de la CI s'il y en a un : les appels anonymes sont vite limités sur les machines partagées.
     $headers = @{ "User-Agent" = "turtlefin-build" }
     if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
-    $rel = Invoke-RestMethod "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/$api" -Headers $headers
+    $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/$api" -Headers $headers
     $asset = $rel.assets | Where-Object { $_.name -like "mpv-dev-$mpvArch-2*.7z" } | Select-Object -First 1
     if (-not $asset) { throw "libmpv $mpvArch introuvable" }
     $archive = Join-Path $mpvDir $asset.name

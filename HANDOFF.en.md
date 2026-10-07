@@ -157,8 +157,8 @@ Publishing:
   `sh packaging/linux/build-appimage.sh <version>` and `cargo deb --no-build`.
 - `TURTLEFIN_DIST=release` at build time, otherwise `update::kind()` assumes a build from source.
 - x86: shinchiro's 32-bit libmpv builds published since July 2026 crash at startup (OpenSSL); `build.ps1` pins the
-  June 10, 2026 one (`MPV_TAG`). shinchiro keeps only about thirty releases: copy it elsewhere before it
-  disappears. aws-lc needs NASM for 32-bit builds.
+  June 10, 2026 one, removed by shinchiro (later ones still broken in October), is kept in Turtlefin's
+  `libmpv-i686-20260610` pre-release, used by `build.ps1` (`MPV_TAG`: another shinchiro version). aws-lc needs NASM for 32-bit builds.
 - Icons: `packaging/turtlefin.svg` is the logo; `packaging/icons/make-icons.py <folder>` (Python + Pillow)
   regenerates the PNGs and the ICO.
 

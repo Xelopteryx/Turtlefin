@@ -159,8 +159,8 @@ Publication :
   `sh packaging/linux/build-appimage.sh <version>` et `cargo deb --no-build`.
 - `TURTLEFIN_DIST=release` à la compilation, sinon `update::kind()` croit à une version compilée sur place.
 - x86 : les libmpv 32 bits de shinchiro publiées depuis juillet 2026 plantent au démarrage (OpenSSL) ;
-  `build.ps1` fige celle du 10 juin 2026 (`MPV_TAG`). shinchiro ne garde qu'une trentaine de versions : la copier
-  ailleurs avant qu'elle disparaisse. aws-lc demande NASM en 32 bits.
+  celle du 10 juin 2026 (retirée par shinchiro, encore cassées en octobre) est gardée dans la pré-version
+  `libmpv-i686-20260610` de Turtlefin, que `build.ps1` utilise (`MPV_TAG` : une autre version de shinchiro). aws-lc demande NASM en 32 bits.
 - Icônes : `packaging/turtlefin.svg` est le logo ; `packaging/icons/make-icons.py <dossier>` (Python + Pillow)
   régénère les PNG et l'ICO.
 
