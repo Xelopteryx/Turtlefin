@@ -1,10 +1,10 @@
-# Turtlefin: project handoff (state on October 7, 2026, version 0.9.0)
+# Turtlefin: project handoff (state on October 7, 2026, version 0.9.1)
 
 [Français](HANDOFF.md) · **English**
 
 For whoever takes over development (human or Claude Code). Read it fully before touching the code, then read
 [README.md](README.md) (usage, install, keys, files). The French version is the reference if they ever differ.
-Repository: https://github.com/Xelopteryx/Turtlefin · Version in `Cargo.toml`: 0.9.0.
+Repository: https://github.com/Xelopteryx/Turtlefin · Version in `Cargo.toml`: 0.9.1.
 
 ## 1. Goal
 

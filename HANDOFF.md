@@ -1,10 +1,10 @@
-# Turtlefin : passation de projet (état au 7 octobre 2026, version 0.9.0)
+# Turtlefin : passation de projet (état au 7 octobre 2026, version 0.9.1)
 
 **Français** · [English](HANDOFF.en.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.9.0.
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.9.1.
 
 ## 1. Objectif
 

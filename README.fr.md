@@ -8,7 +8,7 @@
 (lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur n'importe quel ordinateur Windows ou Linux, du
 vieux portable au petit boîtier branché à la télé, et s'utilise entièrement au clavier ou à la télécommande.
 
-Version actuelle : **0.9.0** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português, Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
+Version actuelle : **0.9.1** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português, Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
 ## Ce qu'il sait faire
 

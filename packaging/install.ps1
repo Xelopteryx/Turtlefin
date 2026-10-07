@@ -17,6 +17,7 @@ $file = Join-Path $env:TEMP $asset.name
 Write-Host "Downloading $($asset.name)..."
 Invoke-WebRequest $asset.browser_download_url -OutFile $file -UseBasicParsing
 Write-Host 'Installing...'
-Start-Process $file -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NORESTART' -Wait
+# WaitForExit plutôt que -Wait : -Wait attendrait aussi Turtlefin, lancé par l'installeur à la fin.
+(Start-Process $file -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NORESTART' -PassThru).WaitForExit()
 Remove-Item $file -ErrorAction SilentlyContinue
 Write-Host "Turtlefin $($release.tag_name) is installed (Start menu)."

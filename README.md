@@ -8,7 +8,7 @@
 libmpv (playback): no Qt, no embedded web browser. It runs on any Windows or Linux computer, from an old laptop to
 a small box plugged into the TV, and is fully usable with a keyboard or a remote.
 
-Current version: **0.9.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português, Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
+Current version: **0.9.1** · Interface languages: English, Français, Español, Deutsch, Italiano, Português, Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
 ## Features
 
