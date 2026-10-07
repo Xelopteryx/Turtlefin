@@ -3968,9 +3968,11 @@ fn main() -> anyhow::Result<()> {
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
         let t = ui.global::<Tr>();
-        t.on_t(|_, s| i18n::tr_str(&s).into());
-        t.on_f(|_, s, a, b| i18n::trf_str(&s, &[a.as_str(), b.as_str()]).into());
-        t.on_p(|_, one, other, n| i18n::trn(&one, &other, n as i64).into());
+        // k = langue * 1000 + fragmentation (0 à 100) : voir Tr.k.
+        t.on_t(|k, s| i18n::fragment(&i18n::tr_str(&s), k % 1000).into());
+        t.on_f(|k, s, a, b| i18n::fragment(&i18n::trf_str(&s, &[a.as_str(), b.as_str()]), k % 1000).into());
+        t.on_p(|k, one, other, n| i18n::fragment(&i18n::trn(&one, &other, n as i64), k % 1000).into());
+        t.on_x(|k, s| if k % 1000 == 0 { s } else { i18n::fragment(&s, k % 1000).into() });
         // Changement de langue (de n'importe quel fil) : `Tr.l` change, les textes se recalculent.
         let weak = std::sync::Mutex::new(ui.as_weak());
         i18n::on_change(move || {
