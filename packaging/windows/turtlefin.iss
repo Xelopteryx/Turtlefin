@@ -50,6 +50,8 @@ SetupIconFile=..\icons\turtlefin.ico
 ; Logo dans l'assistant (100 % et 200 %), images produites par packaging/icons/make-icons.py.
 WizardImageFile=wizard-large-1x.bmp,wizard-large-2x.bmp
 WizardSmallImageFile=wizard-small-1x.bmp,wizard-small-2x.bmp
+; Page d'accueil avec le grand logo (cachée par défaut dans Inno Setup 6).
+DisableWelcomePage=no
 ; Langue de l'assistant proposée d'après celle de Windows ; elle devient celle de Turtlefin (fichier « language »).
 ShowLanguageDialog=yes
 LanguageDetectionMethod=uilanguage

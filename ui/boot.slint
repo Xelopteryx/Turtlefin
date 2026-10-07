@@ -265,11 +265,16 @@ export component BootLogo inherits Rectangle {
     if root.lang-open: Rectangle {
         background: #000000a6;
         TouchArea { }
-        Rectangle {
+        lang-box := Rectangle {
+            // Liste qui défile au-delà de ce qui tient à l'écran (langues ajoutées).
+            property <length> row-h: 56px * root.k;
+            property <int> fit: max(3, floor((parent.height - 160px * root.k) / self.row-h));
+            property <int> shown: min(root.langs.length, self.fit);
+            property <int> first: max(0, min(root.langs.length - self.shown, root.lang-sel - self.shown + 2));
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             width: 420px * root.k;
-            height: 80px * root.k + root.langs.length * 56px * root.k;
+            height: 80px * root.k + self.shown * self.row-h;
             border-radius: 18px * root.k;
             background: Theme.glass;
             border-width: 1px;
@@ -283,24 +288,30 @@ export component BootLogo inherits Rectangle {
                 font-weight: 700;
                 horizontal-alignment: center;
             }
-            for l[i] in root.langs: Rectangle {
-                x: 16px * root.k;
-                y: 64px * root.k + i * 56px * root.k;
-                width: parent.width - 32px * root.k;
-                height: 48px * root.k;
-                border-radius: 12px * root.k;
-                background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff12;
-                Text {
-                    text: l.label;
-                    color: white;
-                    font-size: 17px * root.k;
-                    font-weight: 600;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                la := TouchArea {
-                    clicked => {
-                        root.lang-chosen(l.id);
+            Rectangle {
+                y: 64px * root.k;
+                height: parent.shown * parent.row-h;
+                clip: true;
+                for l[i] in root.langs: Rectangle {
+                    x: 16px * root.k;
+                    y: (i - lang-box.first) * lang-box.row-h;
+                    animate y { duration: 160ms; easing: ease-out; }
+                    width: parent.width - 32px * root.k;
+                    height: 48px * root.k;
+                    border-radius: 12px * root.k;
+                    background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff12;
+                    Text {
+                        text: l.label;
+                        color: white;
+                        font-size: 17px * root.k;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    la := TouchArea {
+                        clicked => {
+                            root.lang-chosen(l.id);
+                        }
                     }
                 }
             }

@@ -8,7 +8,7 @@
 libmpv (playback): no Qt, no embedded web browser. It runs on any Windows or Linux computer, from an old laptop to
 a small box plugged into the TV, and is fully usable with a keyboard or a remote.
 
-Current version: **0.9.0** · Interface languages: English, Français.
+Current version: **0.9.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português, Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
 ## Features
 
@@ -142,6 +142,22 @@ Portable: everything in `data\` next to `turtlefin.exe` (`config`, `cache`, `dow
 - `TURTLEFIN_HWDEC=auto-copy`: hardware decoding (software by default on ARM Linux) · `TURTLEFIN_AO=alsa`: audio output.
 - `TURTLEFIN_LIBMPV=path`: other libmpv location · `TURTLEFIN_DEBUG_FRAMES=1`: reports slow frames.
 - Rendering must be OpenGL (chosen automatically): with `SLINT_BACKEND=winit-software`, no video.
+
+## Translate Turtlefin
+
+No programming and no compiling needed:
+
+1. **Settings → Display → Add a language**: Turtlefin writes a template, `modele.po`, and opens its folder
+   (`languages` in Turtlefin's configuration folder).
+2. Copy it as `<code>.po` (`sv.po` for Swedish, `ja.po` for Japanese…) and fill in each `msgstr ""` with the
+   translation of the `msgid` above it (French). Keep the `{}` and `{n}`. Also fill in `X-Language-Name` (the name
+   shown in the list) and, if needed, `Plural-Forms` (standard gettext rule for your language).
+   Any `.po` editor works, for example [Poedit](https://poedit.net).
+3. Restart Turtlefin and pick the language in **Settings → Display → Interface language**. Texts left empty are
+   shown in English.
+
+To share it with everyone, open a pull request adding the file to `lang/` (and to `BUILTIN` in `src/i18n.rs`);
+`python tools/lang-check.py` checks that nothing is missing.
 
 ## Development
 

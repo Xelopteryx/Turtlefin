@@ -8,7 +8,7 @@
 (lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur n'importe quel ordinateur Windows ou Linux, du
 vieux portable au petit boîtier branché à la télé, et s'utilise entièrement au clavier ou à la télécommande.
 
-Version actuelle : **0.9.0** · Langues de l'interface : Français, English.
+Version actuelle : **0.9.0** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português, Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
 ## Ce qu'il sait faire
 
@@ -143,6 +143,22 @@ Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `ca
 - `TURTLEFIN_HWDEC=auto-copy` : décodage matériel (logiciel par défaut sous Linux ARM) · `TURTLEFIN_AO=alsa` : sortie son.
 - `TURTLEFIN_LIBMPV=chemin` : autre emplacement de libmpv · `TURTLEFIN_DEBUG_FRAMES=1` : signale les images lentes.
 - Le rendu doit être OpenGL (choisi automatiquement) : avec `SLINT_BACKEND=winit-software`, pas de vidéo.
+
+## Traduire Turtlefin
+
+Sans programmer ni compiler :
+
+1. **Paramètres → Affichage → Ajouter une langue** : Turtlefin écrit un modèle, `modele.po`, et ouvre son
+   dossier (`languages`, dans le dossier de configuration de Turtlefin).
+2. Le copier sous le nom `<code>.po` (`sv.po` pour le suédois, `ja.po` pour le japonais…) et remplir chaque
+   `msgstr ""` avec la traduction du `msgid` au-dessus (en français). Garder les `{}` et `{n}`. Remplir aussi
+   `X-Language-Name` (nom affiché dans la liste) et, si besoin, `Plural-Forms` (règle gettext de la langue).
+   N'importe quel éditeur de `.po` convient, par exemple [Poedit](https://poedit.net).
+3. Relancer Turtlefin et choisir la langue dans **Paramètres → Affichage → Langue de l'interface**. Les textes
+   laissés vides s'affichent en anglais.
+
+Pour la partager avec tout le monde : une pull request qui ajoute le fichier à `lang/` (et à `BUILTIN` dans
+`src/i18n.rs`) ; `python tools/lang-check.py` vérifie qu'il ne manque rien.
 
 ## Développement
 

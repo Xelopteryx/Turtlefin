@@ -40,7 +40,7 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 
 ```
 build.rs          commit compilé, style Slint, traductions intégrées, icône de l'exe (winresource, Windows)
-lang/en/…/turtlefin.po   traductions anglaises (source : le français du code)
+lang/<code>.po    traductions (source : le français du code) ; tools/lang-check.py les vérifie
 ui/theme.slint    jetons de thème, global Prefs
 ui/app.slint      AppWindow et tous les écrans (boot, login, loading, home, detail, library, settings…)
 ui/boot.slint     BootLogo : animation de démarrage (7 points, liaison, zoom), choix de la langue
@@ -125,13 +125,18 @@ mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas
 
 ## 6. Traductions
 
-- Slint : `@tr("…")`, pluriels `@tr("{n} serveur" | "{n} serveurs" % n)`. Rust : `tr("…")` (renvoie
-  `&'static str`) et `trf("… {} …", &[&x])`. Le texte français **est** la clé : le modifier demande de modifier le
-  `msgid` du `.po`.
-- Changer de langue : `i18n::set_language` (passe par `invoke_from_event_loop`, `select_bundled_translation`
-  devant tourner sur le thread UI ; `""` = français).
-- Ajouter une langue : copier `lang/en`, traduire les `msgstr`, ajouter le code à `i18n::LANGUAGES` et à
-  `i18n::catalog`, et un `[Languages]` à `turtlefin.iss` si Inno Setup a la traduction.
+- Faites à l'exécution par `src/i18n.rs` (plus par Slint) : un même catalogue pour Rust et pour l'interface.
+  Slint : global `Tr` (ui/theme.slint) — `Tr.t(Tr.l, "…")`, `Tr.f(Tr.l, "… {} …", a, b)`,
+  `Tr.p(Tr.l, "{n} serveur", "{n} serveurs", n)` ; `Tr.l` change à chaque changement de langue, ce qui fait
+  recalculer les textes (branché dans `main`). Rust : `tr("…")` (`&'static str`), `trf("… {} …", &[&x])`, `trn`.
+- Le texte français **est** la clé : le modifier demande de modifier le `msgid` de chaque `lang/*.po`
+  (`tools/lang-check.py` signale les textes manquants et les `{}` perdus).
+- Langues intégrées : `lang/<code>.po` + `BUILTIN` dans i18n.rs (fr, en, es, de, it, pt, pl, nl). Langues
+  ajoutées : tout `<code>.po` du dossier `languages` (config ou à côté de l'exe), nom lu dans
+  `X-Language-Name` ; un fichier peut remplacer une langue intégrée. « Ajouter une langue » écrit `modele.po`.
+- Textes absents d'une langue : anglais. Pluriels : règle `Plural-Forms` du fichier, évaluée par i18n.rs.
+- Installeur : `[Languages]` et `[CustomMessages]` de `turtlefin.iss` (langues d'Inno Setup) ; il écrit le code
+  choisi dans `language` à côté de l'exe, repris au premier lancement.
 - Les noms venant du serveur (bibliothèques, médias) ne sont pas traduits.
 
 ## 7. Compiler et fabriquer les paquets (mainteneur seulement)

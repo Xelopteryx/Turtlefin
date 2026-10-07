@@ -335,11 +335,17 @@ pub fn restart() {
         // L'installeur remplace les fichiers une fois l'appli fermée, puis la relance.
         (Kind::WinInstalled, Some(setup)) => {
             let dir = crate::paths::exe_dir().unwrap_or_default();
-            Command::new(setup)
-                .args(["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"])
-                .arg(format!("/DIR={}", dir.display()))
-                .spawn()
-                .is_ok()
+            // Installé pour tous (Program Files) : l'installeur doit l'être aussi (Windows demande
+            // alors les droits administrateur), sinon il ne peut pas écrire dans le dossier.
+            let all_users = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
+                .iter()
+                .filter_map(std::env::var_os)
+                .any(|p| !p.is_empty() && dir.starts_with(PathBuf::from(p)));
+            let mut cmd = Command::new(setup);
+            cmd.args(["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"]);
+            cmd.arg(if all_users { "/ALLUSERS" } else { "/CURRENTUSER" });
+            cmd.arg(format!("/DIR={}", dir.display()));
+            cmd.spawn().is_ok()
         }
         // Paquet : installé avec les droits administrateur (pkexec demande le mot de passe), puis relance.
         (Kind::Deb, Some(deb)) => {

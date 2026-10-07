@@ -39,7 +39,7 @@ real-time blur or filter animations.
 
 ```
 build.rs          built commit, Slint style, bundled translations, exe icon (winresource, Windows)
-lang/en/…/turtlefin.po   English translations (source: the French in the code)
+lang/<code>.po    translations (source: the French in the code); tools/lang-check.py checks them
 ui/theme.slint    theme tokens, global Prefs
 ui/app.slint      AppWindow and every screen (boot, login, loading, home, detail, library, settings…)
 ui/boot.slint     BootLogo: startup animation (7 dots, linking, zoom), language picker
@@ -123,13 +123,18 @@ choice); XeLauncher bridge (the maintainer's media-center launcher, low priority
 
 ## 6. Translations
 
-- Slint: `@tr("…")`, plurals `@tr("{n} serveur" | "{n} serveurs" % n)`. Rust: `tr("…")` (returns
-  `&'static str`) and `trf("… {} …", &[&x])`. The French text **is** the key: changing it means changing the
-  `msgid` in the `.po`.
-- Switching language: `i18n::set_language` (goes through `invoke_from_event_loop`, since
-  `select_bundled_translation` must run on the UI thread; `""` = French).
-- Adding a language: copy `lang/en`, translate the `msgstr`, add the code to `i18n::LANGUAGES` and
-  `i18n::catalog`, and a `[Languages]` entry to `turtlefin.iss` if Inno Setup has that translation.
+- Done at runtime by `src/i18n.rs` (no longer by Slint): one catalog for Rust and the interface. Slint: global
+  `Tr` (ui/theme.slint) — `Tr.t(Tr.l, "…")`, `Tr.f(Tr.l, "… {} …", a, b)`, `Tr.p(Tr.l, "{n} serveur",
+  "{n} serveurs", n)`; `Tr.l` changes on every language switch, which re-evaluates the texts (wired in `main`).
+  Rust: `tr("…")` (`&'static str`), `trf("… {} …", &[&x])`, `trn`.
+- The French text **is** the key: changing it means changing the `msgid` in every `lang/*.po`
+  (`tools/lang-check.py` reports missing texts and lost `{}`).
+- Built-in languages: `lang/<code>.po` + `BUILTIN` in i18n.rs (fr, en, es, de, it, pt, pl, nl). Added languages:
+  any `<code>.po` in the `languages` folder (config, or next to the exe), name read from `X-Language-Name`; a
+  file can override a built-in language. “Add a language” writes `modele.po`.
+- Texts missing from a language: English. Plurals: the file's `Plural-Forms` rule, evaluated by i18n.rs.
+- Installer: `[Languages]` and `[CustomMessages]` of `turtlefin.iss` (Inno Setup languages); it writes the chosen
+  code to `language` next to the exe, picked up on first launch.
 - Names coming from the server (libraries, media) are not translated.
 
 ## 7. Building and packaging (maintainer only)
