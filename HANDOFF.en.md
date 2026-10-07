@@ -1,0 +1,171 @@
+# Turtlefin: project handoff (state on October 7, 2026, version 0.9.0)
+
+[Français](HANDOFF.md) · **English**
+
+For whoever takes over development (human or Claude Code). Read it fully before touching the code, then read
+[README.md](README.md) (usage, install, keys, files). The French version is the reference if they ever differ.
+Repository: https://github.com/Xelopteryx/Turtlefin · Version in `Cargo.toml`: 0.9.0.
+
+## 1. Goal
+
+A **native Jellyfin client in Rust**, lightweight, animated and fully usable with a keyboard / remote, installable
+on any Windows or Linux computer **without building anything**: users download an installer or a package (or run
+one install command), that's all. Every package is built by the maintainer (GitHub CI or their PC), never by users.
+
+Why: Jellyfin Desktop (Qt / QtWebEngine) leaks RAM and eventually crashes on small machines, and the web interface
+with a heavy theme drops below 30 fps on modest hardware. Standing rule: stay memory-stable and never bring back
+real-time blur or filter animations.
+
+## 2. Decisions
+
+| Topic | Decision | Reason |
+|---|---|---|
+| Language / UI | Rust + **Slint** 1.18 (100 % Slint rendering), `fluent-dark` style forced by `build.rs` | No browser; the “native” style would depend on Qt |
+| Network | `reqwest` 0.13 (rustls, system certificate store), `tokio` | `query` is an opt-in feature in 0.13 |
+| Playback | **libmpv loaded at runtime** (`libloading`, `src/mpv.rs`), OpenGL rendering into a texture shown by Slint (`src/video.rs`), Slint controls on top (`ui/player.slint`) | Built-in player, no IPC, works on Wayland. The player is recreated for each playback (bounded memory) |
+| Slint renderer | femtovg (OpenGL / GLES) forced unless `SLINT_BACKEND` is set | Video goes through an OpenGL texture |
+| Video texture | Physical pixels, `TopLeft` origin, GL state saved / restored around mpv; `loadfile` waits for the render context | Otherwise upside-down image or “No render context set” |
+| Decoding | `hwdec=no` on 64-bit ARM Linux, `auto-safe` elsewhere (Windows: `d3d11va-copy`) | On the ARM boards tested (v3d driver), V4L2 decoding outputs a format the renderer cannot import |
+| Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed while PipeWire held the HDMI output |
+| Memory | mpv cache capped (100 / 25 MiB), images requested at the right size, 16 items per row | Small machines (4 GB) |
+| Languages | Texts written in French in the code (source language), gettext translations in `lang/<code>/LC_MESSAGES/turtlefin.po`, built in | See section 6 |
+| Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one | User request: no console unless asked |
+| Command line | Always wins over settings (startup account, TV interface) | User request |
+| Password | Never stored (token only); on the command line, prefer `TURTLEFIN_PASSWORD` | Arguments are visible to other processes |
+
+## 3. Code layout
+
+```
+build.rs          built commit, Slint style, bundled translations, exe icon (winresource, Windows)
+lang/en/…/turtlefin.po   English translations (source: the French in the code)
+ui/theme.slint    theme tokens, global Prefs
+ui/app.slint      AppWindow and every screen (boot, login, loading, home, detail, library, settings…)
+ui/boot.slint     BootLogo: startup animation (6 dots, linking, zoom), language picker
+ui/player.slint   playback screen; ui/osk.slint on-screen keyboard; ui/card.slint, ui/marquee.slint
+src/main.rs       CLI, shared App state (Arc), screens, navigation (stack + kept pages), settings
+src/boot.rs       startup sequence (checks, language, landing screen)
+src/i18n.rs       current language, Rust-side tr() / trf(), system / installer language
+src/api.rs        Jellyfin REST client (+ Jellyfin Enhanced Seerr relay, GetAvatar)
+src/config.rs     session, accounts (12 max), prefs.json (device settings), tracks, offline watched/favorites
+src/discovery.rs  server search (UDP, subnets, ARP, VPN peers)
+src/downloads.rs  downloads (Range resume, queue, offline sync)
+src/mpv.rs        libmpv binding; src/video.rs OpenGL texture; src/player.rs playback, reports, chaining
+src/syncplay.rs   watch party (WebSocket /socket)
+src/paths.rs      config / cache / data folders; portable mode (`portable` file next to the exe)
+src/update.rs     update per install kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
+packaging/        windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
+                  icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh (one command)
+.github/workflows/release.yml   build and publish on a `v*` tag
+```
+
+Principles:
+- Network data goes through `Send` structs, then `upgrade_in_event_loop` pushes it into Slint models. Images are
+  decoded off the UI thread, 6 downloads in parallel, applied with an id guard.
+- `App.gen` invalidates stale loads; `App.stack` is the navigation stack; `PAGES` keeps detail and library pages
+  so going back needs no request.
+- Keyboard navigation is hand-made (selection indices in Rust), since Slint does not handle focus across dynamic
+  cards. `refocus` gives the keyboard back to the right `FocusScope`.
+- Jellyfin 10.11: `/UserViews`, `/UserItems/Resume`, `/Shows/NextUp`, `/Items/Latest`, `/Items/{id}`,
+  `Authorization: MediaBrowser …, Token=…` header. Reports: `/Sessions/Playing`, `/Progress`, `/Stopped`.
+  `/Items/{id}/Download` and the WebSocket refuse `api_key`: token in the header.
+
+## 4. Startup
+
+`main` applies the language (prefs.json, otherwise the `language` file written by the Windows installer), then
+starts `boot::run`. The `boot` screen (hexagon logo) shows 6 dots, one per check: **language** (asked if unknown),
+**display** (OpenGL), **video player** (libmpv loadable), **storage** (write test in the config folder),
+**network**, **server** (“to configure” on first run). Red = failure, with a message and “Continue”. All green:
+the dots link up in the theme colours, then the view zooms into the centre dot.
+
+Landing screen (`boot::route`), in order: name + password on the command line → sign in; name of a saved account →
+that account; startup account (`prefs.autostart_user` / `autostart_server`, setting Account → “Open this account
+at startup”) → `open_saved_session`; otherwise “Who's watching?” (or the server search if none is known). A
+startup account that is gone (forgotten locally or token refused by the server) leads to “Who's watching?”.
+`--no-intro` skips the animation (the checks still run).
+
+## 5. State
+
+Every feature listed in the README is done and was checked on screenshots (Windows PC) and on an ARM Linux machine
+plugged into a TV, with the `test` / `test2` accounts of a real server. Notable points, not obvious from the code:
+- **Shared image** (`global Hero`): a card's image flies to the detail poster and back onto the exact card
+  (`Hero.want-id`, `hero-card-ok`). Slint `changed` handlers are deferred: positions are taken in two steps.
+- **Rows** (`global Rows`): per-row scrolling, remembered by key; moving between rows picks the closest card on
+  screen.
+- **Offline**: `config::Flags` (userdata.json) keeps watched / favorites / positions with a “to send” flag;
+  `downloads::sync` sends them back when the server returns (the device wins).
+- **Addresses**: `server_main` / `server_backup`; `watch_addresses` (20 s) switches to the backup and back.
+- **Watch party**: one WebSocket connection per session (`sp_conn`), stops on 401 / 403, growing retry delay.
+- **Avatars**: GIFs decoded once, only the selected avatar is animated; round still images cached on disk.
+  GetAvatar `SetAvatar` answers 500 → fallback `POST /UserImage`.
+- **Version 0.9.0**: Windows / Linux packages and updates through GitHub Releases. Checked locally: x64 installer
+  (installed and portable, uninstall), x86, aarch64 AppImage, arm64 `.deb` (contents). **CI has never run**
+  (nothing pushed) and Release-based updates could not be tried without a release.
+- **October 7, 2026**: startup animation, languages (French / English, ~400 strings), startup account, console
+  only with `--console`, logo = icon (exe, window, installer, Linux packages), bilingual installer passing its
+  language on, one-command install scripts, README / HANDOFF in two languages.
+
+Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
+choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).
+
+## 6. Translations
+
+- Slint: `@tr("…")`, plurals `@tr("{n} serveur" | "{n} serveurs" % n)`. Rust: `tr("…")` (returns
+  `&'static str`) and `trf("… {} …", &[&x])`. The French text **is** the key: changing it means changing the
+  `msgid` in the `.po`.
+- Switching language: `i18n::set_language` (goes through `invoke_from_event_loop`, since
+  `select_bundled_translation` must run on the UI thread; `""` = French).
+- Adding a language: copy `lang/en`, translate the `msgstr`, add the code to `i18n::LANGUAGES` and
+  `i18n::catalog`, and a `[Languages]` entry to `turtlefin.iss` if Inno Setup has that translation.
+- Names coming from the server (libraries, media) are not translated.
+
+## 7. Building and packaging (maintainer only)
+
+Development:
+- Windows: Rust (https://rustup.rs), Visual Studio Build Tools (C++), git; `cargo build --release`;
+  `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` from
+  [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) next to the exe.
+  Debug builds need `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
+- Linux (Debian / Ubuntu): `sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
+  libmpv-dev`, then `cargo build --release`.
+
+Publishing:
+- **Automatic**: `git tag v0.9.0 && git push origin v0.9.0`. `release.yml` builds Windows x64 / x86 and Linux
+  x86_64 / aarch64, makes installers, archives, AppImages and `.deb` packages, and publishes them in a Release.
+  File names (header of `release.yml`) are expected as-is by `update.rs` and the install scripts.
+- **Windows by hand**: `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (or
+  `x86`); needs Inno Setup 6, 7-Zip and NASM (x86). Output in `target\dist`.
+- **Linux by hand** (on a Linux machine): `TURTLEFIN_DIST=release cargo build --release`, then
+  `sh packaging/linux/build-appimage.sh <version>` and `cargo deb --no-build`.
+- `TURTLEFIN_DIST=release` at build time, otherwise `update::kind()` assumes a build from source.
+- x86: shinchiro's 32-bit libmpv builds published since July 2026 crash at startup (OpenSSL); `build.ps1` pins the
+  June 10, 2026 one (`MPV_TAG`). shinchiro keeps only about thirty releases: copy it elsewhere before it
+  disappears. aws-lc needs NASM for 32-bit builds.
+- Icons: `packaging/turtlefin.svg` is the logo; `packaging/icons/make-icons.py <folder>` (Python + Pillow)
+  regenerates the PNGs and the ICO.
+
+## 8. Testing
+
+- `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs) without touching the real one.
+- `--open=settings|downloads`, `--play=ID@SECONDS`, `--test-video=file` (player without a server).
+- `TURTLEFIN_DEBUG_FRAMES=1` (frames > 25 ms), `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console`.
+- A `prefs.json` written by PowerShell 5 has a BOM: config reading ignores it.
+
+## 9. Known issues / limits
+
+1. An mpv crash brings Turtlefin down (same process).
+2. Playback needs OpenGL rendering (`SLINT_BACKEND=winit-software` prevents it).
+3. **mpv 0.40 / 0.41** (fixed in mpv on January 23, 2026, commit f74adc4): one OpenGL fence per frame never
+   released; with the v3d driver each one holds a file descriptor (“MESA: error: Export failed” after ~42 s).
+   Workaround in `src/mpv.rs` (OpenGL ES only). Check: `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` must stay stable
+   during playback.
+4. mpv RAM growth (~3 MB/min) with ASS subtitles: bounded to one playback (mpv recreated for each video).
+5. Token stored in clear in `session.json` / `accounts.json` (0600 on Unix).
+6. Tearing under Xorg without a compositor (bare Openbox): use a compositor (picom `--backend egl --vsync`).
+   Turtlefin holds 60 fps.
+7. Software decoding on ARM Linux: may struggle with 4K / HEVC; lead: `TURTLEFIN_HWDEC=auto-copy`.
+
+## 10. Maintainer's working preferences
+
+- Answers in French; little Linux / SSH experience: explain commands.
+- Never push to GitHub before their explicit approval.
+- Test with a copy of the config (`TURTLEFIN_CONFIG_DIR`), never the real one; test accounts `test` / `test2`.

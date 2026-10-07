@@ -180,7 +180,7 @@ component EpisodeCard inherits Rectangle {
         x: 8px * root.k;
         y: root.width * 0.5625 + 26px * root.k;
         width: parent.width - 16px * root.k;
-        text: root.current ? "En cours" : root.data.subtitle;
+        text: root.current ? @tr("En cours") : root.data.subtitle;
         color: root.current ? Theme.accent2 : Theme.muted;
         font-size: 11px * root.k;
         overflow: elide;
@@ -420,7 +420,7 @@ export component PlayerView inherits Rectangle {
     }
 
     if !root.ready: Text {
-        text: "Chargement…";
+        text: @tr("Chargement…");
         color: Theme.muted;
         font-size: 22px * root.k;
         horizontal-alignment: center;
@@ -454,7 +454,7 @@ export component PlayerView inherits Rectangle {
         wait-t := Text {
             x: 58px * root.k;
             height: parent.height;
-            text: root.lost ? "Connexion au serveur perdue · reprise automatique dès son retour" : "Mise en mémoire…";
+            text: root.lost ? @tr("Connexion au serveur perdue · reprise automatique dès son retour") : @tr("Mise en mémoire…");
             color: white;
             font-size: 16px * root.k;
             font-weight: 600;
@@ -905,7 +905,7 @@ export component PlayerView inherits Rectangle {
                     enabled: root.audio-tracks.length > 1;
                     size: 44px * root.k;
                     font: 16px * root.k;
-                    text: "Audio";
+                    text: @tr("Audio");
                     focused: root.zone == 2 && root.btn == 5;
                     clicked => {
                         root.activate(5);
@@ -915,7 +915,7 @@ export component PlayerView inherits Rectangle {
                     enabled: root.sub-tracks.length > 0;
                     size: 44px * root.k;
                     font: 16px * root.k;
-                    text: "Sous-titres";
+                    text: @tr("Sous-titres");
                     focused: root.zone == 2 && root.btn == 6;
                     clicked => {
                         root.activate(6);
@@ -952,7 +952,7 @@ export component PlayerView inherits Rectangle {
                 x: root.m;
                 y: 16px * root.k;
                 height: 32px * root.k;
-                text: root.menu == "audio" ? "Piste audio" : "Sous-titres";
+                text: root.menu == "audio" ? @tr("Piste audio") : @tr("Sous-titres");
                 color: Theme.text;
                 font-size: 22px * root.k;
                 font-weight: 700;
@@ -963,7 +963,7 @@ export component PlayerView inherits Rectangle {
                 x: root.m;
                 y: 60px * root.k;
                 height: 42px * root.k;
-                text: "Aucune piste";
+                text: @tr("Aucune piste");
                 color: Theme.muted;
                 font-size: 17px * root.k;
                 vertical-alignment: center;
@@ -1054,7 +1054,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width;
             size: 48px * root.k;
             font: 16px * root.k;
-            text: "Passer l'intro";
+            text: @tr("Passer l'intro");
             focused: !root.osd || root.zone == 0;
             clicked => {
                 root.command("skip-intro");
@@ -1126,7 +1126,7 @@ export component PlayerView inherits Rectangle {
             PlayerButton {
                 size: 37px * root.k;
                 font: 14px * root.k;
-                text: "Regarder la fin de celui-ci";
+                text: @tr("Regarder la fin de celui-ci");
                 focused: root.up-sel == 1;
                 clicked => {
                     root.command("up:dismiss");
@@ -1183,7 +1183,7 @@ export component PlayerView inherits Rectangle {
         if root.up-mode == "pick": Text {
             x: 32px * root.k;
             y: 32px * root.k + 225px * root.k + 10px * root.k;
-            text: "Regarder la fin";
+            text: @tr("Regarder la fin");
             color: root.up-sel == 0 ? white : Theme.muted;
             font-size: 15px * root.k;
             font-weight: 600;
@@ -1193,7 +1193,7 @@ export component PlayerView inherits Rectangle {
             y: ups.top;
             height: 50px * root.k;
             width: parent.width;
-            text: root.up-mode == "pick" ? "À voir ensuite" : "C'est fini ! À voir ensuite";
+            text: root.up-mode == "pick" ? @tr("À voir ensuite") : @tr("C'est fini ! À voir ensuite");
             color: Theme.text;
             font-size: 26px * root.k;
             font-weight: 700;
@@ -1226,7 +1226,7 @@ export component PlayerView inherits Rectangle {
             PlayerButton {
                 size: 48px * root.k;
                 font: 16px * root.k;
-                text: "Retour à l'accueil";
+                text: @tr("Retour à l'accueil");
                 focused: root.up-sel == 0;
                 clicked => {
                     root.command("home");
@@ -1253,7 +1253,7 @@ export component PlayerView inherits Rectangle {
         border-radius: self.height / 2;
         background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
         party-txt := Text {
-            text: "Watch party · " + root.party;
+            text: @tr("Watch party · {}", root.party);
             color: white;
             font-size: 14px * root.k;
             font-weight: 600;

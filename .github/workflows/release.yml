@@ -1,5 +1,5 @@
 # Publication d'une version : compile Turtlefin pour Windows (x64, x86) et Linux (x86_64,
-# aarch64 / Raspberry Pi), fabrique les paquets et les attache à une publication GitHub.
+# aarch64), fabrique les paquets et les attache à une publication GitHub.
 #
 # Déclenchement : pousser une étiquette de version, par exemple
 #   git tag v0.9.0 && git push origin v0.9.0
@@ -64,7 +64,7 @@ jobs:
             deb: arm64
             runner: ubuntu-22.04-arm
     # Ubuntu 22.04 : glibc 2.35, l'AppImage fonctionne donc sur les distributions de 2022 et après
-    # (Debian 12, Raspberry Pi OS Bookworm, Ubuntu 22.04...).
+    # (Debian 12, Ubuntu 22.04...).
     runs-on: ${{ matrix.runner }}
     env:
       TURTLEFIN_DIST: release

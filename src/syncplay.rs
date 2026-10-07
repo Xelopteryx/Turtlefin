@@ -6,6 +6,7 @@
 //!   appliquées directement ; le serveur les renvoie à tout le groupe au même instant (`When`).
 //! - Le lecteur signale qu'il est prêt (`Ready`) une fois le média chargé ou le saut terminé.
 
+use crate::i18n::trf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -137,7 +138,7 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
             s.group = Some((data["GroupId"].as_str().unwrap_or("").to_string(), name.clone()));
             s.participants = data["Participants"].as_array().into_iter().flatten().filter_map(|p| p.as_str().map(str::to_string)).collect();
             drop(s);
-            let _ = tx.send(Event::Toast(format!("Watch party « {name} » rejointe.")));
+            let _ = tx.send(Event::Toast(trf("Watch party « {} » rejointe.", &[&name])));
             let _ = tx.send(Event::Group);
         }
         "UserJoined" | "UserLeft" => {
@@ -153,7 +154,7 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
                     s.participants.retain(|p| *p != who);
                 }
             }
-            let _ = tx.send(Event::Toast(format!("{who} {} la watch party.", if joined { "a rejoint" } else { "a quitté" })));
+            let _ = tx.send(Event::Toast(if joined { trf("{} a rejoint la watch party.", &[&who]) } else { trf("{} a quitté la watch party.", &[&who]) }));
             let _ = tx.send(Event::Group);
         }
         "GroupLeft" | "NotInGroup" | "GroupDoesNotExist" => {

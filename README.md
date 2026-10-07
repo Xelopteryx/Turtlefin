@@ -1,133 +1,148 @@
+<p align="center"><img src="packaging/icons/turtlefin-256.png" width="128" alt="Turtlefin logo"></p>
+
 # Turtlefin
 
-**Client Jellyfin natif, léger et animé, pensé pour la télé.** Écrit en Rust avec Slint (interface) et libmpv
-(lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur Windows et sur Linux, en particulier sur un
-Raspberry Pi 5 branché à une télé, où il remplace Jellyfin Desktop (trop gourmand, il finissait par planter).
+**English** · [Français](README.fr.md)
 
-Version actuelle : **0.9.0**.
+**A lightweight, animated native Jellyfin client, made for the couch.** Written in Rust with Slint (interface) and
+libmpv (playback): no Qt, no embedded web browser. It runs on any Windows or Linux computer, from an old laptop to
+a small box plugged into the TV, and is fully usable with a keyboard or a remote.
 
-## Ce qu'il sait faire
+Current version: **0.9.0** · Interface languages: English, Français.
 
-- **Comptes** : écran « Qui regarde ? » avec avatars (GIF animés compris), jusqu'à 12 comptes enregistrés sur
-  l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans ressaisie, « Gérer les comptes »
-  pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil (local et VPN) ; une adresse
-  principale et une adresse de secours, essayée quand la principale ne répond pas (Paramètres → Réseau).
-- **Accueil** : Mes médias, Reprendre, À suivre, Récemment ajouté ; onglets Favoris et Demandes (Seerr).
-  Affiches avec épisodes restants, coche « vu », note ; fond d'écran tiré du média sélectionné.
-- **Fiches** : film, série, saison, épisode ; lecture, favori, vu, téléchargement, choix audio / sous-titres retenu
-  par série ; « Plus de ce genre » et suggestions Seerr ; demande des saisons manquantes d'une série.
-- **Lecture** (libmpv) : commandes à la télécommande, chapitres, épisodes de la saison, « Passer l'intro »,
-  épisode suivant, suggestions en fin de série ; position et « vu » renvoyés au serveur.
-- **Watch party** (SyncPlay) : regarder la même chose en même temps sur plusieurs appareils.
-- **Hors ligne** : téléchargements présentés comme l'accueil, fiches complètes sans serveur ; les lectures,
-  « vu » et favoris faits hors ligne sont renvoyés au compte à la reconnexion.
-- **Recherche** (bibliothèque + Seerr), média au hasard, clavier à l'écran pour la télé.
-- **Paramètres** : photo de profil (avatars du plugin GetAvatar, rangés par catégorie), langues audio et
-  sous-titres, taille des sous-titres, épisode suivant automatique, intro passée automatiquement, interface TV,
-  fond d'écran, notes, heure, adresses du serveur, cache d'images, **mise à jour depuis GitHub**.
-- Transitions animées partout (affiche qui vole vers la fiche, menu qui glisse, rangées en cascade).
+## Features
 
-## Installer
+- **Accounts**: “Who's watching?” screen with avatars (animated GIFs too), up to 12 accounts saved on the device
+  (only the access token, never the password), switching accounts without typing again, “Manage accounts” to
+  remove some. Server search on every network of the device (local and VPN); a main address and a backup address,
+  used when the main one does not answer (Settings → Network).
+- **Startup**: animated logo that checks language, display, video player, storage, network and server, then opens
+  “Who's watching?” — or directly the account chosen in Settings → Account → **Open this account at startup**.
+- **Home**: My media, Continue watching, Next up, Recently added; Favorites and Requests (Seerr) tabs.
+  Posters with remaining episodes, “watched” check mark, rating; background taken from the selected item.
+- **Detail pages**: movie, series, season, episode; play, favorite, watched, download, audio / subtitle choice
+  remembered per series; “More like this” and Seerr suggestions; request the missing seasons of a series.
+- **Playback** (libmpv): remote-friendly controls, chapters, season episodes, “Skip intro”, next episode,
+  suggestions at the end of a series; position and “watched” sent back to the server.
+- **Watch party** (SyncPlay): watch the same thing at the same time on several devices.
+- **Offline**: downloads shown like the home screen, full detail pages without a server; what you watch,
+  mark as watched or favorite offline is sent back to your account when the server is reachable again.
+- **Search** (library + Seerr), random pick, on-screen keyboard for TV use.
+- **Settings**: profile picture (GetAvatar avatars, sorted by category), interface language, audio and subtitle
+  languages, subtitle size, autoplay next episode, automatic intro skip, TV interface, background, ratings, clock,
+  server addresses, image cache, **updates from GitHub**.
+- Animated transitions everywhere (poster flying to its page, sliding menu, cascading rows).
 
-Les versions prêtes à l'emploi sont sur la page
-[Releases](https://github.com/Xelopteryx/Turtlefin/releases) : rien à compiler.
+## Install
 
-| Système | Fichier | Remarques |
-|---|---|---|
-| Windows 64 bits | `Turtlefin-<version>-windows-x64-setup.exe` | Installeur : choix du dossier, et du mode **installé** (menu Démarrer, désinstallation) ou **portable** |
-| Windows 64 bits, sans installer | `Turtlefin-<version>-windows-x64-portable.zip` | Décompresser où l'on veut (clé USB...) et lancer `turtlefin.exe` |
-| Windows 32 bits | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | Pour les vieux PC |
-| Linux, toutes distributions | `Turtlefin-<version>-linux-x86_64.AppImage` | Version portable : `chmod +x` puis lancer le fichier |
-| Raspberry Pi (64 bits), Linux ARM | `Turtlefin-<version>-linux-aarch64.AppImage` | Idem |
-| Debian, Ubuntu, Raspberry Pi OS | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Version installée : `sudo apt install ./turtlefin_….deb` |
+Nothing to build: download, install, done. Every file is on the
+[Releases](https://github.com/Xelopteryx/Turtlefin/releases) page.
 
-Les versions Windows et AppImage contiennent tout (lecteur libmpv compris). Le paquet `.deb` utilise la libmpv
-du système (`libmpv2`, installée automatiquement par apt). Les AppImage et paquets demandent une distribution de
-2022 ou plus récente (Ubuntu 22.04, Debian 12, Raspberry Pi OS Bookworm…).
+### In one command
 
-**Version portable** : un fichier `portable` à côté de `turtlefin.exe` fait garder la configuration, les comptes,
-le cache et les téléchargements dans le dossier `data` à côté du programme ; rien n'est écrit ailleurs.
+**Windows** (PowerShell):
 
-### Mettre à jour
+```powershell
+irm https://raw.githubusercontent.com/Xelopteryx/Turtlefin/main/packaging/install.ps1 | iex
+```
 
-**Paramètres → À propos → Rechercher une mise à jour** compare la version installée à la dernière publiée,
-puis « Mettre à jour » s'occupe de tout selon la façon dont Turtlefin est installé :
-
-| Installation | Mise à jour |
-|---|---|
-| Windows, installé | le nouvel installeur est téléchargé puis relancé en silence dans le même dossier |
-| Windows, portable | la nouvelle archive est téléchargée et ses fichiers remplacent les anciens |
-| AppImage | le nouveau fichier remplace l'ancien |
-| Paquet .deb | le paquet est installé avec `pkexec` (le mot de passe administrateur est demandé) |
-| Compilé depuis les sources | `git pull` puis recompilation dans le même dossier |
-
-« Redémarrer Turtlefin » lance ensuite la nouvelle version.
-
-### Compiler soi-même
-
-Linux (Debian, Ubuntu, Raspberry Pi OS) :
+**Linux** (terminal):
 
 ```sh
-sudo apt install git build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libmpv2 libmpv-dev
-curl https://sh.rustup.rs -sSf | sh          # Rust (puis ouvrir un nouveau terminal)
-git clone https://github.com/Xelopteryx/Turtlefin.git ~/turtlefin
-cd ~/turtlefin && cargo build --release      # premier build : une dizaine de minutes sur un Pi 5
-./target/release/turtlefin --tv
+curl -fsSL https://raw.githubusercontent.com/Xelopteryx/Turtlefin/main/packaging/install.sh | sh
 ```
 
-Windows : installer Rust (https://rustup.rs), les « Outils de build Visual Studio » (charge de travail C++) et git,
-puis `cargo build --release` ; placer `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` de
-[shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) à côté de
-`target/release/turtlefin.exe`.
+On Windows, the latest installer is downloaded and run for your user account (no administrator rights).
+On Debian, Ubuntu, Linux Mint and other apt-based distributions, the `.deb` package is installed (your
+password is asked); elsewhere, the AppImage goes to `~/.local/bin` with an entry in the applications menu.
 
-### Fabriquer les paquets
+### By hand
 
-- **Automatiquement** : pousser une étiquette de version (`git tag v0.9.0 && git push origin v0.9.0`). GitHub
-  Actions (`.github/workflows/release.yml`) compile pour Windows x64 / x86 et Linux x86_64 / aarch64, fabrique
-  tous les fichiers ci-dessus et les publie dans une Release.
-- **À la main, Windows** : `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64`
-  (ou `x86`). Il faut Inno Setup 6, 7-Zip et, pour x86, NASM. Résultat dans `target\dist`.
-- **À la main, Linux** : `TURTLEFIN_DIST=release cargo build --release`, puis
-  `sh packaging/linux/build-appimage.sh <version>` (AppImage) et `cargo deb --no-build` (paquet, avec cargo-deb).
+| System | File | Notes |
+|---|---|---|
+| Windows 64-bit | `Turtlefin-<version>-windows-x64-setup.exe` | Installer: language, folder, and **installed** (Start menu, uninstaller) or **portable** mode |
+| Windows 64-bit, no install | `Turtlefin-<version>-windows-x64-portable.zip` | Unzip anywhere (USB stick…) and run `turtlefin.exe` |
+| Windows 32-bit | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | For old PCs |
+| Linux, any distribution (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Make it executable (`chmod +x`), then run it |
+| Linux, ARM 64-bit | `Turtlefin-<version>-linux-aarch64.AppImage` | Same |
+| Debian, Ubuntu, Mint… | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Double-click it, or `sudo apt install ./turtlefin_….deb` |
 
-## Lancer
+Windows and AppImage builds contain everything (libmpv player included). The `.deb` package uses the system
+libmpv (`libmpv2`, installed automatically by apt). AppImages and packages need a 2022 or newer distribution
+(Ubuntu 22.04, Debian 12…).
 
-```
-turtlefin                                  écran de connexion, ou dernière session
-turtlefin --tv                             plein écran, grands éléments (télé)
-turtlefin --desktop                        fenêtre (prime sur le réglage « Interface TV »)
-turtlefin "Nom" --server=http://… --tv      connexion directe (mot de passe : TURTLEFIN_PASSWORD=…)
-```
+**Portable mode**: a `portable` file next to `turtlefin.exe` keeps settings, accounts, cache and downloads in the
+`data` folder next to the program; nothing is written anywhere else.
 
-## Touches (télécommande ou clavier)
+### Updates
 
-- **Flèches** pour se déplacer, **Entrée** pour ouvrir / activer, **Échap** ou **Retour arrière** pour revenir.
-- Accueil : **←** sur la première carte (ou Retour) ouvre le menu ; dans le menu, **→** ou Échap le referme.
-- ↑ depuis le haut d'une page : barre du haut (retour, accueil, menu, watch party, hasard, recherche, compte).
-- Lecture, commandes masquées : ← → reculer / avancer de 10 s, ↑ ↓ ou Entrée affichent les commandes,
-  ↓ depuis les boutons : épisodes de la saison. Espace : pause · `a` audio · `s` sous-titres · `f` plein écran.
+**Settings → About → Check for updates** compares the installed version with the latest release, then
+“Update” does the right thing for the way Turtlefin is installed:
 
-## Fichiers
-
-| Où | Quoi |
+| Installed as | Update |
 |---|---|
-| dossier de config, `turtlefin/` | `session.json` (session en cours), `accounts.json` (comptes enregistrés), `prefs.json` (réglages de l'appareil), `tracks.json` (pistes par série), `userdata.json` (vu / favoris faits hors ligne) |
-| dossier de données, `turtlefin/downloads/` | téléchargements (média, affiches, fond, logo, `info.json`), `queue.json` (file en attente) |
-| dossier de cache, `turtlefin/img/` | images (vidable dans À propos) |
+| Windows, installed | the new installer is downloaded and run silently in the same folder |
+| Windows, portable | the new archive is downloaded and its files replace the old ones |
+| AppImage | the new file replaces the old one |
+| .deb package | the package is installed with `pkexec` (administrator password asked) |
 
-Sous Linux : `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`.
-Sous Windows : `%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`.
-Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `cache`, `downloads`).
+“Restart Turtlefin” then starts the new version.
 
-## Diagnostic
+## Recommended server plugins
 
-- `TURTLEFIN_DEBUG_FRAMES=1` : signale les images longues à dessiner et le temps de chargement des fiches.
-- `TURTLEFIN_MPV_LOG=/tmp/mpv.log` : journal de mpv · `TURTLEFIN_MPV_ARGS="…"` : options mpv en plus.
-- `TURTLEFIN_HWDEC=auto-copy` : décodage matériel (logiciel par défaut sur le Pi) · `TURTLEFIN_AO=alsa` : sortie son.
-- `TURTLEFIN_LIBMPV=chemin` : autre emplacement de libmpv · `TURTLEFIN_CONFIG_DIR=dossier` : autre dossier de
-  session (essais) · `turtlefin --test-video=fichier` : lecteur sans serveur.
-- Le rendu doit être OpenGL (choisi automatiquement) : avec `SLINT_BACKEND=winit-software`, pas de vidéo.
+Turtlefin works with a plain Jellyfin server (10.11 or newer). These plugins, installed on the **server**, unlock
+extra features:
 
-## Développement
+| Plugin | What it brings to Turtlefin |
+|---|---|
+| [Jellyfin Enhanced](https://github.com/n00bcodr/Jellyfin-Enhanced) | Requests tab, Seerr results in search, Seerr suggestions and requests on detail pages — through your Jellyfin login, no Seerr key on the client |
+| [Seerr](https://github.com/seerr-team/seerr) (formerly Jellyseerr) | The request manager itself, used by Jellyfin Enhanced |
+| [Intro Skipper](https://github.com/intro-skipper/intro-skipper) | Detects intros and credits: “Skip intro” button, automatic skip, “Next episode” at the right moment |
+| [GetAvatar](https://github.com/cedev-1/jellyfin-plugin-GetAvatar) | A gallery of profile pictures to choose from in Settings → Account |
 
-Voir `HANDOFF.md` (état détaillé du projet, décisions, problèmes connus).
+## Launch options
+
+```
+turtlefin                                  startup animation, then “Who's watching?” (or the startup account)
+turtlefin "Name"                           saved account “Name”
+turtlefin "Name" --server=http://…         direct sign-in (password: TURTLEFIN_PASSWORD=… environment variable)
+turtlefin --tv                             full screen, large elements (TV)
+turtlefin --desktop                        window (overrides the “TV interface” setting)
+turtlefin --no-intro                       no startup animation
+turtlefin --console                        show the log window (Windows)
+```
+
+Command-line options always win over settings (startup account, TV interface).
+
+## Keys (remote or keyboard)
+
+- **Arrows** to move, **Enter** to open / activate, **Esc** or **Backspace** to go back.
+- Home: **←** on the first card (or Back) opens the menu; in the menu, **→** or Esc closes it.
+- ↑ from the top of a page: top bar (back, home, menu, watch party, random, search, account).
+- Playback, controls hidden: ← → rewind / forward 10 s, ↑ ↓ or Enter show the controls,
+  ↓ from the buttons: season episodes. Space: pause · `a` audio · `s` subtitles · `f` full screen.
+
+## Files
+
+| Where | What |
+|---|---|
+| config folder, `turtlefin/` | `session.json` (current session), `accounts.json` (saved accounts), `prefs.json` (device settings), `tracks.json` (tracks per series), `userdata.json` (watched / favorites made offline) |
+| data folder, `turtlefin/downloads/` | downloads (media, posters, background, logo, `info.json`), `queue.json` (pending queue) |
+| cache folder, `turtlefin/img/` | images (can be emptied in About) |
+
+Linux: `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`.
+Windows: `%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`.
+Portable: everything in `data\` next to `turtlefin.exe` (`config`, `cache`, `downloads`).
+
+## Troubleshooting
+
+- `turtlefin --console` (Windows) or start it from a terminal (Linux) to see the log.
+- `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: mpv log · `TURTLEFIN_MPV_ARGS="…"`: extra mpv options.
+- `TURTLEFIN_HWDEC=auto-copy`: hardware decoding (software by default on ARM Linux) · `TURTLEFIN_AO=alsa`: audio output.
+- `TURTLEFIN_LIBMPV=path`: other libmpv location · `TURTLEFIN_DEBUG_FRAMES=1`: reports slow frames.
+- Rendering must be OpenGL (chosen automatically): with `SLINT_BACKEND=winit-software`, no video.
+
+## Development
+
+See [HANDOFF.en.md](HANDOFF.en.md) ([français](HANDOFF.md)): project state, decisions, building, packaging,
+translations, known issues.

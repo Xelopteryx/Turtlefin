@@ -45,7 +45,7 @@ fn path() -> Option<PathBuf> {
 pub fn load() -> Saved {
     let mut s: Saved = path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default();
     let mut dirty = false;
     if s.prefer_remote {
@@ -106,7 +106,7 @@ fn prefs_path() -> Option<PathBuf> {
 fn load_prefs() -> std::collections::HashMap<String, TrackPref> {
     prefs_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
 
@@ -168,7 +168,7 @@ fn accounts_path() -> Option<PathBuf> {
 pub fn accounts() -> Vec<Account> {
     accounts_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
 
@@ -204,6 +204,13 @@ pub fn forget_account(user_id: &str) {
     let mut list = accounts();
     list.retain(|x| x.user_id != user_id);
     save_accounts(&list);
+    // Compte de démarrage retiré : « Qui regarde ? » au prochain lancement.
+    let mut p = ui_prefs();
+    if p.autostart_user == user_id {
+        p.autostart_user.clear();
+        p.autostart_server.clear();
+        save_ui_prefs(&p);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +234,7 @@ fn flags_path() -> Option<PathBuf> {
 pub fn all_flags() -> std::collections::HashMap<String, Flags> {
     flags_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
 
@@ -290,11 +297,27 @@ pub struct UiPrefs {
     pub show_ratings: bool,
     pub marquee: bool,
     pub show_clock: bool,
+    /// Langue de l'interface (« fr », « en ») ; vide : pas encore choisie (demandée au démarrage).
+    pub language: String,
+    /// Compte ouvert au démarrage (comme sur une console de jeu) : identifiant de l'utilisateur et
+    /// du serveur ; vide : écran « Qui regarde ? ».
+    pub autostart_user: String,
+    pub autostart_server: String,
 }
 
 impl Default for UiPrefs {
     fn default() -> Self {
-        UiPrefs { auto_skip_intro: false, sub_scale: 1.0, tv: false, show_ratings: true, marquee: true, show_clock: true }
+        UiPrefs {
+            auto_skip_intro: false,
+            sub_scale: 1.0,
+            tv: false,
+            show_ratings: true,
+            marquee: true,
+            show_clock: true,
+            language: String::new(),
+            autostart_user: String::new(),
+            autostart_server: String::new(),
+        }
     }
 }
 
@@ -305,7 +328,7 @@ fn ui_prefs_path() -> Option<PathBuf> {
 pub fn ui_prefs() -> UiPrefs {
     ui_prefs_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default()
 }
 

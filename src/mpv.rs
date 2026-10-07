@@ -8,6 +8,7 @@
 //! - `Render` : le rendu OpenGL de la vidéo dans une texture, à créer et utiliser sur le thread
 //!   de l'interface (celui qui a le contexte OpenGL de Slint).
 
+use crate::i18n::{tr, trf};
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::sync::{Arc, OnceLock};
 
@@ -182,15 +183,20 @@ fn load() -> Result<Api, String> {
     Err(last_err)
 }
 
+/// libmpv peut-elle être chargée ? (vérification du démarrage)
+pub fn available() -> Result<(), String> {
+    api().map(|_| ()).map_err(|e| e.to_string())
+}
+
 fn api() -> Result<&'static Api> {
     static API: OnceLock<Result<Api, String>> = OnceLock::new();
     API.get_or_init(load).as_ref().map_err(|e| {
         let hint = if cfg!(windows) {
-            "place libmpv-2.dll à côté de turtlefin.exe"
+            tr("place libmpv-2.dll à côté de turtlefin.exe")
         } else {
-            "installe-la avec « sudo apt install libmpv2 »"
+            tr("installe-la avec « sudo apt install libmpv2 »")
         };
-        anyhow!("libmpv introuvable ({hint}). Détail : {e}")
+        anyhow!("{}", trf("libmpv introuvable ({}). Détail : {}", &[&hint, &e]))
     })
 }
 
@@ -252,7 +258,7 @@ impl Mpv {
         // SAFETY : appel sans argument, retour vérifié.
         let h = unsafe { (api.create)() };
         if h.is_null() {
-            return Err(anyhow!("libmpv n'a pas pu créer de lecteur"));
+            return Err(anyhow!("{}", tr("libmpv n'a pas pu créer de lecteur")));
         }
         Ok(Mpv { api, h })
     }
@@ -354,7 +360,7 @@ pub struct Render {
 // ---------------------------------------------------------------------------
 // Contournement d'un bug de mpv 0.40 / 0.41 : à chaque image, mpv crée une barrière OpenGL
 // (glFenceSync) qu'il ne libère qu'au « swap », que l'API libmpv n'appelle jamais. Elles
-// s'accumulent : sur le Pi, chacune occupe un fichier ouvert, et au bout de ~42 s (1024 fichiers)
+// s'accumulent : avec le pilote v3d, chacune occupe un fichier ouvert, et au bout de ~42 s (1024 fichiers)
 // le pilote échoue (« MESA: error: Export failed »). Corrigé dans mpv après la 0.41.
 //
 // En OpenGL ES, on cache à mpv les tampons persistants (glBufferStorageEXT, une option) : ses

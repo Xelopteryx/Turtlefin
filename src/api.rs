@@ -1,5 +1,6 @@
 //! Client minimal pour l'API Jellyfin 10.11 (REST).
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{collections::HashMap, path::PathBuf, time::Duration};
@@ -12,7 +13,7 @@ pub struct Unauthorized;
 
 impl std::fmt::Display for Unauthorized {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Session expirée ou identifiants refusés")
+        write!(f, "{}", tr("Session expirée ou identifiants refusés"))
     }
 }
 impl std::error::Error for Unauthorized {}
@@ -219,7 +220,7 @@ pub struct SeerrRequest {
 
 impl SeerrRequest {
     pub fn card(&self) -> CardInfo {
-        let mut parts: Vec<String> = vec![if self.tv { "Série" } else { "Film" }.to_string()];
+        let mut parts: Vec<String> = vec![if self.tv { tr("Série") } else { tr("Film") }.to_string()];
         if !self.year.is_empty() {
             parts.push(self.year.clone());
         }
@@ -454,7 +455,7 @@ impl Item {
         }
         let langs = self.audio_langs();
         if !langs.is_empty() {
-            parts.push(format!("Audio : {}", langs.join(", ")));
+            parts.push(trf("Audio : {}", &[&langs.join(", ")]));
         }
         parts.join("  ·  ")
     }
@@ -478,12 +479,12 @@ impl Item {
             if let Some(id) = &self.series_id {
                 // Saison : seul bouton de texte, il rejoint la ligne principale (« label »).
                 let icon = if self.kind == "Season" { "label" } else { "" };
-                b.push(("Voir la série".into(), format!("open:{id}"), icon.into(), false));
+                b.push((tr("Voir la série").into(), format!("open:{id}"), icon.into(), false));
             }
         }
         if self.kind == "Episode" {
             if let Some(id) = &self.season_id {
-                b.push(("Voir la saison".into(), format!("open:{id}"), String::new(), false));
+                b.push((tr("Voir la saison").into(), format!("open:{id}"), String::new(), false));
             }
         }
         b
@@ -496,12 +497,12 @@ impl Item {
         for p in self.people.iter().flatten().take(30) {
             let role = match (p.kind.as_deref(), p.role.as_deref().filter(|r| !r.is_empty())) {
                 (Some("Actor") | Some("GuestStar"), Some(r)) => r.to_string(),
-                (Some("Actor"), None) => "Acteur".into(),
-                (Some("GuestStar"), None) => "Invité".into(),
-                (Some("Director"), _) => "Réalisation".into(),
-                (Some("Writer"), _) => "Scénario".into(),
-                (Some("Producer"), _) => "Production".into(),
-                (Some("Composer"), _) => "Musique".into(),
+                (Some("Actor"), None) => tr("Acteur").into(),
+                (Some("GuestStar"), None) => tr("Invité").into(),
+                (Some("Director"), _) => tr("Réalisation").into(),
+                (Some("Writer"), _) => tr("Scénario").into(),
+                (Some("Producer"), _) => tr("Production").into(),
+                (Some("Composer"), _) => tr("Musique").into(),
                 (_, Some(r)) => r.to_string(),
                 _ => String::new(),
             };
@@ -542,7 +543,7 @@ impl Item {
                 .display_title
                 .clone()
                 .or_else(|| st.title.clone())
-                .unwrap_or_else(|| if lang.is_empty() { "Inconnue".into() } else { lang.to_uppercase() });
+                .unwrap_or_else(|| if lang.is_empty() { tr("Inconnue").into() } else { lang.to_uppercase() });
             // Une entrée par langue : la préférence est enregistrée par langue.
             if !lang.is_empty() && out.iter().any(|(l, _)| *l == lang) {
                 continue;
@@ -701,14 +702,14 @@ impl Client {
             .json(&serde_json::json!({ "Username": user, "Pw": pw }))
             .send()
             .await
-            .map_err(|e| anyhow!("Impossible de joindre {server} : {e}"))?;
+            .map_err(|e| anyhow!("{}", trf("Impossible de joindre {} : {}", &[&server, &e])))?;
 
         let status = resp.status();
         if status.as_u16() == 401 {
-            return Err(anyhow!("Identifiant ou mot de passe incorrect"));
+            return Err(anyhow!("{}", tr("Identifiant ou mot de passe incorrect")));
         }
         if !status.is_success() {
-            return Err(anyhow!("Le serveur a répondu {status}"));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&status])));
         }
         let r: AuthResult = resp.json().await?;
         Ok(Self {
@@ -731,7 +732,7 @@ impl Client {
             .await?;
         match resp.status().as_u16() {
             401 => Err(Unauthorized.into()),
-            c if !(200..300).contains(&c) => Err(anyhow!("Le serveur a répondu {c} sur {path}")),
+            c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&c, &path]))),
             _ => Ok(resp.json::<T>().await?),
         }
     }
@@ -852,7 +853,7 @@ impl Client {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
         }
         Ok(())
     }
@@ -870,7 +871,7 @@ impl Client {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("Le serveur a répondu {} sur {path}", resp.status()));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&resp.status(), &path])));
         }
         Ok(())
     }
@@ -939,7 +940,7 @@ impl Client {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
         }
         Ok(())
     }
@@ -953,7 +954,7 @@ impl Client {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("Le serveur a répondu {}", resp.status()));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
         }
         Ok(())
     }
@@ -1015,7 +1016,7 @@ impl Client {
             out.push(CardInfo {
                 id: seerr_id(tv, id),
                 title,
-                subtitle: [if tv { "Série" } else { "Film" }.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
+                subtitle: [if tv { tr("Série") } else { tr("Film") }.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
                 img_id: tmdb_img(r["posterPath"].as_str(), "w342"),
                 img_tag: None,
                 thumbs: Vec::new(),
@@ -1151,7 +1152,7 @@ impl Client {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("Le serveur a répondu {} sur {path}", resp.status()));
+            return Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&resp.status(), &path])));
         }
         Ok(())
     }
@@ -1187,19 +1188,19 @@ impl Client {
                 length.push(format!("{r} min"));
             }
             if let Some(n) = d["numberOfEpisodes"].as_i64() {
-                length.push(format!("{n} épisodes"));
+                length.push(trf("{} épisodes", &[&n]));
             }
         } else if let Some(r) = d["runtime"].as_i64().filter(|r| *r > 0) {
             length.push(if r >= 60 { format!("{}h{:02}", r / 60, r % 60) } else { format!("{r} min") });
         }
         let status_txt = match d["status"].as_str().unwrap_or("") {
-            "Ended" => "Terminée",
-            "Returning Series" => "En cours",
-            "Canceled" => "Annulée",
-            "In Production" => "En production",
-            "Released" => "Sorti",
-            "Post Production" => "Post-production",
-            "Planned" => "Prévu",
+            "Ended" => tr("Terminée"),
+            "Returning Series" => tr("En cours de diffusion"),
+            "Canceled" => tr("Annulée"),
+            "In Production" => tr("En production"),
+            "Released" => tr("Sorti"),
+            "Post Production" => tr("Post-production"),
+            "Planned" => tr("Prévu"),
             o => o,
         };
         let mut facts: Vec<(String, String)> = Vec::new();
@@ -1209,12 +1210,12 @@ impl Client {
             }
         };
         fact("Statut", status_txt.to_string());
-        fact(if tv { "Première diffusion" } else { "Sortie" }, fr_date(&date));
+        fact(if tv { tr("Première diffusion") } else { tr("Sortie") }, fr_date(&date));
         if tv {
-            fact("Dernière diffusion", fr_date(&s("lastAirDate")));
+            fact(tr("Dernière diffusion"), fr_date(&s("lastAirDate")));
         }
-        fact("Langue originale", s("originalLanguage").to_uppercase());
-        fact(if tv { "Diffuseur" } else { "Studios" }, names(if tv { "networks" } else { "productionCompanies" }));
+        fact(tr("Langue originale"), s("originalLanguage").to_uppercase());
+        fact(if tv { tr("Diffuseur") } else { tr("Studios") }, names(if tv { "networks" } else { "productionCompanies" }));
         let cast = d["credits"]["cast"]
             .as_array()
             .into_iter()

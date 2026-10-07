@@ -1,431 +1,173 @@
-# Turtlefin : passation de projet (état au 6 octobre 2026, version 0.9.0)
+# Turtlefin : passation de projet (état au 7 octobre 2026, version 0.9.0)
 
-Document destiné à Claude Code. Lis-le en entier avant de toucher au code, puis lis `README.md`.
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.9.0 (l'utilisateur estime l'appli finie à 99 % ; il prépare un logo).
+**Français** · [English](HANDOFF.en.md)
 
-**Branches** : `main` (état d'origine), `interface-lua` (mpv en processus séparé + interface de lecture en script Lua), `libmpv` (lecteur intégré, voir ci-dessous). Le choix entre `interface-lua` et `libmpv` dépend de la mesure RAM/CPU sur le Pi (section 9).
+Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
+code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 0.9.0.
 
 ## 1. Objectif
 
-Remplacer Jellyfin Desktop / jellyfin-web par un **client Jellyfin natif en Rust**, sans Qt ni navigateur embarqué.
+Un **client Jellyfin natif en Rust**, léger, animé et utilisable entièrement au clavier / à la télécommande,
+installable sur n'importe quel ordinateur Windows ou Linux **sans rien compiler** : l'utilisateur télécharge un
+installeur ou un paquet (ou lance une commande d'installation), c'est tout. Tous les paquets sont fabriqués par le
+mainteneur (CI GitHub ou son PC), jamais par l'utilisateur.
 
-Pourquoi :
-- Le client Qt/QtWebEngine fuit de la RAM et plante après ~40 min sur le Raspberry Pi (fuite de descripteurs GPU, bug amont non corrigeable).
-- L'interface web avec le thème perso (JellySkin + beaucoup de CSS/JS) tombait à ≤ 30 fps sur vieux PC / Pi.
-- Beaucoup du CSS du thème ne sert qu'à **cacher** des éléments du client officiel, et il manque des fonctions voulues.
-
-Cibles : Windows (développement et tests) et Linux (Raspberry Pi 5 « Prometheus », kiosque télé). Une passerelle avec **XeLauncher** (lanceur Electron du média center) viendra plus tard, ce n'est pas une priorité.
+Pourquoi : Jellyfin Desktop (Qt / QtWebEngine) fuit de la RAM et finit par planter sur les petites machines, et
+l'interface web avec un thème chargé tombe sous 30 images/s sur du matériel modeste. Règle permanente : rester
+stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation de filtre.
 
 ## 2. Décisions prises
 
 | Sujet | Décision | Raison |
 |---|---|---|
-| Langage / UI | Rust + **Slint** (rendu 100 % Slint) | Pas de navigateur, léger, Windows + Linux. `build.rs` force le style `fluent-dark` pour ne jamais retomber sur le style « native » (dépend de Qt) |
-| Réseau | `reqwest` 0.13 (rustls, magasin de certificats du système), `tokio` | Un certificat mkcert installé sur la machine est accepté. `query` est une feature à activer en 0.13 |
-| Lecture (branche `libmpv`) | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), API de rendu OpenGL : mpv dessine dans une texture que Slint affiche (`src/video.rs`, `BorrowedOpenGLTexture`), commandes en Slint par-dessus (`ui/player.slint`) | Demande de l'utilisateur : un lecteur « natif », pas une app qui en pilote une autre. Plus d'IPC ni de `--wid` (marche aussi sous Wayland). Contrepartie : plus d'isolation de processus ; le lecteur est détruit à chaque fin de lecture, donc sa mémoire reste bornée à une lecture. Flux en lecture directe (`/Videos/{id}/stream?static=true`) |
-| Rendu Slint | femtovg (OpenGL / GLES) imposé au démarrage par `BackendSelector`, sauf si `SLINT_BACKEND` est défini | La vidéo passe par une texture OpenGL ; le rendu logiciel ne peut pas l'afficher |
-| Création du rendu mpv | `video::attach` renvoie un signal ; la lecture attend que l'interface ait créé le contexte de rendu avant `loadfile` | Sinon mpv ouvre le fichier sans sortie vidéo (« No render context set ») |
-| Texture vidéo | Taille de la fenêtre en pixels physiques, origine `TopLeft`, état OpenGL sauvegardé/rétabli autour du rendu mpv | Constaté sur Windows : `BottomLeft` donne une image à l'envers |
-| Écrans pendant la lecture | Aucun écran (connexion, accueil, fiche) n'est instancié sous la vidéo | Rien à redessiner à chaque image, et le clavier va au `FocusScope` du lecteur (sinon l'accueil le lui prend) |
-| Navigation du lecteur | Commandes masquées : ← → ±10 s sans rien afficher, ↑ ↓ → barre de temps ; barre : ↓ boutons (Lecture/Pause), ↑ Retour ; boutons : ⏮ ép. · chapitre · ⏯ · chapitre · ⏭ ép., Audio / Sous-titres à droite ; heure de fin au centre | Spécification de l'utilisateur (4 octobre 2026) |
-| Décodage | `hwdec=no` sur Linux ARM 64 bits ; `auto-safe` ailleurs | Pi 5 : le décodage matériel V4L2 sort du format Broadcom SAND que Vulkan ne savait pas importer (écran bleu). Avec libmpv/OpenGL, `TURTLEFIN_HWDEC=auto-copy` est à essayer. Windows : `d3d11va-copy` (pas d'interop directe avec le GL de Slint), ~5 % d'un cœur de plus que mpv séparé |
-| Audio Linux | `ao=pipewire,pulse,alsa`, `audio-device=auto` ; libmpv ne lit pas `mpv.conf` (`config=no`) | `~/.config/mpv/mpv.conf` impose `ao=alsa` / `plughw:1,0` qui échoue quand PipeWire occupe la sortie HDMI |
-| Mémoire | Cache réseau mpv plafonné (100 MiB avant / 25 MiB arrière) ; images demandées à la bonne taille ; 16 éléments par rangée d'accueil | Le Pi a 4 Go |
-| Style | Pas de flou temps réel (backdrop-filter), pas d'ombres portées animées | C'était la cause principale des fps bas du thème web |
-| Fond (backdrop) de fiche | **Repoussé**, à faire plus tard comme **option**, avec logos transparents | Demande de l'utilisateur |
-| Ligne de commande | `turtlefin [USER [PASS]] [--tv\|--desktop] [--server=URL]` + `TURTLEFIN_PASSWORD` | Pour remplacer Jellyfin Desktop dans le kiosque. Un argument est visible des autres processus : préférer la variable d'environnement |
+| Langage / UI | Rust + **Slint** 1.18 (rendu 100 % Slint), style `fluent-dark` imposé par `build.rs` | Pas de navigateur ; le style « native » dépendrait de Qt |
+| Réseau | `reqwest` 0.13 (rustls, magasin de certificats du système), `tokio` | `query` est une feature à activer en 0.13 |
+| Lecture | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), rendu OpenGL dans une texture affichée par Slint (`src/video.rs`), commandes Slint par-dessus (`ui/player.slint`) | Lecteur intégré, pas d'IPC, marche sous Wayland. Le lecteur est recréé à chaque lecture (mémoire bornée) |
+| Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini | La vidéo passe par une texture OpenGL |
+| Texture vidéo | Pixels physiques, origine `TopLeft`, état GL sauvegardé / rétabli autour de mpv ; `loadfile` attend le contexte de rendu | Sinon image à l'envers ou « No render context set » |
+| Décodage | `hwdec=no` sous Linux ARM 64 bits, `auto-safe` ailleurs (Windows : `d3d11va-copy`) | Sur les cartes ARM testées (pilote v3d), le décodage V4L2 sort un format que le rendu ne sait pas importer |
+| Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
+| Mémoire | Cache mpv plafonné (100 / 25 MiB), images demandées à la bonne taille, 16 éléments par rangée | Petites machines (4 Go) |
+| Langues | Textes écrits en français dans le code (langue source), traductions gettext dans `lang/<code>/LC_MESSAGES/turtlefin.po`, intégrées à la compilation | Voir section 6 |
+| Fenêtre console (Windows) | Sous-système « windows » en release ; `--console` en rattache / ouvre une | Demande de l'utilisateur : pas de console sans option |
+| Ligne de commande | Prime toujours sur les réglages (compte de démarrage, interface TV) | Demande de l'utilisateur |
+| Mot de passe | Jamais enregistré (jeton seulement) ; en ligne de commande, préférer `TURTLEFIN_PASSWORD` | Un argument est visible des autres processus |
 
-Préférences de travail de l'utilisateur :
-- Il compile et teste lui-même (`cargo run --release`) sur son PC Windows, puis sur le Pi, et renvoie les erreurs telles quelles. (Cette consigne « ne pas compiler » valait pour l'ancien assistant en ligne ; Claude Code peut compiler sur sa machine.)
-- Réponses en français. Il connaît peu les commandes Linux/SSH : explique-les.
-
-## 3. Environnement de test
-
-- **PC Windows** : développement, compilation rapide. Branche `libmpv` : `libmpv-2.dll` (build shinchiro, `mpv-dev-x86_64-*.7z`) à côté de `turtlefin.exe`. Branche `interface-lua` : `mpv.exe` dans le PATH (`C:\mpv`).
-- **Raspberry Pi 5 4 Go**, Raspberry Pi OS, hostname `Prometheus`, utilisateur `xelopteryx`, projet dans `/home/xelopteryx/turtlefin`. Affichage X11 (kiosque `.xinitrc`), son PipeWire (sortie HDMI). Lancement depuis SSH :
-  `DISPLAY=:0 XAUTHORITY=/home/xelopteryx/.Xauthority ./target/release/turtlefin <user> --server=http://... --tv` (mot de passe via `TURTLEFIN_PASSWORD`).
-- **Serveur Jellyfin 10.11.11**, joint via Tailscale depuis le Pi (tailscaled monte à 100 % d'un cœur pendant la lecture : préférer l'adresse LAN quand c'est possible). Compte de test : `test`.
-- Dépendances Pi : `build-essential cmake pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev`, plus `libmpv2` (branche `libmpv`) ou `mpv` (branche `interface-lua`).
-
-## 4. Structure du code
+## 3. Structure du code
 
 ```
-Cargo.toml      deps : slint, tokio, reqwest 0.13, serde, anyhow, directories 6, uuid, image, libloading, glow, chrono
-build.rs        compile ui/app.slint avec le style fluent-dark
-ui/theme.slint  jetons de thème (Theme : accents, verre sombre de Style.css)
-ui/app.slint    Card, SectionRow, ActionButton, OverviewPanel, AppWindow (écrans : login, loading, home, detail, lecture)
-ui/player.slint écran de lecture : vidéo, barre de temps + chapitres, boutons, menus des pistes, navigation clavier
-src/main.rs     CLI (+ --test-video), état partagé App (Arc), flux login/accueil/fiche, navigation (pile), lecture, images
-src/api.rs      client Jellyfin REST : login, vues, reprise, à suivre, derniers ajouts, fiche, enfants, images (cache disque), rapports de lecture
-src/mpv.rs      liaison minimale libmpv (chargement dynamique) : lecteur, propriétés observées, événements, rendu OpenGL
-src/video.rs    texture OpenGL de la vidéo, branchée sur le rappel de rendu de Slint
-src/player.rs   lecture : options mpv, rapports au serveur, pistes, chapitres, épisode précédent/suivant, enchaînement
-src/config.rs   session sauvegardée (serveur + jeton, jamais le mot de passe), chmod 0600 sous Unix
-src/paths.rs    dossiers config / cache / données ; version portable (fichier `portable` à côté de l'exe -> `data\`)
-src/update.rs   mise à jour selon l'installation (sources, Windows installé / portable, AppImage, .deb)
-packaging/      windows/ (turtlefin.iss Inno Setup, build.ps1), linux/ (build-appimage.sh, .desktop), turtlefin.svg (icône provisoire)
+build.rs          commit compilé, style Slint, traductions intégrées, icône de l'exe (winresource, Windows)
+lang/en/…/turtlefin.po   traductions anglaises (source : le français du code)
+ui/theme.slint    jetons de thème, global Prefs
+ui/app.slint      AppWindow et tous les écrans (boot, login, loading, home, detail, library, settings…)
+ui/boot.slint     BootLogo : animation de démarrage (6 points, liaison, zoom), choix de la langue
+ui/player.slint   écran de lecture ; ui/osk.slint clavier à l'écran ; ui/card.slint, ui/marquee.slint
+src/main.rs       CLI, état partagé App (Arc), écrans, navigation (pile + pages gardées), paramètres
+src/boot.rs       séquence de démarrage (vérifications, langue, choix de l'écran d'arrivée)
+src/i18n.rs       langue courante, tr() / trf() côté Rust, langue du système / de l'installeur
+src/api.rs        client Jellyfin REST (+ relais Seerr de Jellyfin Enhanced, GetAvatar)
+src/config.rs     session, comptes (12 au plus), prefs.json (réglages de l'appareil), pistes, vu/favoris hors ligne
+src/discovery.rs  recherche des serveurs (UDP, sous-réseaux, ARP, pairs VPN)
+src/downloads.rs  téléchargements (reprise Range, file, synchronisation hors ligne)
+src/mpv.rs        liaison libmpv ; src/video.rs texture OpenGL ; src/player.rs lecture, rapports, enchaînement
+src/syncplay.rs   watch party (WebSocket /socket)
+src/paths.rs      dossiers config / cache / données ; mode portable (fichier `portable` à côté de l'exe)
+src/update.rs     mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
+packaging/        windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
+                  icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh (une commande)
 .github/workflows/release.yml   compilation et publication sur étiquette `v*`
-README.md       usage, installation, touches, variables d'environnement, diagnostics
 ```
 
 Principes :
-- Les données réseau passent par des structures `Send` (`SectionData`, `CardInfo`), puis `upgrade_in_event_loop` les pousse dans les modèles Slint. Les images sont décodées hors du thread UI (`spawn_blocking`), 6 téléchargements en parallèle (sémaphore), appliquées par `set_card_image` / `set_child_image` avec une **garde sur l'id** (évite d'écrire sur une carte rechargée entre-temps).
-- `App.gen` (AtomicU64) invalide les chargements de fiche périmés. `App.stack` est la pile de navigation. `home_stale` force le rechargement de l'accueil après une lecture.
-- Navigation clavier faite à la main (un seul `FocusScope`, indices `sel-section/sel-item`, `d-zone/d-button/d-child`) car Slint ne gère pas ça pour des cartes dynamiques.
-- Jellyfin 10.11 : `/UserViews`, `/UserItems/Resume`, `/Shows/NextUp`, `/Items/Latest` (renvoie un tableau), `/Items/{id}`, `/Items?parentId=`, en-tête `Authorization: MediaBrowser Client=..., Token=...`. Rapports : `POST /Sessions/Playing`, `/Progress` (toutes les 10 s et à chaque pause), `/Stopped`.
+- Les données réseau passent par des structures `Send`, puis `upgrade_in_event_loop` les pousse dans les modèles
+  Slint. Images décodées hors du thread UI, 6 téléchargements en parallèle, appliquées avec une garde sur l'id.
+- `App.gen` invalide les chargements périmés ; `App.stack` est la pile de navigation ; `PAGES` garde fiches et
+  bibliothèques pour des retours sans requête.
+- Navigation clavier faite à la main (indices de sélection en Rust), Slint ne gérant pas le focus de cartes
+  dynamiques. `refocus` rend le clavier au bon `FocusScope`.
+- Jellyfin 10.11 : `/UserViews`, `/UserItems/Resume`, `/Shows/NextUp`, `/Items/Latest`, `/Items/{id}`,
+  en-tête `Authorization: MediaBrowser …, Token=…`. Rapports : `/Sessions/Playing`, `/Progress`, `/Stopped`.
+  `/Items/{id}/Download` et le WebSocket refusent `api_key` : jeton dans l'en-tête.
 
-## 5. État par jalon
+## 4. Démarrage
 
-### Terminé et vu fonctionner par l'utilisateur
-- **M0** squelette, thème (jetons dans `Theme`), connexion serveur + utilisateur, jeton stocké.
-- **M1** accueil : rangée « Mes médias » (vignettes 16:9), « Reprendre », « À suivre », « Récemment ajouté » par bibliothèque, posters chargés en asynchrone, navigation clavier. (Validé sur capture d'écran Windows.)
-- **M3** lecture mpv (processus séparé) : démarre, reprise, son et image OK sur le Pi après les correctifs hwdec/ao. Ligne de commande utilisée sur le Pi.
-- Test d'endurance Pi (14 min) : **Turtlefin stable à ≈ 112 Mo** ; mpv 395 → 440 Mo (voir « Problèmes connus »).
-- Menu des pistes au clavier (`a` / `s`, première version dessinée par mpv) : le changement de piste fonctionne.
+`main` applique la langue (prefs.json, sinon fichier `language` écrit par l'installeur Windows), puis lance
+`boot::run`. L'écran `boot` (logo hexagonal) montre 6 points, un par vérification : **langue** (demandée si
+inconnue), **affichage** (OpenGL), **lecteur vidéo** (libmpv chargeable), **stockage** (écriture dans le dossier de
+config), **réseau**, **serveur** (« à configurer » au premier lancement). Rouge = échec, avec un message et
+« Continuer ». Tout vert : les points se relient aux couleurs du thème, puis zoom dans le point central.
 
-### Branche `libmpv` : vérifié par Claude sur le PC Windows le 4 octobre 2026 (captures d'écran), pas encore par l'utilisateur
-- **M2** fiche détail (vue sur capture : poster, logo, sous-titre, boutons, infos, résumé).
-- Lecture intégrée avec libmpv sur le vrai serveur (FMA S1E2, compte `test`) : image (4:3 avec bandes), chapitres réels sur la
-  barre, reprise, menus audio (FRE AC3 / JPN TrueHD) et sous-titres (Forced / Complet ASS), épisode suivant (S1E2 → S1E3 sans
-  quitter le lecteur), retour à la fiche après Échap, deux cycles lecture/arrêt sans fuite (≈ 240 Mo après arrêt).
-- Navigation clavier du lecteur (↓ barre, ↓ boutons, → chapitre suivant, Entrée = saut de chapitre ; `s` menu ; Échap).
-- Vidéo d'essai sans serveur : `turtlefin --test-video=fichier` (+ `TURTLEFIN_MPV_ARGS="--chapters-file=... --audio-files=... --sub-files=..."`).
-- Mesure sur le PC (même épisode, 20 s) : mpv séparé 420 Mo (Turtlefin 200 + mpv 224), 0,8 % d'un cœur ;
-  libmpv 399 Mo, 4,5 à 5,6 % d'un cœur (décodage `d3d11va-copy`). **Reste à mesurer sur le Pi**, où les deux décodent en logiciel.
-- Vérifié par l'utilisateur sur le Pi : compilation, lecture fluide, mode TV. Pas testé : souris réelle (clic, glisser la barre), Wayland,
-  enchaînement automatique en fin d'épisode, « Reprendre » à jour dans Jellyfin Web.
+Écran d'arrivée (`boot::route`), dans l'ordre : nom + mot de passe en ligne de commande → connexion ; nom d'un
+compte enregistré → ce compte ; compte de démarrage (`prefs.autostart_user` / `autostart_server`, réglage
+Compte → « Ouvrir ce compte au démarrage ») → `open_saved_session` ; sinon « Qui regarde ? » (ou la recherche de
+serveur si aucun n'est connu). Un compte de démarrage disparu (oublié localement ou jeton refusé par le serveur)
+mène à « Qui regarde ? ». `--no-intro` saute l'animation (les vérifications ont lieu quand même).
 
-### Menus au style JellySkin (4 octobre 2026) : vérifié sur captures (PC et télé du Pi)
-- Police Montserrat intégrée (`ui/fonts`, OFL), fond #010e18, titres de section précédés d'un trait.
-- En-tête : Accueil / Favoris / Demandes (si Seerr), recherche et profil (écrans d'attente ; Profil = déconnexion),
-  horloge. Navigation : ↑ depuis la première rangée monte dans l'en-tête.
-- Cartes : encadré translucide, image aux coins du haut arrondis au décodage (`Shape::card_top`), titre centré,
-  sélection = encadré plus sombre + `transform-scale` 1,06. Reprendre / À suivre en 16:9 (vignette Thumb de la série,
-  comme le client web) avec avancement et note. Rangées positionnées en pixels calculés en Rust (`y-px`, `h-px`).
-- **Onglet Demandes** : via le plugin Jellyfin Enhanced (relais Seerr avec la connexion Jellyfin, sans clé côté client).
-  `GET /JellyfinEnhanced/jellyseerr/user-status` (actif + compte relié → onglet affiché),
-  `GET /JellyfinEnhanced/jellyseerr/request?take=100&filter=all` filtré sur `requestedBy.id`, titre/affiche par
-  `/JellyfinEnhanced/jellyseerr/{movie|tv}/{tmdbId}`, affiches TMDB (`image.tmdb.org`, cache disque). Rangées :
-  En attente (1), Acceptées (2, 5), Refusées (3), En échec (4). Une demande disponible ouvre sa fiche Jellyfin.
-  Vérifié avec de vraies demandes (compte `test`).
-- Backdrop flouté : repoussé, en option (décision de l'utilisateur).
-- **Navigation commune** (`NavBar`) : ☰ menu sur chaque écran, ← Retour seulement si la pile n'est pas vide
-  (`can-back`), ⌂ Accueil hors accueil. ↑ depuis le haut d'un écran monte dans la barre (sur Retour s'il existe).
-  Le bouton « Retour » des fiches a été retiré. Les FocusScope des écrans reprennent le clavier via `refocus`.
-- **Menu latéral** : Navigation (Accueil, Demandes), Bibliothèques, Compte (Sélectionner un serveur = déconnexion
-  vers l'écran de connexion, Paramètres = écran « bientôt », Se déconnecter, Fermer l'application).
-- **Bibliothèques / collections / dossiers** : grille centrée (écran `library`) au lieu d'une fiche, pages de 60,
-  page suivante chargée à l'approche de la fin ; films et séries en recherche récursive par type comme le client web.
-  Retour depuis une fiche : la sélection est retrouvée.
-- « À suivre » n'affiche plus les épisodes commencés (`enableResumable=false` + exclusion de ceux de « Reprendre »).
-- Onglet Demandes vérifié avec de vraies demandes (compte `test`).
+## 5. État
 
-### Serveurs, fiche enrichie, lecteur, téléchargements (4 octobre 2026, vérifié sur le PC, compte `test`)
-- **Serveurs** (`src/discovery.rs`) : découverte UDP Jellyfin + sondage du /24 local et des appareils Tailscale en
-  ligne (`tailscale status --json`), ports 8096 / 8097 / 8920, regroupement par identifiant de serveur. Le serveur
-  de l'utilisateur (Chulak, Jellyfin 12.1, conteneur) ne répond pas en UDP mais est trouvé par sondage :
-  local http://192.168.1.32:8097, Tailscale http://100.111.157.87:8097. Saisie manuelle (locale + distante) :
-  sans schéma, http et https essayés, choix demandé si les deux répondent. `Saved` : `server_local`,
-  `server_remote`, `prefer_remote` (Paramètres > Réseau) ; adresse manquante complétée en arrière-plan.
-- **Fiche** : boutons ▶ ♥ ✓ ⬇ (⬇ si `Policy.EnableContentDownloading`), rangées Casting et équipe, Plus de ce
-  genre (`/Items/{id}/Similar`), Similaires / Recommandés de Seerr (`/JellyfinEnhanced/jellyseerr/{movie|tv}/{tmdb}/…`).
-- **Lecteur** : ↑↓ → Pause sélectionné ; ↓ depuis les boutons → épisodes de la saison ; au générique
-  (`/MediaSegments/{id}` Outro, sinon chapitre « Ending… », sinon 3 % de la durée, min 40 s) : « Épisode suivant »
-  / « Saison suivante », ou 3 suggestions au hasard de « Plus de ce genre » avec la vidéo réduite (sélectionnable) ;
-  écran de fin avec « Retour à l'accueil » (`player::Exit::Home`).
-- **Téléchargements** (`src/downloads.rs`) : `/Items/{id}/Download` dans `<données>/turtlefin/downloads/<id>/`
-  (+ affiche, vignette, sous-titres externes, `info.json`), file d'attente un par un, écran Téléchargements
-  (Lire / Supprimer), lecture locale sans rapport au serveur, démarrage hors ligne si le serveur est injoignable.
-  **Pas testé** : le transfert réel (le compte `test` n'a pas le droit de télécharger) et le démarrage hors ligne.
-  Pas fait : synchroniser la progression / « vu » des lectures hors ligne au retour en ligne.
+Toutes les fonctions listées dans le README sont faites et ont été vérifiées sur captures d'écran (PC Windows) et
+sur une machine Linux ARM branchée à une télé, avec les comptes de test `test` / `test2` d'un vrai serveur.
+Points notables, non évidents dans le code :
+- **Image partagée** (`global Hero`) : l'image d'une carte vole vers l'affiche de la fiche et revient sur la carte
+  exacte au retour (`Hero.want-id`, `hero-card-ok`). Les `changed` de Slint sont différés : positions en deux temps.
+- **Rangées** (`global Rows`) : défilement propre à chaque rangée, mémorisé par clé ; changement de rangée vers la
+  carte la plus proche à l'écran.
+- **Hors ligne** : `config::Flags` (userdata.json) garde vu / favoris / positions avec un drapeau « à envoyer » ;
+  `downloads::sync` les renvoie au retour du serveur (l'appareil a le dernier mot).
+- **Adresses** : `server_main` / `server_backup` ; `watch_addresses` (20 s) bascule sur le secours et revient.
+- **Watch party** : une connexion WebSocket par session (`sp_conn`), arrêt sur 401 / 403, délai croissant.
+- **Avatars** : GIF décodés une fois, seul l'avatar sélectionné est animé ; images rondes fixes en cache disque.
+  GetAvatar `SetAvatar` répond 500 → repli `POST /UserImage`.
+- **Version 0.9.0** : paquets Windows / Linux et mise à jour par GitHub Releases. Vérifié en local : installeur x64
+  (installé et portable, désinstallation), x86, AppImage aarch64, `.deb` arm64 (contenu). **La CI n'a jamais
+  tourné** (rien de poussé) et la mise à jour par Releases n'a pas pu être essayée sans publication.
+- **7 octobre 2026** : animation de démarrage, langues (français / anglais, ~400 textes), compte de démarrage,
+  console seulement avec `--console`, logo = icône (exe, fenêtre, installeur, paquets Linux), installeur bilingue
+  qui transmet sa langue, scripts d'installation en une commande, README / HANDOFF en deux langues.
 
-### Lots du 4 octobre 2026 (soir) : vérifiés sur le PC (compte `test`), watch party entre PC et Pi
-1. Téléchargements : jeton dans l'en-tête (`/Items/{id}/Download` refuse `api_key`, 401) — transfert réel vérifié,
-   démarrage hors ligne vérifié. « Passer l'intro » (segments Intro Skipper), carte « épisode suivant » en bas à
-   gauche, écran de fin (fond = image floutée, animations), barre ← ⌂ ☰, séparateurs du menu. Option `--play=ID@SECONDES`.
-2. Navigation entre rangées : carte visuellement au-dessus / en dessous (`row-pick` / `row-seen` en Rust).
-3. Seerr : badge SEERR (seulement si absent du serveur), page Seerr au premier plan, bouton Demander
-   (`POST /JellyfinEnhanced/jellyseerr/request`, **non testé** : pas de vraie demande créée).
-4. Fiche : boutons Audio / Sous-titres, préférence par série (`config/tracks.json`), appliquée via alang/slang/sid.
-5. Recherche (bibliothèque + Seerr), dé « au hasard » (non vu), clavier à l'écran en mode TV (`ui/osk.slint`).
-6. Paramètres : Profil (avatars GetAvatar : `/GetAvatar/Avatars`, `/GetAvatar/Image/{id}`, `POST /GetAvatar/SetAvatar`),
-   Lecture (préférences du compte Jellyfin), Réseau, Compte. Avatar dans l'en-tête (GIF de 2 Mo : lent à charger).
-7. Watch party (`src/syncplay.rs`, WebSocket `/socket` avec le jeton dans l'en-tête — `api_key` refusé, 403) :
-   créer / rejoindre / quitter vérifiés entre `test` (Pi) et `test2` (PC) ; lancement synchronisé et pause / reprise
-   communes vérifiés (même image des deux côtés). **Saut synchronisé non vérifié** (tests clavier ratés).
+Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
+mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).
 
-### Lots du 5 octobre 2026 : vérifiés sur le PC (captures), pas encore sur le Pi
-1. Barre du haut sur toutes les pages (watch party, dé, recherche, avatar, heure), fiche à deux lignes de boutons
-   (icônes / pastilles), pastilles d'épisodes restants et de statut Seerr sur les affiches, page Seerr plein écran TV.
-   Avatar : GetAvatar `SetAvatar` répond 500 pour tout le monde (plugin) → repli `POST /UserImage` (base64).
-2. **Clavier à l'écran** refait (`ui/osk.slint`, façon téléphone : lettres AZERTY / chiffres-symboles / accents),
-   réutilisé par la recherche et la connexion.
-3. **Écran de connexion** « Qui regarde ? » : comptes enregistrés sur l'appareil (`accounts.json` : jeton, jamais le
-   mot de passe), comptes publics du serveur (`/Users/Public`), « Autre compte » (formulaire). Menu « Changer de
-   compte ». Connexion par tuile enregistrée vérifiée (session `test` ouverte sans mot de passe). Jeton refusé → le
-   compte est oublié et le mot de passe demandé.
-4. **Avatars GIF animés** (tuiles de connexion, en-tête, choix d'avatar) : toutes les images décodées une fois
-   (150 au plus, ~100 Ko chacune), une minuterie Slint les fait défiler, en pause pendant la lecture et quand
-   l'avatar n'est pas affiché. Réglage **Paramètres → Affichage → GIF figés** (`still_gifs` dans `session.json`) :
-   première image seulement, image réduite par le serveur. Le réglage lui-même n'a pas été essayé à l'écran.
-5. **Téléchargements** : liste générale (séries, films) → saisons → épisodes (vignettes 16:9), bandeau d'infos de la
-   carte sélectionnée (année, durée, note, reprise / vu, taille, résumé). `info.json` garde série, saison, numéros,
-   année, note, durée, et `series.jpg` / `season.jpg` ; les anciens téléchargements sont complétés dès que le
-   serveur répond (`downloads::enrich`, champ `meta`).
-6. **Hors ligne** : pastille verte « Hors ligne » dans l'en-tête, titre de la barre en vert. Une lecture locale note sa
-   position et « vu » (règles Jellyfin : vu après 90 %, pas de reprise sous 5 %) avec `dirty: true` ; le serveur est
-   réessayé toutes les 30 s, et au retour : `POST /UserItems/{id}/UserData` (position, vu, date), puis l'accueil.
-   Vérifié : reprise à 5 min envoyée, l'épisode est apparu dans « Reprendre ».
-7. Messages (toast) : bulle centrée en bas, effacée après 6 s.
-8. Affiches : pastille collée au coin haut droit (dégradé violet -> bleu) avec les épisodes restants (« +99 »
-   au-delà), sinon une coche si le film / la série est vu (`CardData.played`, `UserData.Played`).
-9. Noms trop longs : composant `Marquee` (`ui/marquee.slint`), défilement aller-retour de l'élément sélectionné
-   seulement (cartes, tuiles de connexion, menu, fiche, « À suivre », page Seerr, téléchargements).
-10. Animations : menu burger qui glisse (ouverture / fermeture), arrivée de page (zoom 0,96 -> 1 et glissement,
-   300 ms, `page-enter()`, puis `animation-tick()` n'est plus lu : rien n'est redessiné en continu), boutons ← et
-   maison qui descendent à leur apparition, menu / titre qui se décalent. Plus d'écran vide « Chargement » : la page
-   affichée reste visible sous un trait animé en haut (`loading`, Rust : `begin_loading` / `show_screen`) ;
-   l'écran « Chargement » ne sert plus qu'au démarrage (logo + barre).
-11. Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (avant : l'onglet en cours, Favoris ou
-   Demandes). Hors ligne, ils mènent aux téléchargements.
-12. **Transitions « organiques » (expérimental)** : plus de trait de chargement. Ouvrir une carte depuis l'accueil,
-   une bibliothèque ou la recherche : un voile couleur de fond efface la page (`veil`, piloté par `loading`), l'image
-   de la carte (`global Hero` : la carte sélectionnée donne sa position via `absolute-position`, en deux temps car
-   les `changed` de Slint sont différés) vole jusqu'à la place de l'affiche de la fiche ; une vignette 16:9 remplit
-   tout l'écran (fond provisoire assombri) puis s'efface. Retour : la fiche s'efface (240 ms), l'image revole vers
-   sa carte. Animations au temps (`animation-tick()` lu seulement pendant l'animation, minuteries pour couper).
-   Menu burger : 380 ms, entrées en cascade, toujours construit (invisible fermé) pour éviter l'à-coup d'ouverture.
-13. Navigation entre rangées : chaque rangée retrouve sa propre position (`row-pick` renvoie la mémoire de la rangée).
-   Montée dans la barre hors accueil : le bouton maison est sélectionné d'abord.
-14. Fiche d'une série incomplète : bouton « Demander la saison N » / « Demander les N saisons manquantes » (saisons
-   Seerr ni disponibles, ni en cours, ni demandées : `SeerrDetails.missing_seasons`), ajouté après coup à la fiche.
-   Vu sur Helluva Boss (saison 3) ; **aucune demande envoyée pendant les essais**.
+## 6. Traductions
 
-15. Rangées horizontales : `global Rows` (Rust) — défilement propre à chaque rangée, qui n'avance que quand la
-   sélection atteint l'avant-dernière carte visible ; changement de rangée vers la carte la plus proche à l'écran
-   parmi celles qui ne font pas défiler la rangée (plus de saut). Décalages mémorisés par clé de rangée.
-16. Transitions : `nav-out` (maison, retour, menu, Échap) efface la page dans le voile (240 ms), fait l'action,
-   puis la page arrive (zoom + rangées de l'accueil / lignes de bibliothèque / rangées de fiche en cascade,
-   `stagger()`). Image partagée : pas de zoom de page pendant un vol (positions exactes) ; au retour, l'image
-   attend que sa carte ait son image (`hero-card-ok`, 1,5 s au plus) et se recale dessus ; une bibliothèque
-   n'apparaît qu'une fois la carte d'origine rechargée. Sélection : rebond (cartes, boutons, icônes), soulignement
-   des onglets qui s'étire, surbrillance du menu qui glisse.
-17. Fond d'écran : image floutée/assombrie (`decode_backdrop`) du média sélectionné (accueil, bibliothèque, fiche),
-   chargée 350 ms après la sélection, fondu enchaîné entre deux calques. Réglage Affichage (`no_backdrop`).
-18. Lecteur : boutons inutilisables cachés et sautés (épisode préc./suiv., chapitres, audio à une piste, sous-titres).
+- Slint : `@tr("…")`, pluriels `@tr("{n} serveur" | "{n} serveurs" % n)`. Rust : `tr("…")` (renvoie
+  `&'static str`) et `trf("… {} …", &[&x])`. Le texte français **est** la clé : le modifier demande de modifier le
+  `msgid` du `.po`.
+- Changer de langue : `i18n::set_language` (passe par `invoke_from_event_loop`, `select_bundled_translation`
+  devant tourner sur le thread UI ; `""` = français).
+- Ajouter une langue : copier `lang/en`, traduire les `msgstr`, ajouter le code à `i18n::LANGUAGES` et à
+  `i18n::catalog`, et un `[Languages]` à `turtlefin.iss` si Inno Setup a la traduction.
+- Les noms venant du serveur (bibliothèques, médias) ne sont pas traduits.
 
-19. Coche « vu » aussi sur les épisodes (child_card). Fiche : « Voir la série » avant « Voir la saison », les deux
-   lignes de boutons centrées l'une sur l'autre, espacement agrandi (rebond). Bibliothèques : images en fondu,
-   première page en cascade.
-20. Lecteur : boutons inutilisables de nouveau affichés grisés, toujours sautés par la sélection (`btn-step`) ;
-   rebonds ; bandeau d'épisodes qui monte avec le panneau (`ep-p`), marge pour la carte agrandie, titre défilant ;
-   un épisode choisi démarre (pause levée) hors watch party.
-21. Menu : entrée de la page où l'on est marquée (trait + point), sélectionnée à l'ouverture (`here`, `here-lib`,
-   `menu-find`) ; choisir la page où l'on est déjà ne recharge rien (`at()`). Accueil : ← sur la première carte ou
-   Retour / Échap ouvrent le menu.
-22. **Pages gardées** (`PAGES`, `cache_current_page` / `restore_page`) : le retour réaffiche fiche ou bibliothèque
-   telles quelles, sans requête (sauf après une lecture). C'était la lenteur des retours sur le Pi.
-23. **Téléchargements = accueil hors ligne** : rangées Reprendre / Séries / Films ; fiches locales `dl:series:<id>`,
-   `dl:season:<id>`, `dl:item:<id>` (`show_local_detail`) avec affiche, logo, fond, résumé, saisons, épisodes, lecture
-   (premier épisode non vu), vu / favori, suppression. Le téléchargement garde aussi logo, fond, classification,
-   résumé de saison et favori (`meta_v` 2 ; les anciens sont complétés en ligne).
-24. **Vu / favoris sur l'appareil** : `config::Flags` dans `userdata.json` (par élément : valeur + « à envoyer »).
-   Hors ligne ou sur une fiche locale, le changement y est gardé ; `downloads::sync` le renvoie au compte à la
-   reconnexion (l'appareil a le dernier mot), avec les positions de lecture.
+## 7. Compiler et fabriquer les paquets (mainteneur seulement)
 
-25. Image partagée refaite : `CardArt` (image + pastilles, extrait de Card) vole avec coins arrondis (rognage le
-   temps du vol) et pastilles qui s'effacent vers la page ; la carte d'origine est cachée (`Hero.hide-id`), l'affiche
-   de la page aussi tant que l'image vole. Retour : l'image reste en place pendant que la page s'efface, puis vole vers
-   la position exacte de sa carte (la carte répond à `Hero.tick`). Destination Seerr (page Seerr ouverte depuis
-   Demandes / suggestions, `is-seerr`, `seerr-close`).
-26. Champ de saisie commun `Field` (intitulé au-dessus, contour accent / rouge + message) et bulle `Bubble`.
-   Formulaire « Ajouter un compte » refait (carte de verre ; TV : le clavier n'apparaît qu'après avoir choisi un
-   champ ; nom vide refusé avec message). Page « Choisir un serveur » et saisie d'adresse refaites (clavier à l'écran
-   en TV aussi). Corbeille à la place de « Supprimer » sur les fiches de téléchargements. Menu : → / Échap / Retour
-   le ferment (plus ←). Onglet déjà affiché : pas de rechargement.
+Développement :
+- Windows : Rust (https://rustup.rs), « Outils de build Visual Studio » (C++), git ; `cargo build --release` ;
+  `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` de
+  [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) à côté de l'exe.
+  La version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
+- Linux (Debian / Ubuntu) : `sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
+  libmpv-dev` puis `cargo build --release`.
 
-27. **Fiche -> fiche en douceur** (épisode / saison / série, en ligne et téléchargements) : pas de voile
-   (`begin_loading` ne fait rien depuis une fiche, `back-soft` pour le retour), `detail-swap()` : seuls les éléments
-   dont le contenu change réapparaissent en fondu (signatures `icons-sig`, `chips-sig`, `children-sig`...).
-   `set_detail_smooth` garde logo et affiche identiques (`logo-key`, `poster-key` ; en local : empreinte du
-   fichier) ; affiche différente : fondu enchaîné (`d-poster-old`). Fond : même image (empreinte des octets,
-   `bg_hash`) = pas de fondu. Rangées du bas gardées pour la même série (`rows_base`). Retour : sélection sur Lecture.
-28. Saison : « Voir la série » sur la ligne principale (icône "label"). Plus de « Casting et équipe ». Rangées du bas
-   aux cartes de l'accueil, image partagée depuis ces rangées (retour vers la carte par `Hero.want-id`). Boutons de
-   fiche animés (appui écrasé / rebond, cœur qui se remplit, flèche qui plonge, couvercle de corbeille) — le zoom est
-   sur un rectangle intérieur (`transform-scale` ignoré sur la racine d'un composant contenant un Timer).
-29. Corbeille : retour à la page la plus proche qui existe encore, sinon à la liste des téléchargements.
-30. Watch party : bulles aussi pendant la lecture (en haut), icône avec nombre de participants et impulsion à
-   chaque arrivée / départ, carte du groupe (état, ce qu'il regarde, participants), « Watch party · N en ligne »
-   dans le menu, sélection de la page éteinte quand on monte dans la barre. Bibliothèque ouverte depuis Mes médias :
-   le grand fond passe derrière les affiches pendant le vol, les lignes arrivent en cascade.
+Publication :
+- **Automatique** : `git tag v0.9.0 && git push origin v0.9.0`. `release.yml` compile Windows x64 / x86 et Linux
+  x86_64 / aarch64, fabrique installeurs, archives, AppImage et `.deb`, et les publie dans une Release. Les noms de
+  fichiers (en-tête de `release.yml`) sont attendus tels quels par `update.rs` et les scripts d'installation.
+- **Windows à la main** : `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (ou
+  `x86`) ; il faut Inno Setup 6, 7-Zip et NASM (x86). Résultat dans `target\dist`.
+- **Linux à la main** (sur une machine Linux) : `TURTLEFIN_DIST=release cargo build --release`, puis
+  `sh packaging/linux/build-appimage.sh <version>` et `cargo deb --no-build`.
+- `TURTLEFIN_DIST=release` à la compilation, sinon `update::kind()` croit à une version compilée sur place.
+- x86 : les libmpv 32 bits de shinchiro publiées depuis juillet 2026 plantent au démarrage (OpenSSL) ;
+  `build.ps1` fige celle du 10 juin 2026 (`MPV_TAG`). shinchiro ne garde qu'une trentaine de versions : la copier
+  ailleurs avant qu'elle disparaisse. aws-lc demande NASM en 32 bits.
+- Icônes : `packaging/turtlefin.svg` est le logo ; `packaging/icons/make-icons.py <dossier>` (Python + Pillow)
+  régénère les PNG et l'ICO.
 
-31. **Paramètres refaits** : catégories Profil, Lecture, Sous-titres, Affichage, Réseau, Compte, À propos ; chaque
-   ligne a une aide ; les choix (langues, mode et taille des sous-titres) ouvrent une liste (`ch-key`, `open_choice`,
-   `choose_setting`) au lieu de défiler à chaque Entrée. Nouveaux réglages : épisode suivant automatique
-   (`EnableNextEpisodeAutoPlay` du compte), intro passée automatiquement, taille des sous-titres (`sub-scale`),
-   interface TV (sauvée ; --tv / --desktop priment), notes sur les affiches, défilement des noms, heure
-   (`global Prefs` dans theme.slint), cache d'images (taille, vidage). Réglages de l'appareil : `prefs.json`.
-32. Essais PC + Pi (5 octobre, soir) : watch party test (Pi) + test2 (PC) vérifiée (rejoindre, lecture lancée pour
-   les deux, « Regarde : … », bulle « test a rejoint » pendant la lecture, rejoindre en cours de lecture). Corrigés :
-   menu qui ne recevait pas le clavier (caché par `visible` au moment de prendre le focus), pages qui volaient le
-   clavier au menu ouvert, ↓ de la grille d'avatars qui sautait au dernier, initiales des participants, classification
-   « -10 » -> « 10+ », vignettes d'épisodes téléchargés (`still.jpg`, `meta_v` 3). Pi : ~210-240 Mo, images de 25 à
-   35 ms pendant les animations (30-40 i/s), une à 154 ms (ouverture de page).
+## 8. Essais
 
-33. **Version 0.4.0** (README réécrit). Comptes : au plus 12 enregistrés (`config::MAX_ACCOUNTS`, le moins récent
-   est retiré), rangée qui défile, « Gérer les comptes » (croix rouges, `login-forget`), compte gardé si le serveur
-   ne répond pas (seul un 401 le retire), titre du formulaire selon le cas. Réseau : `connect_timeout` 5 s, sonde
-   4 s (un serveur éteint bloquait l'écran). Erreurs lisibles (`human_err`, détail en console). Fiche : enfants et
-   « À suivre » en parallèle, « À suivre » masqué en petite fenêtre (`show-next`). Mémoire Pi stable : 209 -> 229 Mo
-   sur 30 ouvertures / fermetures de fiche.
-34. **Mise à jour** (`src/update.rs`, À propos) : `build.rs` grave le commit (`TURTLEFIN_COMMIT`) ; comparaison avec
-   `main` par l'API GitHub (`compare/{commit}...main`, dépôt public, sans jeton), puis `git pull --ff-only` +
-   `cargo build --release` dans le dossier source (`CARGO_MANIFEST_DIR`), puis relance. Vérifié sur le Pi :
-   0.3.1 -> 0.4.0 en 5 min 40 s. Windows : l'exécutable en cours est renommé `.old.exe` avant la compilation.
+- `TURTLEFIN_CONFIG_DIR=<dossier>` : autre dossier de config (comptes, prefs) sans toucher au vrai.
+- `--open=settings|downloads`, `--play=ID@SECONDES`, `--test-video=fichier` (lecteur sans serveur).
+- `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms), `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console`.
+- Un `prefs.json` écrit par PowerShell 5 a un BOM : la lecture des fichiers de config l'ignore.
 
-### Lot du 6 octobre 2026 (retours de l'utilisateur) : vérifié sur le PC (faux serveur + vrai serveur) et sur le Pi
-35. **Paramètres réorganisés** : catégories Compte (profil + « Photo de profil », Changer de compte, Se déconnecter),
-   Lecture, Sous-titres, Affichage, Réseau, À propos (« Fermer Turtlefin » y est, et sous « Application » dans le menu).
-   Navigation : `settings-step` (Rust) saute toutes les lignes d'information (avant : 2 au plus, d'où « Vider le
-   cache » et « Sélectionner un serveur » inaccessibles sans souris). Lignes dans un cadre avec marge : la ligne
-   choisie (zoom 1,015) n'est plus rognée. `--open=settings` pour les essais.
-36. **Choix de l'avatar** (page au premier plan, `av-open`) : catégories = `Category` du plugin, sinon début du nom
-   « Entreprise-NN » (`avatar_group`, nom en UUID = « Sans catégorie »). Grille qui défile (`av-top`), barre de
-   défilement, molette ; avatar choisi agrandi avec rebond ; Entrée : arc qui tourne pendant l'envoi, puis coche
-   verte + message. Ouverture sur la liste des catégories (un Entrée de trop ne change pas l'avatar).
-   Mémoire : images chargées seulement pour les rangées visibles (`avatar-want`), image fixe ronde gardée sur le
-   disque (`avatar_<id>_144.png`, ~35 Ko ; les GIF du serveur font ~1,3 Mo), seul l'avatar sélectionné est animé
-   (GIF téléchargé à la sélection, pas gardé). Vrai serveur : 300 avatars, PC 166 Mo, Pi 190 Mo.
-37. **Adresses** : `server_main` (principale) et `server_backup` (secours, facultative) remplacent locale / distante
-   et `prefer_remote` (ancienne session convertie : si l'adresse distante était préférée, elle devient la principale).
-   Paramètres → Réseau : modifier chaque adresse (clavier à l'écran en TV ; vérifiée, doit mener au même serveur ;
-   vide = pas de secours, `backup_cleared`), échanger, rechercher un autre serveur. Recherche (`discovery.rs`) :
-   sous-réseau de chaque interface active (VPN compris, /22 au plus, sinon le /24), voisins ARP, pairs des VPN
-   maillés en /32 (seul l'outil `tailscale` est interrogé, sans le nommer dans l'interface). Plus aucune mention
-   de Tailscale dans l'interface ni le README.
-38. Pi (vrai serveur, mode TV) : images lentes rares (une à 41-45 ms à l'ouverture d'une fiche ou du choix d'avatar,
-   sinon < 15 ms). Avatar sélectionné animé : ~22 % d'un cœur tant qu'il est affiché.
+## 9. Problèmes connus / limites
 
-39. Retours du 6 octobre (2) : choix de l'avatar avec ↑ vers la barre du haut et bouton ← visible (`sub-back` :
-   Retour ferme la sous-page). Animations : surbrillance des catégories qui glisse, lignes en cascade à chaque
-   catégorie (`rows-in`), choix de l'avatar qui entre en zoom, avatars en cascade (`av-in`), images en fondu ;
-   connexion : arrivée en cascade (`play-in`), tuile choisie qui grossit / autres estompées (`picking`), compte
-   retiré qui rétrécit puis tuiles qui glissent (`forget` + `shift-from`), formulaire qui monte en fondu.
-   Exemple de nom : « Heisenberg ».
-40. Watch party : une connexion WebSocket par session (`sp_conn` : jeton + tâches, fermée par `end_session`,
-   rouverte pour le compte suivant) ; arrêt sur 401 / 403 ; délai croissant 5 -> 60 s entre les essais. Avant :
-   une seule connexion par lancement, gardée avec le jeton du premier compte (403 en boucle après sa suppression).
-41. Fiche : échec d'ouverture (erreur serveur, 10 s sans réponse) -> on reste sur la page d'origine, l'image
-   repart vers sa carte (`open-failed`) ; avant, l'écran passait sur une fiche vide. Entrée : pas de répétition
-   quand la touche est maintenue (`event.repeat`, tous les écrans et le lecteur), fiche en cours d'ouverture =
-   appuis ignorés (`App.opening`), Entrée ignoré 600 ms à l'arrivée d'une fiche (`d-t0`) : un appui de trop ne
-   lance plus la lecture.
+1. Un plantage de mpv fait planter Turtlefin (même processus).
+2. La lecture exige le rendu OpenGL (`SLINT_BACKEND=winit-software` l'empêche).
+3. **mpv 0.40 / 0.41** (corrigé dans mpv le 23 janvier 2026, commit f74adc4) : une barrière OpenGL par image
+   jamais libérée ; avec le pilote v3d chacune occupe un descripteur (« MESA: error: Export failed » après ~42 s).
+   Contournement dans `src/mpv.rs` (OpenGL ES uniquement). Diagnostic : `ls /proc/$(pgrep -x turtlefin)/fd | wc -l`
+   doit rester stable pendant la lecture.
+4. Croissance RAM de mpv (~3 Mo/min) sur des sous-titres ASS : bornée à une lecture (mpv recréé à chaque vidéo).
+5. Jeton en clair dans `session.json` / `accounts.json` (0600 sous Unix).
+6. Déchirement d'image sous Xorg sans compositeur (Openbox seul) : utiliser un compositeur (picom
+   `--backend egl --vsync`). Turtlefin tient 60 images/s.
+7. Décodage logiciel sous Linux ARM : peut peiner en 4K / HEVC ; piste : `TURTLEFIN_HWDEC=auto-copy`.
 
-42. Séance de tests (6 octobre, après-midi, PC + Pi, comptes test / test2, relais réseau coupable) :
-   - Téléchargements : reprise là où le transfert s'est arrêté (`Range`), file gardée dans `queue.json` et reprise
-     au lancement, pause automatique si le réseau tombe (15 s -> 2 min), pastille « 42 % » / « En pause » dans
-     la barre du haut, délai de 30 s sans données. Vérifié octet par octet après coupure.
-   - Lecture : une coupure réseau marquait l'épisode « vu » (fin de flux prise pour la fin du fichier). Désormais
-     reprise automatique au même endroit quand le serveur répond (pastille « Connexion perdue »), options de
-     reconnexion ffmpeg, pastille « Mise en mémoire… » (`paused-for-cache`). Échap quitte la lecture même si les
-     commandes sont affichées sans sélection.
-   - Accueil rechargé après une lecture lancée depuis l'accueil (Reprendre / À suivre périmés avant).
-   - Bibliothèques sans image : vignette = fond du dernier film / série ajouté.
-   - Fiche : Échap annule un chargement en cours ; pastille « Chargement… (Échap pour annuler) » après 1,2 s.
-   - Connexion (bureau) : le champ prend vraiment le clavier ; clavier à l'écran : un vrai clavier tape dedans.
-   - Onglets de l'en-tête qui ne chevauchent plus les icônes en fenêtre étroite ; titre « Watch party » en double retiré.
-   - Watch party PC (test2) + Pi (test) : rejoindre, lecture commune, pause et saut partagés, départ annoncé.
+## 10. Préférences de travail du mainteneur
 
-43. Suite des tests (6 octobre, soir) :
-   - Adresses : surveillance pendant la session (`watch_addresses`, 20 s) et vérification immédiate quand
-     une fiche échoue (`check_address`) : principale morte -> secours, principale revenue -> retour dessus ;
-     la reprise d'une lecture coupée passe aussi par l'adresse en vigueur.
-   - Téléchargements : ⬇ de nouveau annule (élément, saison ou série ; transfert en cours interrompu, son
-     dossier supprimé). Messages : la minuterie de 6 s repart à chaque nouveau message (avant, un message
-     arrivé pendant un autre disparaissait avec lui).
-   - Démarrage sans serveur et sans téléchargement : écran de connexion + nouvel essai toutes les 5 s, la
-     session se rouvre seule (`retry_start`) : utile au kiosque quand le Wi-Fi arrive après l'appli.
-   - Molette : accueil (rangées, Maj = dans la rangée) et bibliothèques (lignes).
-   - Mise à jour : commit absent de GitHub (404) -> message clair au lieu de l'erreur HTTP.
-   - Session révoquée côté serveur : retour à la connexion, la tuile redemande le mot de passe (vérifié).
-
-44. **Version 0.9.0 et paquets** (6 octobre, nuit). `Style.css` et le fichier de notes retirés du dépôt
-   (gardés en local, dans `.gitignore` ; `Style.css` reste dans l'historique git).
-   - `paths.rs` : tous les dossiers passent par là ; mode portable = fichier `portable` à côté de l'exécutable.
-   - Paquets : Windows x64 / x86 (installeur Inno Setup avec page « Installation / Portable » et choix du
-     dossier, + archive portable), Linux x86_64 / aarch64 (AppImage avec libmpv embarquée, `.deb` via cargo-deb
-     qui dépend de `libmpv2 | libmpv1`). Noms des fichiers : voir l'en-tête de `release.yml` (ils sont attendus
-     tels quels par `update.rs`). Compilés par la CI avec `TURTLEFIN_DIST=release` (sinon `update::kind()` croit
-     à une version compilée sur place).
-   - Vérifié en local : installeur x64 en silence (fichiers, menu Démarrer, entrée de désinstallation, relance,
-     désinstallation propre), archive portable (tout dans `data\`), x86 (lecture en streaming), AppImage
-     aarch64 sur le Pi (lecture), `.deb` arm64 (contenu et dépendances, pas installé). **La CI n'a jamais tourné**
-     (rien n'est poussé) et la mise à jour par Releases n'a pas pu être essayée sans publication.
-   - x86 : les libmpv 32 bits de shinchiro publiées depuis juillet 2026 plantent au démarrage (« OpenSSL internal
-     error: assertion failed: lock != NULL », mpv.exe seul compris) ; `build.ps1` fige celle du 10 juin 2026
-     (`MPV_TAG` pour changer). shinchiro ne garde qu'une trentaine de versions : la copier ailleurs avant qu'elle
-     disparaisse. aws-lc (chiffrement) demande NASM pour compiler en 32 bits.
-   - Premier lancement sans serveur connu : page « Choisir un serveur » au lieu d'une connexion vers une adresse vide.
-   - Pas de licence dans le dépôt (à choisir par l'utilisateur) ; pas encore de logo (icône provisoire).
-
-Pi : `ssh xelopteryx@prometheus` (Tailscale) ou 192.168.1.198 (l'adresse locale a changé plusieurs fois).
-
-Essais : `TURTLEFIN_CONFIG_DIR=<dossier>` (autre session / comptes, sans toucher à la vraie), `--open=downloads`.
-Sur Windows, la version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
-
-### Pas fait
-- Manette / télécommande ; défilement à la molette, survol souris qui déplace le focus.
-- Quick Connect sur l'écran de connexion ; clavier à l'écran pour la saisie manuelle d'un serveur.
-- Favoris faits hors ligne (rien ne permet d'en ajouter hors ligne pour l'instant).
-- Fond (backdrop) en option, avec logos transparents.
-- Passerelle XeLauncher ; démarrage automatique sur le Pi ; compilation/paquetage.
-
-## 6. Reprise du CSS/JS du thème (correspondances)
-
-Reproduit : boutons de fiche à dégradé, résumé en bloc translucide cliquable + panneau complet, poster agrandi, poster de saison sur les épisodes (`Portrait_Poster.js`), saisons sur une rangée horizontale, colonne « À suivre » resserrée, « Mes médias » horizontal, logo en haut de fiche, langues audio dans la ligne d'infos, bouton Déconnexion au dégradé.
-Volontairement absent : tout ce que le CSS masquait (genres, studios, tags, liens externes, titre original, réalisateurs, sélecteurs de pistes) ; flous et ombres animées.
-Pas encore : cartes de suggestions de recherche, picker d'avatar, backdrop.
-
-## 7. Problèmes connus / limites
-
-1. Branche `libmpv` : un plantage de mpv fait planter Turtlefin (même processus). Le lecteur est recréé à chaque lecture.
-2. Branche `libmpv` : la lecture exige le rendu OpenGL de Slint (`SLINT_BACKEND=winit-software` l'empêche).
-2b. **Bug de mpv 0.40 / 0.41** (corrigé dans mpv le 23 janvier 2026, commit f74adc4, pas encore publié) : une barrière OpenGL
-   (glFenceSync) par image jamais libérée avec libmpv. Sur le Pi (mpv 0.40/0.41, pilote v3d) chacune occupe un fichier :
-   « MESA: error: Export failed » après ~42 s (limite de 1024). Contournement dans `src/mpv.rs` (OpenGL ES uniquement) :
-   tampons persistants cachés à mpv, barrières créées pendant le dessin d'une image notées et libérées si mpv ne l'a pas fait.
-   Diagnostic : `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` doit rester stable (~50) pendant la lecture.
-   **Vérifié sur le Pi le 4 octobre 2026** : 46 à 48 fichiers ouverts stables sur 2 min de lecture, plus aucun message ;
-   Turtlefin ≈ 99 % CPU (contre 120 % avec la fuite) et 411 à 452 Mo (ancienne version : Turtlefin 112 + mpv 395-440 Mo).
-3. **Croissance RAM de mpv** (~3 Mo/min, par paliers, sur un épisode de FMA aux sous-titres ASS) : cause non élucidée (polices/glyphes libass probable). Test à faire avec `TURTLEFIN_MPV_ARGS="--sid=no"`. Borné à la durée d'une lecture puisque mpv est relancé à chaque vidéo.
-4. Cache d'images disque sans purge (`<cache>/turtlefin/img`).
-5. Jeton d'accès en clair dans `session.json` (0600 sous Unix) ; avec libmpv, il n'apparaît plus dans une ligne de commande.
-6. Le multi-ligne avec points de suspension du résumé dépend de la version de Slint (au pire coupure nette).
-7. Le `FocusScope` de taille nulle de la fiche : si les flèches ne répondent pas, regarder là.
-8. Le défilement mémorisé des rangées de l'accueil est perdu quand on revient de la fiche (l'écran est recréé).
-10. **Saccades au défilement des menus sur le Pi** : c'était du **déchirement d'image** (Xorg modesetting + Openbox sans
-   compositeur, pas d'option TearFree : le haut de l'écran montrait l'image précédente). Turtlefin tient 59 images/s
-   (écran 59,8 Hz). Corrigé par le compositeur **picom** (vérifié par l'utilisateur le 4 octobre 2026) :
-   `MESA_GL_VERSION_OVERRIDE=3.3 MESA_GLSL_VERSION_OVERRIDE=330 picom --backend egl --vsync` (le moteur GLX ne démarre pas
-   sur le v3d, picom 12 exige GLSL 3.30 alors que le pilote annonce 3.1). Coût : picom ~2,5 % d'un cœur, lecture inchangée.
-   Avant ça : cartes arrondies avec `clip: true` remplacées par des images préformées (évite les couches hors écran).
-   Mesures : `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console` + `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms, hors vidéo).
-9. Décodage logiciel sur le Pi : peut peiner en 4K/HEVC lourd ; piste future : `TURTLEFIN_HWDEC=auto-copy` avec libmpv (copie en mémoire, évite l'import SAND), sinon v4l2request / drm-copy.
-
-## 8. Variables d'environnement utiles
-
-`TURTLEFIN_PASSWORD`, `TURTLEFIN_LIBMPV` (chemin de libmpv), `TURTLEFIN_MPV_ARGS`, `TURTLEFIN_MPV_LOG`, `TURTLEFIN_HWDEC`, `TURTLEFIN_AO`, `TURTLEFIN_INSECURE=1` (test uniquement), `TURTLEFIN_CONFIG_DIR` (autre dossier de session, comptes et pistes : essais), `SLINT_BACKEND=winit-software`.
-
-## 9. Ordre de travail proposé
-
-1. L'utilisateur teste la branche `libmpv` sur Windows (souris, mode TV, ressenti).
-2. Pousser `interface-lua` et `libmpv` sur GitHub ; sur le Pi, compiler les deux (`CARGO_TARGET_DIR` différent) et mesurer RAM + CPU
-   sur le même épisode. Garder `libmpv` si elle est au moins aussi légère, sinon `interface-lua`.
-3. Fusionner la branche retenue dans `main`, puis test d'endurance de 1 à 2 h sur le Pi.
-4. **M4a** : langues audio / sous-titres préférées lues dans le profil Jellyfin.
-5. **M4b** : recherche avec cartes à poster, puis grille de bibliothèque paginée.
-6. **M5** : profils / Quick Connect / clavier à l'écran, backdrop optionnel.
-7. Passerelle XeLauncher, démarrage automatique, paquetage.
-
-À chaque étape : garder Turtlefin stable en mémoire (c'est la raison d'être du projet) et ne jamais réintroduire de flou temps réel ou d'animation de filtre.
+- Réponses en français ; il connaît peu Linux / SSH : expliquer les commandes.
+- Ne rien pousser sur GitHub avant sa validation explicite.
+- Essais avec une copie de la config (`TURTLEFIN_CONFIG_DIR`), jamais la vraie ; comptes de test `test` / `test2`.

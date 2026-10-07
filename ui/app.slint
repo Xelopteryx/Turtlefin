@@ -10,6 +10,7 @@ import { CardData } from "card.slint";
 import { Osk, OskKeys } from "osk.slint";
 export { OskKeys }
 import { Marquee } from "marquee.slint";
+import { BootLogo } from "boot.slint";
 
 export { CardData, Prefs }
 
@@ -375,8 +376,8 @@ component CardArt inherits Rectangle {
                     : "M 2 2 L 10 10 M 10 2 L 2 10";
             }
             Text {
-                text: root.data.status == 1 ? "En attente" : root.data.status == 2 ? "Acceptée"
-                    : root.data.status == 3 ? "Refusée" : root.data.status == 4 ? "Disponible" : "Échec";
+                text: root.data.status == 1 ? @tr("En attente") : root.data.status == 2 ? @tr("Acceptée")
+                    : root.data.status == 3 ? @tr("Refusée") : root.data.status == 4 ? @tr("Disponible") : @tr("Échec");
                 color: root.data.status == 4 ? #052e16 : white;
                 font-size: 11px * root.k;
                 font-weight: 700;
@@ -921,7 +922,7 @@ component DetailButton inherits Rectangle {
     }
 }
 
-// Panneau « résumé complet » : fond assombri uni (pas de flou, trop coûteux sur Pi).
+// Panneau « résumé complet » : fond assombri uni (pas de flou, trop coûteux sur les petites machines).
 component OverviewPanel inherits Rectangle {
     in property <string> text;
     in property <length> font: 20px;
@@ -980,7 +981,7 @@ component OverviewPanel inherits Rectangle {
         Text {
             y: parent.height - 38px;
             width: parent.width;
-            text: "Échap pour fermer  ·  ↑ ↓ pour défiler";
+            text: @tr("Échap pour fermer  ·  ↑ ↓ pour défiler");
             color: Theme.muted;
             font-size: 13px;
             horizontal-alignment: center;
@@ -1169,7 +1170,7 @@ component HeaderRight inherits Rectangle {
                     vertical-alignment: center;
                 }
                 offline-label := Text {
-                    text: "Hors ligne";
+                    text: @tr("Hors ligne");
                     color: #bbf7d0;
                     font-size: 15px * root.k;
                     font-weight: 700;
@@ -1263,6 +1264,7 @@ export struct DlInfo {
 
 export component AppWindow inherits Window {
     title: "Turtlefin";
+    icon: @image-url("../packaging/icons/turtlefin-64.png");
     background: Theme.bg;
     default-font-family: "Montserrat";
     preferred-width: 1280px;
@@ -1270,7 +1272,22 @@ export component AppWindow inherits Window {
     min-width: 640px;
     min-height: 400px;
 
-    in-out property <string> screen: "login"; // "login" | "loading" | "home" | "detail" | "search" | "profile"
+    // Démarrage : logo à six points (voir boot.slint et boot dans main.rs).
+    in-out property <bool> boot-on: true;
+    in property <[int]> boot-state: [0, 0, 0, 0, 0, 0];
+    in property <[string]> boot-labels: ["", "", "", "", "", ""];
+    in property <string> boot-text;
+    in property <string> boot-fail;
+    in property <string> boot-fail-hint;
+    in-out property <int> boot-phase;
+    in-out property <bool> boot-lang-open;
+    in property <string> boot-lang-title;
+    in property <[TrackData]> boot-langs;
+    in-out property <int> boot-lang-sel;
+    callback boot-continue();
+    callback boot-lang(string);
+    callback boot-linked();
+    in-out property <string> screen: "boot"; // "login" | "loading" | "home" | "detail" | "search" | "profile"
     in-out property <string> server;
     in-out property <string> user-name;
     in-out property <string> error-text;
@@ -1797,7 +1814,7 @@ export component AppWindow inherits Window {
     in-out property <bool> menu-open;
     in-out property <int> menu-sel;
     in property <[MenuEntry]> menu-entries;
-    in-out property <string> soon-title: "Recherche"; // écran « bientôt disponible »
+    in-out property <string> soon-title: @tr("Recherche"); // écran « bientôt disponible »
     in-out property <int> refocus;          // incrémenté : l'écran affiché reprend le clavier
 
     // Choix du serveur
@@ -1888,7 +1905,7 @@ export component AppWindow inherits Window {
     in property <[DlInfo]> dl-infos;        // infos de la carte sélectionnée (bas de l'écran)
     in property <int> dl-level;             // 0 liste générale · 1 série · 2 saison
     in property <bool> dl-landscape;        // épisodes : vignettes 16:9
-    in property <string> dl-title: "Téléchargements";
+    in property <string> dl-title: @tr("Téléchargements");
     in property <string> dl-status;
     in property <string> dl-pill;           // pastille de la barre du haut : « 42 % », « En pause »
     in property <float> dl-p;
@@ -1980,7 +1997,7 @@ export component AppWindow inherits Window {
     callback login-pick(string);           // "acc:<id>" | "pub:<nom>" | "other"
     callback login-forget(string);         // retirer un compte enregistré ("acc:<id>")
     in property <int> login-saved;         // comptes enregistrés parmi les tuiles
-    in property <string> login-title: "Ajouter un compte";
+    in property <string> login-title: @tr("Ajouter un compte");
     in-out property <bool> login-edit;     // « Gérer les comptes » : choisir un compte à retirer
     pure callback mask(string) -> string;  // mot de passe affiché en points
     callback select-tab(string);            // "home" | "favorites" | "requests"
@@ -2034,7 +2051,7 @@ export component AppWindow inherits Window {
     }
     function manual-go() {
         if (root.manual-local == "" && root.manual-remote == "") {
-            root.manual-local-err = "Saisis au moins l'adresse principale du serveur.";
+            root.manual-local-err = @tr("Saisis au moins l'adresse principale du serveur.");
             root.manual-field = 0;
             return;
         }
@@ -2335,7 +2352,7 @@ export component AppWindow inherits Window {
         property <string> picking;
         // Seul un compte enregistré se connecte tout de suite (les autres ouvrent le formulaire).
         function pick(i: int) {
-            if (root.login-tiles[i].subtitle == "Enregistré") {
+            if (root.login-tiles[i].subtitle == @tr("Enregistré")) {
                 lg.picking = root.login-tiles[i].id;
             }
             root.login-pick(root.login-tiles[i].id);
@@ -2373,7 +2390,7 @@ export component AppWindow inherits Window {
         function submit() {
             // Un compte a toujours un nom d'utilisateur (le mot de passe peut être vide sur Jellyfin).
             if (root.login-user == "") {
-                root.login-user-err = "Saisis un nom d'utilisateur.";
+                root.login-user-err = @tr("Saisis un nom d'utilisateur.");
                 root.login-field = 0;
                 root.login-focus-tick += 1;
                 return;
@@ -2440,7 +2457,7 @@ export component AppWindow inherits Window {
                             if (root.login-sel >= lg.n) {
                                 root.login-edit = false;
                                 root.login-sel = 0;
-                            } else if (root.login-tiles[root.login-sel].subtitle == "Enregistré") {
+                            } else if (root.login-tiles[root.login-sel].subtitle == @tr("Enregistré")) {
                                 lg.forget(root.login-tiles[root.login-sel].id, root.login-sel);
                             }
                         } else if (root.login-sel == lg.n) {
@@ -2536,7 +2553,7 @@ export component AppWindow inherits Window {
                 y: 170 * lg.u + (1 - lg.in-e(1)) * 24 * lg.u;
                 opacity: lg.in-e(1);
                 width: parent.width;
-                text: root.login-edit ? "Choisis un compte à retirer de cet appareil" : "Qui regarde ?";
+                text: root.login-edit ? @tr("Choisis un compte à retirer de cet appareil") : @tr("Qui regarde ?");
                 color: white;
                 font-size: 30 * lg.u;
                 font-weight: 700;
@@ -2549,7 +2566,7 @@ export component AppWindow inherits Window {
                 width: lg.tile;
                 height: lg.tile + 70 * lg.u;
                 property <float> e: lg.in-e(1.5 + i);
-                property <bool> removable: t.subtitle == "Enregistré";
+                property <bool> removable: t.subtitle == @tr("Enregistré");
                 property <bool> sel: (i == root.login-sel) || tile-area.has-hover;
                 property <bool> gone: t.id == lg.gone-id;
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
@@ -2648,7 +2665,7 @@ export component AppWindow inherits Window {
                 alignment: center;
                 spacing: 16 * lg.u;
                 if !root.login-edit: ActionButton {
-                    text: "Changer de serveur";
+                    text: @tr("Changer de serveur");
                     font: 16 * lg.u;
                     focused: root.login-sel == lg.n;
                     clicked => {
@@ -2656,7 +2673,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 if lg.saved-count > 0 || root.login-edit: ActionButton {
-                    text: root.login-edit ? "Terminé" : "Gérer les comptes";
+                    text: root.login-edit ? @tr("Terminé") : @tr("Gérer les comptes");
                     font: 16 * lg.u;
                     focused: root.login-edit ? root.login-sel >= lg.n : root.login-sel == lg.n + 1;
                     clicked => {
@@ -2670,7 +2687,7 @@ export component AppWindow inherits Window {
                 y: parent.height - self.height - 28 * lg.u;
                 k: lg.u / 1px;
                 max-w: parent.width - 80 * lg.u;
-                text: root.busy ? "Connexion…" : root.error-text;
+                text: root.busy ? @tr("Connexion…") : root.error-text;
                 error: !root.busy;
             }
         }
@@ -2740,8 +2757,8 @@ export component AppWindow inherits Window {
                     font-weight: 700;
                 }
                 Text {
-                    text: root.tv-mode ? "Choisis un champ puis appuie sur Entrée pour écrire."
-                        : "Le mot de passe peut rester vide si le compte n'en a pas.";
+                    text: root.tv-mode ? @tr("Choisis un champ puis appuie sur Entrée pour écrire.")
+                        : @tr("Le mot de passe peut rester vide si le compte n'en a pas.");
                     color: Theme.muted;
                     font-size: 13 * lg.u;
                 }
@@ -2750,8 +2767,8 @@ export component AppWindow inherits Window {
                 }
                 user-field := Field {
                     k: lg.u / 1px;
-                    label: "Nom d'utilisateur";
-                    hint: "ex. Heisenberg";
+                    label: @tr("Nom d'utilisateur");
+                    hint: @tr("ex. Heisenberg");
                     text <=> root.login-user;
                     shown: root.login-user;
                     tv: root.tv-mode;
@@ -2779,8 +2796,8 @@ export component AppWindow inherits Window {
                 }
                 pass-field := Field {
                     k: lg.u / 1px;
-                    label: "Mot de passe";
-                    hint: "Mot de passe";
+                    label: @tr("Mot de passe");
+                    hint: @tr("Mot de passe");
                     text <=> root.login-pass;
                     shown: root.mask(root.login-pass);
                     password: true;
@@ -2811,7 +2828,7 @@ export component AppWindow inherits Window {
                     spacing: 14 * lg.u;
                     alignment: end;
                     ActionButton {
-                        text: "Retour";
+                        text: @tr("Retour");
                         font: 16 * lg.u;
                         focused: root.tv-mode && !root.login-osk && root.login-field == 3;
                         clicked => {
@@ -2820,7 +2837,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     ActionButton {
-                        text: root.busy ? "Connexion…" : "Se connecter";
+                        text: root.busy ? @tr("Connexion…") : @tr("Se connecter");
                         font: 16 * lg.u;
                         focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
                         clicked => {
@@ -2840,7 +2857,7 @@ export component AppWindow inherits Window {
             k: lg.u / 1px * 1.0;
             active: root.login-osk;
             text: root.login-field == 0 ? root.login-user : root.login-pass;
-            ok-label: root.login-field == 0 ? "Suivant" : "Connexion";
+            ok-label: root.login-field == 0 ? @tr("Suivant") : @tr("Connexion");
             erase(t) => {
                 return root.text-backspace("\u{8}" + t);
             }
@@ -2873,7 +2890,7 @@ export component AppWindow inherits Window {
             y: parent.height - self.height - 28 * lg.u;
             k: lg.u / 1px;
             max-w: parent.width - 80 * lg.u;
-            text: root.busy ? "Connexion…" : root.error-text;
+            text: root.busy ? @tr("Connexion…") : root.error-text;
             error: !root.busy;
         }
     }
@@ -2943,7 +2960,7 @@ export component AppWindow inherits Window {
                 spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
 
                 Tab {
-                    text: "Accueil";
+                    text: @tr("Accueil");
                     k: root.k;
                     active: root.tab == "home";
                     focused: root.h-focus && root.h-sel == root.nav-n + 0;
@@ -2953,7 +2970,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 Tab {
-                    text: "Favoris";
+                    text: @tr("Favoris");
                     k: root.k;
                     active: root.tab == "favorites";
                     focused: root.h-focus && root.h-sel == root.nav-n + 1;
@@ -2963,7 +2980,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 if root.has-requests: Tab {
-                    text: "Demandes";
+                    text: @tr("Demandes");
                     k: root.k;
                     active: root.tab == "requests";
                     focused: root.h-focus && root.h-sel == root.nav-n + 2;
@@ -3118,8 +3135,8 @@ export component AppWindow inherits Window {
             }
 
             if root.sections.length == 0: Text {
-                text: root.tab == "favorites" ? "Aucun favori pour l'instant."
-                    : root.tab == "requests" ? "Aucune demande pour l'instant." : "Rien à afficher.";
+                text: root.tab == "favorites" ? @tr("Aucun favori pour l'instant.")
+                    : root.tab == "requests" ? @tr("Aucune demande pour l'instant.") : @tr("Rien à afficher.");
                 color: Theme.muted;
                 font-size: 20px * root.k;
                 horizontal-alignment: center;
@@ -3226,8 +3243,8 @@ export component AppWindow inherits Window {
             // (Le titre « Watch party » est déjà dans la barre du haut.)
             Text {
                 text: root.sp-active
-                    ? "Tu es dans « " + root.sp-name + " ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
-                    : "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.";
+                    ? @tr("Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name)
+                    : @tr("Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
                 color: Theme.muted;
                 font-size: 15px * root.k;
                 wrap: word-wrap;
@@ -3250,7 +3267,7 @@ export component AppWindow inherits Window {
                             width: 10px * root.k;
                             height: self.width;
                             border-radius: self.width / 2;
-                            background: root.sp-state == "En lecture" ? #4ade80 : root.sp-state == "En pause" ? #f59e0b : Theme.accent2;
+                            background: root.sp-state == @tr("En lecture") ? #4ade80 : root.sp-state == @tr("En pause") ? #f59e0b : Theme.accent2;
                         }
                         Text {
                             text: root.sp-state;
@@ -3261,14 +3278,14 @@ export component AppWindow inherits Window {
                         }
                     }
                     Text {
-                        text: root.sp-now != "" ? "Regarde : " + root.sp-now : "Rien pour l'instant : lance un film ou un épisode.";
+                        text: root.sp-now != "" ? @tr("Regarde : {}", root.sp-now) : @tr("Rien pour l'instant : lance un film ou un épisode.");
                         color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
                         font-size: 16px * root.k;
                         font-weight: 600;
                         wrap: word-wrap;
                     }
                     Text {
-                        text: root.sp-count == 1 ? "1 participant" : root.sp-count + " participants";
+                        text: @tr("{n} participant" | "{n} participants" % root.sp-count);
                         color: Theme.muted;
                         font-size: 13px * root.k;
                         font-weight: 700;
@@ -3309,7 +3326,7 @@ export component AppWindow inherits Window {
                 }
             }
             if !root.sp-active && root.sp-groups.length > 0: Text {
-                text: "REJOINDRE";
+                text: @tr("REJOINDRE");
                 color: Theme.muted;
                 font-size: 12px * root.k;
                 font-weight: 700;
@@ -3336,7 +3353,7 @@ export component AppWindow inherits Window {
                 alignment: start;
                 height: 46px * root.k;
                 ActionButton {
-                    text: root.sp-active ? "Quitter la watch party" : "Créer une watch party";
+                    text: root.sp-active ? @tr("Quitter la watch party") : @tr("Créer une watch party");
                     font: 16px * root.k;
                     focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
                     clicked => {
@@ -3467,7 +3484,7 @@ export component AppWindow inherits Window {
                 x: 54px * root.k;
                 width: parent.width - 70px * root.k;
                 height: parent.height;
-                text: root.search-text == "" ? "Titre d'un film, d'une série, d'un épisode…" : root.search-text + "│";
+                text: root.search-text == "" ? @tr("Titre d'un film, d'une série, d'un épisode…") : root.search-text + "│";
                 color: root.search-text == "" ? Theme.muted : white;
                 font-size: 18px * root.k;
                 vertical-alignment: center;
@@ -3516,7 +3533,7 @@ export component AppWindow inherits Window {
             if !root.tv-mode && root.search-text == "": Text {
                 x: 54px * root.k;
                 height: parent.height;
-                text: "Titre d'un film, d'une série, d'un épisode…";
+                text: @tr("Titre d'un film, d'une série, d'un épisode…");
                 color: Theme.muted;
                 font-size: 18px * root.k;
                 vertical-alignment: center;
@@ -3561,7 +3578,7 @@ export component AppWindow inherits Window {
             clip: true;
 
             if root.search-sections.length == 0: Text {
-                text: root.search-busy ? "Recherche…" : root.search-text.character-count >= 2 ? "Aucun résultat." : "";
+                text: root.search-busy ? @tr("Recherche…") : root.search-text.character-count >= 2 ? @tr("Aucun résultat.") : "";
                 color: Theme.muted;
                 font-size: 18px * root.k;
                 horizontal-alignment: center;
@@ -3646,13 +3663,13 @@ export component AppWindow inherits Window {
                 horizontal-alignment: center;
             }
             Text {
-                text: "Bientôt disponible.";
+                text: @tr("Bientôt disponible.");
                 color: Theme.muted;
                 font-size: 18px * root.k;
                 horizontal-alignment: center;
             }
             Text {
-                text: "Échap ou Retour arrière pour revenir";
+                text: @tr("Échap ou Retour arrière pour revenir");
                 color: Theme.muted;
                 font-size: 14px * root.k;
                 horizontal-alignment: center;
@@ -3723,7 +3740,7 @@ export component AppWindow inherits Window {
                 height: 44px * root.k;
 
                 ActionButton {
-                    text: "Réglages · bientôt";
+                    text: @tr("Réglages · bientôt");
                     font: 16px * root.k;
                     focused: root.prof-sel == 0;
                     clicked => {
@@ -3731,7 +3748,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 ActionButton {
-                    text: "Déconnexion";
+                    text: @tr("Déconnexion");
                     font: 16px * root.k;
                     focused: root.prof-sel == 1;
                     clicked => {
@@ -3741,7 +3758,7 @@ export component AppWindow inherits Window {
             }
 
             Text {
-                text: "Échap ou Retour arrière pour revenir";
+                text: @tr("Échap ou Retour arrière pour revenir");
                 color: Theme.muted;
                 font-size: 14px * root.k;
                 horizontal-alignment: center;
@@ -4185,7 +4202,7 @@ export component AppWindow inherits Window {
 
             Text {
                 height: 20px * root.k;
-                text: "À SUIVRE";
+                text: @tr("À SUIVRE");
                 color: Theme.muted;
                 font-size: 12px * root.k;
                 font-weight: 700;
@@ -4246,7 +4263,7 @@ export component AppWindow inherits Window {
 
         // Saisons / épisodes / contenu
         if root.child-items.length > 0: SectionRow {
-            // Glissement seulement : une opacité sur toute la rangée coûte cher sur le Pi.
+            // Glissement seulement : une opacité sur toute la rangée coûte cher sur les petites machines.
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px);
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
@@ -4305,7 +4322,7 @@ export component AppWindow inherits Window {
                 Text {
                     x: 24px * root.k;
                     y: 16px * root.k;
-                    text: root.tp-kind == "audio" ? "Langue audio" : "Sous-titres";
+                    text: root.tp-kind == "audio" ? @tr("Langue audio") : @tr("Sous-titres");
                     color: Theme.text;
                     font-size: 20px * root.k;
                     font-weight: 700;
@@ -4313,7 +4330,7 @@ export component AppWindow inherits Window {
                 Text {
                     x: 24px * root.k;
                     y: 42px * root.k;
-                    text: "Retenu pour toute la série";
+                    text: @tr("Retenu pour toute la série");
                     color: Theme.muted;
                     font-size: 12px * root.k;
                 }
@@ -4464,7 +4481,7 @@ export component AppWindow inherits Window {
         }
 
         if root.lib-items.length == 0: Text {
-            text: root.lib-total == 0 ? "Chargement…" : "";
+            text: root.lib-total == 0 ? @tr("Chargement…") : "";
             color: Theme.muted;
             font-size: 20px * root.k;
             horizontal-alignment: center;
@@ -4575,7 +4592,7 @@ export component AppWindow inherits Window {
             spacing: 14px * root.k;
 
             Text {
-                text: "Choisir un serveur";
+                text: @tr("Choisir un serveur");
                 color: Theme.text;
                 font-size: 30px * root.k;
                 font-weight: 700;
@@ -4586,10 +4603,9 @@ export component AppWindow inherits Window {
                 spacing: 8px * root.k;
                 alignment: start;
                 Text {
-                    text: root.srv-searching ? "Recherche sur tes réseaux (local et VPN)"
-                        : root.servers.length == 0 ? "Aucun serveur trouvé : saisis son adresse."
-                        : root.servers.length == 1 ? "1 serveur trouvé sur tes réseaux (local et VPN)"
-                        : root.servers.length + " serveurs trouvés sur tes réseaux (local et VPN)";
+                    text: root.srv-searching ? @tr("Recherche sur tes réseaux (local et VPN)")
+                        : root.servers.length == 0 ? @tr("Aucun serveur trouvé : saisis son adresse.")
+                        : @tr("{n} serveur trouvé sur tes réseaux (local et VPN)" | "{n} serveurs trouvés sur tes réseaux (local et VPN)" % root.servers.length);
                     color: Theme.muted;
                     font-size: 15px * root.k;
                     vertical-alignment: center;
@@ -4669,7 +4685,7 @@ export component AppWindow inherits Window {
                             border-radius: self.height / 2;
                             background: #15803d;
                             cur := Text {
-                                text: "Actuel";
+                                text: @tr("Actuel");
                                 color: white;
                                 font-size: 11px * root.k;
                                 font-weight: 700;
@@ -4679,7 +4695,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     Text {
-                        text: "Principale : " + (s.main != "" ? s.main : "—") + "      Secours : " + (s.backup != "" ? s.backup : "—");
+                        text: @tr("Principale : {}      Secours : {}", s.main != "" ? s.main : "—", s.backup != "" ? s.backup : "—");
                         color: #ffffffcc;
                         font-size: 13px * root.k;
                         overflow: elide;
@@ -4700,7 +4716,7 @@ export component AppWindow inherits Window {
                 padding-top: 4px * root.k;
 
                 ActionButton {
-                    text: root.srv-searching ? "Recherche…" : "Rechercher à nouveau";
+                    text: root.srv-searching ? @tr("Recherche…") : @tr("Rechercher à nouveau");
                     font: 16px * root.k;
                     focused: !root.h-focus && root.srv-sel == root.servers.length;
                     clicked => {
@@ -4708,7 +4724,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 ActionButton {
-                    text: "Saisir une adresse";
+                    text: @tr("Saisir une adresse");
                     font: 16px * root.k;
                     focused: !root.h-focus && root.srv-sel == root.servers.length + 1;
                     clicked => {
@@ -4806,13 +4822,13 @@ export component AppWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: "Adresse du serveur";
+                        text: @tr("Adresse du serveur");
                         color: white;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Sans « http:// » ni « https:// », les deux sont essayés.";
+                        text: @tr("Sans « http:// » ni « https:// », les deux sont essayés.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
                     }
@@ -4821,7 +4837,7 @@ export component AppWindow inherits Window {
                     }
                     local-f := Field {
                         k: root.k;
-                        label: "Adresse principale";
+                        label: @tr("Adresse principale");
                         hint: "192.168.1.32:8097";
                         text <=> root.manual-local;
                         shown: root.manual-local;
@@ -4844,7 +4860,7 @@ export component AppWindow inherits Window {
                     }
                     remote-f := Field {
                         k: root.k;
-                        label: "Adresse de secours · facultative, si la principale ne répond pas";
+                        label: @tr("Adresse de secours · facultative, si la principale ne répond pas");
                         hint: "10.8.0.5:8096";
                         text <=> root.manual-remote;
                         shown: root.manual-remote;
@@ -4865,7 +4881,7 @@ export component AppWindow inherits Window {
                         height: 44px * root.k;
 
                         ActionButton {
-                            text: "Annuler";
+                            text: @tr("Annuler");
                             font: 15px * root.k;
                             focused: root.tv-mode && !root.manual-osk && root.manual-field == 3;
                             clicked => {
@@ -4873,7 +4889,7 @@ export component AppWindow inherits Window {
                             }
                         }
                         ActionButton {
-                            text: root.manual-busy ? "Vérification…" : "Valider";
+                            text: root.manual-busy ? @tr("Vérification…") : @tr("Valider");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.manual-osk && root.manual-field == 2 : true;
                             clicked => {
@@ -4892,7 +4908,7 @@ export component AppWindow inherits Window {
                 k: root.k;
                 active: root.manual-osk;
                 text: root.manual-field == 0 ? root.manual-local : root.manual-remote;
-                ok-label: root.manual-field == 0 ? "Suivant" : "Valider";
+                ok-label: root.manual-field == 0 ? @tr("Suivant") : @tr("Valider");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
@@ -4926,7 +4942,7 @@ export component AppWindow inherits Window {
                 y: parent.height - self.height - 28px * root.k;
                 k: root.k;
                 max-w: parent.width - 80px * root.k;
-                text: root.manual-busy ? "Vérification des adresses…" : root.manual-error;
+                text: root.manual-busy ? @tr("Vérification des adresses…") : root.manual-error;
                 error: !root.manual-busy;
             }
         }
@@ -4982,7 +4998,7 @@ export component AppWindow inherits Window {
                     spacing: 18px * root.k;
 
                     Text {
-                        text: "Deux adresses répondent. Laquelle utiliser ?";
+                        text: @tr("Deux adresses répondent. Laquelle utiliser ?");
                         color: Theme.text;
                         font-size: 18px * root.k;
                         font-weight: 700;
@@ -5100,8 +5116,8 @@ export component AppWindow inherits Window {
         }
 
         if root.dl-sections.length == 0: Text {
-            text: root.offline ? "Aucun téléchargement : rien à regarder hors ligne."
-                : "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.";
+            text: root.offline ? @tr("Aucun téléchargement : rien à regarder hors ligne.")
+                : @tr("Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.");
             color: Theme.muted;
             font-size: 18px * root.k;
             horizontal-alignment: center;
@@ -5148,7 +5164,7 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cats: ["Compte", "Lecture", "Sous-titres", "Affichage", "Réseau", "À propos"];
+        property <[string]> cats: [@tr("Compte"), @tr("Lecture"), @tr("Sous-titres"), @tr("Affichage"), @tr("Réseau"), @tr("À propos")];
         property <length> left-w: 260px * root.k;
 
         // Choix de l'avatar : catégories à gauche (s'il y en a plusieurs), grille qui défile à droite.
@@ -5450,7 +5466,7 @@ export component AppWindow inherits Window {
             x: 32px * root.k;
             y: 8px * root.k;
             height: 44px * root.k;
-            text: "Paramètres";
+            text: @tr("Paramètres");
             color: Theme.text;
             font-size: 28px * root.k;
             font-weight: 700;
@@ -5694,7 +5710,7 @@ export component AppWindow inherits Window {
                 x: 32px * root.k;
                 y: 8px * root.k;
                 height: 44px * root.k;
-                text: "Photo de profil";
+                text: @tr("Photo de profil");
                 color: Theme.text;
                 font-size: 28px * root.k;
                 font-weight: 700;
@@ -5704,9 +5720,9 @@ export component AppWindow inherits Window {
                 x: 32px * root.k;
                 y: 48px * root.k;
                 height: 22px * root.k;
-                text: root.av-total == 0 ? "Chargement des avatars…"
-                    : root.av-groups.length > 1 ? root.av-total + " avatars en " + root.av-groups.length + " catégories · Entrée pour choisir, Échap pour revenir"
-                    : root.av-total + " avatars · Entrée pour choisir, Échap pour revenir";
+                text: root.av-total == 0 ? @tr("Chargement des avatars…")
+                    : root.av-groups.length > 1 ? @tr("{} avatars en {} catégories · Entrée pour choisir, Échap pour revenir", root.av-total, root.av-groups.length)
+                    : @tr("{} avatars · Entrée pour choisir, Échap pour revenir", root.av-total);
                 color: Theme.muted;
                 font-size: 14px * root.k;
                 vertical-alignment: center;
@@ -5716,7 +5732,7 @@ export component AppWindow inherits Window {
                 x: parent.width - 32px * root.k - 56px * root.k - 12px * root.k - self.width;
                 y: 10px * root.k;
                 height: 56px * root.k;
-                text: "Actuelle";
+                text: @tr("Actuelle");
                 color: Theme.muted;
                 font-size: 14px * root.k;
                 vertical-alignment: center;
@@ -6049,14 +6065,14 @@ export component AppWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: root.addr-edit == 1 ? "Adresse principale" : "Adresse de secours";
+                        text: root.addr-edit == 1 ? @tr("Adresse principale") : @tr("Adresse de secours");
                         color: white;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
                     Text {
-                        text: root.addr-edit == 1 ? "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
-                            : "Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune.";
+                        text: root.addr-edit == 1 ? @tr("Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
+                            : @tr("Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
                         wrap: word-wrap;
@@ -6066,7 +6082,7 @@ export component AppWindow inherits Window {
                     }
                     Field {
                         k: root.k;
-                        label: "Adresse du serveur";
+                        label: @tr("Adresse du serveur");
                         hint: root.addr-edit == 1 ? "192.168.1.32:8096" : "10.8.0.5:8096";
                         text <=> root.addr-text;
                         shown: root.addr-text;
@@ -6093,7 +6109,7 @@ export component AppWindow inherits Window {
                         height: 44px * root.k;
 
                         ActionButton {
-                            text: "Annuler";
+                            text: @tr("Annuler");
                             font: 15px * root.k;
                             focused: root.tv-mode && !root.addr-osk && root.addr-field == 2;
                             clicked => {
@@ -6101,7 +6117,7 @@ export component AppWindow inherits Window {
                             }
                         }
                         ActionButton {
-                            text: root.addr-busy ? "Vérification…" : "Enregistrer";
+                            text: root.addr-busy ? @tr("Vérification…") : @tr("Enregistrer");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
@@ -6120,7 +6136,7 @@ export component AppWindow inherits Window {
                 k: root.k;
                 active: root.addr-osk;
                 text: root.addr-text;
-                ok-label: "Enregistrer";
+                ok-label: @tr("Enregistrer");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
@@ -6145,7 +6161,7 @@ export component AppWindow inherits Window {
                 y: parent.height - self.height - 28px * root.k;
                 k: root.k;
                 max-w: parent.width - 80px * root.k;
-                text: "Vérification de l'adresse…";
+                text: @tr("Vérification de l'adresse…");
             }
         }
     }
@@ -6161,8 +6177,8 @@ export component AppWindow inherits Window {
         show-home: true;
         enter: root.page-e;
         title-color: root.offline ? #4ade80 : Theme.text;
-        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? "Recherche"
-            : root.screen == "party" ? "Watch party" : "";
+        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? @tr("Recherche")
+            : root.screen == "party" ? @tr("Watch party") : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);
@@ -6405,7 +6421,7 @@ export component AppWindow inherits Window {
         }
 
         if root.sr.loading: Text {
-            text: "Chargement…";
+            text: @tr("Chargement…");
             color: Theme.muted;
             font-size: 22 * srp.u;
             horizontal-alignment: center;
@@ -6484,7 +6500,7 @@ export component AppWindow inherits Window {
                     spacing: 16 * srp.u;
                     height: 50 * srp.u;
                     if root.sr.can-request || root.sr.on-server: ActionButton {
-                        text: root.sr.on-server ? "Voir sur le serveur" : "Demander";
+                        text: root.sr.on-server ? @tr("Voir sur le serveur") : @tr("Demander");
                         font: 18 * srp.u;
                         focused: root.sr-sel == 0;
                         clicked => {
@@ -6492,7 +6508,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     ActionButton {
-                        text: "Fermer";
+                        text: @tr("Fermer");
                         font: 18 * srp.u;
                         focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
                         clicked => {
@@ -6659,7 +6675,7 @@ export component AppWindow inherits Window {
         slow-t := Text {
             x: 50px * root.k;
             height: parent.height;
-            text: "Chargement… (Échap pour annuler)";
+            text: @tr("Chargement… (Échap pour annuler)");
             color: Theme.text;
             font-size: 15px * root.k;
             vertical-alignment: center;
@@ -6740,6 +6756,34 @@ export component AppWindow inherits Window {
             wrap: word-wrap;
             horizontal-alignment: center;
             vertical-alignment: center;
+        }
+    }
+
+    // Démarrage (au-dessus de tout) : vérifications, liaison du logo, puis zoom vers la page suivante.
+    if root.boot-on: BootLogo {
+        k: root.k;
+        state: root.boot-state;
+        labels: root.boot-labels;
+        text: root.boot-text;
+        fail: root.boot-fail;
+        fail-hint: root.boot-fail-hint;
+        phase: root.boot-phase;
+        lang-open: root.boot-lang-open;
+        lang-title: root.boot-lang-title;
+        langs: root.boot-langs;
+        lang-sel <=> root.boot-lang-sel;
+        continue-boot => {
+            root.boot-continue();
+        }
+        lang-chosen(id) => {
+            root.boot-lang(id);
+        }
+        linked => {
+            root.boot-linked();
+        }
+        finished => {
+            root.boot-on = false;
+            root.refocus += 1;
         }
     }
 }

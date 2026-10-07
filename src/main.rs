@@ -1,7 +1,13 @@
+// Version compilée (release) sous Windows : pas de fenêtre de console à côté de l'appli.
+// `--console` en rouvre une (journal), voir `open_console`.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod api;
+mod boot;
 mod config;
 mod discovery;
 mod downloads;
+mod i18n;
 mod mpv;
 mod paths;
 mod player;
@@ -14,13 +20,16 @@ use std::sync::{Arc, Mutex};
 
 use slint::{ComponentHandle, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
+use crate::i18n::{tr, trf};
+
 slint::include_modules!();
 
 // ---------------------------------------------------------------------------
 // Ligne de commande :
-//   turtlefin                              -> écran de connexion (ou session sauvegardée)
+//   turtlefin                              -> « Qui regarde ? » (ou le compte choisi pour le démarrage)
+//   turtlefin "Cody"                       -> compte enregistré « Cody »
 //   turtlefin "Cody" "mot de passe" --tv   -> connexion automatique, plein écran
-//   options : --tv | --desktop | --server=URL
+//   options : --tv | --desktop | --server=URL | --no-intro (pas d'animation) | --console (journal)
 //   le mot de passe peut aussi venir de la variable TURTLEFIN_PASSWORD
 //   (un argument de ligne de commande est visible par les autres processus).
 // ---------------------------------------------------------------------------
@@ -33,15 +42,19 @@ struct Cli {
     test_video: Option<String>,
     /// Lecture directe d'un élément du serveur (essais) : --play=ID[@SECONDES].
     play: Option<String>,
+    /// Pas d'animation de démarrage (logo) : --no-intro.
+    no_intro: bool,
 }
 
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
-    let mut cli = Cli { user: None, pass: None, server: None, tv: None, test_video: None, play: None };
+    let mut cli = Cli { user: None, pass: None, server: None, tv: None, test_video: None, play: None, no_intro: false };
 
     for a in std::env::args().skip(1) {
         match a.as_str() {
             "--tv" => cli.tv = Some(true),
+            "--console" => {}
+            "--no-intro" => cli.no_intro = true,
             "--desktop" => cli.tv = Some(false),
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
@@ -94,6 +107,8 @@ struct App {
     sp: syncplay::Shared,
     /// Fiche en cours d'ouverture : les appuis suivants sur Entrée sont ignorés jusqu'à la fin.
     opening: AtomicBool,
+    /// Démarrage : réponse attendue de l'interface (langue, « continuer », fin de la liaison du logo).
+    boot_wait: boot::Waiter,
     /// Surveillance des adresses du serveur : jeton de la session surveillée (une boucle par session).
     addr_watch: Mutex<String>,
     /// Connexion de la watch party de la session en cours : (jeton, tâche WebSocket, tâche des événements).
@@ -234,17 +249,17 @@ fn human_err(e: &anyhow::Error) -> String {
     eprintln!("turtlefin : {e:#}");
     if let Some(r) = e.downcast_ref::<reqwest::Error>() {
         if r.is_timeout() {
-            return "le serveur met trop de temps à répondre".into();
+            return tr("le serveur met trop de temps à répondre").into();
         }
         if r.is_connect() || r.is_request() {
-            return "le serveur ne répond pas (est-il allumé ? le réseau est-il disponible ?)".into();
+            return tr("le serveur ne répond pas (est-il allumé ? le réseau est-il disponible ?)").into();
         }
         if r.is_decode() {
-            return "réponse du serveur illisible".into();
+            return tr("réponse du serveur illisible").into();
         }
     }
     if e.downcast_ref::<api::Unauthorized>().is_some() {
-        return "session expirée, reconnecte-toi".into();
+        return tr("session expirée, reconnecte-toi").into();
     }
     format!("{e}")
 }
@@ -265,7 +280,7 @@ fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
 ///
 /// Sur le moteur OpenGL de Slint (femtovg), un élément arrondi qui rogne son contenu est dessiné
 /// hors écran puis recollé, à chaque image : avec des dizaines de cartes, le défilement saccade
-/// sur le Pi. Les images sont donc préparées une fois pour toutes au décodage.
+/// sur les petites machines. Les images sont donc préparées une fois pour toutes au décodage.
 #[derive(Clone, Copy)]
 struct Shape {
     w: u32,
@@ -742,7 +757,7 @@ fn login_opened(app: &Arc<App>) {
         let mut tiles: Vec<(String, String, String, String)> = Vec::new();
         if !sid.is_empty() {
             for a in config::accounts().into_iter().filter(|a| a.server_id == sid) {
-                tiles.push((format!("acc:{}", a.user_id), a.user_name, "Enregistré".into(), a.user_id));
+                tiles.push((format!("acc:{}", a.user_id), a.user_name, tr("Enregistré").into(), a.user_id));
             }
             let public: serde_json::Value = if !reachable {
                 serde_json::Value::Null
@@ -760,7 +775,7 @@ fn login_opened(app: &Arc<App>) {
                 tiles.push((format!("pub:{name}"), name.to_string(), String::new(), id.to_string()));
             }
         }
-        tiles.push(("other".into(), "Autre compte".into(), String::new(), String::new()));
+        tiles.push(("other".into(), tr("Autre compte").into(), String::new(), String::new()));
         let rows = tiles.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let cards: Vec<CardData> = rows
@@ -785,7 +800,7 @@ fn login_opened(app: &Arc<App>) {
             }
             // L'écran de connexion reprend le clavier (après le menu, par exemple).
             u.set_refocus(u.get_refocus() + 1);
-            u.set_server_name(if reachable { sname.into() } else { "Serveur injoignable".into() });
+            u.set_server_name(if reachable { sname.into() } else { tr("Serveur injoignable").into() });
         });
         // Avatars (publics, sans connexion), en cercle.
         for (i, (key, _, _, uid)) in tiles.into_iter().enumerate() {
@@ -820,14 +835,14 @@ fn login_pick(app: &Arc<App>, action: String) {
     u.set_error_text("".into());
     u.set_login_pass("".into());
     if action == "other" {
-        u.set_login_title("Ajouter un compte".into());
+        u.set_login_title(tr("Ajouter un compte").into());
         u.set_login_user("".into());
         u.set_login_field(0);
         u.set_login_mode("form".into());
         return;
     }
     if let Some(name) = action.strip_prefix("pub:") {
-        u.set_login_title(format!("Connexion de {name}").into());
+        u.set_login_title(trf("Connexion de {}", &[&name]).into());
         u.set_login_user(name.into());
         u.set_login_field(1);
         u.set_login_mode("form".into());
@@ -849,7 +864,7 @@ fn login_pick(app: &Arc<App>, action: String) {
             Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() => {
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_busy(false);
-                    u.set_error_text(format!("Connexion impossible : {}.", human_err(&e)).into());
+                    u.set_error_text(trf("Connexion impossible : {}.", &[&human_err(&e)]).into());
                 });
             }
             Err(_) => {
@@ -858,11 +873,11 @@ fn login_pick(app: &Arc<App>, action: String) {
                 let name = acc.user_name.clone();
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_busy(false);
-                    u.set_login_title(format!("Reconnexion de {name}").into());
+                    u.set_login_title(trf("Reconnexion de {}", &[&name]).into());
                     u.set_login_user(name.into());
                     u.set_login_field(1);
                     u.set_login_mode("form".into());
-                    u.set_error_text("Session expirée : entre le mot de passe.".into());
+                    u.set_error_text(tr("Session expirée : entre le mot de passe.").into());
                 });
             }
         }
@@ -1001,18 +1016,18 @@ async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>>
         .filter(|v| v.collection_type.as_deref() != Some("livetv"))
         .cloned()
         .collect();
-    push_section(&mut sections, "Mes médias", true, Ok(my_media));
+    push_section(&mut sections, tr("Mes médias"), true, Ok(my_media));
     // « Reprendre » et « À suivre » en vignettes 16:9 avec avancement, comme JellySkin.
     let resume_ids: Vec<String> = resume.as_ref().map(|r| r.iter().map(|i| i.id.clone()).collect()).unwrap_or_default();
     let next = next.map(|n| n.into_iter().filter(|i| !resume_ids.contains(&i.id)).collect());
-    push_section(&mut sections, "Reprendre", true, resume);
-    push_section(&mut sections, "À suivre", true, next);
+    push_section(&mut sections, tr("Reprendre"), true, resume);
+    push_section(&mut sections, tr("À suivre"), true, next);
 
     for v in views.iter().filter(|v| {
         !matches!(v.collection_type.as_deref(), Some("playlists" | "livetv" | "boxsets"))
     }) {
         let latest = client.latest(&v.id).await;
-        push_section(&mut sections, &format!("Récemment ajouté · {}", v.name), false, latest);
+        push_section(&mut sections, &trf("Récemment ajouté · {}", &[&v.name]), false, latest);
     }
     Ok(sections)
 }
@@ -1020,10 +1035,10 @@ async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>>
 async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
     let items = client.favorites().await?;
     let groups: [(&str, &[&str], bool); 5] = [
-        ("Films", &["Movie"], false),
-        ("Séries", &["Series"], false),
+        (tr("Films"), &["Movie"], false),
+        (tr("Séries"), &["Series"], false),
         ("Saisons", &["Season"], false),
-        ("Épisodes", &["Episode"], true),
+        (tr("Épisodes"), &["Episode"], true),
         ("Autres", &["BoxSet", "Video", "MusicVideo"], false),
     ];
     let mut sections: Vec<SectionData> = Vec::new();
@@ -1040,7 +1055,7 @@ async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Resu
     reqs.sort_by(|a, b| b.created.cmp(&a.created)); // plus récentes d'abord
     // Rangées par état de carte (voir SeerrRequest::card) : disponibles d'abord.
     let groups: [(&str, &[i32]); 5] =
-        [("Disponibles", &[4]), ("En attente", &[1]), ("Acceptées", &[2]), ("Refusées", &[3]), ("En échec", &[5])];
+        [(tr("Disponibles"), &[4]), (tr("En attente"), &[1]), (tr("Acceptées"), &[2]), (tr("Refusées"), &[3]), (tr("En échec"), &[5])];
     let mut sections: Vec<SectionData> = Vec::new();
     for (title, states) in groups {
         let cards: Vec<api::CardInfo> = reqs.iter().map(|r| r.card()).filter(|c| states.contains(&c.status)).collect();
@@ -1167,11 +1182,11 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             _ => item.clone(),
         };
         if let Ok(sim) = client2.similar(&base.id).await {
-            push_section(&mut rows, "Plus de ce genre", false, Ok(sim));
+            push_section(&mut rows, tr("Plus de ce genre"), false, Ok(sim));
         }
         if let (Some(_), Some(tmdb)) = (seerr, base.tmdb()) {
             let tv = base.kind == "Series";
-            for (title, kind) in [("Similaires", "similar"), ("Recommandés", "recommendations")] {
+            for (title, kind) in [(tr("Similaires"), "similar"), (tr("Recommandés"), "recommendations")] {
                 let cards = client2.seerr_related(tv, tmdb, kind).await;
                 if !cards.is_empty() {
                     rows.push(SectionData { title: title.into(), landscape: false, cards });
@@ -1248,18 +1263,18 @@ fn short_label(l: &str) -> String {
 /// Nom d'une langue (code ISO 639-2 de Jellyfin), sinon le libellé court de la piste.
 fn lang_name(code: &str, label: &str) -> String {
     let n = match code {
-        "fre" | "fra" => "Français",
-        "eng" => "Anglais",
-        "jpn" => "Japonais",
-        "ger" | "deu" => "Allemand",
-        "spa" => "Espagnol",
-        "ita" => "Italien",
-        "por" => "Portugais",
-        "kor" => "Coréen",
-        "chi" | "zho" => "Chinois",
-        "rus" => "Russe",
-        "ara" => "Arabe",
-        "dut" | "nld" => "Néerlandais",
+        "fre" | "fra" => tr("Français"),
+        "eng" => tr("Anglais"),
+        "jpn" => tr("Japonais"),
+        "ger" | "deu" => tr("Allemand"),
+        "spa" => tr("Espagnol"),
+        "ita" => tr("Italien"),
+        "por" => tr("Portugais"),
+        "kor" => tr("Coréen"),
+        "chi" | "zho" => tr("Chinois"),
+        "rus" => tr("Russe"),
+        "ara" => tr("Arabe"),
+        "dut" | "nld" => tr("Néerlandais"),
         _ => "",
     };
     if n.is_empty() { short_label(label) } else { n.to_string() }
@@ -1273,14 +1288,14 @@ fn open_track_picker(app: &Arc<App>, kind: &str) {
     let cur;
     if kind == "audio" {
         cur = pref.audio.clone();
-        rows.push(TrackData { id: "".into(), label: "Par défaut (fichier)".into(), current: cur.is_empty() });
+        rows.push(TrackData { id: "".into(), label: tr("Par défaut (fichier)").into(), current: cur.is_empty() });
         for (l, t) in &audio {
             rows.push(TrackData { id: l.clone().into(), label: t.clone().into(), current: *l == cur });
         }
     } else {
         cur = pref.sub.clone();
-        rows.push(TrackData { id: "".into(), label: "Par défaut (fichier)".into(), current: cur.is_empty() });
-        rows.push(TrackData { id: "off".into(), label: "Désactivés".into(), current: cur == "off" });
+        rows.push(TrackData { id: "".into(), label: tr("Par défaut (fichier)").into(), current: cur.is_empty() });
+        rows.push(TrackData { id: "off".into(), label: tr("Désactivés").into(), current: cur == "off" });
         for (l, t) in &subs {
             rows.push(TrackData { id: l.clone().into(), label: t.clone().into(), current: *l == cur });
         }
@@ -1304,11 +1319,11 @@ fn pick_track(app: &Arc<App>, kind: &str, lang: &str, label: &str) {
     let Some(u) = app.ui().upgrade() else { return };
     let d = u.get_detail();
     let action = if kind == "audio" { "pick-audio" } else { "pick-sub" };
-    let shown = if lang.is_empty() { "par défaut".to_string() } else if lang == "off" { "désactivés".to_string() } else { lang_name(lang, label) };
+    let shown = if lang.is_empty() { tr("par défaut").to_string() } else if lang == "off" { tr("désactivés").to_string() } else { lang_name(lang, label) };
     for i in 0..d.buttons.row_count() {
         if let Some(mut b) = d.buttons.row_data(i) {
             if b.action == action {
-                b.label = format!("{} : {shown}", if kind == "audio" { "Audio" } else { "Sous-titres" }).into();
+                b.label = format!("{} : {shown}", if kind == "audio" { tr("Audio") } else { tr("Sous-titres") }).into();
                 d.buttons.set_row_data(i, b);
             }
         }
@@ -1375,7 +1390,7 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
             config::set_flag(&id, action == "fav", on, false);
         }
         if let Err(e) = r {
-            let msg = format!("Action impossible : {}", human_err(&e));
+            let msg = trf("Action impossible : {}", &[&human_err(&e)]);
             let _ = app2.ui().upgrade_in_event_loop(move |u| {
                 set(&u, !on);
                 u.set_toast(msg.into());
@@ -1451,10 +1466,10 @@ fn refresh_party(app: &Arc<App>) {
     let group = {
         let s = app.sp.lock().unwrap();
         let st = match s.state.as_str() {
-            "Playing" => "En lecture",
-            "Paused" => "En pause",
-            "Waiting" => "En attente des participants",
-            _ => "Prêt : lance un film ou un épisode",
+            "Playing" => tr("En lecture"),
+            "Paused" => tr("En pause"),
+            "Waiting" => tr("En attente des participants"),
+            _ => tr("Prêt : lance un film ou un épisode"),
         };
         (s.group.clone(), s.participants.clone(), st.to_string(), s.item_id.clone())
     };
@@ -1490,7 +1505,7 @@ fn refresh_party(app: &Arc<App>) {
             let m = u.get_menu_entries();
             if let Some(i) = (0..m.row_count()).find(|&i| m.row_data(i).is_some_and(|e| e.action == "party")) {
                 if let Some(mut e) = m.row_data(i) {
-                    e.label = if group.is_some() { format!("Watch party · {} en ligne", people.len()).into() } else { "Watch party".into() };
+                    e.label = if group.is_some() { trf("Watch party · {} en ligne", &[&people.len()]).into() } else { tr("Watch party").into() };
                     m.set_row_data(i, e);
                 }
             }
@@ -1516,14 +1531,15 @@ fn open_party(app: &Arc<App>) {
 fn party_action(app: &Arc<App>, action: String) {
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
+    let group_name = trf("Watch party de {}", &[&client.user_name]);
     app.rt.spawn(async move {
         let r = match action.as_str() {
-            "create" => syncplay::create(&client, &format!("Watch party de {}", client.user_name)).await,
+            "create" => syncplay::create(&client, &group_name).await,
             "leave" => syncplay::leave(&client).await,
             id => syncplay::join(&client, id).await,
         };
         if let Err(e) = r {
-            let msg = format!("Watch party : {}", human_err(&e));
+            let msg = trf("Watch party : {}", &[&human_err(&e)]);
             let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         }
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
@@ -1573,15 +1589,15 @@ fn search_changed(app: &Arc<App>, text: String) {
         let items = found.unwrap_or_default();
         let mut sections: Vec<SectionData> = Vec::new();
         for (title, kinds, landscape) in [
-            ("Films", &["Movie", "BoxSet"][..], false),
-            ("Séries", &["Series"][..], false),
-            ("Épisodes", &["Episode"][..], true),
+            (tr("Films"), &["Movie", "BoxSet"][..], false),
+            (tr("Séries"), &["Series"][..], false),
+            (tr("Épisodes"), &["Episode"][..], true),
         ] {
             let of: Vec<api::Item> = items.iter().filter(|i| kinds.contains(&i.kind.as_str())).cloned().collect();
             push_section(&mut sections, title, landscape, Ok(of));
         }
         if !from_seerr.is_empty() {
-            sections.push(SectionData { title: "À demander (Seerr)".into(), landscape: false, cards: from_seerr });
+            sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, cards: from_seerr });
         }
         present_rows(&app2, &client, sections, true);
     });
@@ -1597,7 +1613,7 @@ fn random_pick(app: &Arc<App>) {
                 let _ = app2.ui().upgrade_in_event_loop(move |_| push_detail(&a, it.id));
             }
             _ => {
-                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast("Plus rien à découvrir : tout a été vu !".into()));
+                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Plus rien à découvrir : tout a été vu !").into()));
             }
         }
     });
@@ -1620,7 +1636,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
         let d = match client.seerr_details(tv, tmdb).await {
             Ok(d) => d,
             Err(e) => {
-                let msg = format!("Seerr : {}", human_err(&e));
+                let msg = trf("Seerr : {}", &[&human_err(&e)]);
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_sr_open(false);
                     u.set_toast(msg.into());
@@ -1630,10 +1646,10 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
         };
         *app2.seerr_page.lock().unwrap() = Some(d.clone());
         let (status_text, can_request) = match d.status {
-            5 => ("Disponible sur le serveur", false),
-            4 => ("Partiellement disponible", true),
-            3 => ("En cours de traitement", false),
-            2 => ("Demande en attente", false),
+            5 => (tr("Disponible sur le serveur"), false),
+            4 => (tr("Partiellement disponible"), true),
+            3 => (tr("En cours de traitement"), false),
+            2 => (tr("Demande en attente"), false),
             _ => ("", true),
         };
         let cast: Vec<api::CardInfo> = d
@@ -1736,10 +1752,10 @@ fn seerr_action(app: &Arc<App>) {
             let mut p = u.get_sr();
             match r {
                 Ok(()) => {
-                    p.status = "Demande envoyée".into();
+                    p.status = tr("Demande envoyée").into();
                     p.can_request = false;
                 }
-                Err(e) => p.status = format!("Demande impossible : {}", human_err(&e)).into(),
+                Err(e) => p.status = trf("Demande impossible : {}", &[&human_err(&e)]).into(),
             }
             u.set_sr(p);
         });
@@ -1809,7 +1825,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
         let (items, total) = match page {
             Ok(p) => p,
             Err(e) => {
-                let msg = format!("Bibliothèque illisible : {}", human_err(&e));
+                let msg = trf("Bibliothèque illisible : {}", &[&human_err(&e)]);
                 let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
                 return;
             }
@@ -1950,7 +1966,7 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
             let hits = discovery::resolve(input).await;
             match hits.len() {
                 0 => {
-                    let msg = format!("Aucun serveur Jellyfin ne répond à « {} ».", input.trim());
+                    let msg = trf("Aucun serveur Jellyfin ne répond à « {} ».", &[&input.trim()]);
                     let _ = app2.ui().upgrade_in_event_loop(move |u| {
                         u.set_manual_busy(false);
                         u.set_manual_error(msg.into());
@@ -1983,7 +1999,7 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
         if ids.len() == 2 && ids[0] != ids[1] {
             let _ = app2.ui().upgrade_in_event_loop(|u| {
                 u.set_manual_busy(false);
-                u.set_manual_error("Les deux adresses mènent à deux serveurs différents.".into());
+                u.set_manual_error(tr("Les deux adresses mènent à deux serveurs différents.").into());
             });
             return;
         }
@@ -1991,7 +2007,7 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
         if l.is_empty() && r.is_empty() {
             let _ = app2.ui().upgrade_in_event_loop(|u| {
                 u.set_manual_busy(false);
-                u.set_manual_error("Indique au moins une adresse.".into());
+                u.set_manual_error(tr("Indique au moins une adresse.").into());
             });
             return;
         }
@@ -2082,8 +2098,8 @@ fn apply_user_defaults(cfg: &serde_json::Value) {
     );
 }
 
-fn label_of<'a>(list: &[(&'a str, &'a str)], v: &str) -> &'a str {
-    list.iter().find(|(k, _)| *k == v).map(|(_, l)| *l).unwrap_or(list[0].1)
+fn label_of(list: &[(&str, &'static str)], v: &str) -> &'static str {
+    tr(list.iter().find(|(k, _)| *k == v).map(|(_, l)| *l).unwrap_or(list[0].1))
 }
 
 /// Lignes de la catégorie affichée : (clé, libellé, valeur, type « toggle » / « choice » / « action » / « info »).
@@ -2131,61 +2147,66 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 let g = app.avatars.lock().unwrap();
                 (g.iter().map(|g| g.items.len()).sum::<usize>(), g.len())
             };
-            let place = if srv.is_empty() { "Hors ligne".to_string() } else { format!("Connecté à {srv}") };
+            let place = if srv.is_empty() { tr("Hors ligne").to_string() } else { trf("Connecté à {}", &[&srv]) };
             let mut v = vec![row("profile", &who, &place, String::new(), "profile", false)];
             if n > 0 {
                 let hint = if groups > 1 {
-                    format!("{n} avatars proposés par le serveur, en {groups} catégories.")
+                    trf("{} avatars proposés par le serveur, en {} catégories.", &[&n, &groups])
                 } else {
-                    format!("{n} avatars proposés par le serveur.")
+                    trf("{} avatars proposés par le serveur.", &[&n])
                 };
-                v.push(row("avatar", "Photo de profil", &hint, "Changer".into(), "action", false));
+                v.push(row("avatar", tr("Photo de profil"), &hint, tr("Changer").into(), "action", false));
             } else {
-                v.push(row("info", "", "Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide).", String::new(), "info", false));
+                v.push(row("info", "", tr("Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide)."), String::new(), "info", false));
             }
-            v.push(row("switch", "Changer de compte", "Les comptes enregistrés restent disponibles.", String::new(), "action", false));
-            v.push(row("logout", "Se déconnecter", "Le compte est retiré de cet appareil.", String::new(), "action", false));
+            let p = config::ui_prefs();
+            let me = app.client().map(|c| c.user_id).unwrap_or_default();
+            let on = !me.is_empty() && p.autostart_user == me && p.autostart_server == saved.server_id;
+            v.push(row("autostart", tr("Ouvrir ce compte au démarrage"), tr("Sinon, Turtlefin démarre sur « Qui regarde ? »."), String::new(), "toggle", on));
+            v.push(row("switch", tr("Changer de compte"), tr("Les comptes enregistrés restent disponibles."), String::new(), "action", false));
+            v.push(row("logout", tr("Se déconnecter"), tr("Le compte est retiré de cet appareil."), String::new(), "action", false));
             v
         }
         1 => vec![
-            row("alang", "Langue audio préférée", "Choisie à l'ouverture d'un film ou d'un épisode, si elle existe.", label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
-            row("defaudio", "Piste audio par défaut du fichier", "Sans langue préférée, la piste marquée « par défaut » est lue.", String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
-            row("autonext", "Épisode suivant automatique", "À la fin d'un épisode, le suivant démarre tout seul.", String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
-            row("autoskip", "Passer l'intro automatiquement", "Quand le serveur connaît l'intro (segments), elle est sautée sans demander.", String::new(), "toggle", prefs.auto_skip_intro),
-            row("info", "", "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire.", String::new(), "info", false),
+            row("alang", tr("Langue audio préférée"), tr("Choisie à l'ouverture d'un film ou d'un épisode, si elle existe."), label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
+            row("defaudio", tr("Piste audio par défaut du fichier"), tr("Sans langue préférée, la piste marquée « par défaut » est lue."), String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
+            row("autonext", tr("Épisode suivant automatique"), tr("À la fin d'un épisode, le suivant démarre tout seul."), String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
+            row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
+            row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
         ],
         2 => vec![
-            row("slang", "Langue des sous-titres préférée", "Utilisée selon le mode ci-dessous.", label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
-            row("submode", "Quand afficher les sous-titres", "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue.", label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
-            row("subsize", "Taille des sous-titres", "Appliquée à la prochaine vidéo.", sub_size_label(prefs.sub_scale).into(), "choice", false),
+            row("slang", tr("Langue des sous-titres préférée"), tr("Utilisée selon le mode ci-dessous."), label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
+            row("submode", tr("Quand afficher les sous-titres"), tr("Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."), label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
+            row("subsize", tr("Taille des sous-titres"), tr("Appliquée à la prochaine vidéo."), tr(sub_size_label(prefs.sub_scale)).into(), "choice", false),
         ],
         3 => vec![
-            row("tvmode", "Interface TV", "Grands éléments et plein écran, pour la télé (--tv et --desktop priment).", String::new(), "toggle", app.tv()),
-            row("backdrop", "Fond d'écran du média sélectionné", "Image floutée derrière les pages. À couper si l'appareil est lent.", String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
-            row("ratings", "Notes sur les affiches", "La note de la communauté (★) en bas à droite des affiches.", String::new(), "toggle", prefs.show_ratings),
-            row("marquee", "Faire défiler les noms trop longs", "Sur l'élément sélectionné seulement.", String::new(), "toggle", prefs.marquee),
-            row("clock", "Afficher l'heure", "En haut à droite de l'écran.", String::new(), "toggle", prefs.show_clock),
-            row("still_gifs", "Avatars animés figés", "Les avatars GIF restent sur leur première image (moins de calcul).", String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
+            row("language", tr("Langue de l'interface"), "Language", crate::i18n::LANGUAGES.iter().find(|l| l.0 == prefs.language).map(|l| l.1).unwrap_or("Français").into(), "choice", false),
+            row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
+            row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
+            row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
+            row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
+            row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
+            row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
         ],
         4 => {
             let saved = config::load();
             let current = app.client().map(|c| c.server).unwrap_or_default();
-            let main = if saved.server_main.is_empty() { "Aucune".to_string() } else { saved.server_main.clone() };
+            let main = if saved.server_main.is_empty() { tr("Aucune").to_string() } else { saved.server_main.clone() };
             let backup = if saved.server_backup.is_empty() {
-                "Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)".to_string()
+                tr("Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)").to_string()
             } else {
-                format!("{} · essayée quand la principale ne répond pas", saved.server_backup)
+                trf("{} · essayée quand la principale ne répond pas", &[&saved.server_backup])
             };
             let mut v = vec![
-                row("addr_main", "Adresse principale", &main, "Modifier".into(), "action", false),
-                row("addr_backup", "Adresse de secours", &backup, "Modifier".into(), "action", false),
+                row("addr_main", tr("Adresse principale"), &main, tr("Modifier").into(), "action", false),
+                row("addr_backup", tr("Adresse de secours"), &backup, tr("Modifier").into(), "action", false),
             ];
             if !saved.server_main.is_empty() && !saved.server_backup.is_empty() {
-                v.push(row("swap", "Échanger les deux adresses", "L'adresse de secours devient la principale.", String::new(), "action", false));
+                v.push(row("swap", tr("Échanger les deux adresses"), tr("L'adresse de secours devient la principale."), String::new(), "action", false));
             }
-            let now = if current.is_empty() { "Hors ligne : aucune adresse ne répond.".to_string() } else { format!("Connecté en ce moment par {current}") };
+            let now = if current.is_empty() { tr("Hors ligne : aucune adresse ne répond.").to_string() } else { trf("Connecté en ce moment par {}", &[&current]) };
             v.push(row("info", "", &now, String::new(), "info", false));
-            v.push(row("server", "Rechercher un autre serveur", "Serveurs Jellyfin trouvés sur tes réseaux (local et VPN).", String::new(), "action", false));
+            v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux (local et VPN)."), String::new(), "action", false));
             v
         }
         5 => {
@@ -2195,26 +2216,26 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             let commit = update::commit();
             let short = &commit[..commit.len().min(7)];
             let (label, hint, value) = match up.as_str() {
-                "checking" => ("Rechercher une mise à jour", "Recherche sur GitHub…".to_string(), String::new()),
-                "uptodate" => ("Rechercher une mise à jour", "Turtlefin est à jour.".to_string(), "À jour".to_string()),
-                "ready" => ("Redémarrer Turtlefin", "La nouvelle version est prête.".to_string(), String::new()),
+                "checking" => (tr("Rechercher une mise à jour"), tr("Recherche sur GitHub…").to_string(), String::new()),
+                "uptodate" => (tr("Rechercher une mise à jour"), tr("Turtlefin est à jour.").to_string(), tr("À jour").to_string()),
+                "ready" => (tr("Redémarrer Turtlefin"), tr("La nouvelle version est prête.").to_string(), String::new()),
                 s if s.starts_with("available:") => {
                     let rest = &s["available:".len()..];
                     let (label, notes) = rest.split_once('|').unwrap_or((rest, ""));
-                    let hint = if notes.is_empty() { "Une nouvelle version est disponible.".to_string() } else { format!("Nouveautés : {}", notes.replace('|', " · ")) };
-                    ("Mettre à jour", hint, label.to_string())
+                    let hint = if notes.is_empty() { tr("Une nouvelle version est disponible.").to_string() } else { trf("Nouveautés : {}", &[&notes.replace('|', " · ")]) };
+                    (tr("Mettre à jour"), hint, label.to_string())
                 }
-                s if s.starts_with("installing:") => ("Mise à jour en cours", s["installing:".len()..].to_string(), String::new()),
-                s if s.starts_with("error:") => ("Rechercher une mise à jour", format!("Échec : {}", &s["error:".len()..]), String::new()),
-                _ => ("Rechercher une mise à jour", format!("Compare cette version à celle publiée sur GitHub ({}).", update::kind_label()), String::new()),
+                s if s.starts_with("installing:") => (tr("Mise à jour en cours"), s["installing:".len()..].to_string(), String::new()),
+                s if s.starts_with("error:") => (tr("Rechercher une mise à jour"), trf("Échec : {}", &[&&s["error:".len()..]]), String::new()),
+                _ => (tr("Rechercher une mise à jour"), trf("Compare cette version à celle publiée sur GitHub ({}).", &[&update::kind_label()]), String::new()),
             };
             vec![
-                row("info", "", &format!("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", env!("CARGO_PKG_VERSION"), if short.is_empty() { "version locale" } else { short }), String::new(), "info", false),
+                row("info", "", &trf("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", &[&env!("CARGO_PKG_VERSION"), &if short.is_empty() { "version locale" } else { short }]), String::new(), "info", false),
                 row("update", label, &hint, value, "action", false),
-                row("info", "", &format!("Serveur : {srv}"), String::new(), "info", false),
-                row("info", "", &format!("Appareil : {}", app.device_id), String::new(), "info", false),
-                row("clearcache", "Vider le cache d'images", "Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés.", format!("{} Mo", size >> 20), "action", false),
-                row("quit", "Fermer Turtlefin", "Quitte l'application.", String::new(), "action", false),
+                row("info", "", &trf("Serveur : {}", &[&srv]), String::new(), "info", false),
+                row("info", "", &trf("Appareil : {}", &[&app.device_id]), String::new(), "info", false),
+                row("clearcache", tr("Vider le cache d'images"), tr("Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés."), format!("{} Mo", size >> 20), "action", false),
+                row("quit", tr("Fermer Turtlefin"), tr("Quitte l'application."), String::new(), "action", false),
             ]
         }
         _ => Vec::new(),
@@ -2238,18 +2259,23 @@ fn settings_step(rows: &ModelRc<SettingRow>, sel: i32, dir: i32) -> i32 {
 fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, String)>, String)> {
     let c = app.user_cfg.lock().unwrap().clone();
     let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
-    let own = |l: &[(&str, &str)]| l.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+    let own = |l: &[(&str, &'static str)]| l.iter().map(|(k, v)| (k.to_string(), tr(v).to_string())).collect::<Vec<_>>();
     match key {
-        "alang" => Some(("Langue audio préférée".into(), own(&LANGS), s("AudioLanguagePreference"))),
-        "slang" => Some(("Langue des sous-titres".into(), own(&LANGS), s("SubtitleLanguagePreference"))),
-        "submode" => Some(("Quand afficher les sous-titres".into(), own(&SUB_MODES), {
+        "alang" => Some((tr("Langue audio préférée").into(), own(&LANGS), s("AudioLanguagePreference"))),
+        "slang" => Some((tr("Langue des sous-titres").into(), own(&LANGS), s("SubtitleLanguagePreference"))),
+        "submode" => Some((tr("Quand afficher les sous-titres").into(), own(&SUB_MODES), {
             let m = s("SubtitleMode");
             if m.is_empty() { "Default".into() } else { m }
         })),
+        "language" => Some((
+            tr("Langue de l'interface").into(),
+            crate::i18n::LANGUAGES.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            config::ui_prefs().language,
+        )),
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
-            Some(("Taille des sous-titres".into(), own(&SUB_SIZES), v.into()))
+            Some((tr("Taille des sous-titres").into(), own(&SUB_SIZES), v.into()))
         }
         _ => None,
     }
@@ -2270,6 +2296,14 @@ fn open_choice(app: &Arc<App>, key: &str) {
 
 /// Valeur choisie dans la liste d'un réglage.
 fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
+    if key == "language" {
+        let mut p = config::ui_prefs();
+        p.language = value.to_string();
+        config::save_ui_prefs(&p);
+        i18n::set_language(value);
+        refresh_settings(app);
+        return;
+    }
     if key == "subsize" {
         let mut p = config::ui_prefs();
         p.sub_scale = value.parse().unwrap_or(1.0);
@@ -2300,7 +2334,7 @@ fn save_user_cfg(app: &Arc<App>, cfg: serde_json::Value) {
         let app2 = app.clone();
         app.rt.spawn(async move {
             if let Err(e) = client.set_user_config(&cfg).await {
-                let msg = format!("Réglage non enregistré : {}", human_err(&e));
+                let msg = trf("Réglage non enregistré : {}", &[&human_err(&e)]);
                 let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             }
         });
@@ -2328,7 +2362,7 @@ fn update_action(app: &Arc<App>) {
     }
     let a = app.clone();
     if state.starts_with("available:") {
-        set(&a, "installing:Préparation…".into());
+        set(&a, format!("installing:{}", tr("Préparation…")));
         std::thread::spawn(move || {
             let r = update::install(|step| set(&a, format!("installing:{step}")));
             match r {
@@ -2420,7 +2454,7 @@ fn group_avatars(list: Vec<(String, String, String)>) -> Vec<AvatarGroup> {
     let mut groups: Vec<AvatarGroup> = Vec::new();
     for (id, name, cat) in list {
         let g = avatar_group(&name, &cat);
-        let name = if uuid::Uuid::parse_str(name.trim()).is_ok() { "Sans nom".to_string() } else { name };
+        let name = if uuid::Uuid::parse_str(name.trim()).is_ok() { tr("Sans nom").to_string() } else { name };
         match groups.iter_mut().find(|x| x.name.to_lowercase() == g.to_lowercase()) {
             Some(x) => x.items.push((id, name)),
             None => {
@@ -2453,7 +2487,7 @@ fn load_avatars(app: &Arc<App>) {
         let a3 = app2.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let rows: Vec<CardData> =
-                groups.iter().map(|g| CardData { id: g.name.clone().into(), title: g.name.clone().into(), count: g.items.len() as i32, ..Default::default() }).collect();
+                groups.iter().map(|g| CardData { id: g.name.clone().into(), title: if g.name == NO_CATEGORY { tr(NO_CATEGORY).into() } else { g.name.clone().into() }, count: g.items.len() as i32, ..Default::default() }).collect();
             u.set_av_total(groups.iter().map(|g| g.items.len() as i32).sum());
             u.set_av_groups(ModelRc::new(VecModel::from(rows)));
             if u.get_screen().as_str() == "settings" {
@@ -2639,9 +2673,9 @@ fn set_avatar(app: &Arc<App>, id: String) {
         let msg = match r {
             Ok(()) => {
                 load_header_avatar(&app2, &client);
-                "Photo de profil modifiée.".to_string()
+                tr("Photo de profil modifiée.").to_string()
             }
-            Err(e) => format!("Avatar impossible : {}", human_err(&e)),
+            Err(e) => trf("Avatar impossible : {}", &[&human_err(&e)]),
         };
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             u.set_av_busy("".into());
@@ -2656,7 +2690,21 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "language" => open_choice(app, key),
+        "autostart" => {
+            let me = app.client().map(|c| c.user_id).unwrap_or_default();
+            let sid = config::load().server_id;
+            let mut p = config::ui_prefs();
+            if p.autostart_user == me && p.autostart_server == sid {
+                p.autostart_user.clear();
+                p.autostart_server.clear();
+            } else {
+                p.autostart_user = me;
+                p.autostart_server = sid;
+            }
+            config::save_ui_prefs(&p);
+            refresh_settings(app);
+        }
         "defaudio" | "autonext" => {
             let mut cfg = app.user_cfg.lock().unwrap().clone();
             if !cfg.is_object() {
@@ -2688,7 +2736,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 }
             }
             if let Some(u) = app.ui().upgrade() {
-                u.set_toast("Cache d'images vidé.".into());
+                u.set_toast(tr("Cache d'images vidé.").into());
             }
             refresh_settings(app);
         }
@@ -2735,7 +2783,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             std::mem::swap(&mut s.server_main, &mut s.server_backup);
             config::save(&s);
             if let Some(u) = app.ui().upgrade() {
-                u.set_toast("Adresses échangées.".into());
+                u.set_toast(tr("Adresses échangées.").into());
             }
             refresh_settings(app);
             repick_server(app);
@@ -2799,9 +2847,9 @@ pub(crate) async fn check_address(app: &Arc<App>) -> bool {
     s2.server = best.clone();
     config::save(&s2);
     let msg = if best == s.server_main {
-        "Adresse principale de nouveau joignable : retour dessus.".to_string()
+        tr("Adresse principale de nouveau joignable : retour dessus.").to_string()
     } else {
-        format!("Adresse principale injoignable : passage par l'adresse de secours ({best}).")
+        trf("Adresse principale injoignable : passage par l'adresse de secours ({}).", &[&best])
     };
     eprintln!("turtlefin : {msg}");
     let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
@@ -2844,7 +2892,7 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
     };
     if text.is_empty() {
         if which == 1 {
-            fail(app, "L'adresse principale ne peut pas être vide.".into());
+            fail(app, tr("L'adresse principale ne peut pas être vide.").into());
             return;
         }
         let mut s = config::load();
@@ -2853,7 +2901,7 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
         config::save(&s);
         if let Some(u) = app.ui().upgrade() {
             u.set_addr_edit(0);
-            u.set_toast("Adresse de secours retirée.".into());
+            u.set_toast(tr("Adresse de secours retirée.").into());
         }
         refresh_settings(app);
         repick_server(app);
@@ -2868,17 +2916,17 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
         let hits = discovery::resolve(&text).await;
         // http et https répondent : https (son certificat a été accepté).
         let Some((url, id, name)) = hits.iter().find(|h| h.0.starts_with("https://")).or(hits.first()).cloned() else {
-            fail(&app2, format!("Aucun serveur Jellyfin ne répond à « {text} »."));
+            fail(&app2, trf("Aucun serveur Jellyfin ne répond à « {} ».", &[&text]));
             return;
         };
         let mut s = config::load();
         if !s.server_id.is_empty() && id != s.server_id {
-            fail(&app2, format!("Cette adresse mène à un autre serveur ({name}). Pour en changer : « Rechercher un autre serveur »."));
+            fail(&app2, trf("Cette adresse mène à un autre serveur ({}). Pour en changer : « Rechercher un autre serveur ».", &[&name]));
             return;
         }
         let other = if which == 1 { &s.server_backup } else { &s.server_main };
         if *other == url {
-            fail(&app2, if which == 1 { "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses ».".into() } else { "C'est déjà l'adresse principale.".into() });
+            fail(&app2, if which == 1 { tr("C'est déjà l'adresse de secours : utilise « Échanger les deux adresses ».").into() } else { tr("C'est déjà l'adresse principale.").into() });
             return;
         }
         if which == 1 {
@@ -2892,7 +2940,7 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             u.set_addr_busy(false);
             u.set_addr_edit(0);
-            u.set_toast(format!("Adresse enregistrée : {url}").into());
+            u.set_toast(trf("Adresse enregistrée : {}", &[&url]).into());
             refresh_settings(&a3);
         });
         repick_server(&app2);
@@ -2906,24 +2954,24 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
     *app.views.lock().unwrap() = views.to_vec();
     let has_requests = app.seerr_user.lock().unwrap().is_some();
     let mut e: Vec<(String, String, bool)> = vec![
-        ("Navigation".into(), String::new(), true),
-        ("Accueil".into(), "home".into(), false),
+        (tr("Navigation").into(), String::new(), true),
+        (tr("Accueil").into(), "home".into(), false),
     ];
     if has_requests {
-        e.push(("Demandes".into(), "requests".into(), false));
+        e.push((tr("Demandes").into(), "requests".into(), false));
     }
-    e.push(("Téléchargements".into(), "downloads".into(), false));
-    e.push(("Watch party".into(), "party".into(), false));
-    e.push(("Bibliothèques".into(), String::new(), true));
+    e.push((tr("Téléchargements").into(), "downloads".into(), false));
+    e.push((tr("Watch party").into(), "party".into(), false));
+    e.push((tr("Bibliothèques").into(), String::new(), true));
     for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
         e.push((v.name.clone(), format!("lib:{}", v.id), false));
     }
-    e.push(("Compte".into(), String::new(), true));
-    for (label, action) in [("Changer de compte", "switch"), ("Sélectionner un serveur", "server"), ("Se déconnecter", "logout")] {
+    e.push((tr("Compte").into(), String::new(), true));
+    for (label, action) in [(tr("Changer de compte"), "switch"), (tr("Sélectionner un serveur"), "server"), (tr("Se déconnecter"), "logout")] {
         e.push((label.into(), action.into(), false));
     }
-    e.push(("Application".into(), String::new(), true));
-    for (label, action) in [("Paramètres", "settings"), ("Fermer Turtlefin", "quit")] {
+    e.push((tr("Application").into(), String::new(), true));
+    for (label, action) in [(tr("Paramètres"), "settings"), (tr("Fermer Turtlefin"), "quit")] {
         e.push((label.into(), action.into(), false));
     }
     let _ = app.ui().upgrade_in_event_loop(move |u| {
@@ -2949,7 +2997,7 @@ fn push_detail(app: &Arc<App>, id: String) {
     }
     if id.is_empty() {
         if let Some(u) = app.ui().upgrade() {
-            u.set_toast("Pas (encore) dans ta bibliothèque Jellyfin.".into());
+            u.set_toast(tr("Pas (encore) dans ta bibliothèque Jellyfin.").into());
         }
         return;
     }
@@ -3095,9 +3143,9 @@ async fn add_missing_seasons_button(app: Arc<App>, client: api::Client, id: Stri
     }
     let n = d.missing_seasons.len();
     let label = if n == 1 {
-        format!("Demander la saison {}", d.missing_seasons[0])
+        trf("Demander la saison {}", &[&d.missing_seasons[0]])
     } else {
-        format!("Demander les {n} saisons manquantes")
+        trf("Demander les {} saisons manquantes", &[&n])
     };
     *app.missing_seasons.lock().unwrap() = (id.clone(), tmdb, d.missing_seasons);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
@@ -3126,8 +3174,8 @@ fn request_missing_seasons(app: &Arc<App>) {
         let list = seasons.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ");
         let ok = r.is_ok();
         let msg = match r {
-            Ok(()) => format!("Demande envoyée à Seerr : saison(s) {list}."),
-            Err(e) => format!("Demande refusée par Seerr : {}", human_err(&e)),
+            Ok(()) => trf("Demande envoyée à Seerr : saison(s) {}.", &[&list]),
+            Err(e) => trf("Demande refusée par Seerr : {}", &[&human_err(&e)]),
         };
         if ok {
             a.missing_seasons.lock().unwrap().2.clear();
@@ -3140,7 +3188,7 @@ fn request_missing_seasons(app: &Arc<App>) {
             }
             if let Some(m) = detail.buttons.as_any().downcast_ref::<VecModel<ButtonData>>() {
                 if let Some(i) = (0..m.row_count()).find(|&i| m.row_data(i).is_some_and(|b| b.action.as_str() == "seerr-missing")) {
-                    m.set_row_data(i, ButtonData { label: "Saisons demandées".into(), action: "".into(), icon: "".into(), active: true });
+                    m.set_row_data(i, ButtonData { label: tr("Saisons demandées").into(), action: "".into(), icon: "".into(), active: true });
                 }
             }
         });
@@ -3263,14 +3311,14 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let mut client = client;
     let mut res = tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
         .await
-        .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")));
+        .unwrap_or_else(|_| Err(anyhow::anyhow!("{}", tr("le serveur ne répond pas"))));
     // Échec réseau : l'adresse de secours répond peut-être (bascule, puis un nouvel essai).
     if res.as_ref().is_err_and(|e| e.downcast_ref::<api::Unauthorized>().is_none()) && check_address(&app).await {
         if let Some(c) = app.client() {
             client = c;
             res = tokio::time::timeout(std::time::Duration::from_secs(10), client.item(&id))
                 .await
-                .unwrap_or_else(|_| Err(anyhow::anyhow!("le serveur ne répond pas")));
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("{}", tr("le serveur ne répond pas"))));
         }
     }
     let item = match res {
@@ -3286,7 +3334,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             // On annule cette ouverture : la page d'où l'on vient est toujours affichée (l'écran ne
             // change qu'une fois la fiche chargée), l'image partagée revole vers sa carte.
             app.stack.lock().unwrap().pop();
-            let msg = format!("Impossible d'ouvrir la fiche : {}", human_err(&e));
+            let msg = trf("Impossible d'ouvrir la fiche : {}", &[&human_err(&e)]);
             let a = app.clone();
             let _ = ui.upgrade_in_event_loop(move |u| {
                 sync_can_back(&a);
@@ -3338,10 +3386,10 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let landscape = !children.is_empty() && children.iter().all(|c| c.kind == "Episode");
     let child_cards: Vec<api::CardInfo> = children.iter().map(|c| c.child_card()).collect();
     let children_title = match item.kind.as_str() {
-        "Series" => "Saisons".to_string(),
-        "Season" => "Épisodes".to_string(),
-        _ if truncated => format!("Contenu · {limit} premiers"),
-        _ => "Contenu".to_string(),
+        "Series" => tr("Saisons").to_string(),
+        "Season" => tr("Épisodes").to_string(),
+        _ if truncated => trf("Contenu · {} premiers", &[&limit]),
+        _ => tr("Contenu").to_string(),
     };
     let next_card = next.as_ref().map(|n| (n.id.clone(), n.titles().1, n.child_card()));
     let (next_id, next_title, next_sub) = match &next_card {
@@ -3359,15 +3407,15 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             list.iter().find(|(l, _)| l == lang).map(|(_, t)| t.clone())
         };
         if audio_streams.len() > 1 {
-            let label = lang_label(&audio_streams, &pref.audio).map(|l| lang_name(&pref.audio, &l)).unwrap_or_else(|| "par défaut".into());
-            buttons.push((format!("Audio : {label}"), "pick-audio".into(), String::new(), false));
+            let label = lang_label(&audio_streams, &pref.audio).map(|l| lang_name(&pref.audio, &l)).unwrap_or_else(|| tr("par défaut").into());
+            buttons.push((trf("Audio : {}", &[&label]), "pick-audio".into(), String::new(), false));
         }
         if !sub_streams.is_empty() {
             let label = match pref.sub.as_str() {
-                "off" => "désactivés".to_string(),
-                l => lang_label(&sub_streams, l).map(|t| lang_name(l, &t)).unwrap_or_else(|| "par défaut".into()),
+                "off" => tr("désactivés").to_string(),
+                l => lang_label(&sub_streams, l).map(|t| lang_name(l, &t)).unwrap_or_else(|| tr("par défaut").into()),
             };
-            buttons.push((format!("Sous-titres : {label}"), "pick-sub".into(), String::new(), false));
+            buttons.push((trf("Sous-titres : {}", &[&label]), "pick-sub".into(), String::new(), false));
         }
     }
     *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
@@ -3574,25 +3622,25 @@ async fn resolve_playable(client: &api::Client, item: api::Item) -> anyhow::Resu
             let first = eps
                 .into_iter()
                 .next()
-                .ok_or_else(|| anyhow::anyhow!("Cette série n'a aucun épisode"))?;
+                .ok_or_else(|| anyhow::anyhow!("{}", tr("Cette série n'a aucun épisode")))?;
             client.item(&first.id).await
         }
         "Season" => {
             let series_id = item
                 .series_id
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("Saison sans série associée"))?;
+                .ok_or_else(|| anyhow::anyhow!("{}", tr("Saison sans série associée")))?;
             let eps = client.episodes(&series_id, Some(&item.id)).await?;
             let pick = eps
                 .iter()
                 .find(|e| !e.user_data.as_ref().map(|u| u.played).unwrap_or(false))
                 .or(eps.first())
                 .cloned()
-                .ok_or_else(|| anyhow::anyhow!("Cette saison n'a aucun épisode"))?;
+                .ok_or_else(|| anyhow::anyhow!("{}", tr("Cette saison n'a aucun épisode")))?;
             client.item(&pick.id).await
         }
         "Movie" | "Episode" | "Video" | "MusicVideo" => Ok(item),
-        other => Err(anyhow::anyhow!("Impossible de lancer la lecture d'un élément de type {other}")),
+        other => Err(anyhow::anyhow!("{}", trf("Impossible de lancer la lecture d'un élément de type {}", &[&other]))),
     }
 }
 
@@ -3627,7 +3675,7 @@ fn sync_offline_plays(app: &Arc<App>, client: &api::Client) {
     app.rt.spawn(async move {
         let n = downloads::sync(&c).await;
         if n > 0 {
-            let msg = if n == 1 { "1 changement fait hors ligne envoyé au serveur.".to_string() } else { format!("{n} changements faits hors ligne envoyés au serveur.") };
+            let msg = if n == 1 { tr("1 changement fait hors ligne envoyé au serveur.").to_string() } else { trf("{} changements faits hors ligne envoyés au serveur.", &[&n]) };
             let _ = ui.upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         }
     });
@@ -3644,7 +3692,7 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
         if let Ok(t) = target {
             let start = t.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).unwrap_or(0.0);
             if let Err(e) = syncplay::play(&client, &t.id, start).await {
-                let msg = format!("Watch party : {}", human_err(&e));
+                let msg = trf("Watch party : {}", &[&human_err(&e)]);
                 let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             }
         }
@@ -3705,7 +3753,7 @@ async fn play_flow_with(
     app.home_stale.store(true, Ordering::SeqCst);
 
     let go_home_after = matches!(result, Ok(player::Exit::Home));
-    let msg = result.err().map(|e| format!("Lecture impossible : {}", human_err(&e)));
+    let msg = result.err().map(|e| trf("Lecture impossible : {}", &[&human_err(&e)]));
     let top = app.stack.lock().unwrap().last().cloned();
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
@@ -3727,7 +3775,29 @@ async fn play_flow_with(
 }
 
 // ---------------------------------------------------------------------------
+/// Windows : journal dans une console, seulement si demandé (`--console`). Lancé depuis un
+/// terminal, l'appli écrit dans ce terminal ; sinon une fenêtre de console s'ouvre.
+fn open_console() {
+    #[cfg(all(windows, not(debug_assertions)))]
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn AttachConsole(pid: u32) -> i32;
+            fn AllocConsole() -> i32;
+        }
+        // SAFETY : appels Win32 sans pointeur.
+        unsafe {
+            if AttachConsole(u32::MAX) == 0 {
+                AllocConsole();
+            }
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    if std::env::args().any(|a| a == "--console") {
+        open_console();
+    }
     let cli = parse_cli();
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -3753,7 +3823,18 @@ fn main() -> anyhow::Result<()> {
             false
         }
     };
-    let prefs = config::ui_prefs();
+    let mut prefs = config::ui_prefs();
+    // Langue choisie dans l'installeur Windows (fichier « language » à côté de l'exécutable) :
+    // reprise au premier lancement, l'animation de démarrage ne la redemande pas.
+    if prefs.language.is_empty() {
+        if let Some(code) = i18n::installer_language() {
+            prefs.language = code;
+            config::save_ui_prefs(&prefs);
+        }
+    }
+    if !prefs.language.is_empty() {
+        i18n::set_language(&prefs.language);
+    }
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
     if tv {
@@ -3784,6 +3865,7 @@ fn main() -> anyhow::Result<()> {
         sp: Arc::default(),
         sp_conn: Mutex::new(None),
         opening: AtomicBool::new(false),
+        boot_wait: std::sync::Mutex::new(None),
         addr_watch: Mutex::new(String::new()),
         avatars: Mutex::new(Vec::new()),
         av_gen: AtomicU64::new(0),
@@ -4200,7 +4282,7 @@ fn main() -> anyhow::Result<()> {
                 config::forget_account(uid);
                 if let Some(u) = app.ui().upgrade() {
                     u.set_error_text("".into());
-                    u.set_toast(format!("{name} retiré de cet appareil.").into());
+                    u.set_toast(trf("{} retiré de cet appareil.", &[&name]).into());
                 }
                 login_opened(&app);
             }
@@ -4238,7 +4320,7 @@ fn main() -> anyhow::Result<()> {
                 if let Some(id) = top {
                     if !video_ok {
                         if let Some(u) = app.ui().upgrade() {
-                            u.set_toast("Lecture impossible : le rendu OpenGL n'est pas disponible (SLINT_BACKEND ?).".into());
+                            u.set_toast(tr("Lecture impossible : le rendu OpenGL n'est pas disponible (SLINT_BACKEND ?).").into());
                         }
                         return;
                     }
@@ -4268,52 +4350,24 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Démarrage automatique : arguments > session sauvegardée > écran de connexion.
-    if let (Some(user), Some(pw)) = (cli.user.clone(), cli.pass.clone()) {
-        if server_hint.is_empty() {
-            ui.set_error_text("Indique le serveur avec --server=URL (ou saisis-le ci-dessous).".into());
-        } else {
-            ui.set_busy(true);
-            let a = app.clone();
-            let s = server_hint.clone();
-            rt.spawn(async move { login_flow(a, s, user, pw).await });
-        }
-    } else if !saved.token.is_empty() && !saved.server.is_empty() {
-        ui.set_screen("loading".into());
+    // Démarrage : logo à six points (vérifications), puis la première page (voir boot.rs).
+    for (cb, name) in [(0, "lang"), (1, "continue"), (2, "linked")] {
         let a = app.clone();
-        let mut saved = saved.clone();
-        rt.spawn(async move {
-            // Ancienne session (une seule adresse) : elle devient l'adresse principale.
-            if saved.server_main.is_empty() && saved.server_backup.is_empty() {
-                saved.server_main = saved.server.clone();
-            }
-            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
-            if !best.is_empty() {
-                saved.server = best;
-            }
-            config::save(&saved);
-            // Serveur injoignable : téléchargements seulement (s'il y en a).
-            if !discovery::reachable(&saved.server).await {
-                if !downloads::list().is_empty() {
-                    go_offline(&a);
-                    return;
-                }
-                // Rien hors ligne (démarrage avant le réseau, serveur éteint) : écran de connexion, et
-                // la session se rouvre toute seule dès que le serveur répond (télé sans clavier).
-                show_login_error(&a.ui(), "Serveur injoignable : nouvel essai automatique toutes les 5 s…".into());
-                retry_start(a);
-                return;
-            }
-            match api::Client::from_saved(&saved) {
-                Ok(client) => load_home(a, client).await,
-                Err(e) => show_login_error(&a.ui(), format!("{}", human_err(&e))),
-            }
-        });
+        let f = move |v: String| boot::answer(&a, v);
+        match cb {
+            0 => ui.on_boot_lang(move |id| f(id.to_string())),
+            1 => ui.on_boot_continue(move || f(name.to_string())),
+            _ => ui.on_boot_linked(move || f(name.to_string())),
+        }
     }
-
-    if ui.get_screen().as_str() == "login" {
-        login_opened(&app);
-    }
+    let start = boot::Start {
+        user: cli.user.clone(),
+        pass: cli.pass.clone(),
+        server: server_hint.clone(),
+        no_intro: cli.no_intro || cli.test_video.is_some(),
+        video_ok,
+    };
+    rt.spawn(boot::run(app.clone(), start));
 
     // Essai du lecteur sans serveur : turtlefin --test-video=chemin/vers/video.mkv
     if let Some(url) = cli.test_video.clone() {
@@ -4325,6 +4379,52 @@ fn main() -> anyhow::Result<()> {
     // Fermeture : on quitte la watch party (sinon le serveur garde une session fantôme dans le groupe).
     leave_party_blocking(&app, &rt);
     Ok(())
+}
+
+/// Ouvre une session enregistrée (compte choisi pour le démarrage) : meilleure adresse, mode hors
+/// ligne si le serveur ne répond pas et qu'il y a des téléchargements, sinon « Qui regarde ? » avec
+/// un nouvel essai automatique.
+async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
+    // Ancienne session (une seule adresse) : elle devient l'adresse principale.
+    if saved.server_main.is_empty() && saved.server_backup.is_empty() {
+        saved.server_main = saved.server.clone();
+    }
+    let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+    if !best.is_empty() {
+        saved.server = best;
+    }
+    config::save(&saved);
+    // Serveur injoignable : téléchargements seulement (s'il y en a).
+    if !discovery::reachable(&saved.server).await {
+        if !downloads::list().is_empty() {
+            go_offline(&a);
+            return;
+        }
+        // Rien hors ligne (démarrage avant le réseau, serveur éteint) : écran de connexion, et
+        // la session se rouvre toute seule dès que le serveur répond (télé sans clavier).
+        let _ = a.ui().upgrade_in_event_loop(|u| u.set_screen("login".into()));
+        show_login_error(&a.ui(), i18n::tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…").into());
+        retry_start(a);
+        return;
+    }
+    match api::Client::from_saved(&saved) {
+        Ok(client) => {
+            // Jeton refusé (compte supprimé du serveur, session révoquée) : « Qui regarde ? ».
+            if let Err(e) = client.user_config().await {
+                if e.downcast_ref::<api::Unauthorized>().is_some() {
+                    config::forget_account(&client.user_id);
+                    config::clear_token();
+                    let _ = a.ui().upgrade_in_event_loop(|u| {
+                        u.set_screen("login".into());
+                        u.set_error_text(i18n::tr("Ce compte n'est plus valable : choisis un compte.").into());
+                    });
+                    return;
+                }
+            }
+            load_home(a, client).await
+        }
+        Err(e) => show_login_error(&a.ui(), human_err(&e)),
+    }
 }
 
 /// Démarrage sans serveur joignable : toutes les 5 s, tant que l'écran de connexion attend (personne
@@ -4416,7 +4516,7 @@ fn start_download(app: &Arc<App>) {
             app2.dl_fails.store(0, Ordering::SeqCst);
             persist_dl_queue(&app2);
             push_dl_status(&app2);
-            let msg = if n == 1 { "Téléchargement annulé.".to_string() } else { format!("{n} téléchargements annulés.") };
+            let msg = if n == 1 { tr("Téléchargement annulé.").to_string() } else { trf("{} téléchargements annulés.", &[&n]) };
             let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             run_downloads(&app2, &client);
             return;
@@ -4435,13 +4535,13 @@ fn start_download(app: &Arc<App>) {
             }
         }
         let msg = if added > 0 {
-            format!("Ajouté aux téléchargements ({added}). Appuie de nouveau sur Télécharger pour annuler.")
+            trf("Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler.", &[&added])
         } else if let Some(p) = app2.dl_current.lock().unwrap().as_ref().filter(|c| c.0 == id).map(|c| c.2) {
-            format!("Téléchargement en cours : {:.0} %.", p * 100.0)
+            trf("Téléchargement en cours : {} %.", &[&format!("{:.0}", p * 100.0)])
         } else if downloads::exists(&id) {
-            "Déjà téléchargé.".to_string()
+            tr("Déjà téléchargé.").to_string()
         } else {
-            "Déjà dans la file de téléchargement.".to_string()
+            tr("Déjà dans la file de téléchargement.").to_string()
         };
         persist_dl_queue(&app2);
         let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
@@ -4481,7 +4581,7 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
                 app2.dl_fails.store(0, Ordering::SeqCst);
             }
             Err(e) if e.downcast_ref::<downloads::Refused>().is_some() || e.downcast_ref::<std::io::Error>().is_some() => {
-                let msg = format!("Téléchargement impossible ({title}) : {}", human_err(&e));
+                let msg = trf("Téléchargement impossible ({}) : {}", &[&title, &human_err(&e)]);
                 let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
             }
             Err(e) => {
@@ -4493,7 +4593,7 @@ fn run_downloads(app: &Arc<App>, client: &api::Client) {
                 let wait = [15u64, 30, 60, 120][(n as usize - 1).min(3)];
                 if n == 1 {
                     let _ = app2.ui().upgrade_in_event_loop(|u| {
-                        u.set_toast("Connexion perdue : le téléchargement reprendra tout seul.".into());
+                        u.set_toast(tr("Connexion perdue : le téléchargement reprendra tout seul.").into());
                     });
                 }
                 push_dl_status(&app2);
@@ -4540,15 +4640,15 @@ fn push_dl_status(app: &Arc<App>) {
     let cur = app.dl_current.lock().unwrap().clone();
     let (status, pill, p) = match cur {
         Some((_, title, p)) => {
-            let mut s = format!("Téléchargement : {title} — {:.0} %", p * 100.0);
+            let mut s = trf("Téléchargement : {} — {} %", &[&title, &format!("{:.0}", p * 100.0)]);
             if waiting > 0 {
                 s.push_str(&format!(" · {waiting} en attente"));
             }
             (s, format!("{:.0} %", p * 100.0), p)
         }
         None if paused && waiting > 0 => (
-            format!("Téléchargements en pause (connexion perdue) · {waiting} en attente · reprise automatique"),
-            "En pause".to_string(),
+            trf("Téléchargements en pause (connexion perdue) · {} en attente · reprise automatique", &[&waiting]),
+            tr("En pause").to_string(),
             0.0,
         ),
         None => (String::new(), String::new(), 0.0),
@@ -4589,11 +4689,11 @@ fn dl_details(e: &downloads::Entry) -> String {
     if e.played {
         v.push("Vu".into());
     } else if e.position > 0.0 {
-        v.push(format!("Reprise à {}", fmt_mins(e.position)));
+        v.push(trf("Reprise à {}", &[&fmt_mins(e.position)]));
     }
     v.push(fmt_size(e.size));
     if e.dirty {
-        v.push("à synchroniser".into());
+        v.push(tr("à synchroniser").into());
     }
     v.join("  ·  ")
 }
@@ -4602,9 +4702,9 @@ fn season_label(e: &downloads::Entry) -> String {
     if !e.season_name.is_empty() {
         e.season_name.clone()
     } else if let Some(n) = e.season_index {
-        format!("Saison {n}")
+        trf("Saison {}", &[&n])
     } else {
-        "Épisodes".into()
+        tr("Épisodes").into()
     }
 }
 
@@ -4672,13 +4772,13 @@ fn refresh_downloads(app: &Arc<App>) {
             let eps: Vec<&downloads::Entry> = entries.iter().filter(|x| x.series_id == e.series_id).collect();
             let left = eps.iter().filter(|x| !x.played).count();
             let all_played = local_flag(&e.series_id, false, left == 0);
-            series.push((key, e.series_name.clone(), plural(eps.len(), "épisode", "épisodes"), e.series_poster(), if all_played { 0 } else { left as i32 }, 0.0, all_played));
+            series.push((key, e.series_name.clone(), plural(eps.len(), tr("épisode"), tr("épisodes")), e.series_poster(), if all_played { 0 } else { left as i32 }, 0.0, all_played));
         } else if e.kind != "Episode" {
             movies.push((format!("dl:item:{}", e.id), e.title.clone(), e.year.map(|y| y.to_string()).unwrap_or_default(), e.poster_path(), 0, entry_progress(e), e.played));
         }
     }
     let mut sections: Vec<(String, bool, Vec<LocalCard>)> = Vec::new();
-    for (t, l, c) in [("Reprendre", true, resume), ("Séries", false, series), ("Films", false, movies)] {
+    for (t, l, c) in [(tr("Reprendre"), true, resume), (tr("Séries"), false, series), (tr("Films"), false, movies)] {
         if !c.is_empty() {
             sections.push((t.to_string(), l, c));
         }
@@ -4799,14 +4899,14 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             m.push(first.official_rating.clone());
         }
         m.push(plural(seasons.len(), "saison", "saisons"));
-        m.push(plural(eps.len(), "épisode téléchargé", "épisodes téléchargés"));
+        m.push(plural(eps.len(), tr("épisode téléchargé"), tr("épisodes téléchargés")));
         m.push(fmt_size(eps.iter().map(|e| e.size).sum()));
         misc = m.join("  ·  ");
         overview = first.series_overview.clone();
         poster = first.series_poster();
         logo = first.logo_path();
         backdrop = first.backdrop_path();
-        children_title = "Saisons".to_string();
+        children_title = tr("Saisons").to_string();
         landscape = false;
         buttons.push((String::new(), "play".into(), "play".into(), false));
         buttons.push((String::new(), "fav".into(), "heart".into(), local_flag(series_id, true, false)));
@@ -4818,7 +4918,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
                 let n = eps.iter().filter(|e| e.season_id == s.season_id).count();
                 let l = eps.iter().filter(|e| e.season_id == s.season_id && !e.played).count();
                 let played = local_flag(&s.season_id, false, l == 0);
-                (format!("dl:season:{}", s.season_id), season_label(s), plural(n, "épisode", "épisodes"), s.season_poster(), if played { 0 } else { l as i32 }, 0.0, played)
+                (format!("dl:season:{}", s.season_id), season_label(s), plural(n, tr("épisode"), tr("épisodes")), s.season_poster(), if played { 0 } else { l as i32 }, 0.0, played)
             })
             .collect();
     } else if let Some(season_id) = key.strip_prefix("dl:season:") {
@@ -4831,18 +4931,18 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         let left = eps.iter().filter(|e| !e.played).count();
         title = first.series_name.clone();
         subtitle = season_label(first);
-        misc = format!("{}  ·  {}", plural(eps.len(), "épisode téléchargé", "épisodes téléchargés"), fmt_size(eps.iter().map(|e| e.size).sum()));
+        misc = format!("{}  ·  {}", plural(eps.len(), tr("épisode téléchargé"), tr("épisodes téléchargés")), fmt_size(eps.iter().map(|e| e.size).sum()));
         overview = if first.season_overview.is_empty() { first.series_overview.clone() } else { first.season_overview.clone() };
         poster = first.season_poster();
         logo = first.logo_path();
         backdrop = first.backdrop_path();
-        children_title = "Épisodes".to_string();
+        children_title = tr("Épisodes").to_string();
         landscape = true;
         buttons.push((String::new(), "play".into(), "play".into(), false));
         buttons.push((String::new(), "fav".into(), "heart".into(), local_flag(season_id, true, false)));
         buttons.push((String::new(), "played".into(), "check".into(), local_flag(season_id, false, left == 0)));
         buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
-        buttons.push(("Voir la série".into(), format!("open:dl:series:{}", first.series_id), "label".into(), false));
+        buttons.push((tr("Voir la série").into(), format!("open:dl:series:{}", first.series_id), "label".into(), false));
         children = eps
             .iter()
             .map(|e| {
@@ -4870,8 +4970,8 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
         buttons.push((String::new(), "played".into(), "check".into(), e.played));
         buttons.push((String::new(), "dl-delete".into(), "trash".into(), false));
         if e.kind == "Episode" {
-            buttons.push(("Voir la série".into(), format!("open:dl:series:{}", e.series_id), String::new(), false));
-            buttons.push(("Voir la saison".into(), format!("open:dl:season:{}", e.season_id), String::new(), false));
+            buttons.push((tr("Voir la série").into(), format!("open:dl:series:{}", e.series_id), String::new(), false));
+            buttons.push((tr("Voir la saison").into(), format!("open:dl:season:{}", e.season_id), String::new(), false));
         }
         children = Vec::new();
     }
@@ -5064,7 +5164,7 @@ fn delete_local_key(app: &Arc<App>, key: &str) {
     sync_can_back(app);
     refresh_downloads(app);
     if let Some(u) = app.ui().upgrade() {
-        u.set_toast("Téléchargement supprimé.".into());
+        u.set_toast(tr("Téléchargement supprimé.").into());
     }
     match top {
         Some(id) => start_detail(app, id),
@@ -5093,7 +5193,7 @@ fn go_offline(app: &Arc<App>) {
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_offline(true);
         open_downloads(&a);
-        u.set_toast("Serveur injoignable : mode hors ligne (téléchargements).".into());
+        u.set_toast(tr("Serveur injoignable : mode hors ligne (téléchargements).").into());
     });
     if !was {
         watch_reconnect(app);
@@ -5126,7 +5226,7 @@ fn watch_reconnect(app: &Arc<App>) {
             }
             let Ok(client) = api::Client::from_saved(&saved) else { return };
             config::save(&saved);
-            let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast("Serveur de nouveau joignable : retour en ligne.".into()));
+            let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur de nouveau joignable : retour en ligne.").into()));
             load_home(a.clone(), client).await;
             return;
         }

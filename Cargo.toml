@@ -32,6 +32,7 @@ if-addrs = "0.15.0"
 
 [build-dependencies]
 slint-build = "1"
+winresource = "0.1"
 
 [profile.release]
 opt-level = 3
@@ -39,7 +40,7 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
-# Paquet .deb (cargo deb) : Debian, Ubuntu, Raspberry Pi OS. libmpv vient du système.
+# Paquet .deb (cargo deb) : Debian, Ubuntu et dérivées. libmpv vient du système.
 [package.metadata.deb]
 name = "turtlefin"
 maintainer = "Xelopteryx <https://github.com/Xelopteryx/Turtlefin>"

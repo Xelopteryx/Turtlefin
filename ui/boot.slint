@@ -1,0 +1,282 @@
+// Démarrage : le logo de Turtlefin sert d'écran de vérification.
+//
+// Six points (les sommets de l'hexagone) : chacun est une vérification (langue, affichage, lecteur,
+// stockage, réseau, serveur), gris en attente, vert si tout va bien, rouge sinon (avec l'explication
+// et « Entrée pour continuer »). Quand les six sont au vert, ils se relient (contour puis rayons, aux
+// couleurs du thème), l'hexagone central apparaît, puis on zoome dedans vers la page suivante.
+// Le déroulement est piloté par Rust (boot dans main.rs) ; `--no-intro` le saute.
+
+import { Theme } from "theme.slint";
+import { TrackData } from "player.slint";
+
+export component BootLogo inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <[int]> state;            // 0 attente · 1 en cours · 2 ok · 3 échec · 4 ok, à configurer
+    in property <[string]> labels;
+    in property <string> text;            // vérification en cours
+    in property <string> fail;            // échec : explication
+    in property <string> fail-hint;       // « Entrée pour continuer »
+    in property <int> phase;              // 0 vérifications · 1 liaison · 2 zoom
+    in property <bool> lang-open;
+    in property <string> lang-title;
+    in property <[TrackData]> langs;
+    in-out property <int> lang-sel;
+    callback continue-boot();
+    callback lang-chosen(string);
+    callback linked();                     // fin de la liaison : Rust ouvre la page suivante
+    callback finished();                   // fin du zoom
+
+    background: Theme.bg;
+
+    // Géométrie (repère 256 x 256, centre de l'hexagone au centre).
+    property <[float]> px: [128, 187, 187, 128, 69, 69];
+    property <[float]> py: [60, 94, 162, 196, 162, 94];
+    property <[float]> ix: [128, 154, 154, 128, 102, 102];
+    property <[float]> iy: [98, 113, 143, 158, 143, 113];
+    property <length> side: min(self.width, self.height) * 0.46;
+    property <length> u: self.side / 256;
+
+    // Horloges des phases (au temps : rien n'est redessiné en dehors).
+    property <duration> t-link;
+    property <duration> t-zoom;
+    property <int> ph: root.phase;
+    changed ph => {
+        if (root.phase == 1) {
+            root.t-link = animation-tick();
+            link-timer.running = true;
+        } else if (root.phase == 2) {
+            root.t-zoom = animation-tick();
+            zoom-timer.running = true;
+        }
+    }
+    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / 800ms, 0, 1) : 1;
+    property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 750ms, 0, 1);
+    link-timer := Timer {
+        interval: 850ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.linked();
+        }
+    }
+    zoom-timer := Timer {
+        interval: 780ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.finished();
+        }
+    }
+    // Point « en cours » : pulsation.
+    property <float> pulse: 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 900) / 900 * 360deg);
+
+    pure function dot-color(s: int) -> brush {
+        return root.phase >= 1 ? Theme.accent2
+            : s == 2 || s == 4 ? #22c55e
+            : s == 3 ? #ef4444
+            : s == 1 ? Theme.accent2.transparentize(0.6 - 0.5 * root.pulse)
+            : #ffffff2e;
+    }
+
+    // Fond : s'efface pendant le zoom (la page suivante est déjà dessous).
+    opacity: 1 - root.zp * root.zp;
+
+    logo := Rectangle {
+        x: (parent.width - root.side) / 2;
+        y: (parent.height - root.side) / 2 - 30px * root.k;
+        width: root.side;
+        height: root.side;
+        // Zoom dans le point central.
+        transform-scale: 1 + root.zp * root.zp * 26;
+
+        // Contour, tracé arête par arête.
+        for i in 6: Path {
+            property <float> f: clamp(root.lp * 12 - i, 0, 1);
+            visible: self.f > 0;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: transparent;
+            stroke: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+            stroke-width: 9 * root.u;
+            commands: "M " + root.px[i] + " " + root.py[i] + " L "
+                + (root.px[i] + (root.px[mod(i + 1, 6)] - root.px[i]) * self.f) + " "
+                + (root.py[i] + (root.py[mod(i + 1, 6)] - root.py[i]) * self.f);
+        }
+        // Rayons vers l'hexagone central.
+        for i in 6: Path {
+            property <float> g: clamp(root.lp * 2 - 1, 0, 1);
+            visible: self.g > 0;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: transparent;
+            stroke: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+            stroke-width: 5 * root.u;
+            commands: "M " + root.px[i] + " " + root.py[i] + " L "
+                + (root.px[i] + (root.ix[i] - root.px[i]) * self.g) + " "
+                + (root.py[i] + (root.iy[i] - root.py[i]) * self.g);
+        }
+        // Hexagone central (le 7e point) : apparaît avec les rayons.
+        Path {
+            property <float> g: clamp(root.lp * 2 - 1, 0, 1);
+            visible: self.g > 0;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+            opacity: self.g;
+            commands: "M 128 98 L 154 113 L 154 143 L 128 158 L 102 143 L 102 113 Z";
+        }
+        // Point central discret pendant les vérifications.
+        Rectangle {
+            visible: root.lp == 0;
+            x: parent.width / 2 - self.width / 2;
+            y: parent.height / 2 - self.height / 2;
+            width: 10px * root.k;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: #ffffff2e;
+        }
+
+        // Les six points.
+        for i in 6: Rectangle {
+            property <int> s: root.state[i];
+            property <length> d: (root.s-big(self.s) ? 26 : 20) * root.u;
+            x: root.px[i] * root.u - self.d / 2;
+            y: root.py[i] * root.u - self.d / 2;
+            width: self.d;
+            height: self.d;
+            border-radius: self.d / 2;
+            background: root.dot-color(self.s);
+            animate width, height { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            // Libellé, à l'extérieur de l'hexagone.
+            Text {
+                property <float> ox: (root.px[i] - 128) * 0.55;
+                property <float> oy: (root.py[i] - 128) * 0.42;
+                x: self.ox * root.u + (parent.width - self.width) / 2;
+                y: self.oy * root.u + (parent.height - self.height) / 2;
+                width: 160px * root.k;
+                text: root.labels[i];
+                color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
+                font-size: 13px * root.k;
+                font-weight: 600;
+                horizontal-alignment: center;
+                opacity: 1 - root.lp;
+            }
+        }
+    }
+    pure function s-big(s: int) -> bool {
+        return s == 1 || s == 3;
+    }
+
+    // Vérification en cours, ou échec avec son explication.
+    VerticalLayout {
+        y: logo.y + root.side + 24px * root.k;
+        width: parent.width;
+        spacing: 10px * root.k;
+        opacity: 1 - root.lp;
+        alignment: start;
+        Text {
+            text: root.fail != "" ? root.fail : root.text;
+            color: root.fail != "" ? #fca5a5 : Theme.muted;
+            font-size: 16px * root.k;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        if root.fail != "": HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: hint.preferred-width + 40px * root.k;
+                height: 40px * root.k;
+                border-radius: 10px * root.k;
+                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                hint := Text {
+                    text: root.fail-hint;
+                    color: white;
+                    font-size: 15px * root.k;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    clicked => {
+                        root.continue-boot();
+                    }
+                }
+            }
+        }
+    }
+
+    // Choix de la langue (premier lancement).
+    if root.lang-open: Rectangle {
+        background: #000000a6;
+        TouchArea { }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 420px * root.k;
+            height: 80px * root.k + root.langs.length * 56px * root.k;
+            border-radius: 18px * root.k;
+            background: Theme.glass;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            Text {
+                y: 18px * root.k;
+                width: parent.width;
+                text: root.lang-title;
+                color: white;
+                font-size: 18px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            for l[i] in root.langs: Rectangle {
+                x: 16px * root.k;
+                y: 64px * root.k + i * 56px * root.k;
+                width: parent.width - 32px * root.k;
+                height: 48px * root.k;
+                border-radius: 12px * root.k;
+                background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff12;
+                Text {
+                    text: l.label;
+                    color: white;
+                    font-size: 17px * root.k;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                la := TouchArea {
+                    clicked => {
+                        root.lang-chosen(l.id);
+                    }
+                }
+            }
+        }
+    }
+
+    // Clavier : choix de la langue, ou Entrée pour continuer après un échec.
+    FocusScope {
+        init => {
+            self.focus();
+        }
+        key-pressed(event) => {
+            if (root.lang-open) {
+                if (event.text == Key.UpArrow) {
+                    root.lang-sel = max(0, root.lang-sel - 1);
+                } else if (event.text == Key.DownArrow) {
+                    root.lang-sel = min(root.langs.length - 1, root.lang-sel + 1);
+                } else if (event.text == Key.Return && !event.repeat) {
+                    root.lang-chosen(root.langs[root.lang-sel].id);
+                }
+                return EventResult.accept;
+            }
+            if (root.fail != "" && (event.text == Key.Return || event.text == " ") && !event.repeat) {
+                root.continue-boot();
+            }
+            return EventResult.accept;
+        }
+    }
+}

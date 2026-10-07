@@ -1,4 +1,4 @@
-; Installeur Windows de Turtlefin (Inno Setup 6).
+﻿; Installeur Windows de Turtlefin (Inno Setup 6).
 ;
 ; Compilation : iscc /DVersion=0.9.0 /DArch=x64 /DSrc=<dossier des fichiers> /DOut=<dossier de sortie> turtlefin.iss
 ;   Arch : x64 ou x86. Src contient turtlefin.exe, libmpv-2.dll et les autres fichiers à installer.
@@ -45,6 +45,10 @@ OutputBaseFilename=Turtlefin-{#Version}-windows-{#Arch}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\icons\turtlefin.ico
+; Langue de l'assistant proposée d'après celle de Windows ; elle devient celle de Turtlefin (fichier « language »).
+ShowLanguageDialog=yes
+LanguageDetectionMethod=uilanguage
 CloseApplications=force
 RestartApplications=no
 UninstallDisplayName=Turtlefin
@@ -61,6 +65,18 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+fr.ModeTitle=Type d'installation
+fr.ModeSub=Comment veux-tu utiliser Turtlefin ?
+fr.ModeText=Installation : Turtlefin s'installe sur cet ordinateur (menu Démarrer, désinstallation dans les paramètres de Windows).%nPortable : les fichiers seuls, dans le dossier de ton choix (une clé USB par exemple) ; la configuration et les téléchargements restent dans ce dossier.
+fr.ModeInstall=Installation (recommandé)
+fr.ModePortable=Portable
+en.ModeTitle=Installation type
+en.ModeSub=How do you want to use Turtlefin?
+en.ModeText=Install: Turtlefin is installed on this computer (Start menu, uninstall from Windows settings).%nPortable: just the files, in the folder of your choice (a USB stick for example); settings and downloads stay in that folder.
+en.ModeInstall=Install (recommended)
+en.ModePortable=Portable
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Check: not IsPortable
 
@@ -72,6 +88,9 @@ Source: "portable.txt"; DestDir: "{app}"; DestName: "portable"; Check: IsPortabl
 [InstallDelete]
 ; Passage de portable à installé : le marqueur disparaît.
 Type: files; Name: "{app}\portable"; Check: not IsPortable
+
+[UninstallDelete]
+Type: files; Name: "{app}\language"
 
 [Icons]
 Name: "{group}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Check: not IsPortable
@@ -98,12 +117,9 @@ end;
 procedure InitializeWizard;
 begin
   ModePage := CreateInputOptionPage(wpWelcome,
-    'Type d''installation', 'Comment veux-tu utiliser Turtlefin ?',
-    'Installation : Turtlefin s''installe sur cet ordinateur (menu Démarrer, désinstallation dans les paramètres de Windows).'#13#10 +
-    'Portable : les fichiers seuls, dans le dossier de ton choix (une clé USB par exemple) ; la configuration et les téléchargements restent dans ce dossier.',
-    True, False);
-  ModePage.Add('Installation (recommandé)');
-  ModePage.Add('Portable');
+    CustomMessage('ModeTitle'), CustomMessage('ModeSub'), CustomMessage('ModeText'), True, False);
+  ModePage.Add(CustomMessage('ModeInstall'));
+  ModePage.Add(CustomMessage('ModePortable'));
   ModePage.SelectedValueIndex := 0;
 end;
 
@@ -113,4 +129,12 @@ begin
   // Portable : dossier proposé plus parlant que Program Files.
   if (CurPageID = ModePage.ID) and IsPortable and (Pos(ExpandConstant('{autopf}'), WizardForm.DirEdit.Text) = 1) then
     WizardForm.DirEdit.Text := ExpandConstant('{userdocs}\Turtlefin');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  // Langue de l'assistant (en silencieux : celle de Windows, ou /LANG=) = langue de Turtlefin au premier
+  // lancement. Sans effet ensuite : la langue choisie dans l'appli (prefs.json) prime.
+  if CurStep = ssPostInstall then
+    SaveStringToFile(ExpandConstant('{app}\language'), ActiveLanguage, False);
 end;

@@ -10,6 +10,7 @@
 //!   - Linux AppImage : le nouveau fichier AppImage remplace l'ancien ;
 //!   - Linux paquet .deb : le paquet, installé avec `pkexec apt-get` (mot de passe demandé).
 
+use crate::i18n::{tr, trf};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -69,12 +70,12 @@ pub fn kind() -> Kind {
 /// Libellé pour la page À propos.
 pub fn kind_label() -> &'static str {
     match kind() {
-        Kind::Source => "compilé depuis les sources",
-        Kind::WinInstalled => "Windows, installé",
-        Kind::WinPortable => "Windows, portable",
+        Kind::Source => tr("compilé depuis les sources"),
+        Kind::WinInstalled => tr("Windows, installé"),
+        Kind::WinPortable => tr("Windows, portable"),
         Kind::AppImage => "AppImage",
-        Kind::Deb => "paquet .deb",
-        Kind::Unknown => "installation inconnue",
+        Kind::Deb => tr("paquet .deb"),
+        Kind::Unknown => tr("installation inconnue"),
     }
 }
 
@@ -90,11 +91,11 @@ async fn github(path: &str) -> Result<serde_json::Value> {
         .get(format!("https://api.github.com/repos/{REPO}/{path}"))
         .send()
         .await
-        .map_err(|_| anyhow!("GitHub injoignable (connexion Internet ?)"))?;
+        .map_err(|_| anyhow!("{}", tr("GitHub injoignable (connexion Internet ?)")))?;
     match resp.status().as_u16() {
-        404 => Err(anyhow!("introuvable sur GitHub")),
-        403 | 429 => Err(anyhow!("GitHub limite les vérifications : réessaie dans une heure")),
-        s if !(200..300).contains(&s) => Err(anyhow!("GitHub a répondu {s}")),
+        404 => Err(anyhow!("{}", tr("introuvable sur GitHub"))),
+        403 | 429 => Err(anyhow!("{}", tr("GitHub limite les vérifications : réessaie dans une heure"))),
+        s if !(200..300).contains(&s) => Err(anyhow!("{}", trf("GitHub a répondu {}", &[&s]))),
         _ => Ok(resp.json().await?),
     }
 }
@@ -111,7 +112,7 @@ fn newer(remote: &str, local: &str) -> bool {
 pub async fn check() -> Result<Option<(String, Vec<String>)>> {
     match kind() {
         Kind::Source => check_source().await,
-        Kind::Unknown => Err(anyhow!("mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub")),
+        Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"))),
         _ => check_release().await,
     }
 }
@@ -119,11 +120,11 @@ pub async fn check() -> Result<Option<(String, Vec<String>)>> {
 async fn check_source() -> Result<Option<(String, Vec<String>)>> {
     let local = commit();
     if local.is_empty() {
-        return Err(anyhow!("version installée inconnue (compilée sans git)"));
+        return Err(anyhow!("{}", tr("version installée inconnue (compilée sans git)")));
     }
     let v = github(&format!("compare/{local}...main")).await.map_err(|e| {
         if e.to_string().starts_with("introuvable") {
-            anyhow!("cette version contient des modifications pas encore publiées sur GitHub ; rien à installer")
+            anyhow!("{}", tr("cette version contient des modifications pas encore publiées sur GitHub ; rien à installer"))
         } else {
             e
         }
@@ -140,7 +141,7 @@ async fn check_source() -> Result<Option<(String, Vec<String>)>> {
         .take(5)
         .filter_map(|c| c["commit"]["message"].as_str().map(|m| m.lines().next().unwrap_or("").to_string()))
         .collect();
-    Ok(Some((format!("{ahead} nouveauté(s)"), titles)))
+    Ok(Some((trf("{} nouveauté(s)", &[&ahead]), titles)))
 }
 
 async fn check_release() -> Result<Option<(String, Vec<String>)>> {
@@ -159,7 +160,7 @@ async fn check_release() -> Result<Option<(String, Vec<String>)>> {
         .filter(|l| !l.is_empty())
         .take(4)
         .collect();
-    Ok(Some((format!("Version {version}"), notes)))
+    Ok(Some((trf("Version {}", &[&version]), notes)))
 }
 
 /// Nom du fichier publié qui convient à cette installation.
@@ -172,7 +173,7 @@ fn asset_name(version: &str) -> Result<String> {
         Kind::WinPortable => format!("Turtlefin-{version}-windows-{win}-portable.zip"),
         Kind::AppImage => format!("Turtlefin-{version}-linux-{linux}.AppImage"),
         Kind::Deb => format!("turtlefin_{version}_{deb}.deb"),
-        _ => return Err(anyhow!("pas de fichier publié pour cette installation")),
+        _ => return Err(anyhow!("{}", tr("pas de fichier publié pour cette installation"))),
     })
 }
 
@@ -184,24 +185,24 @@ fn run(dir: &Path, prog: &str, args: &[&str]) -> Result<()> {
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
         let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
-        return Err(anyhow!("{prog} {} a échoué : {last}", args.first().unwrap_or(&"")));
+        return Err(anyhow!("{}", trf("{} {} a échoué : {}", &[&prog, &args.first().unwrap_or(&""), &last])));
     }
     Ok(())
 }
 
-/// Récupère la nouvelle version (plusieurs minutes pour une compilation sur un Pi). `step` reçoit
+/// Récupère la nouvelle version (plusieurs minutes pour une compilation sur une petite machine). `step` reçoit
 /// l'étape en cours. À appeler hors du thread de l'interface.
 pub fn install(step: impl Fn(&str)) -> Result<()> {
     match kind() {
         Kind::Source => install_source(step),
-        Kind::Unknown => Err(anyhow!("mise à jour automatique impossible pour cette installation")),
+        Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation"))),
         k => tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(install_release(k, step)),
     }
 }
 
 fn install_source(step: impl Fn(&str)) -> Result<()> {
     let dir = source_dir();
-    step("Téléchargement des nouveautés…");
+    step(tr("Téléchargement des nouveautés…"));
     run(&dir, "git", &["pull", "--ff-only"])?;
     // Windows : l'exécutable en cours ne peut pas être remplacé, mais il peut être renommé.
     #[cfg(windows)]
@@ -210,9 +211,9 @@ fn install_source(step: impl Fn(&str)) -> Result<()> {
         let _ = std::fs::remove_file(&old);
         let _ = std::fs::rename(&exe, &old);
     }
-    step("Compilation (quelques minutes, l'appli reste utilisable)…");
+    step(tr("Compilation (quelques minutes, l'appli reste utilisable)…"));
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| {
-        // Sur le Pi, cargo est dans ~/.cargo/bin (pas toujours dans le PATH d'un lancement graphique).
+        // Sous Linux, cargo est dans ~/.cargo/bin (pas toujours dans le PATH d'un lancement graphique).
         let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default();
         let p = PathBuf::from(home).join(".cargo").join("bin").join(if cfg!(windows) { "cargo.exe" } else { "cargo" });
         if p.exists() { p.to_string_lossy().into_owned() } else { "cargo".into() }
@@ -230,7 +231,7 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
         .flatten()
         .find(|a| a["name"].as_str() == Some(name))
         .and_then(|a| a["browser_download_url"].as_str())
-        .ok_or_else(|| anyhow!("fichier {name} absent de la publication"))?
+        .ok_or_else(|| anyhow!("{}", trf("fichier {} absent de la publication", &[&name])))?
         .to_string();
     let client = reqwest::Client::builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
@@ -245,13 +246,13 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     use tokio::io::AsyncWriteExt;
     while let Some(chunk) = tokio::time::timeout(std::time::Duration::from_secs(60), resp.chunk())
         .await
-        .map_err(|_| anyhow!("téléchargement bloqué (plus de données depuis 60 s)"))??
+        .map_err(|_| anyhow!("{}", tr("téléchargement bloqué (plus de données depuis 60 s)")))??
     {
         file.write_all(&chunk).await?;
         done += chunk.len() as u64;
         if total > 0 && last.elapsed().as_millis() > 400 {
             last = std::time::Instant::now();
-            step(&format!("Téléchargement… {} %", done * 100 / total));
+            step(&trf("Téléchargement… {} %", &[&(done * 100 / total)]));
         }
     }
     file.flush().await?;
@@ -268,7 +269,7 @@ async fn install_release(k: Kind, step: impl Fn(&str)) -> Result<()> {
     let _ = std::fs::remove_dir_all(&tmp_dir);
     std::fs::create_dir_all(&tmp_dir)?;
     let file = tmp_dir.join(&name);
-    step("Téléchargement…");
+    step(tr("Téléchargement…"));
     download(&name, &file, &step).await?;
     match k {
         // Installeur / paquet : appliqués au redémarrage (l'appli doit être fermée).
@@ -276,7 +277,7 @@ async fn install_release(k: Kind, step: impl Fn(&str)) -> Result<()> {
             *PENDING.lock().unwrap() = Some(file);
         }
         Kind::WinPortable => {
-            step("Remplacement des fichiers…");
+            step(tr("Remplacement des fichiers…"));
             let out = tmp_dir.join("extrait");
             std::fs::create_dir_all(&out)?;
             // tar (fourni avec Windows 10 et suivants) sait lire les archives zip.
@@ -287,8 +288,8 @@ async fn install_release(k: Kind, step: impl Fn(&str)) -> Result<()> {
             replace_files(&src, &dest)?;
         }
         Kind::AppImage => {
-            step("Remplacement de l'AppImage…");
-            let target = PathBuf::from(std::env::var_os("APPIMAGE").ok_or_else(|| anyhow!("AppImage introuvable"))?);
+            step(tr("Remplacement de l'AppImage…"));
+            let target = PathBuf::from(std::env::var_os("APPIMAGE").ok_or_else(|| anyhow!("{}", tr("AppImage introuvable")))?);
             let new = target.with_extension("AppImage.new");
             std::fs::copy(&file, &new)?;
             #[cfg(unix)]

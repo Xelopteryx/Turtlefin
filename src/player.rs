@@ -5,6 +5,7 @@
 //! Turtlefin rapporte la lecture au serveur (début, progression toutes les 10 s, fin) et
 //! enchaîne sur l'épisode suivant en fin de fichier.
 
+use crate::i18n::{tr, trf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -39,7 +40,7 @@ pub struct PlayRequest {
 }
 
 /// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
-/// Sur Raspberry Pi (Linux ARM 64 bits), le décodage matériel V4L2 produit des images au format
+/// Sous Linux ARM 64 bits (pilote v3d), le décodage matériel V4L2 produit des images au format
 /// Broadcom « SAND » que mpv ne sait pas importer en OpenGL : résultat, un écran vide. On décode
 /// donc en logiciel par défaut. Ailleurs (Windows, PC Linux) : « auto-safe ».
 fn hwdec_mode() -> String {
@@ -82,7 +83,7 @@ fn new_player() -> Result<Arc<Mpv>> {
     m.set_option("input-default-bindings", "no");
     m.set_option("osc", "no");
     m.set_option("ytdl", "no");
-    // Pi : rendu simplifié (mise à l'échelle bilinéaire...) pour ménager le GPU.
+    // Linux ARM : rendu simplifié (mise à l'échelle bilinéaire...) pour ménager le GPU.
     if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         m.set_option("profile", "fast");
     }
@@ -133,7 +134,7 @@ fn new_player() -> Result<Arc<Mpv>> {
 fn tracks(list: &Value, kind: &str) -> (Vec<TrackData>, i32) {
     let mut out: Vec<TrackData> = Vec::new();
     if kind == "sub" {
-        out.push(TrackData { id: "no".into(), label: "Désactivés".into(), current: false });
+        out.push(TrackData { id: "no".into(), label: tr("Désactivés").into(), current: false });
     }
     for t in list.as_array().into_iter().flatten().filter(|t| t["type"] == kind) {
         let id = t["id"].as_i64().unwrap_or(0);
@@ -156,7 +157,7 @@ fn tracks(list: &Value, kind: &str) -> (Vec<TrackData>, i32) {
         if t["external"].as_bool().unwrap_or(false) {
             parts.push("externe".to_string());
         }
-        let label = if parts.is_empty() { format!("Piste {id}") } else { parts.join(" · ") };
+        let label = if parts.is_empty() { trf("Piste {}", &[&id]) } else { parts.join(" · ") };
         out.push(TrackData {
             id: id.to_string().into(),
             label: label.into(),
@@ -336,7 +337,7 @@ pub async fn play(
                                         // Réglage « Passer l'intro automatiquement ».
                                         cur.intro_shown = true;
                                         let _ = player.command(&["seek", &format!("{e:.1}"), "absolute"]);
-                                        let _ = ui.upgrade_in_event_loop(|u| u.set_toast("Intro passée".into()));
+                                        let _ = ui.upgrade_in_event_loop(|u| u.set_toast(tr("Intro passée").into()));
                                     }
                                     if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 {
                                         cur.intro_shown = true;
@@ -452,7 +453,7 @@ pub async fn play(
                                 });
                             }
                         } else if let Some(e) = error {
-                            result = Err(anyhow!("mpv n'a pas pu lire ce média ({e})"));
+                            result = Err(anyhow!("{}", trf("mpv n'a pas pu lire ce média ({})", &[&e])));
                             break;
                         } else if eof {
                             // Fin atteinte : on rapporte la durée complète (le serveur marque « vu »).
@@ -585,7 +586,7 @@ pub async fn play(
                                     report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
                                     let _ = ui.upgrade_in_event_loop(|u| {
                                         u.set_p_lost(false);
-                                        u.set_toast("Connexion rétablie : la lecture reprend.".into());
+                                        u.set_toast(tr("Connexion rétablie : la lecture reprend.").into());
                                     });
                                     Ok(())
                                 }
@@ -683,12 +684,12 @@ pub async fn play(
         // Élément suivant à lire : épisode voisin, ou élément choisi.
         let next: Option<Result<Item>> = match (go_episode, go_item, client) {
             (Some(d), _, Some(c)) => match neighbour(&episodes, cur.item.as_ref(), d) {
-                Some(id) => Some(c.item(&id).await.map_err(|e| anyhow!("épisode suivant introuvable ({e})"))),
+                Some(id) => Some(c.item(&id).await.map_err(|e| anyhow!("{}", trf("épisode suivant introuvable ({})", &[&e])))),
                 None => None,
             },
             (None, Some(id), Some(c)) => Some(match c.item(&id).await {
                 Ok(it) => crate::resolve_playable(c, it).await,
-                Err(e) => Err(anyhow!("élément introuvable ({e})")),
+                Err(e) => Err(anyhow!("{}", trf("élément introuvable ({})", &[&e]))),
             }),
             _ => None,
         };
@@ -836,8 +837,8 @@ fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, ne
         if let Some(next_id) = next {
             let Ok(n) = c.item(&next_id).await else { return };
             let new_season = n.parent_index_number != it.parent_index_number;
-            let title = if new_season { "Saison suivante" } else { "Épisode suivant" };
-            let button = if new_season { "Passer à la saison suivante" } else { "Passer à l'épisode suivant" };
+            let title = if new_season { tr("Saison suivante") } else { tr("Épisode suivant") };
+            let button = if new_season { tr("Passer à la saison suivante") } else { tr("Passer à l'épisode suivant") };
             let card = n.child_card();
             let sub = match (n.parent_index_number, n.index_number) {
                 (Some(s), Some(e)) => format!("S{s}E{e} · {}", n.name),
@@ -951,8 +952,8 @@ fn load(
             let (t, s) = it.titles();
             (c.stream_url(&it.id, &ms_id), ms_id, t, s, subs)
         }
-        (_, _, Some(u)) => (u.to_string(), String::new(), "Vidéo de test".to_string(), u.to_string(), Vec::new()),
-        _ => return Err(anyhow!("rien à lire")),
+        (_, _, Some(u)) => (u.to_string(), String::new(), tr("Vidéo de test").to_string(), u.to_string(), Vec::new()),
+        _ => return Err(anyhow!("{}", tr("rien à lire"))),
     };
 
     player.set_property("force-media-title", &title)?;
@@ -1027,7 +1028,7 @@ fn push_time(ui: &slint::Weak<AppWindow>, cur: &Current) {
     let progress = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) as f32 } else { 0.0 };
     let end = if dur > 0.0 {
         let left = chrono::Duration::milliseconds(((dur - pos).max(0.0) * 1000.0) as i64);
-        format!("Fin à {}", (chrono::Local::now() + left).format("%H:%M"))
+        trf("Fin à {}", &[&(chrono::Local::now() + left).format("%H:%M")])
     } else {
         String::new()
     };

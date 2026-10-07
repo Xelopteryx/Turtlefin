@@ -11,6 +11,7 @@
 //! coupé, appli fermée) reprend là où il s'était arrêté (requête `Range`). La file d'attente est
 //! gardée dans `queue.json` et reprend au lancement suivant.
 
+use crate::i18n::{tr, trf};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -385,7 +386,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
             let total = resp.content_length().unwrap_or(0);
             (Some(tokio::fs::File::create(&part).await?), 0, total)
         }
-        s => return Err(Refused(format!("le serveur refuse le téléchargement ({s})")).into()),
+        s => return Err(Refused(trf("le serveur refuse le téléchargement ({})", &[&s])).into()),
     };
     if let Some(f) = file.as_mut() {
         if total > 0 {
@@ -396,7 +397,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
             // Réseau muet (connexion ouverte mais plus rien ne passe) : on n'attend pas indéfiniment.
             let chunk = match tokio::time::timeout(Duration::from_secs(30), resp.chunk()).await {
                 Ok(c) => c?,
-                Err(_) => return Err(anyhow!("plus aucune donnée reçue depuis 30 s")),
+                Err(_) => return Err(anyhow!("{}", tr("plus aucune donnée reçue depuis 30 s"))),
             };
             let Some(chunk) = chunk else { break };
             f.write_all(&chunk).await?;
@@ -410,7 +411,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     }
     drop(file);
     if total > 0 && done < total {
-        return Err(anyhow!("transfert incomplet ({done} octets sur {total})"));
+        return Err(anyhow!("{}", trf("transfert incomplet ({} octets sur {})", &[&done, &total])));
     }
     tokio::fs::rename(&part, dir.join(&media)).await?;
 

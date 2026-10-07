@@ -51,6 +51,12 @@ pub async fn probe(client: &reqwest::Client, base: &str) -> Option<(String, Stri
 }
 
 /// Adresse IPv4 de la sortie par défaut (rien n'est envoyé : seule la table de routage est lue).
+/// Un réseau est-il disponible (interface active autre que la boucle locale) ?
+pub fn has_network() -> bool {
+    default_ipv4().is_some()
+        || if_addrs::get_if_addrs().unwrap_or_default().iter().any(|i| !i.is_loopback() && i.is_oper_up())
+}
+
 fn default_ipv4() -> Option<Ipv4Addr> {
     let s = UdpSocket::bind("0.0.0.0:0").ok()?;
     s.connect("192.0.2.1:9").ok()?; // adresse de documentation
