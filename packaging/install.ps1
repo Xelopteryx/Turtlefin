@@ -18,6 +18,9 @@ Write-Host "Downloading $($asset.name)..."
 Invoke-WebRequest $asset.browser_download_url -OutFile $file -UseBasicParsing
 Write-Host 'Installing...'
 # WaitForExit plutôt que -Wait : -Wait attendrait aussi Turtlefin, lancé par l'installeur à la fin.
-(Start-Process $file -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NORESTART' -PassThru).WaitForExit()
+# Langue : celle de Windows si Turtlefin la connaît, sinon l'anglais (elle devient celle de l'appli).
+$lang = (Get-UICulture).TwoLetterISOLanguageName
+if ($lang -notin 'en', 'fr', 'es', 'de', 'it', 'pt', 'pl', 'nl') { $lang = 'en' }
+(Start-Process $file -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NORESTART', "/LANG=$lang" -PassThru).WaitForExit()
 Remove-Item $file -ErrorAction SilentlyContinue
 Write-Host "Turtlefin $($release.tag_name) is installed (Start menu)."

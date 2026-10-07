@@ -71,6 +71,59 @@ for s in (16, 24, 32, 48, 64, 128, 256, 512):
 big.resize((256, 256), Image.LANCZOS).save(
     os.path.join(out, 'turtlefin.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
+# Icône de l'installeur : un disque (CD) avec l'icône de l'appli dans le coin bas droit, pour qu'on
+# voie tout de suite que c'est un installeur et pas l'appli.
+def setup_icon():
+    import math
+    from PIL import ImageFilter
+    img = Image.new('RGBA', (N, N), (0, 0, 0, 0))
+    cx, cy, r = N * 0.43, N * 0.43, N * 0.42
+    # Reflets du disque : dégradé conique argent / bleuté / violet, calculé à basse définition.
+    small = Image.new('RGB', (256, 256))
+    px = small.load()
+    stops = [(0.00, (214, 222, 232)), (0.18, (150, 196, 230)), (0.33, (236, 240, 245)), (0.50, (196, 170, 222)),
+             (0.68, (226, 232, 240)), (0.84, (150, 200, 226)), (1.00, (214, 222, 232))]
+    for j in range(256):
+        for i in range(256):
+            a = (math.atan2(j + 0.5 - cy / K, i + 0.5 - cx / K) / (2 * math.pi)) % 1.0
+            for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+                if t0 <= a <= t1:
+                    u = (a - t0) / (t1 - t0)
+                    px[i, j] = tuple(round(c0[k] + (c1[k] - c0[k]) * u) for k in range(3))
+                    break
+    shine = small.resize((N, N), Image.BILINEAR)
+    disc = Image.new('L', (N, N), 0)
+    dd = ImageDraw.Draw(disc)
+    dd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    hole = r * 0.16
+    dd.ellipse([cx - hole, cy - hole, cx + hole, cy + hole], fill=0)
+    # Ombre douce sous le disque.
+    shadow = Image.new('RGBA', (N, N), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).ellipse([cx - r, cy - r + 6 * K, cx + r, cy + r + 6 * K], fill=(0, 0, 0, 90))
+    img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(6 * K)))
+    img.paste(shine, (0, 0), disc)
+    d = ImageDraw.Draw(img)
+    # Bord du disque, anneau central transparent (plastique), bord du trou.
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(120, 135, 155, 255), width=3 * K)
+    ring = r * 0.34
+    d.ellipse([cx - ring, cy - ring, cx + ring, cy + ring], fill=(235, 240, 246, 255), outline=(170, 180, 195, 255), width=2 * K)
+    d.ellipse([cx - hole, cy - hole, cx + hole, cy + hole], fill=(0, 0, 0, 0), outline=(140, 150, 165, 255), width=2 * K)
+    # Icône de l'appli dans le coin bas droit.
+    tile = big.resize((int(N * 0.56), int(N * 0.56)), Image.LANCZOS)
+    tshadow = Image.new('RGBA', (N, N), (0, 0, 0, 0))
+    ox = oy = N - tile.width
+    tshadow.paste((0, 0, 0, 120), (ox, oy + 4 * K), tile.getchannel('A'))
+    img.alpha_composite(tshadow.filter(ImageFilter.GaussianBlur(5 * K)))
+    img.alpha_composite(tile, (ox, oy))
+    return img
+
+
+setup = setup_icon()
+for s in (16, 32, 48, 256):
+    setup.resize((s, s), Image.LANCZOS).save(os.path.join(out, f'turtlefin-setup-{s}.png'))
+setup.resize((256, 256), Image.LANCZOS).save(
+    os.path.join(out, 'turtlefin-setup.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
 # Installeur (Inno Setup) : petite image du bandeau (55 x 58, et x2) et grande image de côté
 # (164 x 314, et x2), en BMP sans transparence, fond sombre du thème.
 here = os.path.dirname(os.path.abspath(__file__))

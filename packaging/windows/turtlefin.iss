@@ -46,15 +46,17 @@ OutputBaseFilename=Turtlefin-{#Version}-windows-{#Arch}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=..\icons\turtlefin.ico
+; Icône de l'installeur : un disque avec l'icône de l'appli dans le coin, pour ne pas les confondre.
+SetupIconFile=..\icons\turtlefin-setup.ico
 ; Logo dans l'assistant (100 % et 200 %), images produites par packaging/icons/make-icons.py.
 WizardImageFile=wizard-large-1x.bmp,wizard-large-2x.bmp
 WizardSmallImageFile=wizard-small-1x.bmp,wizard-small-2x.bmp
 ; Page d'accueil avec le grand logo (cachée par défaut dans Inno Setup 6).
 DisableWelcomePage=no
-; Langue de l'assistant proposée d'après celle de Windows ; elle devient celle de Turtlefin (fichier « language »).
+; Langue de l'assistant : l'anglais par défaut (première de [Languages], la boîte de choix est donc en
+; anglais) ; celle choisie devient celle de Turtlefin (fichier « language »). En silencieux : /LANG=xx.
 ShowLanguageDialog=yes
-LanguageDetectionMethod=uilanguage
+LanguageDetectionMethod=none
 CloseApplications=force
 RestartApplications=no
 UninstallDisplayName=Turtlefin
@@ -68,8 +70,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 #endif
 
 [Languages]
-Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "de"; MessagesFile: "compiler:Languages\German.isl"
 Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"
