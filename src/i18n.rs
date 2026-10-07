@@ -315,6 +315,59 @@ impl Expr<'_> {
     }
 }
 
+/// Textes d'un fichier .po indexés par le texte français du code. Les fichiers faits depuis le
+/// modèle (`X-Source-Language: en`) ont l'anglais pour msgid : il est ramené au français par la
+/// traduction anglaise intégrée (un même texte anglais peut valoir pour plusieurs textes français).
+fn keyed(text: &str) -> HashMap<String, Vec<String>> {
+    let map = parse_po(text);
+    if header(text, "X-Source-Language").as_deref() != Some("en") {
+        return map;
+    }
+    let mut from_en: HashMap<String, Vec<String>> = HashMap::new();
+    for (fr, en) in parse_po(BUILTIN[1].2) {
+        if let Some(first) = en.into_iter().next().filter(|_| !fr.is_empty()) {
+            from_en.entry(first).or_default().push(fr);
+        }
+    }
+    let mut out = HashMap::new();
+    for (en, tr) in map {
+        if en.is_empty() {
+            out.insert(en, tr);
+            continue;
+        }
+        for fr in from_en.get(&en).into_iter().flatten() {
+            out.insert(fr.clone(), tr.clone());
+        }
+    }
+    out
+}
+
+/// Entrées de la traduction anglaise intégrée, dans l'ordre : (français, pluriel français, anglais).
+fn en_entries() -> Vec<(String, Option<String>, Vec<String>)> {
+    let mut out = Vec::new();
+    for block in BUILTIN[1].2.split("\n\n") {
+        let mut fr = None;
+        let mut fr_pl = None;
+        let mut en = Vec::new();
+        for l in block.lines() {
+            let l = l.trim();
+            if let Some(r) = l.strip_prefix("msgid_plural ") {
+                fr_pl = Some(unquote(r));
+            } else if let Some(r) = l.strip_prefix("msgid ") {
+                fr = Some(unquote(r));
+            } else if let Some(r) = l.strip_prefix("msgstr") {
+                let r = r.trim_start();
+                let r = if r.starts_with('[') { r.split_once(']').map(|(_, x)| x).unwrap_or(r) } else { r };
+                en.push(unquote(r));
+            }
+        }
+        if let Some(fr) = fr.filter(|f| !f.is_empty()) {
+            out.push((fr, fr_pl, en));
+        }
+    }
+    out
+}
+
 fn load(code: &str) -> Option<Catalog> {
     let text = po_text(code)?;
     let plural = Plural::from_header(header(&text, "Plural-Forms"));
@@ -325,7 +378,7 @@ fn load(code: &str) -> Option<Catalog> {
         .and_then(|h| h.split(';').find_map(|p| p.trim().strip_prefix("nplurals=").and_then(|v| v.trim().parse::<usize>().ok())))
         .unwrap_or(2);
     all.retain(|_, v| v.len() == 1 || v.len() == n);
-    all.extend(parse_po(&text));
+    all.extend(keyed(&text));
     let strs = all
         .into_iter()
         .filter(|(k, _)| !k.is_empty())
@@ -456,51 +509,92 @@ pub fn trn(one: &str, other: &str, n: i64) -> String {
     t.replace("{n}", &n.to_string())
 }
 
-/// Modèle d'une nouvelle langue : tous les textes, traductions vides, avec le mode d'emploi.
-/// Écrit `modele.po` dans le dossier des langues ajoutées ; renvoie ce dossier.
+fn esc(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+}
+
+/// Modèle d'une nouvelle langue, écrit dans le dossier des langues ajoutées (`modele.po`) : textes
+/// en anglais à traduire, avec en note le français (texte d'origine) et la langue en cours.
 pub fn write_template() -> std::io::Result<PathBuf> {
     let dir = custom_dirs().into_iter().next().ok_or_else(|| std::io::Error::other("dossier de configuration introuvable"))?;
     std::fs::create_dir_all(&dir)?;
-    // Les textes : ceux de la traduction anglaise (complète), dans le même ordre.
-    let en = BUILTIN[1].2;
+    let cur = current();
+    let cur_name = languages().into_iter().find(|(c, _)| *c == cur).map(|(_, n)| n).unwrap_or_default();
     let mut out = String::from(
-        "# Modèle de traduction de Turtlefin · Turtlefin translation template\n\
+        "# Turtlefin translation template · Modèle de traduction de Turtlefin\n\
          #\n\
-         # 1. Copie ce fichier sous le nom <code>.po (es.po, ja.po, sv.po…) · Copy it as <code>.po\n\
-         # 2. Remplis X-Language-Name, Plural-Forms et chaque msgstr · Fill in X-Language-Name, Plural-Forms and every msgstr\n\
-         #    (garde les {} et {n} · keep the {} and {n} placeholders)\n\
-         # 3. Relance Turtlefin, puis Paramètres → Affichage → Langue · Restart Turtlefin, then Settings → Display → Language\n\
-         # Un msgstr vide affiche le texte anglais · An empty msgstr shows the English text.\n\
+         # 1. Copy this file as <code>.po (es.po, ja.po, sv.po…) and translate every msgstr from the English\n\
+         #    msgid above it. Keep the {} and {n} placeholders. Notes (#.) show the French original.\n\
+         # 2. Fill in X-Language-Name (shown in the list) and Plural-Forms (gettext rule of the language).\n\
+         # 3. Put the file in this folder, in Downloads or on the Desktop, then in Turtlefin:\n\
+         #    Settings → Display → Add a language. Empty msgstr: the English text is shown.\n\
          msgid \"\"\n\
          msgstr \"\"\n\
          \"Content-Type: text/plain; charset=UTF-8\\n\"\n\
+         \"X-Source-Language: en\\n\"\n\
          \"X-Language-Name: \\n\"\n\
-         \"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n",
+         \"Plural-Forms: nplurals=2; plural=(n != 1);\\n\"\n\n",
     );
-    let mut skip_header = true;
-    for line in en.lines() {
-        let l = line.trim();
-        if skip_header {
-            if l.is_empty() {
-                skip_header = false;
-                out.push('\n');
-            }
+    // Un texte anglais une seule fois (un .po n'accepte pas deux fois le même msgid).
+    let mut seen = std::collections::HashSet::new();
+    for (fr, fr_pl, en) in en_entries() {
+        let Some(en0) = en.first().filter(|e| !e.is_empty()) else { continue };
+        if !seen.insert(en0.clone()) {
             continue;
         }
-        if let Some(r) = l.strip_prefix("msgstr[") {
-            let idx = r.split(']').next().unwrap_or("0");
-            out.push_str(&format!("msgstr[{idx}] \"\"\n"));
-        } else if l.starts_with("msgstr ") {
-            out.push_str("msgstr \"\"\n");
-        } else if l.starts_with('"') && out.ends_with("\"\"\n") {
-            // suite d'un msgstr sur plusieurs lignes : ignorée
-        } else {
-            out.push_str(line);
-            out.push('\n');
+        out.push_str(&format!("#. fr: {}\n", esc(&fr)));
+        if cur != "fr" && cur != "en" {
+            let t = if fr_pl.is_some() { trn(&fr, fr_pl.as_deref().unwrap_or(""), 2) } else { tr_str(&fr) };
+            if t != fr {
+                out.push_str(&format!("#. {cur_name}: {}\n", esc(&t)));
+            }
+        }
+        out.push_str(&format!("msgid \"{}\"\n", esc(en0)));
+        match en.get(1) {
+            Some(pl) => out.push_str(&format!("msgid_plural \"{}\"\nmsgstr[0] \"\"\nmsgstr[1] \"\"\n\n", esc(pl))),
+            None => out.push_str("msgstr \"\"\n\n"),
         }
     }
     std::fs::write(dir.join("modele.po"), out)?;
     Ok(dir)
+}
+
+/// Un fichier .po est-il une traduction de Turtlefin (et pas un autre .po de passage) ?
+fn is_turtlefin_po(text: &str) -> bool {
+    text.contains("msgid \"Reprendre\"") || text.contains("msgid \"Continue watching\"") || text.contains("X-Source-Language: en")
+}
+
+/// « Ajouter une langue » : copie dans le dossier des langues les traductions déposées dans
+/// Téléchargements ou sur le Bureau (sans gestionnaire de fichiers : télé, système sans bureau),
+/// puis renvoie (langues ajoutées ou mises à jour, toutes les langues ajoutées).
+pub fn import_languages() -> (Vec<String>, Vec<(String, String)>) {
+    let mut new = Vec::new();
+    let Some(dest) = custom_dirs().into_iter().next() else { return (new, Vec::new()) };
+    let mut sources: Vec<PathBuf> = Vec::new();
+    if let Some(u) = directories::UserDirs::new() {
+        sources.extend(u.download_dir().map(|p| p.to_path_buf()));
+        sources.extend(u.desktop_dir().map(|p| p.to_path_buf()));
+    }
+    for dir in sources {
+        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let p = e.path();
+            let Some(stem) = p.file_stem().and_then(|s| s.to_str()).map(str::to_lowercase) else { continue };
+            if p.extension().and_then(|s| s.to_str()) != Some("po") || stem == "modele" || stem == "template" {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&p) else { continue };
+            let target = dest.join(format!("{stem}.po"));
+            if !is_turtlefin_po(&text) || std::fs::read_to_string(&target).ok().as_deref() == Some(text.as_str()) {
+                continue;
+            }
+            if std::fs::create_dir_all(&dest).and_then(|_| std::fs::write(&target, &text)).is_ok() {
+                new.push(header(&text, "X-Language-Name").unwrap_or(stem));
+            }
+        }
+    }
+    let files = custom_files();
+    let custom = languages().into_iter().filter(|(c, _)| files.iter().any(|(f, _)| f == c)).collect();
+    (new, custom)
 }
 
 #[cfg(test)]
@@ -521,6 +615,17 @@ mod tests {
         assert_eq!([0, 1, 2].map(|n| fr.index(n)), [0, 0, 1]);
         let en = super::Plural::from_header(None);
         assert_eq!([1, 2].map(|n| en.index(n)), [0, 1]);
+    }
+
+    #[test]
+    fn english_source_file() {
+        // Fichier fait depuis le modèle : msgid anglais, ramené au texte français du code.
+        let po = "msgid \"\"\nmsgstr \"\"\n\"X-Source-Language: en\\n\"\n\nmsgid \"Continue watching\"\nmsgstr \"Fortsätt titta\"\n\nmsgid \"Sign in\"\nmsgstr \"Logga in\"\n";
+        let m = super::keyed(po);
+        assert_eq!(m.get("Reprendre").map(|v| v[0].as_str()), Some("Fortsätt titta"));
+        // « Sign in » traduit deux textes français (Se connecter, Connexion).
+        assert_eq!(m.get("Se connecter").map(|v| v[0].as_str()), Some("Logga in"));
+        assert_eq!(m.get("Connexion").map(|v| v[0].as_str()), Some("Logga in"));
     }
 
     #[test]

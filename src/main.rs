@@ -2204,7 +2204,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         ],
         3 => vec![
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
-            row("addlang", tr("Ajouter une langue"), tr("Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."), String::new(), "action", false),
+            row("addlang", tr("Ajouter une langue"), tr("Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
@@ -2765,17 +2765,26 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             refresh_settings(app);
         }
         "addlang" => {
-            // Modèle à traduire, puis le dossier ouvert dans le gestionnaire de fichiers.
-            let msg = match i18n::write_template() {
-                Ok(dir) => {
-                    let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };
-                    let _ = std::process::Command::new(opener).arg(&dir).spawn();
-                    tr("Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin.").to_string()
+            // Sans gestionnaire de fichiers (télé, système sans bureau) : on va chercher les
+            // traductions déposées dans Téléchargements ou sur le Bureau, et le modèle est (re)écrit
+            // dans le dossier des langues pour qui veut traduire.
+            let template = i18n::write_template();
+            let (new, custom) = i18n::import_languages();
+            let msg = if !custom.is_empty() {
+                let names: Vec<String> = if new.is_empty() { custom.into_iter().map(|(_, n)| n).collect() } else { new };
+                trf("Langues ajoutées : {}. Choisis-la dans « Langue de l'interface ».", &[&names.join(", ")])
+            } else {
+                match template {
+                    Ok(dir) => trf("Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po).", &[&dir.display()]),
+                    Err(e) => trf("Impossible de créer le modèle : {}", &[&e]),
                 }
-                Err(e) => trf("Impossible de créer le modèle : {}", &[&e]),
             };
             if let Some(u) = app.ui().upgrade() {
                 u.set_toast(msg.into());
+            }
+            refresh_settings(app);
+            if i18n::languages().len() > 8 {
+                open_choice(app, "language");
             }
         }
         "switch" => end_session(app, false),

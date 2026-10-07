@@ -744,9 +744,6 @@ msgstr "Idioma da interface"
 msgid "Ajouter une langue"
 msgstr "Adicionar um idioma"
 
-msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
-msgstr "Cria um modelo para traduzir e abre a pasta: não é preciso compilar nada."
-
 msgid "Interface TV"
 msgstr "Interface TV"
 
@@ -890,9 +887,6 @@ msgstr "Avatar impossível: {}"
 
 msgid "Cache d'images vidé."
 msgstr "Cache de imagens limpa."
-
-msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
-msgstr "Modelo criado: copia modele.po com o nome <código>.po, traduz e reinicia o Turtlefin."
 
 msgid "Impossible de créer le modèle : {}"
 msgstr "Impossível criar o modelo: {}"
@@ -1262,3 +1256,12 @@ msgstr "AppImage"
 
 msgid "Configuration"
 msgstr "Configuração"
+
+msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
+msgstr "Procura traduções (.po) nas Transferências e no Ambiente de trabalho; não é preciso compilar nada."
+
+msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
+msgstr "Idiomas adicionados: {}. Escolhe-o em «Idioma da interface»."
+
+msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
+msgstr "Nenhuma tradução encontrada. Coloca um ficheiro <código>.po nas Transferências, no Ambiente de trabalho ou em {} (modelo: modele.po)."

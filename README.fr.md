@@ -148,14 +148,16 @@ Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `ca
 
 Sans programmer ni compiler :
 
-1. **Paramètres → Affichage → Ajouter une langue** : Turtlefin écrit un modèle, `modele.po`, et ouvre son
-   dossier (`languages`, dans le dossier de configuration de Turtlefin).
-2. Le copier sous le nom `<code>.po` (`sv.po` pour le suédois, `ja.po` pour le japonais…) et remplir chaque
-   `msgstr ""` avec la traduction du `msgid` au-dessus (en français). Garder les `{}` et `{n}`. Remplir aussi
+1. Récupérer le modèle : **Paramètres → Affichage → Ajouter une langue** écrit `modele.po` dans le dossier
+   `languages` de Turtlefin (dans son dossier de configuration). Ses textes sont en anglais, avec en note le
+   français d'origine et la langue en cours.
+2. En faire une copie nommée `<code>.po` (`sv.po` pour le suédois, `ja.po` pour le japonais…) et remplir chaque
+   `msgstr ""` avec la traduction du `msgid` anglais au-dessus. Garder les `{}` et `{n}`. Remplir aussi
    `X-Language-Name` (nom affiché dans la liste) et, si besoin, `Plural-Forms` (règle gettext de la langue).
    N'importe quel éditeur de `.po` convient, par exemple [Poedit](https://poedit.net).
-3. Relancer Turtlefin et choisir la langue dans **Paramètres → Affichage → Langue de l'interface**. Les textes
-   laissés vides s'affichent en anglais.
+3. Déposer le fichier dans **Téléchargements** ou sur le **Bureau** de l'appareil, puis choisir de nouveau
+   **Ajouter une langue** : Turtlefin le trouve, le range et ouvre la liste des langues. Pas besoin de
+   gestionnaire de fichiers (télé, système sans bureau). Les textes laissés vides s'affichent en anglais.
 
 Pour la partager avec tout le monde : une pull request qui ajoute le fichier à `lang/` (et à `BUILTIN` dans
 `src/i18n.rs`) ; `python tools/lang-check.py` vérifie qu'il ne manque rien.

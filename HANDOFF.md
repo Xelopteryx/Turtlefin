@@ -133,7 +133,10 @@ mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas
   (`tools/lang-check.py` signale les textes manquants et les `{}` perdus).
 - Langues intégrées : `lang/<code>.po` + `BUILTIN` dans i18n.rs (fr, en, es, de, it, pt, pl, nl). Langues
   ajoutées : tout `<code>.po` du dossier `languages` (config ou à côté de l'exe), nom lu dans
-  `X-Language-Name` ; un fichier peut remplacer une langue intégrée. « Ajouter une langue » écrit `modele.po`.
+  `X-Language-Name` ; un fichier peut remplacer une langue intégrée. « Ajouter une langue » écrit `modele.po`
+  (msgid en **anglais**, en-tête `X-Source-Language: en`, notes `#.` en français et dans la langue en cours ;
+  `keyed` ramène ces msgid au français par `lang/en.po`) et copie les `.po` de Turtlefin trouvés dans
+  Téléchargements / Bureau (`import_languages`) : pas de gestionnaire de fichiers nécessaire.
 - Textes absents d'une langue : anglais. Pluriels : règle `Plural-Forms` du fichier, évaluée par i18n.rs.
 - Installeur : `[Languages]` et `[CustomMessages]` de `turtlefin.iss` (langues d'Inno Setup) ; il écrit le code
   choisi dans `language` à côté de l'exe, repris au premier lancement.

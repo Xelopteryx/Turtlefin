@@ -744,9 +744,6 @@ msgstr "Idioma de la interfaz"
 msgid "Ajouter une langue"
 msgstr "Añadir un idioma"
 
-msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
-msgstr "Crea una plantilla para traducir y abre su carpeta: no hace falta compilar nada."
-
 msgid "Interface TV"
 msgstr "Interfaz TV"
 
@@ -890,9 +887,6 @@ msgstr "Avatar imposible: {}"
 
 msgid "Cache d'images vidé."
 msgstr "Caché de imágenes vaciada."
-
-msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
-msgstr "Plantilla creada: copia modele.po con el nombre <código>.po, tradúcelo y reinicia Turtlefin."
 
 msgid "Impossible de créer le modèle : {}"
 msgstr "No se puede crear la plantilla: {}"
@@ -1262,3 +1256,12 @@ msgstr "AppImage"
 
 msgid "Configuration"
 msgstr "Configuración"
+
+msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
+msgstr "Busca traducciones (.po) en Descargas y en el Escritorio; no hace falta compilar nada."
+
+msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
+msgstr "Idiomas añadidos: {}. Elígelo en «Idioma de la interfaz»."
+
+msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
+msgstr "No se encontró ninguna traducción. Deja un archivo <código>.po en Descargas, en el Escritorio o en {} (plantilla: modele.po)."

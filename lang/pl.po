@@ -746,9 +746,6 @@ msgstr "Język interfejsu"
 msgid "Ajouter une langue"
 msgstr "Dodaj język"
 
-msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
-msgstr "Tworzy szablon do przetłumaczenia i otwiera jego folder: bez kompilacji."
-
 msgid "Interface TV"
 msgstr "Interfejs TV"
 
@@ -892,9 +889,6 @@ msgstr "Nie można ustawić awatara: {}"
 
 msgid "Cache d'images vidé."
 msgstr "Pamięć podręczna obrazów wyczyszczona."
-
-msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
-msgstr "Szablon utworzony: skopiuj modele.po jako <kod>.po, przetłumacz go i uruchom ponownie Turtlefin."
 
 msgid "Impossible de créer le modèle : {}"
 msgstr "Nie można utworzyć szablonu: {}"
@@ -1264,3 +1258,12 @@ msgstr "AppImage"
 
 msgid "Configuration"
 msgstr "Konfiguracja"
+
+msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
+msgstr "Szuka tłumaczeń (.po) w Pobranych i na Pulpicie; bez kompilacji."
+
+msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
+msgstr "Dodane języki: {}. Wybierz go w „Język interfejsu”."
+
+msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
+msgstr "Nie znaleziono tłumaczenia. Umieść plik <kod>.po w Pobranych, na Pulpicie lub w {} (szablon: modele.po)."

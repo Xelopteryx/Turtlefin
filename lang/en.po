@@ -744,9 +744,6 @@ msgstr "Interface language"
 msgid "Ajouter une langue"
 msgstr "Add a language"
 
-msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
-msgstr "Creates a template to translate and opens its folder: no compiling needed."
-
 msgid "Interface TV"
 msgstr "TV interface"
 
@@ -890,9 +887,6 @@ msgstr "Cannot set the avatar: {}"
 
 msgid "Cache d'images vidé."
 msgstr "Image cache cleared."
-
-msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
-msgstr "Template created: copy modele.po as <code>.po, translate it, then restart Turtlefin."
 
 msgid "Impossible de créer le modèle : {}"
 msgstr "Cannot create the template: {}"
@@ -1262,3 +1256,12 @@ msgstr "AppImage"
 
 msgid "Configuration"
 msgstr "Configuration"
+
+msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
+msgstr "Looks for translations (.po) in Downloads and on the Desktop; no compiling needed."
+
+msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
+msgstr "Languages added: {}. Pick it in “Interface language”."
+
+msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
+msgstr "No translation found. Put a <code>.po file in Downloads, on the Desktop or in {} (template: modele.po)."

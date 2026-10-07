@@ -131,7 +131,10 @@ choice); XeLauncher bridge (the maintainer's media-center launcher, low priority
   (`tools/lang-check.py` reports missing texts and lost `{}`).
 - Built-in languages: `lang/<code>.po` + `BUILTIN` in i18n.rs (fr, en, es, de, it, pt, pl, nl). Added languages:
   any `<code>.po` in the `languages` folder (config, or next to the exe), name read from `X-Language-Name`; a
-  file can override a built-in language. “Add a language” writes `modele.po`.
+  file can override a built-in language. “Add a language” writes `modele.po` (**English** msgids,
+  `X-Source-Language: en` header, `#.` notes in French and in the current language; `keyed` maps those msgids
+  back to French through `lang/en.po`) and copies Turtlefin `.po` files found in Downloads / Desktop
+  (`import_languages`): no file manager needed.
 - Texts missing from a language: English. Plurals: the file's `Plural-Forms` rule, evaluated by i18n.rs.
 - Installer: `[Languages]` and `[CustomMessages]` of `turtlefin.iss` (Inno Setup languages); it writes the chosen
   code to `language` next to the exe, picked up on first launch.
