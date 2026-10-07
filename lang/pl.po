@@ -1,0 +1,1266 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pl\n"
+"X-Language-Name: Polski\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "{n} participant"
+msgid_plural "{n} participants"
+msgstr[0] "{n} uczestnik"
+msgstr[1] "{n} uczestnicy"
+msgstr[2] "{n} uczestników"
+
+msgid "{n} serveur trouvé sur tes réseaux (local et VPN)"
+msgid_plural "{n} serveurs trouvés sur tes réseaux (local et VPN)"
+msgstr[0] "{n} serwer znaleziony w twoich sieciach (lokalnie i VPN)"
+msgstr[1] "{n} serwery znalezione w twoich sieciach (lokalnie i VPN)"
+msgstr[2] "{n} serwerów znalezionych w twoich sieciach (lokalnie i VPN)"
+
+msgid "En attente"
+msgstr "Oczekuje"
+
+msgid "Acceptée"
+msgstr "Zaakceptowana"
+
+msgid "Refusée"
+msgstr "Odrzucona"
+
+msgid "Disponible"
+msgstr "Dostępny"
+
+msgid "Échec"
+msgstr "Błąd"
+
+msgid "Échap pour fermer  ·  ↑ ↓ pour défiler"
+msgstr "Esc, aby zamknąć  ·  ↑ ↓, aby przewijać"
+
+msgid "Hors ligne"
+msgstr "Offline"
+
+msgid "Recherche"
+msgstr "Wyszukiwanie"
+
+msgid "Téléchargements"
+msgstr "Pobrane"
+
+msgid "Ajouter un compte"
+msgstr "Dodaj konto"
+
+msgid "Saisis au moins l'adresse principale du serveur."
+msgstr "Wpisz przynajmniej główny adres serwera."
+
+msgid "Enregistré"
+msgstr "Zapisane"
+
+msgid "Saisis un nom d'utilisateur."
+msgstr "Wpisz nazwę użytkownika."
+
+msgid "Choisis un compte à retirer de cet appareil"
+msgstr "Wybierz konto do usunięcia z tego urządzenia"
+
+msgid "Qui regarde ?"
+msgstr "Kto ogląda?"
+
+msgid "Changer de serveur"
+msgstr "Zmień serwer"
+
+msgid "Terminé"
+msgstr "Gotowe"
+
+msgid "Gérer les comptes"
+msgstr "Zarządzaj kontami"
+
+msgid "Connexion…"
+msgstr "Logowanie…"
+
+msgid "Choisis un champ puis appuie sur Entrée pour écrire."
+msgstr "Wybierz pole i naciśnij Enter, aby pisać."
+
+msgid "Le mot de passe peut rester vide si le compte n'en a pas."
+msgstr "Hasło może zostać puste, jeśli konto go nie ma."
+
+msgid "Nom d'utilisateur"
+msgstr "Nazwa użytkownika"
+
+msgid "ex. Heisenberg"
+msgstr "np. Heisenberg"
+
+msgid "Mot de passe"
+msgstr "Hasło"
+
+msgid "Retour"
+msgstr "Wstecz"
+
+msgid "Se connecter"
+msgstr "Zaloguj się"
+
+msgid "Suivant"
+msgstr "Dalej"
+
+msgid "Connexion"
+msgstr "Zaloguj się"
+
+msgid "Accueil"
+msgstr "Start"
+
+msgid "Favoris"
+msgstr "Ulubione"
+
+msgid "Demandes"
+msgstr "Prośby"
+
+msgid "Aucun favori pour l'instant."
+msgstr "Brak ulubionych."
+
+msgid "Aucune demande pour l'instant."
+msgstr "Brak próśb."
+
+msgid "Rien à afficher."
+msgstr "Nic do wyświetlenia."
+
+msgid "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
+msgstr "Jesteś w „{}”. Włącz film lub odcinek: wystartuje dla całej grupy jednocześnie. Pauza i przewijanie są wspólne."
+
+msgid "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une."
+msgstr "Oglądaj to samo w tym samym czasie co inne konta: utwórz watch party lub dołącz do istniejącej."
+
+msgid "En lecture"
+msgstr "Odtwarzanie"
+
+msgid "En pause"
+msgstr "Wstrzymano"
+
+msgid "Regarde : {}"
+msgstr "Ogląda: {}"
+
+msgid "Rien pour l'instant : lance un film ou un épisode."
+msgstr "Na razie nic: włącz film lub odcinek."
+
+msgid "REJOINDRE"
+msgstr "DOŁĄCZ"
+
+msgid "Quitter la watch party"
+msgstr "Opuść watch party"
+
+msgid "Créer une watch party"
+msgstr "Utwórz watch party"
+
+msgid "Titre d'un film, d'une série, d'un épisode…"
+msgstr "Tytuł filmu, serialu, odcinka…"
+
+msgid "Recherche…"
+msgstr "Wyszukiwanie…"
+
+msgid "Aucun résultat."
+msgstr "Brak wyników."
+
+msgid "Bientôt disponible."
+msgstr "Wkrótce."
+
+msgid "Échap ou Retour arrière pour revenir"
+msgstr "Esc lub Backspace, aby wrócić"
+
+msgid "Réglages · bientôt"
+msgstr "Ustawienia · wkrótce"
+
+msgid "Déconnexion"
+msgstr "Wyloguj"
+
+msgid "À SUIVRE"
+msgstr "NASTĘPNE"
+
+msgid "Langue audio"
+msgstr "Język dźwięku"
+
+msgid "Sous-titres"
+msgstr "Napisy"
+
+msgid "Retenu pour toute la série"
+msgstr "Zapamiętane dla całego serialu"
+
+msgid "Chargement…"
+msgstr "Ładowanie…"
+
+msgid "Choisir un serveur"
+msgstr "Wybierz serwer"
+
+msgid "Recherche sur tes réseaux (local et VPN)"
+msgstr "Wyszukiwanie w twoich sieciach (lokalnie i VPN)"
+
+msgid "Aucun serveur trouvé : saisis son adresse."
+msgstr "Nie znaleziono serwera: wpisz jego adres."
+
+msgid "Actuel"
+msgstr "Bieżący"
+
+msgid "Principale : {}      Secours : {}"
+msgstr "Główny: {}      Zapasowy: {}"
+
+msgid "Rechercher à nouveau"
+msgstr "Szukaj ponownie"
+
+msgid "Saisir une adresse"
+msgstr "Wpisz adres"
+
+msgid "Adresse du serveur"
+msgstr "Adres serwera"
+
+msgid "Sans « http:// » ni « https:// », les deux sont essayés."
+msgstr "Bez „http://” i „https://” sprawdzane są oba."
+
+msgid "Adresse principale"
+msgstr "Adres główny"
+
+msgid "Adresse de secours · facultative, si la principale ne répond pas"
+msgstr "Adres zapasowy · opcjonalny, gdy główny nie odpowiada"
+
+msgid "Annuler"
+msgstr "Anuluj"
+
+msgid "Vérification…"
+msgstr "Sprawdzanie…"
+
+msgid "Valider"
+msgstr "Zatwierdź"
+
+msgid "Vérification des adresses…"
+msgstr "Sprawdzanie adresów…"
+
+msgid "Deux adresses répondent. Laquelle utiliser ?"
+msgstr "Odpowiadają dwa adresy. Którego użyć?"
+
+msgid "Aucun téléchargement : rien à regarder hors ligne."
+msgstr "Brak pobranych: nic do oglądania offline."
+
+msgid "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne."
+msgstr "Brak pobranych.\nNa stronie filmu lub serialu przycisk Pobierz pozwala oglądać offline."
+
+msgid "Compte"
+msgstr "Konto"
+
+msgid "Lecture"
+msgstr "Odtwarzanie"
+
+msgid "Affichage"
+msgstr "Wyświetlanie"
+
+msgid "Réseau"
+msgstr "Sieć"
+
+msgid "À propos"
+msgstr "Informacje"
+
+msgid "Paramètres"
+msgstr "Ustawienia"
+
+msgid "Photo de profil"
+msgstr "Zdjęcie profilowe"
+
+msgid "Chargement des avatars…"
+msgstr "Ładowanie awatarów…"
+
+msgid "{} avatars en {} catégories · Entrée pour choisir, Échap pour revenir"
+msgstr "Awatary: {}, kategorie: {} · Enter, aby wybrać, Esc, aby wrócić"
+
+msgid "{} avatars · Entrée pour choisir, Échap pour revenir"
+msgstr "Awatary: {} · Enter, aby wybrać, Esc, aby wrócić"
+
+msgid "Actuelle"
+msgstr "Bieżące"
+
+msgid "Adresse de secours"
+msgstr "Adres zapasowy"
+
+msgid "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
+msgstr "Używany jako pierwszy. Bez „http://” i „https://” sprawdzane są oba."
+
+msgid "Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune."
+msgstr "Sprawdzany, gdy główny nie odpowiada (inna sieć, VPN…). Zostaw puste, aby go nie mieć."
+
+msgid "Enregistrer"
+msgstr "Zapisz"
+
+msgid "Vérification de l'adresse…"
+msgstr "Sprawdzanie adresu…"
+
+msgid "Watch party"
+msgstr "Watch party"
+
+msgid "Voir sur le serveur"
+msgstr "Zobacz na serwerze"
+
+msgid "Demander"
+msgstr "Poproś"
+
+msgid "Fermer"
+msgstr "Zamknij"
+
+msgid "Chargement… (Échap pour annuler)"
+msgstr "Ładowanie… (Esc, aby anulować)"
+
+msgid "espace"
+msgstr "spacja"
+
+msgid "En cours"
+msgstr "Teraz"
+
+msgid "Connexion au serveur perdue · reprise automatique dès son retour"
+msgstr "Utracono połączenie z serwerem · wznowi się samo, gdy wróci"
+
+msgid "Mise en mémoire…"
+msgstr "Buforowanie…"
+
+msgid "Audio"
+msgstr "Dźwięk"
+
+msgid "Piste audio"
+msgstr "Ścieżka dźwiękowa"
+
+msgid "Aucune piste"
+msgstr "Brak ścieżki"
+
+msgid "Passer l'intro"
+msgstr "Pomiń intro"
+
+msgid "Regarder la fin de celui-ci"
+msgstr "Obejrzyj koniec tego odcinka"
+
+msgid "Regarder la fin"
+msgstr "Obejrzyj koniec"
+
+msgid "À voir ensuite"
+msgstr "Do obejrzenia dalej"
+
+msgid "C'est fini ! À voir ensuite"
+msgstr "Koniec! Do obejrzenia dalej"
+
+msgid "Retour à l'accueil"
+msgstr "Wróć na start"
+
+msgid "Watch party · {}"
+msgstr "Watch party · {}"
+
+msgid "Session expirée ou identifiants refusés"
+msgstr "Sesja wygasła lub dane logowania odrzucone"
+
+msgid "Série"
+msgstr "Serial"
+
+msgid "Film"
+msgstr "Film"
+
+msgid "Audio : {}"
+msgstr "Dźwięk: {}"
+
+msgid "Voir la série"
+msgstr "Zobacz serial"
+
+msgid "Voir la saison"
+msgstr "Zobacz sezon"
+
+msgid "Acteur"
+msgstr "Aktor"
+
+msgid "Invité"
+msgstr "Gość"
+
+msgid "Réalisation"
+msgstr "Reżyseria"
+
+msgid "Scénario"
+msgstr "Scenariusz"
+
+msgid "Production"
+msgstr "Produkcja"
+
+msgid "Musique"
+msgstr "Muzyka"
+
+msgid "Inconnue"
+msgstr "Nieznany"
+
+msgid "Impossible de joindre {} : {}"
+msgstr "Nie można połączyć się z {}: {}"
+
+msgid "Identifiant ou mot de passe incorrect"
+msgstr "Błędna nazwa użytkownika lub hasło"
+
+msgid "Le serveur a répondu {}"
+msgstr "Serwer odpowiedział {}"
+
+msgid "Le serveur a répondu {} sur {}"
+msgstr "Serwer odpowiedział {} dla {}"
+
+msgid "{} épisodes"
+msgstr "Odcinki: {}"
+
+msgid "Terminée"
+msgstr "Zakończony"
+
+msgid "En cours de diffusion"
+msgstr "Emitowany"
+
+msgid "Annulée"
+msgstr "Anulowany"
+
+msgid "En production"
+msgstr "W produkcji"
+
+msgid "Sorti"
+msgstr "Wydany"
+
+msgid "Post-production"
+msgstr "Postprodukcja"
+
+msgid "Prévu"
+msgstr "Planowany"
+
+msgid "Première diffusion"
+msgstr "Pierwsza emisja"
+
+msgid "Sortie"
+msgstr "Premiera"
+
+msgid "Dernière diffusion"
+msgstr "Ostatnia emisja"
+
+msgid "Langue originale"
+msgstr "Język oryginalny"
+
+msgid "Diffuseur"
+msgstr "Stacja"
+
+msgid "Studios"
+msgstr "Studia"
+
+msgid "Dossier {} introuvable."
+msgstr "Nie znaleziono folderu {}."
+
+msgid "Impossible d'écrire dans le dossier {} : {}"
+msgstr "Nie można zapisać w folderze {}: {}"
+
+msgid "Traductions introuvables : l'interface reste en français."
+msgstr "Nie znaleziono tłumaczeń: interfejs zostaje po francusku."
+
+msgid "Affichage OpenGL indisponible : l'interface marche, mais pas la vidéo."
+msgstr "Wyświetlanie OpenGL niedostępne: interfejs działa, ale wideo nie."
+
+msgid "Lecteur vidéo (libmpv) introuvable : la lecture ne fonctionnera pas."
+msgstr "Nie znaleziono odtwarzacza wideo (libmpv): odtwarzanie nie będzie działać."
+
+msgid "de configuration"
+msgstr "konfiguracji"
+
+msgid "des téléchargements"
+msgstr "pobranych"
+
+msgid "du cache"
+msgstr "pamięci podręcznej"
+
+msgid "Fichier de configuration illisible ({}) : réglages par défaut utilisés."
+msgstr "Nieczytelny plik konfiguracji ({}): użyto ustawień domyślnych."
+
+msgid "Aucun réseau : seuls les téléchargements seront disponibles."
+msgstr "Brak sieci: dostępne będą tylko pobrane pliki."
+
+msgid "Serveur injoignable : nouvel essai automatique ensuite."
+msgstr "Serwer nieosiągalny: automatyczna ponowna próba później."
+
+msgid "Un autre serveur Jellyfin répond à cette adresse."
+msgstr "Pod tym adresem odpowiada inny serwer Jellyfin."
+
+msgid "Continuer"
+msgstr "Dalej"
+
+msgid "Indique le serveur avec --server=URL (ou choisis-le ci-dessous)."
+msgstr "Podaj serwer przez --server=URL (lub wybierz go poniżej)."
+
+msgid "le serveur refuse le téléchargement ({})"
+msgstr "serwer odmawia pobrania ({})"
+
+msgid "plus aucune donnée reçue depuis 30 s"
+msgstr "brak danych od 30 s"
+
+msgid "transfert incomplet ({} octets sur {})"
+msgstr "niepełny transfer ({} z {} bajtów)"
+
+msgid "le serveur met trop de temps à répondre"
+msgstr "serwer zbyt długo nie odpowiada"
+
+msgid "le serveur ne répond pas (est-il allumé ? le réseau est-il disponible ?)"
+msgstr "serwer nie odpowiada (czy jest włączony? czy sieć jest dostępna?)"
+
+msgid "réponse du serveur illisible"
+msgstr "nieczytelna odpowiedź serwera"
+
+msgid "session expirée, reconnecte-toi"
+msgstr "sesja wygasła, zaloguj się ponownie"
+
+msgid "Autre compte"
+msgstr "Inne konto"
+
+msgid "Serveur injoignable"
+msgstr "Serwer nieosiągalny"
+
+msgid "Connexion de {}"
+msgstr "Logowanie: {}"
+
+msgid "Connexion impossible : {}."
+msgstr "Nie można się zalogować: {}."
+
+msgid "Reconnexion de {}"
+msgstr "Ponowne logowanie: {}"
+
+msgid "Session expirée : entre le mot de passe."
+msgstr "Sesja wygasła: wpisz hasło."
+
+msgid "Mes médias"
+msgstr "Moje media"
+
+msgid "Reprendre"
+msgstr "Oglądaj dalej"
+
+msgid "À suivre"
+msgstr "Następne"
+
+msgid "Récemment ajouté · {}"
+msgstr "Ostatnio dodane · {}"
+
+msgid "Films"
+msgstr "Filmy"
+
+msgid "Séries"
+msgstr "Seriale"
+
+msgid "Épisodes"
+msgstr "Odcinki"
+
+msgid "Disponibles"
+msgstr "Dostępne"
+
+msgid "Acceptées"
+msgstr "Zaakceptowane"
+
+msgid "Refusées"
+msgstr "Odrzucone"
+
+msgid "En échec"
+msgstr "Nieudane"
+
+msgid "Plus de ce genre"
+msgstr "Więcej podobnych"
+
+msgid "Similaires"
+msgstr "Podobne"
+
+msgid "Recommandés"
+msgstr "Polecane"
+
+msgid "Français"
+msgstr "Francuski"
+
+msgid "Anglais"
+msgstr "Angielski"
+
+msgid "Japonais"
+msgstr "Japoński"
+
+msgid "Allemand"
+msgstr "Niemiecki"
+
+msgid "Espagnol"
+msgstr "Hiszpański"
+
+msgid "Italien"
+msgstr "Włoski"
+
+msgid "Portugais"
+msgstr "Portugalski"
+
+msgid "Coréen"
+msgstr "Koreański"
+
+msgid "Chinois"
+msgstr "Chiński"
+
+msgid "Russe"
+msgstr "Rosyjski"
+
+msgid "Arabe"
+msgstr "Arabski"
+
+msgid "Néerlandais"
+msgstr "Niderlandzki"
+
+msgid "Par défaut (fichier)"
+msgstr "Domyślna (plik)"
+
+msgid "Désactivés"
+msgstr "Wyłączone"
+
+msgid "par défaut"
+msgstr "domyślne"
+
+msgid "désactivés"
+msgstr "wyłączone"
+
+msgid "Action impossible : {}"
+msgstr "Nie można wykonać: {}"
+
+msgid "En attente des participants"
+msgstr "Czekanie na uczestników"
+
+msgid "Prêt : lance un film ou un épisode"
+msgstr "Gotowe: włącz film lub odcinek"
+
+msgid "Watch party · {} en ligne"
+msgstr "Watch party · online: {}"
+
+msgid "Watch party de {}"
+msgstr "Watch party użytkownika {}"
+
+msgid "Watch party : {}"
+msgstr "Watch party: {}"
+
+msgid "À demander (Seerr)"
+msgstr "Do poproszenia (Seerr)"
+
+msgid "Plus rien à découvrir : tout a été vu !"
+msgstr "Nic więcej do odkrycia: obejrzano wszystko!"
+
+msgid "Seerr : {}"
+msgstr "Seerr: {}"
+
+msgid "Disponible sur le serveur"
+msgstr "Dostępne na serwerze"
+
+msgid "Partiellement disponible"
+msgstr "Częściowo dostępne"
+
+msgid "En cours de traitement"
+msgstr "W trakcie przetwarzania"
+
+msgid "Demande en attente"
+msgstr "Prośba oczekuje"
+
+msgid "Demande envoyée"
+msgstr "Prośba wysłana"
+
+msgid "Demande impossible : {}"
+msgstr "Nie można wysłać prośby: {}"
+
+msgid "Bibliothèque illisible : {}"
+msgstr "Nieczytelna biblioteka: {}"
+
+msgid "Aucun serveur Jellyfin ne répond à « {} »."
+msgstr "Żaden serwer Jellyfin nie odpowiada pod „{}”."
+
+msgid "Les deux adresses mènent à deux serveurs différents."
+msgstr "Te dwa adresy prowadzą do dwóch różnych serwerów."
+
+msgid "Indique au moins une adresse."
+msgstr "Podaj przynajmniej jeden adres."
+
+msgid "Connecté à {}"
+msgstr "Połączono z {}"
+
+msgid "{} avatars proposés par le serveur, en {} catégories."
+msgstr "Awatary oferowane przez serwer: {}, kategorie: {}."
+
+msgid "{} avatars proposés par le serveur."
+msgstr "Awatary oferowane przez serwer: {}."
+
+msgid "Changer"
+msgstr "Zmień"
+
+msgid "Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide)."
+msgstr "Zdjęcie profilowe: serwer nie oferuje awatarów (brak wtyczki GetAvatar lub jest pusta)."
+
+msgid "Ouvrir ce compte au démarrage"
+msgstr "Otwieraj to konto przy starcie"
+
+msgid "Sinon, Turtlefin démarre sur « Qui regarde ? »."
+msgstr "W przeciwnym razie Turtlefin startuje na „Kto ogląda?”."
+
+msgid "Changer de compte"
+msgstr "Zmień konto"
+
+msgid "Les comptes enregistrés restent disponibles."
+msgstr "Zapisane konta pozostają dostępne."
+
+msgid "Se déconnecter"
+msgstr "Wyloguj się"
+
+msgid "Le compte est retiré de cet appareil."
+msgstr "Konto zostanie usunięte z tego urządzenia."
+
+msgid "Langue audio préférée"
+msgstr "Preferowany język dźwięku"
+
+msgid "Choisie à l'ouverture d'un film ou d'un épisode, si elle existe."
+msgstr "Wybierany przy otwarciu filmu lub odcinka, jeśli istnieje."
+
+msgid "Piste audio par défaut du fichier"
+msgstr "Domyślna ścieżka dźwiękowa pliku"
+
+msgid "Sans langue préférée, la piste marquée « par défaut » est lue."
+msgstr "Bez preferowanego języka odtwarzana jest ścieżka oznaczona jako „domyślna”."
+
+msgid "Épisode suivant automatique"
+msgstr "Automatycznie następny odcinek"
+
+msgid "À la fin d'un épisode, le suivant démarre tout seul."
+msgstr "Po zakończeniu odcinka następny startuje sam."
+
+msgid "Passer l'intro automatiquement"
+msgstr "Automatycznie pomijaj intro"
+
+msgid "Quand le serveur connaît l'intro (segments), elle est sautée sans demander."
+msgstr "Gdy serwer zna intro (segmenty), jest ono pomijane bez pytania."
+
+msgid "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."
+msgstr "Wybór dokonany na stronie filmu lub serialu ma pierwszeństwo."
+
+msgid "Langue des sous-titres préférée"
+msgstr "Preferowany język napisów"
+
+msgid "Utilisée selon le mode ci-dessous."
+msgstr "Używany zgodnie z trybem poniżej."
+
+msgid "Quand afficher les sous-titres"
+msgstr "Kiedy pokazywać napisy"
+
+msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."
+msgstr "Domyślnie: według pliku · Inteligentnie: gdy dźwięk nie jest w twoim języku."
+
+msgid "Taille des sous-titres"
+msgstr "Rozmiar napisów"
+
+msgid "Appliquée à la prochaine vidéo."
+msgstr "Zastosowany przy następnym wideo."
+
+msgid "Langue de l'interface"
+msgstr "Język interfejsu"
+
+msgid "Ajouter une langue"
+msgstr "Dodaj język"
+
+msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
+msgstr "Tworzy szablon do przetłumaczenia i otwiera jego folder: bez kompilacji."
+
+msgid "Interface TV"
+msgstr "Interfejs TV"
+
+msgid "Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."
+msgstr "Duże elementy i pełny ekran, do telewizora (--tv i --desktop mają pierwszeństwo)."
+
+msgid "Fond d'écran du média sélectionné"
+msgstr "Tło wybranego materiału"
+
+msgid "Image floutée derrière les pages. À couper si l'appareil est lent."
+msgstr "Rozmyty obraz za stronami. Wyłącz na wolnym urządzeniu."
+
+msgid "Notes sur les affiches"
+msgstr "Oceny na plakatach"
+
+msgid "La note de la communauté (★) en bas à droite des affiches."
+msgstr "Ocena społeczności (★) w prawym dolnym rogu plakatów."
+
+msgid "Faire défiler les noms trop longs"
+msgstr "Przewijaj zbyt długie nazwy"
+
+msgid "Sur l'élément sélectionné seulement."
+msgstr "Tylko na wybranym elemencie."
+
+msgid "Afficher l'heure"
+msgstr "Pokazuj godzinę"
+
+msgid "En haut à droite de l'écran."
+msgstr "W prawym górnym rogu ekranu."
+
+msgid "Avatars animés figés"
+msgstr "Zatrzymaj animowane awatary"
+
+msgid "Les avatars GIF restent sur leur première image (moins de calcul)."
+msgstr "Awatary GIF pozostają na pierwszej klatce (mniej obliczeń)."
+
+msgid "Aucune"
+msgstr "Brak"
+
+msgid "Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)"
+msgstr "Brak · sprawdzany, gdy główny nie odpowiada (inna sieć, VPN…)"
+
+msgid "{} · essayée quand la principale ne répond pas"
+msgstr "{} · sprawdzany, gdy główny nie odpowiada"
+
+msgid "Modifier"
+msgstr "Zmień"
+
+msgid "Échanger les deux adresses"
+msgstr "Zamień oba adresy"
+
+msgid "L'adresse de secours devient la principale."
+msgstr "Adres zapasowy staje się głównym."
+
+msgid "Hors ligne : aucune adresse ne répond."
+msgstr "Offline: żaden adres nie odpowiada."
+
+msgid "Connecté en ce moment par {}"
+msgstr "Obecnie połączono przez {}"
+
+msgid "Rechercher un autre serveur"
+msgstr "Znajdź inny serwer"
+
+msgid "Serveurs Jellyfin trouvés sur tes réseaux (local et VPN)."
+msgstr "Serwery Jellyfin znalezione w twoich sieciach (lokalnie i VPN)."
+
+msgid "Rechercher une mise à jour"
+msgstr "Sprawdź aktualizacje"
+
+msgid "Recherche sur GitHub…"
+msgstr "Sprawdzanie GitHub…"
+
+msgid "Turtlefin est à jour."
+msgstr "Turtlefin jest aktualny."
+
+msgid "À jour"
+msgstr "Aktualny"
+
+msgid "Redémarrer Turtlefin"
+msgstr "Uruchom ponownie Turtlefin"
+
+msgid "La nouvelle version est prête."
+msgstr "Nowa wersja jest gotowa."
+
+msgid "Une nouvelle version est disponible."
+msgstr "Dostępna jest nowa wersja."
+
+msgid "Nouveautés : {}"
+msgstr "Nowości: {}"
+
+msgid "Mettre à jour"
+msgstr "Aktualizuj"
+
+msgid "Mise à jour en cours"
+msgstr "Aktualizowanie"
+
+msgid "Échec : {}"
+msgstr "Błąd: {}"
+
+msgid "Compare cette version à celle publiée sur GitHub ({})."
+msgstr "Porównuje tę wersję z opublikowaną na GitHub ({})."
+
+msgid "Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)"
+msgstr "Turtlefin {} ({}) · natywny klient Jellyfin (Rust + Slint + mpv)"
+
+msgid "Serveur : {}"
+msgstr "Serwer: {}"
+
+msgid "Appareil : {}"
+msgstr "Urządzenie: {}"
+
+msgid "Vider le cache d'images"
+msgstr "Wyczyść pamięć podręczną obrazów"
+
+msgid "Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés."
+msgstr "Plakaty, miniatury i awatary zapisane na dysku; zostaną pobrane ponownie."
+
+msgid "Fermer Turtlefin"
+msgstr "Zamknij Turtlefin"
+
+msgid "Quitte l'application."
+msgstr "Zamyka aplikację."
+
+msgid "Langue des sous-titres"
+msgstr "Język napisów"
+
+msgid "Réglage non enregistré : {}"
+msgstr "Ustawienie niezapisane: {}"
+
+msgid "Préparation…"
+msgstr "Przygotowywanie…"
+
+msgid "Sans nom"
+msgstr "Bez nazwy"
+
+msgid "Photo de profil modifiée."
+msgstr "Zdjęcie profilowe zmienione."
+
+msgid "Avatar impossible : {}"
+msgstr "Nie można ustawić awatara: {}"
+
+msgid "Cache d'images vidé."
+msgstr "Pamięć podręczna obrazów wyczyszczona."
+
+msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
+msgstr "Szablon utworzony: skopiuj modele.po jako <kod>.po, przetłumacz go i uruchom ponownie Turtlefin."
+
+msgid "Impossible de créer le modèle : {}"
+msgstr "Nie można utworzyć szablonu: {}"
+
+msgid "Adresses échangées."
+msgstr "Adresy zamienione."
+
+msgid "Adresse principale de nouveau joignable : retour dessus."
+msgstr "Adres główny znów osiągalny: powrót do niego."
+
+msgid "Adresse principale injoignable : passage par l'adresse de secours ({})."
+msgstr "Adres główny nieosiągalny: używany jest adres zapasowy ({})."
+
+msgid "L'adresse principale ne peut pas être vide."
+msgstr "Adres główny nie może być pusty."
+
+msgid "Adresse de secours retirée."
+msgstr "Adres zapasowy usunięty."
+
+msgid "Cette adresse mène à un autre serveur ({}). Pour en changer : « Rechercher un autre serveur »."
+msgstr "Ten adres prowadzi do innego serwera ({}). Aby zmienić: „Znajdź inny serwer”."
+
+msgid "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses »."
+msgstr "To już jest adres zapasowy: użyj „Zamień oba adresy”."
+
+msgid "C'est déjà l'adresse principale."
+msgstr "To już jest adres główny."
+
+msgid "Adresse enregistrée : {}"
+msgstr "Adres zapisany: {}"
+
+msgid "Navigation"
+msgstr "Nawigacja"
+
+msgid "Bibliothèques"
+msgstr "Biblioteki"
+
+msgid "Sélectionner un serveur"
+msgstr "Wybierz serwer"
+
+msgid "Application"
+msgstr "Aplikacja"
+
+msgid "Pas (encore) dans ta bibliothèque Jellyfin."
+msgstr "(Jeszcze) nie ma w twojej bibliotece Jellyfin."
+
+msgid "Demander la saison {}"
+msgstr "Poproś o sezon {}"
+
+msgid "Demander les {} saisons manquantes"
+msgstr "Poproś o brakujące sezony ({})"
+
+msgid "Demande envoyée à Seerr : saison(s) {}."
+msgstr "Prośba wysłana do Seerr: sezon(y) {}."
+
+msgid "Demande refusée par Seerr : {}"
+msgstr "Seerr odrzucił prośbę: {}"
+
+msgid "Saisons demandées"
+msgstr "Poproszono o sezony"
+
+msgid "le serveur ne répond pas"
+msgstr "serwer nie odpowiada"
+
+msgid "Impossible d'ouvrir la fiche : {}"
+msgstr "Nie można otworzyć strony: {}"
+
+msgid "Saisons"
+msgstr "Sezony"
+
+msgid "Contenu · {} premiers"
+msgstr "Zawartość · pierwsze {}"
+
+msgid "Contenu"
+msgstr "Zawartość"
+
+msgid "Sous-titres : {}"
+msgstr "Napisy: {}"
+
+msgid "Cette série n'a aucun épisode"
+msgstr "Ten serial nie ma odcinków"
+
+msgid "Saison sans série associée"
+msgstr "Sezon bez powiązanego serialu"
+
+msgid "Cette saison n'a aucun épisode"
+msgstr "Ten sezon nie ma odcinków"
+
+msgid "Impossible de lancer la lecture d'un élément de type {}"
+msgstr "Nie można odtworzyć elementu typu {}"
+
+msgid "1 changement fait hors ligne envoyé au serveur."
+msgstr "1 zmiana wprowadzona offline wysłana na serwer."
+
+msgid "{} changements faits hors ligne envoyés au serveur."
+msgstr "Zmiany wprowadzone offline wysłane na serwer: {}."
+
+msgid "Lecture impossible : {}"
+msgstr "Nie można odtworzyć: {}"
+
+msgid "{} retiré de cet appareil."
+msgstr "Usunięto {} z tego urządzenia."
+
+msgid "Lecture impossible : le rendu OpenGL n'est pas disponible (SLINT_BACKEND ?)."
+msgstr "Nie można odtworzyć: renderowanie OpenGL niedostępne (SLINT_BACKEND?)."
+
+msgid "Serveur injoignable : nouvel essai automatique toutes les 5 s…"
+msgstr "Serwer nieosiągalny: automatyczna ponowna próba co 5 s…"
+
+msgid "Ce compte n'est plus valable : choisis un compte."
+msgstr "To konto nie jest już ważne: wybierz konto."
+
+msgid "Téléchargement annulé."
+msgstr "Pobieranie anulowane."
+
+msgid "{} téléchargements annulés."
+msgstr "Anulowane pobierania: {}."
+
+msgid "Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler."
+msgstr "Dodano do pobranych ({}). Naciśnij ponownie Pobierz, aby anulować."
+
+msgid "Téléchargement en cours : {} %."
+msgstr "Pobieranie: {} %."
+
+msgid "Déjà téléchargé."
+msgstr "Już pobrane."
+
+msgid "Déjà dans la file de téléchargement."
+msgstr "Już w kolejce pobierania."
+
+msgid "Téléchargement impossible ({}) : {}"
+msgstr "Nie można pobrać ({}): {}"
+
+msgid "Connexion perdue : le téléchargement reprendra tout seul."
+msgstr "Utracono połączenie: pobieranie wznowi się samo."
+
+msgid "Téléchargement : {} — {} %"
+msgstr "Pobieranie: {} — {} %"
+
+msgid "Téléchargements en pause (connexion perdue) · {} en attente · reprise automatique"
+msgstr "Pobieranie wstrzymane (utracono połączenie) · oczekujące: {} · automatyczne wznowienie"
+
+msgid "Reprise à {}"
+msgstr "Wznów od {}"
+
+msgid "à synchroniser"
+msgstr "do synchronizacji"
+
+msgid "Saison {}"
+msgstr "Sezon {}"
+
+msgid "épisode"
+msgstr "odcinek"
+
+msgid "épisodes"
+msgstr "odcinki"
+
+msgid "épisode téléchargé"
+msgstr "pobrany odcinek"
+
+msgid "épisodes téléchargés"
+msgstr "pobrane odcinki"
+
+msgid "Téléchargement supprimé."
+msgstr "Pobrany plik usunięty."
+
+msgid "Serveur injoignable : mode hors ligne (téléchargements)."
+msgstr "Serwer nieosiągalny: tryb offline (pobrane)."
+
+msgid "Serveur de nouveau joignable : retour en ligne."
+msgstr "Serwer znów osiągalny: z powrotem online."
+
+msgid "place libmpv-2.dll à côté de turtlefin.exe"
+msgstr "umieść libmpv-2.dll obok turtlefin.exe"
+
+msgid "installe-la avec « sudo apt install libmpv2 »"
+msgstr "zainstaluj ją poleceniem „sudo apt install libmpv2”"
+
+msgid "libmpv introuvable ({}). Détail : {}"
+msgstr "Nie znaleziono libmpv ({}). Szczegóły: {}"
+
+msgid "libmpv n'a pas pu créer de lecteur"
+msgstr "libmpv nie mogła utworzyć odtwarzacza"
+
+msgid "Piste {}"
+msgstr "Ścieżka {}"
+
+msgid "Intro passée"
+msgstr "Pominięto intro"
+
+msgid "mpv n'a pas pu lire ce média ({})"
+msgstr "mpv nie mógł odtworzyć tego materiału ({})"
+
+msgid "Connexion rétablie : la lecture reprend."
+msgstr "Połączenie przywrócone: odtwarzanie trwa dalej."
+
+msgid "épisode suivant introuvable ({})"
+msgstr "nie znaleziono następnego odcinka ({})"
+
+msgid "élément introuvable ({})"
+msgstr "nie znaleziono elementu ({})"
+
+msgid "Saison suivante"
+msgstr "Następny sezon"
+
+msgid "Épisode suivant"
+msgstr "Następny odcinek"
+
+msgid "Passer à la saison suivante"
+msgstr "Przejdź do następnego sezonu"
+
+msgid "Passer à l'épisode suivant"
+msgstr "Przejdź do następnego odcinka"
+
+msgid "Vidéo de test"
+msgstr "Wideo testowe"
+
+msgid "rien à lire"
+msgstr "nic do odtworzenia"
+
+msgid "Fin à {}"
+msgstr "Koniec o {}"
+
+msgid "Watch party « {} » rejointe."
+msgstr "Dołączono do watch party „{}”."
+
+msgid "{} a rejoint la watch party."
+msgstr "{} dołącza do watch party."
+
+msgid "{} a quitté la watch party."
+msgstr "{} opuszcza watch party."
+
+msgid "compilé depuis les sources"
+msgstr "skompilowano ze źródeł"
+
+msgid "Windows, installé"
+msgstr "Windows, zainstalowany"
+
+msgid "Windows, portable"
+msgstr "Windows, przenośny"
+
+msgid "paquet .deb"
+msgstr "pakiet .deb"
+
+msgid "installation inconnue"
+msgstr "nieznana instalacja"
+
+msgid "GitHub injoignable (connexion Internet ?)"
+msgstr "GitHub nieosiągalny (połączenie z Internetem?)"
+
+msgid "introuvable sur GitHub"
+msgstr "nie znaleziono na GitHub"
+
+msgid "GitHub limite les vérifications : réessaie dans une heure"
+msgstr "GitHub ogranicza sprawdzanie: spróbuj ponownie za godzinę"
+
+msgid "GitHub a répondu {}"
+msgstr "GitHub odpowiedział {}"
+
+msgid "mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"
+msgstr "automatyczna aktualizacja niemożliwa dla tej instalacji: pobierz najnowszą wersję z GitHub"
+
+msgid "version installée inconnue (compilée sans git)"
+msgstr "nieznana zainstalowana wersja (skompilowana bez git)"
+
+msgid "cette version contient des modifications pas encore publiées sur GitHub ; rien à installer"
+msgstr "ta wersja zawiera zmiany jeszcze nieopublikowane na GitHub; nic do zainstalowania"
+
+msgid "{} nouveauté(s)"
+msgstr "Nowości: {}"
+
+msgid "Version {}"
+msgstr "Wersja {}"
+
+msgid "pas de fichier publié pour cette installation"
+msgstr "brak opublikowanego pliku dla tej instalacji"
+
+msgid "{} {} a échoué : {}"
+msgstr "{} {} nie powiodło się: {}"
+
+msgid "mise à jour automatique impossible pour cette installation"
+msgstr "automatyczna aktualizacja niemożliwa dla tej instalacji"
+
+msgid "Téléchargement des nouveautés…"
+msgstr "Pobieranie nowości…"
+
+msgid "Compilation (quelques minutes, l'appli reste utilisable)…"
+msgstr "Kompilacja (kilka minut, aplikacja pozostaje dostępna)…"
+
+msgid "fichier {} absent de la publication"
+msgstr "brak pliku {} w publikacji"
+
+msgid "téléchargement bloqué (plus de données depuis 60 s)"
+msgstr "pobieranie zablokowane (brak danych od 60 s)"
+
+msgid "Téléchargement… {} %"
+msgstr "Pobieranie… {} %"
+
+msgid "Téléchargement…"
+msgstr "Pobieranie…"
+
+msgid "Remplacement des fichiers…"
+msgstr "Zastępowanie plików…"
+
+msgid "Remplacement de l'AppImage…"
+msgstr "Zastępowanie AppImage…"
+
+msgid "AppImage introuvable"
+msgstr "Nie znaleziono AppImage"
+
+msgid "Langue"
+msgstr "Język"
+
+msgid "Lecteur vidéo"
+msgstr "Odtwarzacz wideo"
+
+msgid "Stockage"
+msgstr "Pamięć"
+
+msgid "Serveur"
+msgstr "Serwer"
+
+msgid "Dossier de configuration introuvable."
+msgstr "Nie znaleziono folderu konfiguracji."
+
+msgid "Impossible d'écrire la configuration"
+msgstr "Nie można zapisać konfiguracji"
+
+msgid "Aucune préférence"
+msgstr "Brak preferencji"
+
+msgid "Par défaut"
+msgstr "Domyślnie"
+
+msgid "Intelligent"
+msgstr "Inteligentnie"
+
+msgid "Forcés uniquement"
+msgstr "Tylko wymuszone"
+
+msgid "Toujours"
+msgstr "Zawsze"
+
+msgid "Aucun"
+msgstr "Brak"
+
+msgid "Petite"
+msgstr "Mały"
+
+msgid "Normale"
+msgstr "Normalny"
+
+msgid "Grande"
+msgstr "Duży"
+
+msgid "Très grande"
+msgstr "Bardzo duży"
+
+msgid "Énorme"
+msgstr "Ogromny"
+
+msgid "Sans catégorie"
+msgstr "Bez kategorii"
+
+msgid "AppImage"
+msgstr "AppImage"
+
+msgid "Configuration"
+msgstr "Konfiguracja"

@@ -2,7 +2,18 @@ msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: en\n"
+"X-Language-Name: English\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "{n} participant"
+msgid_plural "{n} participants"
+msgstr[0] "{n} participant"
+msgstr[1] "{n} participants"
+
+msgid "{n} serveur trouvé sur tes réseaux (local et VPN)"
+msgid_plural "{n} serveurs trouvés sur tes réseaux (local et VPN)"
+msgstr[0] "{n} server found on your networks (local and VPN)"
+msgstr[1] "{n} servers found on your networks (local and VPN)"
 
 msgid "En attente"
 msgstr "Pending"
@@ -124,11 +135,6 @@ msgstr "Watching: {}"
 msgid "Rien pour l'instant : lance un film ou un épisode."
 msgstr "Nothing yet: start a movie or an episode."
 
-msgid "{n} participant"
-msgid_plural "{n} participants"
-msgstr[0] "{n} participant"
-msgstr[1] "{n} participants"
-
 msgid "REJOINDRE"
 msgstr "JOIN"
 
@@ -182,11 +188,6 @@ msgstr "Searching your networks (local and VPN)"
 
 msgid "Aucun serveur trouvé : saisis son adresse."
 msgstr "No server found: enter its address."
-
-msgid "{n} serveur trouvé sur tes réseaux (local et VPN)"
-msgid_plural "{n} serveurs trouvés sur tes réseaux (local et VPN)"
-msgstr[0] "{n} server found on your networks (local and VPN)"
-msgstr[1] "{n} servers found on your networks (local and VPN)"
 
 msgid "Actuel"
 msgstr "Current"
@@ -395,6 +396,9 @@ msgstr "{} episodes"
 msgid "Terminée"
 msgstr "Ended"
 
+msgid "En cours de diffusion"
+msgstr "Continuing"
+
 msgid "Annulée"
 msgstr "Canceled"
 
@@ -428,17 +432,14 @@ msgstr "Network"
 msgid "Studios"
 msgstr "Studios"
 
-msgid "Langue"
-msgstr "Language"
+msgid "Dossier {} introuvable."
+msgstr "The {} folder was not found."
 
-msgid "Lecteur vidéo"
-msgstr "Video player"
+msgid "Impossible d'écrire dans le dossier {} : {}"
+msgstr "Cannot write to the {} folder: {}"
 
-msgid "Stockage"
-msgstr "Storage"
-
-msgid "Serveur"
-msgstr "Server"
+msgid "Traductions introuvables : l'interface reste en français."
+msgstr "Translations not found: the interface stays in French."
 
 msgid "Affichage OpenGL indisponible : l'interface marche, mais pas la vidéo."
 msgstr "OpenGL display unavailable: the interface works, but not video."
@@ -446,17 +447,26 @@ msgstr "OpenGL display unavailable: the interface works, but not video."
 msgid "Lecteur vidéo (libmpv) introuvable : la lecture ne fonctionnera pas."
 msgstr "Video player (libmpv) not found: playback will not work."
 
-msgid "Dossier de configuration introuvable."
-msgstr "Configuration folder not found."
+msgid "de configuration"
+msgstr "configuration"
 
-msgid "Impossible d'écrire la configuration"
-msgstr "Cannot write the configuration"
+msgid "des téléchargements"
+msgstr "downloads"
+
+msgid "du cache"
+msgstr "cache"
+
+msgid "Fichier de configuration illisible ({}) : réglages par défaut utilisés."
+msgstr "Unreadable configuration file ({}): default settings are used."
 
 msgid "Aucun réseau : seuls les téléchargements seront disponibles."
 msgstr "No network: only downloads will be available."
 
 msgid "Serveur injoignable : nouvel essai automatique ensuite."
 msgstr "Server unreachable: it will be retried automatically."
+
+msgid "Un autre serveur Jellyfin répond à cette adresse."
+msgstr "Another Jellyfin server answers at this address."
 
 msgid "Continuer"
 msgstr "Continue"
@@ -515,11 +525,17 @@ msgstr "Next up"
 msgid "Récemment ajouté · {}"
 msgstr "Recently added · {}"
 
+msgid "Films"
+msgstr "Movies"
+
 msgid "Séries"
 msgstr "Shows"
 
 msgid "Épisodes"
 msgstr "Episodes"
+
+msgid "Disponibles"
+msgstr "Available"
 
 msgid "Acceptées"
 msgstr "Approved"
@@ -532,6 +548,9 @@ msgstr "Failed"
 
 msgid "Plus de ce genre"
 msgstr "More like this"
+
+msgid "Similaires"
+msgstr "Similar"
 
 msgid "Recommandés"
 msgstr "Recommended"
@@ -722,6 +741,12 @@ msgstr "Applied to the next video."
 msgid "Langue de l'interface"
 msgstr "Interface language"
 
+msgid "Ajouter une langue"
+msgstr "Add a language"
+
+msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
+msgstr "Creates a template to translate and opens its folder: no compiling needed."
+
 msgid "Interface TV"
 msgstr "TV interface"
 
@@ -851,6 +876,9 @@ msgstr "Subtitle language"
 msgid "Réglage non enregistré : {}"
 msgstr "Setting not saved: {}"
 
+msgid "Préparation…"
+msgstr "Preparing…"
+
 msgid "Sans nom"
 msgstr "Unnamed"
 
@@ -862,6 +890,12 @@ msgstr "Cannot set the avatar: {}"
 
 msgid "Cache d'images vidé."
 msgstr "Image cache cleared."
+
+msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
+msgstr "Template created: copy modele.po as <code>.po, translate it, then restart Turtlefin."
+
+msgid "Impossible de créer le modèle : {}"
+msgstr "Cannot create the template: {}"
 
 msgid "Adresses échangées."
 msgstr "Addresses swapped."
@@ -890,11 +924,17 @@ msgstr "That's already the main address."
 msgid "Adresse enregistrée : {}"
 msgstr "Address saved: {}"
 
+msgid "Navigation"
+msgstr "Navigation"
+
 msgid "Bibliothèques"
 msgstr "Libraries"
 
 msgid "Sélectionner un serveur"
 msgstr "Select a server"
+
+msgid "Application"
+msgstr "Application"
 
 msgid "Pas (encore) dans ta bibliothèque Jellyfin."
 msgstr "Not (yet) in your Jellyfin library."
@@ -1094,6 +1134,12 @@ msgstr "Windows, installed"
 msgid "Windows, portable"
 msgstr "Windows, portable"
 
+msgid "paquet .deb"
+msgstr ".deb package"
+
+msgid "installation inconnue"
+msgstr "unknown installation"
+
 msgid "GitHub injoignable (connexion Internet ?)"
 msgstr "GitHub unreachable (Internet connection?)"
 
@@ -1157,6 +1203,24 @@ msgstr "Replacing the AppImage…"
 msgid "AppImage introuvable"
 msgstr "AppImage not found"
 
+msgid "Langue"
+msgstr "Language"
+
+msgid "Lecteur vidéo"
+msgstr "Video player"
+
+msgid "Stockage"
+msgstr "Storage"
+
+msgid "Serveur"
+msgstr "Server"
+
+msgid "Dossier de configuration introuvable."
+msgstr "Configuration folder not found."
+
+msgid "Impossible d'écrire la configuration"
+msgstr "Cannot write the configuration"
+
 msgid "Aucune préférence"
 msgstr "No preference"
 
@@ -1193,59 +1257,8 @@ msgstr "Huge"
 msgid "Sans catégorie"
 msgstr "Uncategorized"
 
-msgid "Disponibles"
-msgstr "Available"
-
-msgid "Similaires"
-msgstr "Similar"
-
-msgid "Navigation"
-msgstr "Navigation"
-
-msgid "Application"
-msgstr "Application"
-
-msgid "Films"
-msgstr "Movies"
-
-msgid "Préparation…"
-msgstr "Preparing…"
-
 msgid "AppImage"
 msgstr "AppImage"
-
-msgid "paquet .deb"
-msgstr ".deb package"
-
-msgid "installation inconnue"
-msgstr "unknown installation"
-
-msgid "En cours de diffusion"
-msgstr "Continuing"
-
-msgid "Dossier {} introuvable."
-msgstr "The {} folder was not found."
-
-msgid "Impossible d'écrire dans le dossier {} : {}"
-msgstr "Cannot write to the {} folder: {}"
-
-msgid "de configuration"
-msgstr "configuration"
-
-msgid "des téléchargements"
-msgstr "downloads"
-
-msgid "du cache"
-msgstr "cache"
-
-msgid "Traductions introuvables : l'interface reste en français."
-msgstr "Translations not found: the interface stays in French."
-
-msgid "Fichier de configuration illisible ({}) : réglages par défaut utilisés."
-msgstr "Unreadable configuration file ({}): default settings are used."
-
-msgid "Un autre serveur Jellyfin répond à cette adresse."
-msgstr "Another Jellyfin server answers at this address."
 
 msgid "Configuration"
 msgstr "Configuration"

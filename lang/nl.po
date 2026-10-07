@@ -1,0 +1,1264 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl\n"
+"X-Language-Name: Nederlands\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "{n} participant"
+msgid_plural "{n} participants"
+msgstr[0] "{n} deelnemer"
+msgstr[1] "{n} deelnemers"
+
+msgid "{n} serveur trouvé sur tes réseaux (local et VPN)"
+msgid_plural "{n} serveurs trouvés sur tes réseaux (local et VPN)"
+msgstr[0] "{n} server gevonden in je netwerken (lokaal en VPN)"
+msgstr[1] "{n} servers gevonden in je netwerken (lokaal en VPN)"
+
+msgid "En attente"
+msgstr "In afwachting"
+
+msgid "Acceptée"
+msgstr "Geaccepteerd"
+
+msgid "Refusée"
+msgstr "Geweigerd"
+
+msgid "Disponible"
+msgstr "Beschikbaar"
+
+msgid "Échec"
+msgstr "Mislukt"
+
+msgid "Échap pour fermer  ·  ↑ ↓ pour défiler"
+msgstr "Esc om te sluiten  ·  ↑ ↓ om te scrollen"
+
+msgid "Hors ligne"
+msgstr "Offline"
+
+msgid "Recherche"
+msgstr "Zoeken"
+
+msgid "Téléchargements"
+msgstr "Downloads"
+
+msgid "Ajouter un compte"
+msgstr "Account toevoegen"
+
+msgid "Saisis au moins l'adresse principale du serveur."
+msgstr "Vul minstens het hoofdadres van de server in."
+
+msgid "Enregistré"
+msgstr "Opgeslagen"
+
+msgid "Saisis un nom d'utilisateur."
+msgstr "Vul een gebruikersnaam in."
+
+msgid "Choisis un compte à retirer de cet appareil"
+msgstr "Kies een account om van dit apparaat te verwijderen"
+
+msgid "Qui regarde ?"
+msgstr "Wie kijkt er?"
+
+msgid "Changer de serveur"
+msgstr "Andere server"
+
+msgid "Terminé"
+msgstr "Klaar"
+
+msgid "Gérer les comptes"
+msgstr "Accounts beheren"
+
+msgid "Connexion…"
+msgstr "Aanmelden…"
+
+msgid "Choisis un champ puis appuie sur Entrée pour écrire."
+msgstr "Kies een veld en druk op Enter om te typen."
+
+msgid "Le mot de passe peut rester vide si le compte n'en a pas."
+msgstr "Het wachtwoord mag leeg blijven als het account er geen heeft."
+
+msgid "Nom d'utilisateur"
+msgstr "Gebruikersnaam"
+
+msgid "ex. Heisenberg"
+msgstr "bijv. Heisenberg"
+
+msgid "Mot de passe"
+msgstr "Wachtwoord"
+
+msgid "Retour"
+msgstr "Terug"
+
+msgid "Se connecter"
+msgstr "Aanmelden"
+
+msgid "Suivant"
+msgstr "Volgende"
+
+msgid "Connexion"
+msgstr "Aanmelden"
+
+msgid "Accueil"
+msgstr "Start"
+
+msgid "Favoris"
+msgstr "Favorieten"
+
+msgid "Demandes"
+msgstr "Verzoeken"
+
+msgid "Aucun favori pour l'instant."
+msgstr "Nog geen favorieten."
+
+msgid "Aucune demande pour l'instant."
+msgstr "Nog geen verzoeken."
+
+msgid "Rien à afficher."
+msgstr "Niets te tonen."
+
+msgid "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
+msgstr "Je zit in „{}”. Start een film of een aflevering: die begint voor de hele groep tegelijk. Pauzeren en spoelen worden gedeeld."
+
+msgid "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une."
+msgstr "Kijk tegelijk hetzelfde als andere accounts: maak een watch party of doe mee met een."
+
+msgid "En lecture"
+msgstr "Speelt af"
+
+msgid "En pause"
+msgstr "Gepauzeerd"
+
+msgid "Regarde : {}"
+msgstr "Kijkt naar: {}"
+
+msgid "Rien pour l'instant : lance un film ou un épisode."
+msgstr "Nog niets: start een film of een aflevering."
+
+msgid "REJOINDRE"
+msgstr "MEEDOEN"
+
+msgid "Quitter la watch party"
+msgstr "Watch party verlaten"
+
+msgid "Créer une watch party"
+msgstr "Watch party maken"
+
+msgid "Titre d'un film, d'une série, d'un épisode…"
+msgstr "Titel van een film, een serie, een aflevering…"
+
+msgid "Recherche…"
+msgstr "Zoeken…"
+
+msgid "Aucun résultat."
+msgstr "Geen resultaten."
+
+msgid "Bientôt disponible."
+msgstr "Binnenkort beschikbaar."
+
+msgid "Échap ou Retour arrière pour revenir"
+msgstr "Esc of Backspace om terug te gaan"
+
+msgid "Réglages · bientôt"
+msgstr "Instellingen · binnenkort"
+
+msgid "Déconnexion"
+msgstr "Afmelden"
+
+msgid "À SUIVRE"
+msgstr "HIERNA"
+
+msgid "Langue audio"
+msgstr "Audiotaal"
+
+msgid "Sous-titres"
+msgstr "Ondertitels"
+
+msgid "Retenu pour toute la série"
+msgstr "Onthouden voor de hele serie"
+
+msgid "Chargement…"
+msgstr "Laden…"
+
+msgid "Choisir un serveur"
+msgstr "Kies een server"
+
+msgid "Recherche sur tes réseaux (local et VPN)"
+msgstr "Zoeken in je netwerken (lokaal en VPN)"
+
+msgid "Aucun serveur trouvé : saisis son adresse."
+msgstr "Geen server gevonden: vul het adres in."
+
+msgid "Actuel"
+msgstr "Huidig"
+
+msgid "Principale : {}      Secours : {}"
+msgstr "Hoofd: {}      Reserve: {}"
+
+msgid "Rechercher à nouveau"
+msgstr "Opnieuw zoeken"
+
+msgid "Saisir une adresse"
+msgstr "Adres invoeren"
+
+msgid "Adresse du serveur"
+msgstr "Serveradres"
+
+msgid "Sans « http:// » ni « https:// », les deux sont essayés."
+msgstr "Zonder „http://” of „https://” worden beide geprobeerd."
+
+msgid "Adresse principale"
+msgstr "Hoofdadres"
+
+msgid "Adresse de secours · facultative, si la principale ne répond pas"
+msgstr "Reserveadres · optioneel, als het hoofdadres niet antwoordt"
+
+msgid "Annuler"
+msgstr "Annuleren"
+
+msgid "Vérification…"
+msgstr "Controleren…"
+
+msgid "Valider"
+msgstr "Bevestigen"
+
+msgid "Vérification des adresses…"
+msgstr "Adressen controleren…"
+
+msgid "Deux adresses répondent. Laquelle utiliser ?"
+msgstr "Twee adressen antwoorden. Welk gebruiken?"
+
+msgid "Aucun téléchargement : rien à regarder hors ligne."
+msgstr "Geen downloads: niets om offline te bekijken."
+
+msgid "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne."
+msgstr "Geen downloads.\nOp de pagina van een film of serie kun je met de knop Downloaden offline kijken."
+
+msgid "Compte"
+msgstr "Account"
+
+msgid "Lecture"
+msgstr "Afspelen"
+
+msgid "Affichage"
+msgstr "Weergave"
+
+msgid "Réseau"
+msgstr "Netwerk"
+
+msgid "À propos"
+msgstr "Over"
+
+msgid "Paramètres"
+msgstr "Instellingen"
+
+msgid "Photo de profil"
+msgstr "Profielfoto"
+
+msgid "Chargement des avatars…"
+msgstr "Avatars laden…"
+
+msgid "{} avatars en {} catégories · Entrée pour choisir, Échap pour revenir"
+msgstr "{} avatars in {} categorieën · Enter om te kiezen, Esc om terug te gaan"
+
+msgid "{} avatars · Entrée pour choisir, Échap pour revenir"
+msgstr "{} avatars · Enter om te kiezen, Esc om terug te gaan"
+
+msgid "Actuelle"
+msgstr "Huidig"
+
+msgid "Adresse de secours"
+msgstr "Reserveadres"
+
+msgid "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
+msgstr "Wordt eerst gebruikt. Zonder „http://” of „https://” worden beide geprobeerd."
+
+msgid "Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune."
+msgstr "Geprobeerd als het hoofdadres niet antwoordt (ander netwerk, VPN…). Laat leeg voor geen."
+
+msgid "Enregistrer"
+msgstr "Opslaan"
+
+msgid "Vérification de l'adresse…"
+msgstr "Adres controleren…"
+
+msgid "Watch party"
+msgstr "Watch party"
+
+msgid "Voir sur le serveur"
+msgstr "Bekijken op de server"
+
+msgid "Demander"
+msgstr "Aanvragen"
+
+msgid "Fermer"
+msgstr "Sluiten"
+
+msgid "Chargement… (Échap pour annuler)"
+msgstr "Laden… (Esc om te annuleren)"
+
+msgid "espace"
+msgstr "spatie"
+
+msgid "En cours"
+msgstr "Nu bezig"
+
+msgid "Connexion au serveur perdue · reprise automatique dès son retour"
+msgstr "Verbinding met de server verloren · gaat automatisch verder zodra die terug is"
+
+msgid "Mise en mémoire…"
+msgstr "Bufferen…"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "Piste audio"
+msgstr "Audiospoor"
+
+msgid "Aucune piste"
+msgstr "Geen spoor"
+
+msgid "Passer l'intro"
+msgstr "Intro overslaan"
+
+msgid "Regarder la fin de celui-ci"
+msgstr "Het einde van deze bekijken"
+
+msgid "Regarder la fin"
+msgstr "Het einde bekijken"
+
+msgid "À voir ensuite"
+msgstr "Hierna bekijken"
+
+msgid "C'est fini ! À voir ensuite"
+msgstr "Klaar! Hierna bekijken"
+
+msgid "Retour à l'accueil"
+msgstr "Terug naar start"
+
+msgid "Watch party · {}"
+msgstr "Watch party · {}"
+
+msgid "Session expirée ou identifiants refusés"
+msgstr "Sessie verlopen of inloggegevens geweigerd"
+
+msgid "Série"
+msgstr "Serie"
+
+msgid "Film"
+msgstr "Film"
+
+msgid "Audio : {}"
+msgstr "Audio: {}"
+
+msgid "Voir la série"
+msgstr "Naar de serie"
+
+msgid "Voir la saison"
+msgstr "Naar het seizoen"
+
+msgid "Acteur"
+msgstr "Acteur"
+
+msgid "Invité"
+msgstr "Gast"
+
+msgid "Réalisation"
+msgstr "Regie"
+
+msgid "Scénario"
+msgstr "Scenario"
+
+msgid "Production"
+msgstr "Productie"
+
+msgid "Musique"
+msgstr "Muziek"
+
+msgid "Inconnue"
+msgstr "Onbekend"
+
+msgid "Impossible de joindre {} : {}"
+msgstr "Kan {} niet bereiken: {}"
+
+msgid "Identifiant ou mot de passe incorrect"
+msgstr "Verkeerde gebruikersnaam of wachtwoord"
+
+msgid "Le serveur a répondu {}"
+msgstr "De server antwoordde {}"
+
+msgid "Le serveur a répondu {} sur {}"
+msgstr "De server antwoordde {} voor {}"
+
+msgid "{} épisodes"
+msgstr "{} afleveringen"
+
+msgid "Terminée"
+msgstr "Beëindigd"
+
+msgid "En cours de diffusion"
+msgstr "Loopt nog"
+
+msgid "Annulée"
+msgstr "Geannuleerd"
+
+msgid "En production"
+msgstr "In productie"
+
+msgid "Sorti"
+msgstr "Uitgebracht"
+
+msgid "Post-production"
+msgstr "Postproductie"
+
+msgid "Prévu"
+msgstr "Gepland"
+
+msgid "Première diffusion"
+msgstr "Eerste uitzending"
+
+msgid "Sortie"
+msgstr "Release"
+
+msgid "Dernière diffusion"
+msgstr "Laatste uitzending"
+
+msgid "Langue originale"
+msgstr "Oorspronkelijke taal"
+
+msgid "Diffuseur"
+msgstr "Zender"
+
+msgid "Studios"
+msgstr "Studio's"
+
+msgid "Dossier {} introuvable."
+msgstr "Map {} niet gevonden."
+
+msgid "Impossible d'écrire dans le dossier {} : {}"
+msgstr "Kan niet schrijven in de map {}: {}"
+
+msgid "Traductions introuvables : l'interface reste en français."
+msgstr "Vertalingen niet gevonden: de interface blijft in het Frans."
+
+msgid "Affichage OpenGL indisponible : l'interface marche, mais pas la vidéo."
+msgstr "OpenGL-weergave niet beschikbaar: de interface werkt, maar video niet."
+
+msgid "Lecteur vidéo (libmpv) introuvable : la lecture ne fonctionnera pas."
+msgstr "Videospeler (libmpv) niet gevonden: afspelen werkt niet."
+
+msgid "de configuration"
+msgstr "voor de configuratie"
+
+msgid "des téléchargements"
+msgstr "voor downloads"
+
+msgid "du cache"
+msgstr "voor de cache"
+
+msgid "Fichier de configuration illisible ({}) : réglages par défaut utilisés."
+msgstr "Configuratiebestand onleesbaar ({}): standaardinstellingen worden gebruikt."
+
+msgid "Aucun réseau : seuls les téléchargements seront disponibles."
+msgstr "Geen netwerk: alleen downloads zijn beschikbaar."
+
+msgid "Serveur injoignable : nouvel essai automatique ensuite."
+msgstr "Server onbereikbaar: wordt automatisch opnieuw geprobeerd."
+
+msgid "Un autre serveur Jellyfin répond à cette adresse."
+msgstr "Op dit adres antwoordt een andere Jellyfin-server."
+
+msgid "Continuer"
+msgstr "Doorgaan"
+
+msgid "Indique le serveur avec --server=URL (ou choisis-le ci-dessous)."
+msgstr "Geef de server op met --server=URL (of kies hem hieronder)."
+
+msgid "le serveur refuse le téléchargement ({})"
+msgstr "de server weigert de download ({})"
+
+msgid "plus aucune donnée reçue depuis 30 s"
+msgstr "al 30 s geen gegevens ontvangen"
+
+msgid "transfert incomplet ({} octets sur {})"
+msgstr "onvolledige overdracht ({} van {} bytes)"
+
+msgid "le serveur met trop de temps à répondre"
+msgstr "de server doet er te lang over om te antwoorden"
+
+msgid "le serveur ne répond pas (est-il allumé ? le réseau est-il disponible ?)"
+msgstr "de server antwoordt niet (staat hij aan? is het netwerk beschikbaar?)"
+
+msgid "réponse du serveur illisible"
+msgstr "onleesbaar antwoord van de server"
+
+msgid "session expirée, reconnecte-toi"
+msgstr "sessie verlopen, meld je opnieuw aan"
+
+msgid "Autre compte"
+msgstr "Ander account"
+
+msgid "Serveur injoignable"
+msgstr "Server onbereikbaar"
+
+msgid "Connexion de {}"
+msgstr "Aanmelden als {}"
+
+msgid "Connexion impossible : {}."
+msgstr "Aanmelden mislukt: {}."
+
+msgid "Reconnexion de {}"
+msgstr "Opnieuw aanmelden als {}"
+
+msgid "Session expirée : entre le mot de passe."
+msgstr "Sessie verlopen: vul het wachtwoord in."
+
+msgid "Mes médias"
+msgstr "Mijn media"
+
+msgid "Reprendre"
+msgstr "Verder kijken"
+
+msgid "À suivre"
+msgstr "Volgende"
+
+msgid "Récemment ajouté · {}"
+msgstr "Recent toegevoegd · {}"
+
+msgid "Films"
+msgstr "Films"
+
+msgid "Séries"
+msgstr "Series"
+
+msgid "Épisodes"
+msgstr "Afleveringen"
+
+msgid "Disponibles"
+msgstr "Beschikbaar"
+
+msgid "Acceptées"
+msgstr "Geaccepteerd"
+
+msgid "Refusées"
+msgstr "Geweigerd"
+
+msgid "En échec"
+msgstr "Mislukt"
+
+msgid "Plus de ce genre"
+msgstr "Meer zoals dit"
+
+msgid "Similaires"
+msgstr "Vergelijkbaar"
+
+msgid "Recommandés"
+msgstr "Aanbevolen"
+
+msgid "Français"
+msgstr "Frans"
+
+msgid "Anglais"
+msgstr "Engels"
+
+msgid "Japonais"
+msgstr "Japans"
+
+msgid "Allemand"
+msgstr "Duits"
+
+msgid "Espagnol"
+msgstr "Spaans"
+
+msgid "Italien"
+msgstr "Italiaans"
+
+msgid "Portugais"
+msgstr "Portugees"
+
+msgid "Coréen"
+msgstr "Koreaans"
+
+msgid "Chinois"
+msgstr "Chinees"
+
+msgid "Russe"
+msgstr "Russisch"
+
+msgid "Arabe"
+msgstr "Arabisch"
+
+msgid "Néerlandais"
+msgstr "Nederlands"
+
+msgid "Par défaut (fichier)"
+msgstr "Standaard (bestand)"
+
+msgid "Désactivés"
+msgstr "Uit"
+
+msgid "par défaut"
+msgstr "standaard"
+
+msgid "désactivés"
+msgstr "uit"
+
+msgid "Action impossible : {}"
+msgstr "Actie mislukt: {}"
+
+msgid "En attente des participants"
+msgstr "Wachten op deelnemers"
+
+msgid "Prêt : lance un film ou un épisode"
+msgstr "Klaar: start een film of een aflevering"
+
+msgid "Watch party · {} en ligne"
+msgstr "Watch party · {} online"
+
+msgid "Watch party de {}"
+msgstr "Watch party van {}"
+
+msgid "Watch party : {}"
+msgstr "Watch party: {}"
+
+msgid "À demander (Seerr)"
+msgstr "Aan te vragen (Seerr)"
+
+msgid "Plus rien à découvrir : tout a été vu !"
+msgstr "Niets meer te ontdekken: je hebt alles gezien!"
+
+msgid "Seerr : {}"
+msgstr "Seerr: {}"
+
+msgid "Disponible sur le serveur"
+msgstr "Beschikbaar op de server"
+
+msgid "Partiellement disponible"
+msgstr "Gedeeltelijk beschikbaar"
+
+msgid "En cours de traitement"
+msgstr "Wordt verwerkt"
+
+msgid "Demande en attente"
+msgstr "Verzoek in afwachting"
+
+msgid "Demande envoyée"
+msgstr "Verzoek verzonden"
+
+msgid "Demande impossible : {}"
+msgstr "Verzoek mislukt: {}"
+
+msgid "Bibliothèque illisible : {}"
+msgstr "Bibliotheek onleesbaar: {}"
+
+msgid "Aucun serveur Jellyfin ne répond à « {} »."
+msgstr "Geen Jellyfin-server antwoordt op „{}”."
+
+msgid "Les deux adresses mènent à deux serveurs différents."
+msgstr "De twee adressen leiden naar twee verschillende servers."
+
+msgid "Indique au moins une adresse."
+msgstr "Vul minstens één adres in."
+
+msgid "Connecté à {}"
+msgstr "Verbonden met {}"
+
+msgid "{} avatars proposés par le serveur, en {} catégories."
+msgstr "{} avatars aangeboden door de server, in {} categorieën."
+
+msgid "{} avatars proposés par le serveur."
+msgstr "{} avatars aangeboden door de server."
+
+msgid "Changer"
+msgstr "Wijzigen"
+
+msgid "Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide)."
+msgstr "Profielfoto: de server biedt geen avatars aan (GetAvatar-plugin ontbreekt of is leeg)."
+
+msgid "Ouvrir ce compte au démarrage"
+msgstr "Dit account openen bij het starten"
+
+msgid "Sinon, Turtlefin démarre sur « Qui regarde ? »."
+msgstr "Anders start Turtlefin op „Wie kijkt er?”."
+
+msgid "Changer de compte"
+msgstr "Ander account"
+
+msgid "Les comptes enregistrés restent disponibles."
+msgstr "Opgeslagen accounts blijven beschikbaar."
+
+msgid "Se déconnecter"
+msgstr "Afmelden"
+
+msgid "Le compte est retiré de cet appareil."
+msgstr "Het account wordt van dit apparaat verwijderd."
+
+msgid "Langue audio préférée"
+msgstr "Voorkeurstaal voor audio"
+
+msgid "Choisie à l'ouverture d'un film ou d'un épisode, si elle existe."
+msgstr "Gekozen bij het openen van een film of aflevering, als die bestaat."
+
+msgid "Piste audio par défaut du fichier"
+msgstr "Standaard audiospoor van het bestand"
+
+msgid "Sans langue préférée, la piste marquée « par défaut » est lue."
+msgstr "Zonder voorkeurstaal wordt het spoor met „standaard” afgespeeld."
+
+msgid "Épisode suivant automatique"
+msgstr "Volgende aflevering automatisch"
+
+msgid "À la fin d'un épisode, le suivant démarre tout seul."
+msgstr "Aan het eind van een aflevering start de volgende vanzelf."
+
+msgid "Passer l'intro automatiquement"
+msgstr "Intro automatisch overslaan"
+
+msgid "Quand le serveur connaît l'intro (segments), elle est sautée sans demander."
+msgstr "Als de server de intro kent (segmenten), wordt die zonder vragen overgeslagen."
+
+msgid "Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."
+msgstr "Een keuze op de pagina van een film of serie heeft voorrang."
+
+msgid "Langue des sous-titres préférée"
+msgstr "Voorkeurstaal voor ondertitels"
+
+msgid "Utilisée selon le mode ci-dessous."
+msgstr "Gebruikt volgens de modus hieronder."
+
+msgid "Quand afficher les sous-titres"
+msgstr "Wanneer ondertitels tonen"
+
+msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."
+msgstr "Standaard: volgens het bestand · Slim: als de audio niet in jouw taal is."
+
+msgid "Taille des sous-titres"
+msgstr "Grootte van ondertitels"
+
+msgid "Appliquée à la prochaine vidéo."
+msgstr "Toegepast op de volgende video."
+
+msgid "Langue de l'interface"
+msgstr "Taal van de interface"
+
+msgid "Ajouter une langue"
+msgstr "Taal toevoegen"
+
+msgid "Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."
+msgstr "Maakt een sjabloon om te vertalen en opent de map: compileren is niet nodig."
+
+msgid "Interface TV"
+msgstr "Tv-interface"
+
+msgid "Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."
+msgstr "Grote elementen en volledig scherm, voor de tv (--tv en --desktop hebben voorrang)."
+
+msgid "Fond d'écran du média sélectionné"
+msgstr "Achtergrond van het geselecteerde item"
+
+msgid "Image floutée derrière les pages. À couper si l'appareil est lent."
+msgstr "Vervaagde afbeelding achter de pagina's. Uitzetten op trage apparaten."
+
+msgid "Notes sur les affiches"
+msgstr "Beoordelingen op posters"
+
+msgid "La note de la communauté (★) en bas à droite des affiches."
+msgstr "De beoordeling van de community (★) rechtsonder op posters."
+
+msgid "Faire défiler les noms trop longs"
+msgstr "Te lange namen laten scrollen"
+
+msgid "Sur l'élément sélectionné seulement."
+msgstr "Alleen op het geselecteerde item."
+
+msgid "Afficher l'heure"
+msgstr "Tijd tonen"
+
+msgid "En haut à droite de l'écran."
+msgstr "Rechtsboven in het scherm."
+
+msgid "Avatars animés figés"
+msgstr "Geanimeerde avatars stilzetten"
+
+msgid "Les avatars GIF restent sur leur première image (moins de calcul)."
+msgstr "GIF-avatars blijven op hun eerste beeld (minder rekenwerk)."
+
+msgid "Aucune"
+msgstr "Geen"
+
+msgid "Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)"
+msgstr "Geen · geprobeerd als het hoofdadres niet antwoordt (ander netwerk, VPN…)"
+
+msgid "{} · essayée quand la principale ne répond pas"
+msgstr "{} · geprobeerd als het hoofdadres niet antwoordt"
+
+msgid "Modifier"
+msgstr "Wijzigen"
+
+msgid "Échanger les deux adresses"
+msgstr "De twee adressen omwisselen"
+
+msgid "L'adresse de secours devient la principale."
+msgstr "Het reserveadres wordt het hoofdadres."
+
+msgid "Hors ligne : aucune adresse ne répond."
+msgstr "Offline: geen enkel adres antwoordt."
+
+msgid "Connecté en ce moment par {}"
+msgstr "Nu verbonden via {}"
+
+msgid "Rechercher un autre serveur"
+msgstr "Andere server zoeken"
+
+msgid "Serveurs Jellyfin trouvés sur tes réseaux (local et VPN)."
+msgstr "Jellyfin-servers gevonden in je netwerken (lokaal en VPN)."
+
+msgid "Rechercher une mise à jour"
+msgstr "Naar updates zoeken"
+
+msgid "Recherche sur GitHub…"
+msgstr "GitHub raadplegen…"
+
+msgid "Turtlefin est à jour."
+msgstr "Turtlefin is up-to-date."
+
+msgid "À jour"
+msgstr "Up-to-date"
+
+msgid "Redémarrer Turtlefin"
+msgstr "Turtlefin herstarten"
+
+msgid "La nouvelle version est prête."
+msgstr "De nieuwe versie is klaar."
+
+msgid "Une nouvelle version est disponible."
+msgstr "Er is een nieuwe versie beschikbaar."
+
+msgid "Nouveautés : {}"
+msgstr "Nieuw: {}"
+
+msgid "Mettre à jour"
+msgstr "Bijwerken"
+
+msgid "Mise à jour en cours"
+msgstr "Bezig met bijwerken"
+
+msgid "Échec : {}"
+msgstr "Mislukt: {}"
+
+msgid "Compare cette version à celle publiée sur GitHub ({})."
+msgstr "Vergelijkt deze versie met de versie op GitHub ({})."
+
+msgid "Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)"
+msgstr "Turtlefin {} ({}) · native Jellyfin-client (Rust + Slint + mpv)"
+
+msgid "Serveur : {}"
+msgstr "Server: {}"
+
+msgid "Appareil : {}"
+msgstr "Apparaat: {}"
+
+msgid "Vider le cache d'images"
+msgstr "Afbeeldingscache legen"
+
+msgid "Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés."
+msgstr "Posters, miniaturen en avatars op de schijf; ze worden opnieuw gedownload."
+
+msgid "Fermer Turtlefin"
+msgstr "Turtlefin afsluiten"
+
+msgid "Quitte l'application."
+msgstr "Sluit de applicatie af."
+
+msgid "Langue des sous-titres"
+msgstr "Taal van de ondertitels"
+
+msgid "Réglage non enregistré : {}"
+msgstr "Instelling niet opgeslagen: {}"
+
+msgid "Préparation…"
+msgstr "Voorbereiden…"
+
+msgid "Sans nom"
+msgstr "Naamloos"
+
+msgid "Photo de profil modifiée."
+msgstr "Profielfoto gewijzigd."
+
+msgid "Avatar impossible : {}"
+msgstr "Avatar mislukt: {}"
+
+msgid "Cache d'images vidé."
+msgstr "Afbeeldingscache geleegd."
+
+msgid "Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin."
+msgstr "Sjabloon gemaakt: kopieer modele.po als <code>.po, vertaal het en herstart Turtlefin."
+
+msgid "Impossible de créer le modèle : {}"
+msgstr "Kan het sjabloon niet maken: {}"
+
+msgid "Adresses échangées."
+msgstr "Adressen omgewisseld."
+
+msgid "Adresse principale de nouveau joignable : retour dessus."
+msgstr "Hoofdadres weer bereikbaar: terug naar dat adres."
+
+msgid "Adresse principale injoignable : passage par l'adresse de secours ({})."
+msgstr "Hoofdadres onbereikbaar: reserveadres in gebruik ({})."
+
+msgid "L'adresse principale ne peut pas être vide."
+msgstr "Het hoofdadres mag niet leeg zijn."
+
+msgid "Adresse de secours retirée."
+msgstr "Reserveadres verwijderd."
+
+msgid "Cette adresse mène à un autre serveur ({}). Pour en changer : « Rechercher un autre serveur »."
+msgstr "Dit adres leidt naar een andere server ({}). Om te wisselen: „Andere server zoeken”."
+
+msgid "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses »."
+msgstr "Dat is al het reserveadres: gebruik „De twee adressen omwisselen”."
+
+msgid "C'est déjà l'adresse principale."
+msgstr "Dat is al het hoofdadres."
+
+msgid "Adresse enregistrée : {}"
+msgstr "Adres opgeslagen: {}"
+
+msgid "Navigation"
+msgstr "Navigatie"
+
+msgid "Bibliothèques"
+msgstr "Bibliotheken"
+
+msgid "Sélectionner un serveur"
+msgstr "Server kiezen"
+
+msgid "Application"
+msgstr "Applicatie"
+
+msgid "Pas (encore) dans ta bibliothèque Jellyfin."
+msgstr "(Nog) niet in je Jellyfin-bibliotheek."
+
+msgid "Demander la saison {}"
+msgstr "Seizoen {} aanvragen"
+
+msgid "Demander les {} saisons manquantes"
+msgstr "De {} ontbrekende seizoenen aanvragen"
+
+msgid "Demande envoyée à Seerr : saison(s) {}."
+msgstr "Verzoek naar Seerr verzonden: seizoen(en) {}."
+
+msgid "Demande refusée par Seerr : {}"
+msgstr "Verzoek geweigerd door Seerr: {}"
+
+msgid "Saisons demandées"
+msgstr "Seizoenen aangevraagd"
+
+msgid "le serveur ne répond pas"
+msgstr "de server antwoordt niet"
+
+msgid "Impossible d'ouvrir la fiche : {}"
+msgstr "Kan de pagina niet openen: {}"
+
+msgid "Saisons"
+msgstr "Seizoenen"
+
+msgid "Contenu · {} premiers"
+msgstr "Inhoud · eerste {}"
+
+msgid "Contenu"
+msgstr "Inhoud"
+
+msgid "Sous-titres : {}"
+msgstr "Ondertitels: {}"
+
+msgid "Cette série n'a aucun épisode"
+msgstr "Deze serie heeft geen afleveringen"
+
+msgid "Saison sans série associée"
+msgstr "Seizoen zonder bijbehorende serie"
+
+msgid "Cette saison n'a aucun épisode"
+msgstr "Dit seizoen heeft geen afleveringen"
+
+msgid "Impossible de lancer la lecture d'un élément de type {}"
+msgstr "Kan een item van het type {} niet afspelen"
+
+msgid "1 changement fait hors ligne envoyé au serveur."
+msgstr "1 offline gemaakte wijziging naar de server gestuurd."
+
+msgid "{} changements faits hors ligne envoyés au serveur."
+msgstr "{} offline gemaakte wijzigingen naar de server gestuurd."
+
+msgid "Lecture impossible : {}"
+msgstr "Afspelen mislukt: {}"
+
+msgid "{} retiré de cet appareil."
+msgstr "{} van dit apparaat verwijderd."
+
+msgid "Lecture impossible : le rendu OpenGL n'est pas disponible (SLINT_BACKEND ?)."
+msgstr "Afspelen mislukt: OpenGL-weergave is niet beschikbaar (SLINT_BACKEND?)."
+
+msgid "Serveur injoignable : nouvel essai automatique toutes les 5 s…"
+msgstr "Server onbereikbaar: elke 5 s automatisch opnieuw proberen…"
+
+msgid "Ce compte n'est plus valable : choisis un compte."
+msgstr "Dit account is niet meer geldig: kies een account."
+
+msgid "Téléchargement annulé."
+msgstr "Download geannuleerd."
+
+msgid "{} téléchargements annulés."
+msgstr "{} downloads geannuleerd."
+
+msgid "Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler."
+msgstr "Toegevoegd aan downloads ({}). Druk nogmaals op Downloaden om te annuleren."
+
+msgid "Téléchargement en cours : {} %."
+msgstr "Bezig met downloaden: {} %."
+
+msgid "Déjà téléchargé."
+msgstr "Al gedownload."
+
+msgid "Déjà dans la file de téléchargement."
+msgstr "Staat al in de downloadwachtrij."
+
+msgid "Téléchargement impossible ({}) : {}"
+msgstr "Downloaden mislukt ({}): {}"
+
+msgid "Connexion perdue : le téléchargement reprendra tout seul."
+msgstr "Verbinding verloren: de download gaat vanzelf verder."
+
+msgid "Téléchargement : {} — {} %"
+msgstr "Downloaden: {} — {} %"
+
+msgid "Téléchargements en pause (connexion perdue) · {} en attente · reprise automatique"
+msgstr "Downloads gepauzeerd (verbinding verloren) · {} wachtend · gaat automatisch verder"
+
+msgid "Reprise à {}"
+msgstr "Hervatten op {}"
+
+msgid "à synchroniser"
+msgstr "te synchroniseren"
+
+msgid "Saison {}"
+msgstr "Seizoen {}"
+
+msgid "épisode"
+msgstr "aflevering"
+
+msgid "épisodes"
+msgstr "afleveringen"
+
+msgid "épisode téléchargé"
+msgstr "gedownloade aflevering"
+
+msgid "épisodes téléchargés"
+msgstr "gedownloade afleveringen"
+
+msgid "Téléchargement supprimé."
+msgstr "Download verwijderd."
+
+msgid "Serveur injoignable : mode hors ligne (téléchargements)."
+msgstr "Server onbereikbaar: offlinemodus (downloads)."
+
+msgid "Serveur de nouveau joignable : retour en ligne."
+msgstr "Server weer bereikbaar: weer online."
+
+msgid "place libmpv-2.dll à côté de turtlefin.exe"
+msgstr "zet libmpv-2.dll naast turtlefin.exe"
+
+msgid "installe-la avec « sudo apt install libmpv2 »"
+msgstr "installeer het met „sudo apt install libmpv2”"
+
+msgid "libmpv introuvable ({}). Détail : {}"
+msgstr "libmpv niet gevonden ({}). Details: {}"
+
+msgid "libmpv n'a pas pu créer de lecteur"
+msgstr "libmpv kon geen speler maken"
+
+msgid "Piste {}"
+msgstr "Spoor {}"
+
+msgid "Intro passée"
+msgstr "Intro overgeslagen"
+
+msgid "mpv n'a pas pu lire ce média ({})"
+msgstr "mpv kon dit item niet afspelen ({})"
+
+msgid "Connexion rétablie : la lecture reprend."
+msgstr "Verbinding hersteld: het afspelen gaat verder."
+
+msgid "épisode suivant introuvable ({})"
+msgstr "volgende aflevering niet gevonden ({})"
+
+msgid "élément introuvable ({})"
+msgstr "item niet gevonden ({})"
+
+msgid "Saison suivante"
+msgstr "Volgend seizoen"
+
+msgid "Épisode suivant"
+msgstr "Volgende aflevering"
+
+msgid "Passer à la saison suivante"
+msgstr "Naar het volgende seizoen"
+
+msgid "Passer à l'épisode suivant"
+msgstr "Naar de volgende aflevering"
+
+msgid "Vidéo de test"
+msgstr "Testvideo"
+
+msgid "rien à lire"
+msgstr "niets om af te spelen"
+
+msgid "Fin à {}"
+msgstr "Eindigt om {}"
+
+msgid "Watch party « {} » rejointe."
+msgstr "Watch party „{}” betreden."
+
+msgid "{} a rejoint la watch party."
+msgstr "{} doet mee aan de watch party."
+
+msgid "{} a quitté la watch party."
+msgstr "{} heeft de watch party verlaten."
+
+msgid "compilé depuis les sources"
+msgstr "gecompileerd uit de broncode"
+
+msgid "Windows, installé"
+msgstr "Windows, geïnstalleerd"
+
+msgid "Windows, portable"
+msgstr "Windows, draagbaar"
+
+msgid "paquet .deb"
+msgstr ".deb-pakket"
+
+msgid "installation inconnue"
+msgstr "onbekende installatie"
+
+msgid "GitHub injoignable (connexion Internet ?)"
+msgstr "GitHub onbereikbaar (internetverbinding?)"
+
+msgid "introuvable sur GitHub"
+msgstr "niet gevonden op GitHub"
+
+msgid "GitHub limite les vérifications : réessaie dans une heure"
+msgstr "GitHub beperkt het aantal controles: probeer het over een uur opnieuw"
+
+msgid "GitHub a répondu {}"
+msgstr "GitHub antwoordde {}"
+
+msgid "mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"
+msgstr "automatisch bijwerken niet mogelijk voor deze installatie: download de nieuwste versie van GitHub"
+
+msgid "version installée inconnue (compilée sans git)"
+msgstr "geïnstalleerde versie onbekend (gecompileerd zonder git)"
+
+msgid "cette version contient des modifications pas encore publiées sur GitHub ; rien à installer"
+msgstr "deze versie bevat wijzigingen die nog niet op GitHub staan; niets te installeren"
+
+msgid "{} nouveauté(s)"
+msgstr "{} wijziging(en)"
+
+msgid "Version {}"
+msgstr "Versie {}"
+
+msgid "pas de fichier publié pour cette installation"
+msgstr "geen gepubliceerd bestand voor deze installatie"
+
+msgid "{} {} a échoué : {}"
+msgstr "{} {} mislukt: {}"
+
+msgid "mise à jour automatique impossible pour cette installation"
+msgstr "automatisch bijwerken niet mogelijk voor deze installatie"
+
+msgid "Téléchargement des nouveautés…"
+msgstr "Nieuwe versie downloaden…"
+
+msgid "Compilation (quelques minutes, l'appli reste utilisable)…"
+msgstr "Compileren (een paar minuten, de app blijft bruikbaar)…"
+
+msgid "fichier {} absent de la publication"
+msgstr "bestand {} ontbreekt in de release"
+
+msgid "téléchargement bloqué (plus de données depuis 60 s)"
+msgstr "download vastgelopen (al 60 s geen gegevens)"
+
+msgid "Téléchargement… {} %"
+msgstr "Downloaden… {} %"
+
+msgid "Téléchargement…"
+msgstr "Downloaden…"
+
+msgid "Remplacement des fichiers…"
+msgstr "Bestanden vervangen…"
+
+msgid "Remplacement de l'AppImage…"
+msgstr "AppImage vervangen…"
+
+msgid "AppImage introuvable"
+msgstr "AppImage niet gevonden"
+
+msgid "Langue"
+msgstr "Taal"
+
+msgid "Lecteur vidéo"
+msgstr "Videospeler"
+
+msgid "Stockage"
+msgstr "Opslag"
+
+msgid "Serveur"
+msgstr "Server"
+
+msgid "Dossier de configuration introuvable."
+msgstr "Configuratiemap niet gevonden."
+
+msgid "Impossible d'écrire la configuration"
+msgstr "Kan de configuratie niet schrijven"
+
+msgid "Aucune préférence"
+msgstr "Geen voorkeur"
+
+msgid "Par défaut"
+msgstr "Standaard"
+
+msgid "Intelligent"
+msgstr "Slim"
+
+msgid "Forcés uniquement"
+msgstr "Alleen geforceerd"
+
+msgid "Toujours"
+msgstr "Altijd"
+
+msgid "Aucun"
+msgstr "Geen"
+
+msgid "Petite"
+msgstr "Klein"
+
+msgid "Normale"
+msgstr "Normaal"
+
+msgid "Grande"
+msgstr "Groot"
+
+msgid "Très grande"
+msgstr "Heel groot"
+
+msgid "Énorme"
+msgstr "Enorm"
+
+msgid "Sans catégorie"
+msgstr "Zonder categorie"
+
+msgid "AppImage"
+msgstr "AppImage"
+
+msgid "Configuration"
+msgstr "Configuratie"

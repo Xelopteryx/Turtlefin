@@ -2203,7 +2203,8 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("subsize", tr("Taille des sous-titres"), tr("Appliquée à la prochaine vidéo."), tr(sub_size_label(prefs.sub_scale)).into(), "choice", false),
         ],
         3 => vec![
-            row("language", tr("Langue de l'interface"), "Language", crate::i18n::LANGUAGES.iter().find(|l| l.0 == prefs.language).map(|l| l.1).unwrap_or("Français").into(), "choice", false),
+            row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
+            row("addlang", tr("Ajouter une langue"), tr("Crée un modèle à traduire et ouvre son dossier : aucune compilation nécessaire."), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
@@ -2292,8 +2293,8 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
         })),
         "language" => Some((
             tr("Langue de l'interface").into(),
-            crate::i18n::LANGUAGES.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
-            config::ui_prefs().language,
+            crate::i18n::languages(),
+            i18n::current(),
         )),
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
@@ -2762,6 +2763,20 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 u.set_toast(tr("Cache d'images vidé.").into());
             }
             refresh_settings(app);
+        }
+        "addlang" => {
+            // Modèle à traduire, puis le dossier ouvert dans le gestionnaire de fichiers.
+            let msg = match i18n::write_template() {
+                Ok(dir) => {
+                    let opener = if cfg!(windows) { "explorer" } else { "xdg-open" };
+                    let _ = std::process::Command::new(opener).arg(&dir).spawn();
+                    tr("Modèle créé : copie modele.po sous le nom <code>.po, traduis-le, puis relance Turtlefin.").to_string()
+                }
+                Err(e) => trf("Impossible de créer le modèle : {}", &[&e]),
+            };
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(msg.into());
+            }
         }
         "switch" => end_session(app, false),
         "update" => update_action(app),
@@ -3941,6 +3956,21 @@ fn main() -> anyhow::Result<()> {
     STILL_GIFS.store(saved.still_gifs, Ordering::Relaxed);
     NO_BACKDROP.store(saved.no_backdrop, Ordering::Relaxed);
     let ui = AppWindow::new()?;
+    // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
+    {
+        let t = ui.global::<Tr>();
+        t.on_t(|_, s| i18n::tr_str(&s).into());
+        t.on_f(|_, s, a, b| i18n::trf_str(&s, &[a.as_str(), b.as_str()]).into());
+        t.on_p(|_, one, other, n| i18n::trn(&one, &other, n as i64).into());
+        // Changement de langue (de n'importe quel fil) : `Tr.l` change, les textes se recalculent.
+        let weak = std::sync::Mutex::new(ui.as_weak());
+        i18n::on_change(move || {
+            let _ = weak.lock().unwrap().upgrade_in_event_loop(|u| {
+                let t = u.global::<Tr>();
+                t.set_l(t.get_l() + 1);
+            });
+        });
+    }
     let video_ok = match video::install(&ui) {
         Ok(()) => true,
         Err(e) => {

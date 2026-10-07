@@ -12,13 +12,8 @@ fn main() {
     println!("cargo:rerun-if-changed=.git/refs/heads");
     // Style imposé : "fluent-dark" (rendu 100 % Slint). Sans ça, Slint peut
     // choisir le style "native" qui dépend de Qt si Qt est installé.
-    // Traductions (lang/<langue>/LC_MESSAGES/turtlefin.po) intégrées à l'exécutable, sans contexte :
-    // les mêmes textes servent à Slint (@tr) et à Rust (i18n::tr).
-    println!("cargo:rerun-if-changed=lang");
-    let config = slint_build::CompilerConfiguration::new()
-        .with_style("fluent-dark".into())
-        .with_bundled_translations("lang")
-        .with_default_translation_context(slint_build::DefaultTranslationContext::None);
+    // Traductions : faites à l'exécution par src/i18n.rs (global Tr de ui/theme.slint), pas par Slint.
+    let config = slint_build::CompilerConfiguration::new().with_style("fluent-dark".into());
     slint_build::compile_with_config("ui/app.slint", config).expect("échec de la compilation Slint");
 
     // Windows : icône de l'exécutable (Explorateur, barre des tâches, raccourcis).

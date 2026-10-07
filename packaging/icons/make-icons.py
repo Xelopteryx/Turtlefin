@@ -6,6 +6,7 @@ bouts et angles arrondis, dégradé #a95bc2 -> #00a4db à 135° sur le carré [5
 x1,4 autour du centre sur un carré sombre aux coins arrondis.
 
 usage : python make-icons.py <dossier de sortie>
+Produit aussi les images de l'installeur Windows (wizard-*.bmp, à copier dans packaging/windows/).
 """
 import sys, os
 from PIL import Image, ImageDraw
@@ -69,4 +70,27 @@ for s in (16, 24, 32, 48, 64, 128, 256, 512):
     big.resize((s, s), Image.LANCZOS).save(os.path.join(out, f'turtlefin-{s}.png'))
 big.resize((256, 256), Image.LANCZOS).save(
     os.path.join(out, 'turtlefin.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
+# Installeur (Inno Setup) : petite image du bandeau (55 x 58, et x2) et grande image de côté
+# (164 x 314, et x2), en BMP sans transparence, fond sombre du thème.
+here = os.path.dirname(os.path.abspath(__file__))
+font_path = os.path.join(here, '..', '..', 'ui', 'fonts', 'Montserrat-Bold.ttf')
+for scale in (1, 2):
+    w, h = 55 * scale, 58 * scale
+    img = Image.new('RGB', (w, h), (0x01, 0x0e, 0x18))
+    logo_img = big.resize((min(w, h), min(w, h)), Image.LANCZOS)
+    img.paste(logo_img, ((w - logo_img.width) // 2, (h - logo_img.height) // 2), logo_img)
+    img.save(os.path.join(out, f'wizard-small-{scale}x.bmp'))
+
+    w, h = 164 * scale, 314 * scale
+    img = Image.new('RGB', (w, h), (0x01, 0x0e, 0x18))
+    side = int(w * 0.8)
+    logo_img = big.resize((side, side), Image.LANCZOS)
+    img.paste(logo_img, ((w - side) // 2, int(h * 0.22)), logo_img)
+    from PIL import ImageFont
+    d = ImageDraw.Draw(img)
+    f = ImageFont.truetype(font_path, 22 * scale)
+    tw = d.textlength('Turtlefin', font=f)
+    d.text(((w - tw) / 2, int(h * 0.22) + side + 14 * scale), 'Turtlefin', font=f, fill=(0x00, 0xa4, 0xdb))
+    img.save(os.path.join(out, f'wizard-large-{scale}x.bmp'))
 print('ok')

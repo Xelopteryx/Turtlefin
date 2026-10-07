@@ -9,6 +9,11 @@ param(
     [ValidateSet("x64", "x86")][string]$Arch = "x64"
 )
 $ErrorActionPreference = "Stop"
+# CI : toute erreur est aussi écrite en annotation GitHub (lisible sans ouvrir le journal).
+trap {
+    if ($env:GITHUB_ACTIONS) { Write-Host "::error::build.ps1 ($Arch) : $($_.Exception.Message) [$($_.InvocationInfo.PositionMessage -replace '\s+', ' ')]" }
+    break
+}
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
 Set-Location $root
 
@@ -41,7 +46,10 @@ if (-not (Test-Path "$mpvDir\libmpv-2.dll")) {
     # 10 juin 2026, la dernière qui fonctionne. MPV_TAG permet d'en imposer une autre.
     $tag = if ($env:MPV_TAG) { $env:MPV_TAG } elseif ($Arch -eq "x86") { "20260610" } else { "" }
     $api = if ($tag) { "tags/$tag" } else { "latest" }
-    $rel = Invoke-RestMethod "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/$api" -Headers @{ "User-Agent" = "turtlefin-build" }
+    # Jeton de la CI s'il y en a un : les appels anonymes sont vite limités sur les machines partagées.
+    $headers = @{ "User-Agent" = "turtlefin-build" }
+    if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
+    $rel = Invoke-RestMethod "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/$api" -Headers $headers
     $asset = $rel.assets | Where-Object { $_.name -like "mpv-dev-$mpvArch-2*.7z" } | Select-Object -First 1
     if (-not $asset) { throw "libmpv $mpvArch introuvable" }
     $archive = Join-Path $mpvDir $asset.name

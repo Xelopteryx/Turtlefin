@@ -37,15 +37,19 @@ DisableProgramGroupPage=yes
 ; Choix du dossier toujours proposé (même pour une mise à jour, sauf en mode silencieux).
 DisableDirPage=no
 UsePreviousAppDir=yes
-; Installation pour l'utilisateur seul ou pour tous (demandé au lancement).
+; Installation pour l'utilisateur seul (pas de droits administrateur). Pour tous : /ALLUSERS.
+; (« dialog » afficherait ce choix avant celui de la langue, qui doit venir en premier.)
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequiredOverridesAllowed=commandline
 OutputDir={#Out}
 OutputBaseFilename=Turtlefin-{#Version}-windows-{#Arch}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\icons\turtlefin.ico
+; Logo dans l'assistant (100 % et 200 %), images produites par packaging/icons/make-icons.py.
+WizardImageFile=wizard-large-1x.bmp,wizard-large-2x.bmp
+WizardSmallImageFile=wizard-small-1x.bmp,wizard-small-2x.bmp
 ; Langue de l'assistant proposée d'après celle de Windows ; elle devient celle de Turtlefin (fichier « language »).
 ShowLanguageDialog=yes
 LanguageDetectionMethod=uilanguage
@@ -64,6 +68,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Languages]
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "de"; MessagesFile: "compiler:Languages\German.isl"
+Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"
+Name: "pt"; MessagesFile: "compiler:Languages\Portuguese.isl"
+Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
+Name: "nl"; MessagesFile: "compiler:Languages\Dutch.isl"
 
 [CustomMessages]
 fr.ModeTitle=Type d'installation
@@ -76,6 +86,36 @@ en.ModeSub=How do you want to use Turtlefin?
 en.ModeText=Install: Turtlefin is installed on this computer (Start menu, uninstall from Windows settings).%nPortable: just the files, in the folder of your choice (a USB stick for example); settings and downloads stay in that folder.
 en.ModeInstall=Install (recommended)
 en.ModePortable=Portable
+es.ModeTitle=Tipo de instalación
+es.ModeSub=¿Cómo quieres usar Turtlefin?
+es.ModeText=Instalación: Turtlefin se instala en este equipo (menú Inicio, desinstalación desde la configuración de Windows).%nPortátil: solo los archivos, en la carpeta que elijas (una memoria USB, por ejemplo); la configuración y las descargas se quedan en esa carpeta.
+es.ModeInstall=Instalación (recomendado)
+es.ModePortable=Portátil
+de.ModeTitle=Installationsart
+de.ModeSub=Wie möchtest du Turtlefin verwenden?
+de.ModeText=Installation: Turtlefin wird auf diesem Computer installiert (Startmenü, Deinstallation über die Windows-Einstellungen).%nPortabel: nur die Dateien, in einem Ordner deiner Wahl (zum Beispiel ein USB-Stick); Einstellungen und Downloads bleiben in diesem Ordner.
+de.ModeInstall=Installation (empfohlen)
+de.ModePortable=Portabel
+it.ModeTitle=Tipo di installazione
+it.ModeSub=Come vuoi usare Turtlefin?
+it.ModeText=Installazione: Turtlefin viene installato su questo computer (menu Start, disinstallazione dalle impostazioni di Windows).%nPortatile: solo i file, nella cartella che scegli (una chiavetta USB, per esempio); impostazioni e download restano in quella cartella.
+it.ModeInstall=Installazione (consigliato)
+it.ModePortable=Portatile
+pt.ModeTitle=Tipo de instalação
+pt.ModeSub=Como queres usar o Turtlefin?
+pt.ModeText=Instalação: o Turtlefin é instalado neste computador (menu Iniciar, desinstalação nas definições do Windows).%nPortátil: apenas os ficheiros, na pasta que escolheres (uma pen USB, por exemplo); as definições e as transferências ficam nessa pasta.
+pt.ModeInstall=Instalação (recomendado)
+pt.ModePortable=Portátil
+pl.ModeTitle=Rodzaj instalacji
+pl.ModeSub=Jak chcesz używać Turtlefin?
+pl.ModeText=Instalacja: Turtlefin zostanie zainstalowany na tym komputerze (menu Start, odinstalowanie w ustawieniach Windows).%nPrzenośna: same pliki, w wybranym folderze (np. na pendrivie); ustawienia i pobrane pliki zostają w tym folderze.
+pl.ModeInstall=Instalacja (zalecana)
+pl.ModePortable=Przenośna
+nl.ModeTitle=Installatietype
+nl.ModeSub=Hoe wil je Turtlefin gebruiken?
+nl.ModeText=Installatie: Turtlefin wordt op deze computer geïnstalleerd (Startmenu, verwijderen via de Windows-instellingen).%nDraagbaar: alleen de bestanden, in een map naar keuze (bijvoorbeeld een USB-stick); instellingen en downloads blijven in die map.
+nl.ModeInstall=Installatie (aanbevolen)
+nl.ModePortable=Draagbaar
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Check: not IsPortable

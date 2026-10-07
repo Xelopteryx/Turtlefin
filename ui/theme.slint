@@ -17,3 +17,16 @@ export global Prefs {
     in-out property <bool> marquee: true;  // défilement des noms trop longs
     in-out property <bool> clock: true;    // heure en haut à droite
 }
+
+// Traduction de l'interface, faite en Rust (i18n.rs) : langues intégrées et fichiers .po ajoutés,
+// changement à chaud. `l` change à chaque changement de langue : passé à chaque appel, il fait
+// recalculer les textes affichés.
+export global Tr {
+    in property <int> l;
+    // Texte simple.
+    pure callback t(int, string) -> string;
+    // Texte avec une ou deux valeurs à la place des {} ("" si une seule).
+    pure callback f(int, string, string, string) -> string;
+    // Pluriel : forme « un », forme « plusieurs », n ({n} remplacé par n).
+    pure callback p(int, string, string, int) -> string;
+}

@@ -193,11 +193,11 @@ pub async fn run(app: Arc<App>, start: Start) {
 
         // Langue : demandée au premier lancement (choix gardé dans prefs.json).
         if i == 0 && config::ui_prefs().language.is_empty() {
-            let langs: Vec<TrackData> = crate::i18n::LANGUAGES
-                .iter()
-                .map(|(id, label)| TrackData { id: (*id).into(), label: (*label).into(), current: false })
-                .collect();
-            let sel = crate::i18n::LANGUAGES.iter().position(|(id, _)| *id == crate::i18n::system_language()).unwrap_or(0) as i32;
+            let all = crate::i18n::languages();
+            let sys = crate::i18n::system_language();
+            let sel = all.iter().position(|(id, _)| *id == sys).unwrap_or(0) as i32;
+            let langs: Vec<TrackData> =
+                all.into_iter().map(|(id, label)| TrackData { id: id.into(), label: label.into(), current: false }).collect();
             ui(&app, move |u| {
                 u.set_boot_on(true);
                 u.set_boot_lang_title("Langue · Language".into());
