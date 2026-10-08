@@ -1285,6 +1285,10 @@ component HeaderRight inherits Rectangle {
 
     // Largeur occupée par les icônes (marge droite comprise) : cadre de la visite guidée.
     out property <length> used-w: hr-lay.preferred-width;
+    // Photo du compte : position à l'écran (arrivée de l'envol à la connexion) ; masquée pendant.
+    out property <length> me-x: me.absolute-position.x;
+    out property <length> me-y: me.absolute-position.y;
+    in property <bool> hide-me;
     hr-lay := HorizontalLayout {
         alignment: end;
         spacing: 12px * root.k;
@@ -1408,10 +1412,12 @@ component HeaderRight inherits Rectangle {
                 root.activate(2);
             }
         }
-        HeaderIcon {
+        me := HeaderIcon {
             icon: root.has-avatar ? "" : "profile";
             k: root.k;
             focused: root.sel == 3;
+            // Connexion : la photo du compte arrive en volant (voir fly-phase), elle prend sa place.
+            opacity: root.hide-me ? 0 : 1;
             clicked => {
                 root.activate(3);
             }
@@ -1812,6 +1818,13 @@ export component AppWindow inherits Window {
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
         root.tour-ev(6);
+        if (root.fly-phase == 1 || root.fly-phase == 2) {
+            if (root.screen == "home") {
+                root.fly-start(3);
+            } else if (root.screen != "login" && root.screen != "loading") {
+                root.fly-phase = 0;
+            }
+        }
         // Effet de langue en cours sur une page quittée : les mots reviennent, la liste se ferme.
         if (root.dust-cloud) {
             root.ch-key = "";
@@ -2573,12 +2586,30 @@ export component AppWindow inherits Window {
                 lg.shift-from = -1;
             }
         }
+        // Rangée des tuiles (aussi le point de départ de la photo qui s'envole au choix).
+        property <length> pk-step: lg.tile + 30 * lg.u;
+        property <length> pk-row-w: lg.n * self.pk-step - 30 * lg.u;
+        property <int> pk-focus: min(root.login-sel, lg.n - 1);
+        property <length> pk-row-x: self.pk-row-w <= self.width - 80 * lg.u ? (self.width - self.pk-row-w) / 2
+            : max(self.width - 40 * lg.u - self.pk-row-w, min(40 * lg.u, self.width / 2 - (self.pk-focus * self.pk-step + lg.tile / 2)));
+        animate pk-row-x { duration: 260ms; easing: ease-out; }
+        // Connexion en cours (photo au centre) : le reste de la page s'efface.
+        opacity: root.fly-phase == 1 || root.fly-phase == 2 ? 0 : 1;
+        animate opacity { duration: 280ms; easing: ease-out; }
         // Compte choisi (connexion en cours).
         property <string> picking;
         // Seul un compte enregistré se connecte tout de suite (les autres ouvrent le formulaire).
         function pick(i: int) {
             if (root.login-tiles[i].subtitle == Tr.t(Tr.k, "Enregistré")) {
                 lg.picking = root.login-tiles[i].id;
+                // Retour immédiat : la photo quitte sa tuile et va au centre de l'écran.
+                root.fly-img = root.login-tiles[i].image;
+                root.fly-has-img = root.login-tiles[i].has-image;
+                root.fly-letter = root.login-tiles[i].rating;
+                root.fly-sx = lg.pk-row-x + i * lg.pk-step;
+                root.fly-sy = 240 * lg.u;
+                root.fly-ss = lg.tile;
+                root.fly-start(1);
             }
             root.login-pick(root.login-tiles[i].id);
         }
@@ -2775,12 +2806,8 @@ export component AppWindow inherits Window {
         // ---- Qui regarde ?
         if root.login-mode == "pick": Rectangle {
             // Rangée plus large que l'écran : elle défile pour garder la tuile choisie visible.
-            property <length> step: lg.tile + 30 * lg.u;
-            property <length> row-w: lg.n * self.step - 30 * lg.u;
-            property <int> focus-i: min(root.login-sel, lg.n - 1);
-            property <length> row-x: self.row-w <= self.width - 80 * lg.u ? (self.width - self.row-w) / 2
-                : max(self.width - 40 * lg.u - self.row-w, min(40 * lg.u, self.width / 2 - (self.focus-i * self.step + lg.tile / 2)));
-            animate row-x { duration: 260ms; easing: ease-out; }
+            property <length> step: lg.pk-step;
+            property <length> row-x: lg.pk-row-x;
             // Comptes enregistrés (pour « Gérer les comptes »).
             property <int> saved: lg.saved-count;
             Text {
@@ -3250,11 +3277,20 @@ export component AppWindow inherits Window {
                 dl-text: root.dl-pill;
                 dl-p: root.dl-p;
                 dl-paused: root.dl-paused;
+                hide-me: root.fly-phase == 3;
                 init => {
                     root.right-w = self.used-w;
+                    root.me-x = self.me-x;
+                    root.me-y = self.me-y;
                 }
                 changed used-w => {
                     root.right-w = self.used-w;
+                }
+                changed me-x => {
+                    root.me-x = self.me-x;
+                }
+                changed me-y => {
+                    root.me-y = self.me-y;
                 }
                 activate(i) => {
                     root.right-activate(i);
@@ -7703,6 +7739,129 @@ export component AppWindow inherits Window {
                     root.tour-step = -1;
                 }
                 return EventResult.accept;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Connexion : la photo s'envole
+    // 1 : la photo du compte choisi quitte sa tuile pour le centre (élastique), la page s'efface ;
+    // 2 : elle y attend la connexion, un anneau tourne autour ;
+    // 3 : l'accueil arrive, elle part vers le bas à gauche puis remonte en arc jusqu'à l'avatar en
+    //     haut à droite en rétrécissant, et s'y pose avec un rebond ;
+    // 0 : rien (échec de la connexion : la page « Qui regarde ? » revient).
+    in-out property <int> fly-phase;
+    in-out property <image> fly-img;
+    in-out property <bool> fly-has-img;
+    in-out property <string> fly-letter;
+    in-out property <length> fly-sx;
+    in-out property <length> fly-sy;
+    in-out property <length> fly-ss;
+    property <duration> fly-t0;
+    in-out property <length> me-x: root.width - 120px * root.k;
+    in-out property <length> me-y: 14px * root.k;
+    function fly-start(phase: int) {
+        root.fly-phase = phase;
+        root.fly-t0 = animation-tick();
+    }
+    Timer {
+        interval: 480ms;
+        running: root.fly-phase == 1;
+        triggered => {
+            root.fly-phase = 2;
+        }
+    }
+    Timer {
+        interval: 1250ms;
+        running: root.fly-phase == 3;
+        triggered => {
+            root.fly-phase = 0;
+        }
+    }
+    // Échec (formulaire de mot de passe, erreur) : la photo disparaît, la page revient.
+    property <string> fly-err: root.error-text;
+    changed fly-err => {
+        if ((root.fly-phase == 1 || root.fly-phase == 2) && root.error-text != "") {
+            root.fly-phase = 0;
+        }
+    }
+    property <string> fly-mode: root.login-mode;
+    changed fly-mode => {
+        if ((root.fly-phase == 1 || root.fly-phase == 2) && root.login-mode == "form") {
+            root.fly-phase = 0;
+        }
+    }
+    property <length> fly-cs: 190px * root.k;
+    property <length> fly-cx: (root.width - self.fly-cs) / 2;
+    property <length> fly-cy: (root.height - self.fly-cs) / 2 - 20px * root.k;
+    property <length> fly-ts: 36px * root.k;
+    property <length> fly-tx: root.me-x + 4px * root.k;
+    property <length> fly-ty: root.me-y + 4px * root.k;
+    if root.fly-phase > 0: Rectangle {
+        property <float> t: root.fly-phase == 2 ? 1 : (animation-tick() - root.fly-t0) / 1ms;
+        // Phase 1 : vers le centre (élastique).
+        property <float> a: root.fly-phase == 1 ? clamp(self.t / 460, 0, 1) : 1;
+        property <float> ae: 1 - pow(2, -9 * self.a) * cos(self.a * 330deg * 1.35);
+        // Phase 3 : le long d'une courbe (départ vers le bas à gauche), puis rebond à l'arrivée.
+        property <float> b: root.fly-phase == 3 ? clamp(self.t / 900, 0, 1) : 0;
+        property <float> be: self.b < 0.5 ? 2 * self.b * self.b : 1 - pow(-2 * self.b + 2, 2) / 2;
+        property <float> land: root.fly-phase == 3 ? clamp((self.t - 900) / 320, 0, 1) : 0;
+        property <float> bounce: self.land <= 0 ? 0 : sin(self.land * 540deg) * (1 - self.land) * 0.35;
+        // Courbe (Bézier cubique) : plonge vers le bas à gauche, remonte par la gauche, puis file
+        // vers le haut à droite.
+        property <length> p1x: root.width * 0.08;
+        property <length> p1y: root.height * 1.05;
+        property <length> p2x: root.width * 0.02;
+        property <length> p2y: root.height * -0.05;
+        property <float> u: 1 - self.be;
+        property <float> w0: self.u * self.u * self.u;
+        property <float> w1: 3 * self.u * self.u * self.be;
+        property <float> w2: 3 * self.u * self.be * self.be;
+        property <float> w3: self.be * self.be * self.be;
+        property <length> s: root.fly-phase == 3 ? (root.fly-cs + (root.fly-ts - root.fly-cs) * self.be) * (1 + self.bounce)
+            : root.fly-ss + (root.fly-cs - root.fly-ss) * self.ae;
+        property <length> cx: root.fly-phase == 3
+            ? self.w0 * (root.fly-cx + root.fly-cs / 2) + self.w1 * self.p1x + self.w2 * self.p2x + self.w3 * (root.fly-tx + root.fly-ts / 2)
+            : (root.fly-sx + root.fly-ss / 2) + ((root.fly-cx + root.fly-cs / 2) - (root.fly-sx + root.fly-ss / 2)) * self.ae;
+        property <length> cy: root.fly-phase == 3
+            ? self.w0 * (root.fly-cy + root.fly-cs / 2) + self.w1 * self.p1y + self.w2 * self.p2y + self.w3 * (root.fly-ty + root.fly-ts / 2)
+            : (root.fly-sy + root.fly-ss / 2) + ((root.fly-cy + root.fly-cs / 2) - (root.fly-sy + root.fly-ss / 2)) * self.ae;
+        x: self.cx - self.s / 2;
+        y: self.cy - self.s / 2;
+        width: self.s;
+        height: self.s;
+        // Anneau qui tourne pendant la connexion.
+        if root.fly-phase == 2: Path {
+            x: -14px * root.k;
+            y: -14px * root.k;
+            width: parent.width + 28px * root.k;
+            height: parent.height + 28px * root.k;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            fill: transparent;
+            stroke: Theme.accent2;
+            stroke-width: 4px * root.k;
+            stroke-line-cap: round;
+            property <angle> r: mod(animation-tick() / 1ms, 1100) / 1100 * 360deg;
+            commands: "M " + (50 + 48 * cos(self.r)) + " " + (50 + 48 * sin(self.r)) + " A 48 48 0 0 1 "
+                + (50 + 48 * cos(self.r + 110deg)) + " " + (50 + 48 * sin(self.r + 110deg));
+        }
+        Rectangle {
+            border-radius: self.width / 2;
+            background: @linear-gradient(130deg, #3b2a55 0%, #12304a 100%);
+            clip: true;
+            if root.fly-has-img: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.fly-img;
+                image-fit: fill;
+            }
+            if !root.fly-has-img: Text {
+                text: root.fly-letter;
+                color: white;
+                font-size: parent.height * 0.4;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
         }
     }
