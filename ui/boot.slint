@@ -309,6 +309,7 @@ export component BootLogo inherits Rectangle {
                 y: 18px * root.k;
                 width: parent.width;
                 text: root.lang-title;
+                font-family: "Montserrat"; // lisible pendant l'effet de langue
                 color: white;
                 font-size: 18px * root.k;
                 font-weight: 700;
@@ -328,6 +329,7 @@ export component BootLogo inherits Rectangle {
                     background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff12;
                     Text {
                         text: l.label;
+                        font-family: "Montserrat"; // lisible pendant l'effet de langue
                         color: white;
                         font-size: 17px * root.k;
                         font-weight: 600;

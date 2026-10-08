@@ -90,3 +90,69 @@ pub fn monitor() -> Option<((i32, i32, i32, i32), (i32, i32, i32, i32))> {
         Some((r(info.monitor), r(info.work)))
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fenêtre déplacée ou redimensionnée à la souris : Windows fait alors tourner sa propre boucle
+// (« modale ») jusqu'au relâchement, et celle de Turtlefin ne reçoit plus rien : animations,
+// minuteries et rendu se figent. Pendant ce temps, une minuterie Windows (WM_TIMER, que la boucle
+// modale distribue) fait avancer Slint et redessiner la fenêtre.
+
+const GWLP_WNDPROC: i32 = -4;
+const WM_TIMER: u32 = 0x0113;
+const WM_ENTERSIZEMOVE: u32 = 0x0231;
+const WM_EXITSIZEMOVE: u32 = 0x0232;
+const MOVE_TIMER: usize = 0x7475;
+
+type WndProc = unsafe extern "system" fn(Hwnd, u32, usize, isize) -> isize;
+
+#[link(name = "user32")]
+extern "system" {
+    fn SetWindowLongPtrW(h: Hwnd, index: i32, value: isize) -> isize;
+    fn CallWindowProcW(prev: WndProc, h: Hwnd, msg: u32, wp: usize, lp: isize) -> isize;
+    fn SetTimer(h: Hwnd, id: usize, ms: u32, f: *const c_void) -> usize;
+    fn KillTimer(h: Hwnd, id: usize) -> i32;
+}
+
+static PREV_PROC: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+thread_local! {
+    static ON_TICK: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> isize {
+    match msg {
+        WM_ENTERSIZEMOVE => {
+            // SAFETY : fenêtre valide (message reçu pour elle).
+            unsafe { SetTimer(h, MOVE_TIMER, 16, std::ptr::null()) };
+        }
+        WM_EXITSIZEMOVE => {
+            // SAFETY : idem.
+            unsafe { KillTimer(h, MOVE_TIMER) };
+        }
+        WM_TIMER if wp == MOVE_TIMER => {
+            ON_TICK.with(|t| {
+                if let Some(f) = t.borrow().as_ref() {
+                    f();
+                }
+            });
+            return 0;
+        }
+        _ => {}
+    }
+    let prev = PREV_PROC.load(std::sync::atomic::Ordering::Relaxed);
+    // SAFETY : `prev` est la procédure d'origine de la fenêtre (posée par `keep_alive_while_moving`).
+    unsafe { CallWindowProcW(std::mem::transmute::<isize, WndProc>(prev), h, msg, wp, lp) }
+}
+
+/// Garde l'interface vivante pendant un déplacement ou un redimensionnement : `tick` est appelé
+/// toutes les 16 ms pendant ce temps (il fait avancer Slint et demande un rendu).
+pub fn keep_alive_while_moving(tick: impl Fn() + 'static) {
+    if PREV_PROC.load(std::sync::atomic::Ordering::Relaxed) != 0 {
+        return;
+    }
+    let Some(h) = main_window() else { return };
+    ON_TICK.with(|t| *t.borrow_mut() = Some(Box::new(tick)));
+    // SAFETY : fenêtre de ce processus ; la procédure d'origine est gardée et toujours appelée.
+    let prev = unsafe { SetWindowLongPtrW(h, GWLP_WNDPROC, move_proc as *const () as usize as isize) };
+    PREV_PROC.store(prev, std::sync::atomic::Ordering::Relaxed);
+}

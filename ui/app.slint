@@ -6044,6 +6044,7 @@ export component AppWindow inherits Window {
                     y: 0px;
                     height: 62px * root.k;
                     text: root.ch-title;
+                    font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
                     color: white;
                     font-size: 18px * root.k;
                     font-weight: 700;
@@ -6066,6 +6067,7 @@ export component AppWindow inherits Window {
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
+                            font-family: "Montserrat";
                             color: white;
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
@@ -7751,6 +7753,14 @@ export component AppWindow inherits Window {
     property <int> dust-phase;
     property <duration> dust-t0;
     callback dust-cancel();
+    // Taille de la fenêtre changée (textes recouverts : les blocs sont recalculés, voir dust.rs).
+    callback dust-resized();
+    changed width => {
+        root.dust-resized();
+    }
+    changed height => {
+        root.dust-resized();
+    }
     // Phase de l'effet (1 recouvrir, 2 recouvert, 3 dévoiler), avec son départ.
     public function dust-start(phase: int) {
         root.dust-phase = phase;

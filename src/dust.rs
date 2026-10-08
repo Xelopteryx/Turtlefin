@@ -65,13 +65,14 @@ fn snap(u: &AppWindow) -> Option<Snap> {
 /// capturée telle quelle, puis avec une police aux lettres vides mais aux largeurs identiques
 /// (« Turtlefin Blank », tools/make-blank-font.py) : les pixels qui changent sont ceux des textes.
 fn find_lines(u: &AppWindow) -> Option<Vec<Line>> {
-    let on = u.get_dust_on();
+    let (on, blank) = (u.get_dust_on(), u.get_dust_blank());
     u.set_dust_on(false);
     u.set_dust_snap(true);
+    u.set_dust_blank(false);
     let a = snap(u);
     u.set_dust_blank(true);
     let b = snap(u);
-    u.set_dust_blank(false);
+    u.set_dust_blank(blank);
     u.set_dust_snap(false);
     u.set_dust_on(on);
     let (a, b) = (a?, b?);
@@ -204,6 +205,9 @@ fn cover(u: &AppWindow, layer: i32) {
         if let Some(u) = weak.upgrade() {
             if u.get_dust_cloud() {
                 u.invoke_dust_start(2);
+                // Tout est couvert : plus aucun texte n'est dessiné (police vide), même celui qui
+                // apparaîtrait en agrandissant la fenêtre ; la liste des langues garde le sien.
+                u.set_dust_blank(true);
             }
         }
     });
@@ -258,6 +262,7 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
         // Annulation : les anciens mots sont dévoilés.
         let pairs: Vec<(Line, Line)> = st.lines.iter().map(|l| (*l, *l)).collect();
         u.set_dust_lines(pairs_model(&pairs));
+        u.set_dust_blank(false);
         u.invoke_dust_start(3);
         schedule_end(u, st.lines, pairs.len(), Box::new(done));
         return;
@@ -307,9 +312,11 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
         let Some(u) = weak.upgrade() else { return };
         // Effet arrêté entre-temps (finish a déjà fait la suite) : rien à faire.
         let Some(d) = STATE.with(|s| s.borrow_mut().as_mut().and_then(|st| st.done.take())) else { return };
-        // Tout est couvert : la langue change dessous, les blocs se resserrent, la barre dévoile.
+        // Tout est couvert : la langue change dessous, les textes réapparaissent sous les blocs,
+        // qui se resserrent, puis la barre dévoile.
         apply(&u, &code);
         bump(&u);
+        u.set_dust_blank(false);
         u.set_dust_lines(pairs_model(&shrink));
         u.invoke_dust_start(3);
         schedule_end(&u, new.clone(), shrink.len(), d);
@@ -343,6 +350,7 @@ fn schedule_end(u: &AppWindow, lines: Vec<Line>, n: usize, done: Box<dyn FnOnce(
 /// Arrête l'effet sans attendre (le texte reste tel quel) et fait ce qui était prévu à la fin.
 pub fn finish(u: &AppWindow) {
     let st = STATE.with(|s| s.borrow_mut().take());
+    u.set_dust_blank(false);
     u.set_dust_on(false);
     u.set_dust_cloud(false);
     u.set_dust_lines(ModelRc::default());
@@ -354,4 +362,35 @@ pub fn finish(u: &AppWindow) {
             f(u);
         }
     }
+}
+
+/// Fenêtre redimensionnée pendant le choix (textes recouverts) : les lignes sont repérées de
+/// nouveau, une fois la taille posée, et les blocs suivent la nouvelle mise en page. En attendant,
+/// les textes restent invisibles (police vide).
+pub fn resized(u: &AppWindow) {
+    if !u.get_dust_cloud() || !u.get_dust_blank() {
+        return;
+    }
+    let weak = u.as_weak();
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(220), move || {
+        let Some(u) = weak.upgrade() else { return };
+        if !u.get_dust_cloud() {
+            return;
+        }
+        if let Some(lines) = find_lines(&u) {
+            u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
+            STATE.with(|s| {
+                if let Some(st) = s.borrow_mut().as_mut() {
+                    st.lines = lines;
+                }
+            });
+        }
+    });
+    RESIZE.with(|r| *r.borrow_mut() = Some(timer));
+}
+
+thread_local! {
+    /// Repérage après redimensionnement en attente (remplacé à chaque nouveau changement de taille).
+    static RESIZE: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
 }

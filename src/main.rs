@@ -4599,6 +4599,14 @@ fn main() -> anyhow::Result<()> {
     });
 
     // Liste des langues fermée sans choix : les grains réécrivent les mots d'avant.
+    ui.on_dust_resized({
+        let w = ui.as_weak();
+        move || {
+            if let Some(u) = w.upgrade() {
+                dust::resized(&u);
+            }
+        }
+    });
     ui.on_dust_cancel({
         let w = ui.as_weak();
         move || {
@@ -4695,6 +4703,20 @@ fn main() -> anyhow::Result<()> {
         rt.spawn(async move { play_flow(a, None, Some(url)).await });
     }
 
+    // Windows : l'interface reste animée pendant qu'on déplace ou redimensionne la fenêtre (voir
+    // winfull::keep_alive_while_moving) ; posé une fois la fenêtre affichée.
+    #[cfg(windows)]
+    {
+        let weak = ui.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(400), move || {
+            winfull::keep_alive_while_moving(move || {
+                slint::platform::update_timers_and_animations();
+                if let Some(u) = weak.upgrade() {
+                    u.window().request_redraw();
+                }
+            });
+        });
+    }
     ui.run()?;
     // Fermeture : on quitte la watch party (sinon le serveur garde une session fantôme dans le groupe).
     leave_party_blocking(&app, &rt);

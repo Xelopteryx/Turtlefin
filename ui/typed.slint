@@ -1,7 +1,8 @@
 // Texte tapé dans un champ (recherche) : la lettre ajoutée apparaît en grossissant, celle effacée
-// glisse vers la droite en s'estompant, le curseur clignote juste après la dernière lettre, le
-// texte d'exemple s'efface en fondu à la première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau
-// (par-dessus un TextInput dont le texte et le curseur sont masqués).
+// glisse vers la droite en s'estompant (chacune a son animation, même en effaçant vite), le
+// curseur clignote juste après la dernière lettre, le texte d'exemple s'efface en fondu à la
+// première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau (par-dessus un
+// TextInput dont le texte et le curseur sont masqués).
 import { Theme } from "theme.slint";
 
 // Découpe d'un texte (faite en Rust, Slint n'a pas de sous-chaînes).
@@ -10,6 +11,39 @@ export global Str {
     pure callback head(string) -> string;
     // Dernier caractère.
     pure callback last(string) -> string;
+}
+
+// Lettre effacée : glisse vers la droite en s'estompant, depuis la place qu'elle occupait.
+component Ghost inherits Rectangle {
+    in property <string> ch;
+    in property <length> x0;
+    in property <duration> t0;
+    in property <int> serial;
+    in property <length> font-size;
+    in property <float> k: 1.0;
+    // Animée seulement pendant son passage (pas de rafraîchissement continu ensuite).
+    property <bool> live;
+    changed serial => {
+        self.live = true;
+    }
+    Timer {
+        interval: 300ms;
+        running: root.live;
+        triggered => {
+            root.live = false;
+        }
+    }
+    property <float> p: root.live ? clamp((animation-tick() - root.t0) / 260ms, 0, 1) : 1;
+    x: root.x0 + root.p * 16px * root.k;
+    width: g.preferred-width;
+    opacity: 1 - root.p;
+    visible: root.p < 1;
+    g := Text {
+        text: root.ch;
+        color: white;
+        font-size: root.font-size;
+        vertical-alignment: center;
+    }
 }
 
 export component TypedText inherits Rectangle {
@@ -24,30 +58,47 @@ export component TypedText inherits Rectangle {
     clip: true;
 
     property <string> prev;
-    property <string> ghost;
     property <duration> add-t0;
-    property <duration> del-t0;
     property <bool> adding;
-    property <bool> deleting;
     property <bool> blink: true;
+    // Lettres effacées : 8 places utilisées tour à tour (touche maintenue : une lettre toutes les
+    // ~30 ms, chacune garde son animation de 260 ms).
+    property <int> slot;
+    property <int> serial;
+    property <string> g0; property <length> x0; property <duration> t0; property <int> s0;
+    property <string> g1; property <length> x1; property <duration> t1; property <int> s1;
+    property <string> g2; property <length> x2; property <duration> t2; property <int> s2;
+    property <string> g3; property <length> x3; property <duration> t3; property <int> s3;
+    property <string> g4; property <length> x4; property <duration> t4; property <int> s4;
+    property <string> g5; property <length> x5; property <duration> t5; property <int> s5;
+    property <string> g6; property <length> x6; property <duration> t6; property <int> s6;
+    property <string> g7; property <length> x7; property <duration> t7; property <int> s7;
     changed text => {
         if (root.text.character-count > root.prev.character-count) {
             root.add-t0 = animation-tick();
             root.adding = true;
         } else if (root.text.character-count < root.prev.character-count) {
-            root.ghost = Str.last(root.prev);
-            root.del-t0 = animation-tick();
-            root.deleting = true;
+            let ch = Str.last(root.prev);
+            let now = animation-tick();
+            root.serial += 1;
+            if (root.slot == 0) { root.g0 = ch; root.x0 = root.end-x; root.t0 = now; root.s0 = root.serial; }
+            else if (root.slot == 1) { root.g1 = ch; root.x1 = root.end-x; root.t1 = now; root.s1 = root.serial; }
+            else if (root.slot == 2) { root.g2 = ch; root.x2 = root.end-x; root.t2 = now; root.s2 = root.serial; }
+            else if (root.slot == 3) { root.g3 = ch; root.x3 = root.end-x; root.t3 = now; root.s3 = root.serial; }
+            else if (root.slot == 4) { root.g4 = ch; root.x4 = root.end-x; root.t4 = now; root.s4 = root.serial; }
+            else if (root.slot == 5) { root.g5 = ch; root.x5 = root.end-x; root.t5 = now; root.s5 = root.serial; }
+            else if (root.slot == 6) { root.g6 = ch; root.x6 = root.end-x; root.t6 = now; root.s6 = root.serial; }
+            else { root.g7 = ch; root.x7 = root.end-x; root.t7 = now; root.s7 = root.serial; }
+            root.slot = mod(root.slot + 1, 8);
         }
         root.prev = root.text;
         root.blink = true;
     }
     Timer {
-        interval: 320ms;
-        running: root.adding || root.deleting;
+        interval: 240ms;
+        running: root.adding;
         triggered => {
             root.adding = false;
-            root.deleting = false;
         }
     }
     // Clignotement du curseur (pas d'animation continue : une bascule toutes les 530 ms).
@@ -59,7 +110,6 @@ export component TypedText inherits Rectangle {
         }
     }
     property <float> ap: root.adding ? clamp((animation-tick() - root.add-t0) / 180ms, 0, 1) : 1;
-    property <float> dp: root.deleting ? clamp((animation-tick() - root.del-t0) / 260ms, 0, 1) : 1;
 
     // Texte d'exemple : s'efface en fondu dès la première lettre, revient quand le champ est vide.
     Text {
@@ -80,9 +130,11 @@ export component TypedText inherits Rectangle {
         font-size: root.font-size;
         vertical-alignment: center;
     }
+    // Un texte vide a quand même une petite largeur : à 0 ou 1 lettre, rien avant la dernière.
+    property <length> head-w: root.text.character-count > 1 ? head.preferred-width : 0px;
     // Dernière lettre : apparaît en grossissant puis se pose.
     Rectangle {
-        x: head.preferred-width;
+        x: root.head-w;
         width: last.preferred-width;
         height: parent.height;
         opacity: root.ap;
@@ -94,22 +146,17 @@ export component TypedText inherits Rectangle {
             vertical-alignment: center;
         }
     }
-    property <length> end-x: head.preferred-width + last.preferred-width;
-    // Lettre effacée : glisse vers la droite en s'estompant.
-    if root.deleting && root.dp < 1: Rectangle {
-        x: root.end-x + root.dp * 16px * root.k;
-        width: gh.preferred-width;
-        height: parent.height;
-        opacity: 1 - root.dp;
-        gh := Text {
-            text: root.ghost;
-            color: white;
-            font-size: root.font-size;
-            vertical-alignment: center;
-        }
-    }
+    property <length> end-x: root.text == "" ? 0px : root.head-w + last.preferred-width;
+    Ghost { ch: root.g0; x0: root.x0; t0: root.t0; serial: root.s0; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g1; x0: root.x1; t0: root.t1; serial: root.s1; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g2; x0: root.x2; t0: root.t2; serial: root.s2; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g3; x0: root.x3; t0: root.t3; serial: root.s3; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g4; x0: root.x4; t0: root.t4; serial: root.s4; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g5; x0: root.x5; t0: root.t5; serial: root.s5; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g6; x0: root.x6; t0: root.t6; serial: root.s6; height: parent.height; font-size: root.font-size; k: root.k; }
+    Ghost { ch: root.g7; x0: root.x7; t0: root.t7; serial: root.s7; height: parent.height; font-size: root.font-size; k: root.k; }
     if root.cursor && root.blink: Rectangle {
-        // Champ vide : tout à gauche (le texte vide a parfois une largeur, d'où un écart).
+        // Bureau : position donnée par le champ ; sinon fin du texte (tout à gauche s'il est vide).
         x: (root.text == "" ? 0px : root.cursor-x >= 0px ? root.cursor-x : root.end-x) + 1px;
         y: (parent.height - self.height) / 2;
         width: 2px * root.k;
