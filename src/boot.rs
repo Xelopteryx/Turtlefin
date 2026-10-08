@@ -72,6 +72,14 @@ fn labels() -> Vec<slint::SharedString> {
     NAMES.into_iter().map(|n| tr(n).into()).collect()
 }
 
+/// Textes du logo pendant le choix de la langue (étiquettes, « Langue… »), tels qu'affichés
+/// pendant le repérage des lettres de l'effet (i18n::pseudo).
+fn boot_texts(u: &AppWindow) {
+    let l: Vec<slint::SharedString> = labels().iter().map(|s| crate::i18n::pseudo(s).into()).collect();
+    u.set_boot_labels(ModelRc::new(VecModel::from(l)));
+    u.set_boot_text(crate::i18n::pseudo(&format!("{}…", tr(NAMES[0]))).into());
+}
+
 /// Un dossier accepte-t-il l'écriture (fichier créé, relu, supprimé) ?
 fn writable(dir: Option<std::path::PathBuf>, what: &str) -> Result<(), String> {
     let dir = dir.ok_or_else(|| trf("Dossier {} introuvable.", &[&what]))?;
@@ -203,31 +211,29 @@ pub async fn run(app: Arc<App>, start: Start) {
                 u.set_boot_lang_title("Langue · Language".into());
                 u.set_boot_langs(ModelRc::new(VecModel::from(langs)));
                 u.set_boot_lang_sel(sel);
+                // Les textes du logo partent en nuage pendant le choix (dust.rs).
+                crate::dust::dissolve(u, 2, std::rc::Rc::new(boot_texts));
                 u.set_boot_lang_open(true);
             });
             let code = wait(&app, None).await;
             let mut p = config::ui_prefs();
             p.language = if code.is_empty() { "fr".into() } else { code };
             config::save_ui_prefs(&p);
-            // La liste se ferme, puis les textes du logo passent « en poussière » à la langue
+            // La liste se ferme, puis les grains du nuage réécrivent les textes dans la langue
             // choisie (dust.rs) ; la suite attend la fin de l'effet.
             ui(&app, |u| u.set_boot_lang_open(false));
             tokio::time::sleep(Duration::from_millis(380)).await;
             let (tx, rx) = tokio::sync::oneshot::channel::<()>();
             let lang = p.language.clone();
             ui(&app, move |u| {
-                crate::dust::switch(
-                    u,
-                    |u| {
-                        crate::i18n::set_language(&lang);
-                        u.set_boot_labels(ModelRc::new(VecModel::from(self::labels())));
-                        u.set_boot_text(format!("{}…", tr(NAMES[0])).into());
-                    },
-                    move |u| {
-                        u.set_boot_on(animate);
-                        let _ = tx.send(());
-                    },
-                );
+                let change = |u: &AppWindow| {
+                    crate::i18n::set_language(&lang);
+                    boot_texts(u);
+                };
+                crate::dust::reform(u, Some(&change), move |u| {
+                    u.set_boot_on(animate);
+                    let _ = tx.send(());
+                });
             });
             let _ = rx.await;
         }

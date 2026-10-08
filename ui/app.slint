@@ -5885,12 +5885,16 @@ export component AppWindow inherits Window {
                         if r.kind == "choice": Rectangle {
                             x: parent.width - self.width - 18px * root.k;
                             y: (parent.height - self.height) / 2;
+                            // Largeur animée ; le texte est calé sur le bord droit (fixe), il ne bouge pas.
                             width: val-t.preferred-width + 48px * root.k;
+                            animate width { duration: 420ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                             height: 34px * root.k;
                             border-radius: self.height / 2;
                             background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
+                            clip: true;
                             val-t := Text {
-                                x: 16px * root.k;
+                                x: parent.width - self.width - 32px * root.k;
+                                width: self.preferred-width;
                                 height: parent.height;
                                 text: r.value;
                                 color: white;
@@ -5954,10 +5958,20 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Effet de langue (dust.rs) : sous la liste de choix, à la place des textes de la page.
+        if root.dust-on && root.dust-layer == 1: Image {
+            x: 0px;
+            y: -sets.y;
+            width: root.dust-w;
+            height: root.dust-h;
+            source: root.dust-img;
+            image-fit: fill;
+        }
+
         // Liste de choix d'un réglage : panneau de verre à droite, l'option actuelle cochée.
         property <float> ch-p: root.ch-key != "" ? 1 : 0;
         animate ch-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-        if sets.ch-p > 0.01: ch-pane := Rectangle {
+        if sets.ch-p > 0.01 && !root.dust-snap: ch-pane := Rectangle {
             background: #00000080.transparentize(1 - sets.ch-p);
             TouchArea {
                 clicked => {
@@ -7617,6 +7631,11 @@ export component AppWindow inherits Window {
         phase: root.boot-phase;
         lang-open: root.boot-lang-open;
         lang-title: root.boot-lang-title;
+        snap: root.dust-snap;
+        dust-on: root.dust-on && root.dust-layer == 2;
+        dust-img: root.dust-img;
+        dust-w: root.dust-w;
+        dust-h: root.dust-h;
         langs: root.boot-langs;
         lang-sel <=> root.boot-lang-sel;
         continue-boot => {
@@ -7634,16 +7653,26 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Changement de langue « en poussière » (dust.rs) : image calculée en Rust, par-dessus tout.
-    in property <bool> dust-on;
+    // Changement de langue « en poussière » (dust.rs) : image de toute la fenêtre calculée en Rust,
+    // posée sous la liste des langues (couche 1 : Paramètres, 2 : démarrage) ou par-dessus tout (0).
+    // dust-snap : captures en cours, la liste est masquée ; dust-cloud : textes en nuage (liste
+    // ouverte), sa fermeture sans choix les fait revenir (dust-cancel).
+    in-out property <bool> dust-on;
     in property <image> dust-img;
-    in property <length> dust-x;
-    in property <length> dust-y;
     in property <length> dust-w;
     in property <length> dust-h;
-    if root.dust-on: Image {
-        x: root.dust-x;
-        y: root.dust-y;
+    in property <int> dust-layer;
+    in-out property <bool> dust-snap;
+    in-out property <bool> dust-cloud;
+    callback dust-cancel();
+    changed ch-key => {
+        if (root.dust-cloud && root.ch-key != "language") {
+            root.dust-cancel();
+        }
+    }
+    if root.dust-on && root.dust-layer == 0: Image {
+        x: 0px;
+        y: 0px;
         width: root.dust-w;
         height: root.dust-h;
         source: root.dust-img;

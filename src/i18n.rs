@@ -490,6 +490,33 @@ pub fn trf(fr: &'static str, args: &[&dyn std::fmt::Display]) -> String {
     fill(tr(fr), args)
 }
 
+/// Textes « brouillés » pour repérer les lettres à l'écran (dust.rs) : 1 à l'envers, 2 décalés
+/// d'une lettre ; mêmes lettres, donc même largeur, mais chaque lettre change de place. 0 : normal.
+static PSEUDO: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+pub fn set_pseudo(mode: u8) {
+    PSEUDO.store(mode, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn pseudo_on() -> bool {
+    PSEUDO.load(std::sync::atomic::Ordering::Relaxed) != 0
+}
+
+/// Le texte tel qu'affiché pendant le repérage des lettres (voir `set_pseudo`).
+pub fn pseudo(s: &str) -> String {
+    match PSEUDO.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => s.to_string(),
+        1 => s.chars().rev().collect(),
+        _ => {
+            let mut c = s.chars();
+            match c.next() {
+                Some(first) => c.chain(std::iter::once(first)).collect(),
+                None => String::new(),
+            }
+        }
+    }
+}
+
 /// Interface Slint : texte traduit avec jusqu'à deux valeurs.
 pub fn trf_str(fr: &str, args: &[&str]) -> String {
     let t = tr_str(fr);

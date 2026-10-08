@@ -2336,6 +2336,16 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
 /// Ouvre la liste de choix d'un réglage (← → / ↑ ↓ pour choisir, Entrée pour valider).
 fn open_choice(app: &Arc<App>, key: &str) {
     let Some((title, list, cur)) = setting_choices(app, key) else { return };
+    // Langue : les textes de la page partent en nuage pendant le choix (dust.rs). Pas quand la
+    // liste est déjà ouverte (mise à jour après un choix).
+    if key == "language" {
+        if let Some(u) = app.ui().upgrade() {
+            if u.get_ch_key().as_str() != "language" {
+                let a = app.clone();
+                dust::dissolve(&u, 1, std::rc::Rc::new(move |_| refresh_settings(&a)));
+            }
+        }
+    }
     let sel = list.iter().position(|(k, _)| *k == cur).unwrap_or(0) as i32;
     if let Some(u) = app.ui().upgrade() {
         let rows: Vec<TrackData> = list.iter().map(|(k, l)| TrackData { id: k.clone().into(), label: l.clone().into(), current: *k == cur }).collect();
@@ -2360,15 +2370,13 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         if let Some(i) = (0..items.row_count()).find(|&i| items.row_data(i).is_some_and(|t| t.id.as_str() == value)) {
             u.set_ch_sel(i as i32);
         }
-        dust::switch(
-            &u,
-            |_| {
-                i18n::set_language(value);
-                refresh_settings(app);
-                open_choice(app, "language");
-            },
-            |u| u.set_ch_key("".into()),
-        );
+        // Les grains du nuage réécrivent les mots dans la nouvelle langue, puis la liste se ferme.
+        let change = |_: &AppWindow| {
+            i18n::set_language(value);
+            refresh_settings(app);
+            open_choice(app, "language");
+        };
+        dust::reform(&u, Some(&change), |u| u.set_ch_key("".into()));
         return;
     }
     if key == "subsize" {
@@ -2462,7 +2470,28 @@ fn toggle_ui_pref(app: &Arc<App>, f: impl Fn(&mut config::UiPrefs)) {
 
 fn refresh_settings(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
-    let rows = settings_rows(app, u.get_set_cat());
+    let mut rows = settings_rows(app, u.get_set_cat());
+    // Repérage des lettres pour l'effet de langue (dust.rs) : tous les textes, même non traduits.
+    if i18n::pseudo_on() {
+        for r in &mut rows {
+            r.label = i18n::pseudo(&r.label).into();
+            r.hint = i18n::pseudo(&r.hint).into();
+            r.value = i18n::pseudo(&r.value).into();
+        }
+    }
+    // Même liste (mêmes réglages) : rangées mises à jour sur place, les pastilles de valeur
+    // changent de largeur en douceur au lieu d'être recréées.
+    let cur = u.get_set_rows();
+    if let Some(vm) = cur.as_any().downcast_ref::<VecModel<SettingRow>>() {
+        if vm.row_count() == rows.len() && (0..rows.len()).all(|i| vm.row_data(i).is_some_and(|r| r.key == rows[i].key)) {
+            for (i, r) in rows.into_iter().enumerate() {
+                if vm.row_data(i).as_ref() != Some(&r) {
+                    vm.set_row_data(i, r);
+                }
+            }
+            return;
+        }
+    }
     u.set_set_rows(ModelRc::new(VecModel::from(rows)));
 }
 
@@ -4017,9 +4046,9 @@ fn main() -> anyhow::Result<()> {
     {
         let t = ui.global::<Tr>();
         // Le premier argument (Tr.l) ne sert qu'à faire recalculer les textes au changement de langue.
-        t.on_t(|_, s| i18n::tr_str(&s).into());
-        t.on_f(|_, s, a, b| i18n::trf_str(&s, &[a.as_str(), b.as_str()]).into());
-        t.on_p(|_, one, other, n| i18n::trn(&one, &other, n as i64).into());
+        t.on_t(|_, s| i18n::pseudo(&i18n::tr_str(&s)).into());
+        t.on_f(|_, s, a, b| i18n::pseudo(&i18n::trf_str(&s, &[a.as_str(), b.as_str()])).into());
+        t.on_p(|_, one, other, n| i18n::pseudo(&i18n::trn(&one, &other, n as i64)).into());
         // Changement de langue (de n'importe quel fil) : `Tr.l` change, les textes se recalculent.
         let weak = std::sync::Mutex::new(ui.as_weak());
         i18n::on_change(move || {
@@ -4513,6 +4542,15 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Liste des langues fermée sans choix : les grains réécrivent les mots d'avant.
+    ui.on_dust_cancel({
+        let w = ui.as_weak();
+        move || {
+            if let Some(u) = w.upgrade() {
+                dust::reform(&u, None, |_| {});
+            }
+        }
+    });
     ui.on_settings_choose({
         let app = app.clone();
         move |key, value| choose_setting(&app, &key, &value)

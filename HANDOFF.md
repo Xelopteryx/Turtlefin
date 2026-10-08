@@ -127,10 +127,13 @@ Points notables, non évidents dans le code :
   (`Tr.fx`, `Tr.k`, `i18n::fragment`) ; icônes du menu et des catégories (`NavIcon`) ; visite guidée (`tour-step`,
   proposée au démarrage, `--tutorial`, Paramètres → À propos) ; point serveur orange tant qu'aucun serveur.
 
-- **8 octobre 2026** : changement de langue « en poussière » (`dust.rs`, comme le slogan de loadix.fun) — la
-  fenêtre est capturée avant et après (`take_snapshot`, même instant), les pixels changés sont les textes ;
-  image calculée en Rust par-dessus l'interface (`dust-img`), grains emportés par un champ de « curl noise »,
-  nouveaux grains ramenés par un ressort ; remplace la fragmentation (`Tr.fx`, `i18n::fragment` retirés). Visite refaite :
+- **8 octobre 2026** : changement de langue « en poussière » (`dust.rs`, comme le slogan de loadix.fun) — à
+  l'ouverture de la liste des langues, tous les textes partent en nuage (`dissolve`) ; au choix, les mêmes
+  grains réécrivent les mots dans la nouvelle langue (`reform`), à l'annulation les anciens. Les lettres
+  sont repérées en capturant la page (`take_snapshot`) telle quelle puis avec chaque texte inversé et
+  décalé (`i18n::set_pseudo`, mêmes lettres donc même largeur) ; image sous la liste (`dust-layer`),
+  liste masquée pendant les captures (`dust-snap`) ; pastilles de valeur à largeur animée. Remplace la
+  fragmentation (`Tr.fx`, `i18n::fragment` retirés). Visite refaite :
   elle montre l'interface (sélection qui se promène, menu ouvert, `tour-tick`), parle télécommande
   (schéma flèches / OK / Retour), cadres calés sur les vraies positions (`tabs-x`, `right-w`), boutons
   Retour / Passer / Suivant au clavier (← →, OK). Accueil affiché tout de suite au retour (plus l'ancienne page pendant le rechargement).
