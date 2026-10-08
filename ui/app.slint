@@ -708,12 +708,10 @@ component NavIcon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: transparent;
-        stroke: root.tint;
-        stroke-width: root.height / 11;
-        stroke-line-cap: round;
-        stroke-line-join: round;
-        commands: "M 12 8 A 4 4 0 1 1 11.99 8 Z M 12 2.5 L 12 5 M 12 19 L 12 21.5 M 2.5 12 L 5 12 M 19 12 L 21.5 12 M 5.3 5.3 L 7 7 M 17 17 L 18.7 18.7 M 5.3 18.7 L 7 17 M 17 7 L 18.7 5.3";
+        // Roue crantée pleine (8 dents), trou au centre.
+        fill: root.tint;
+        fill-rule: evenodd;
+        commands: "M 19.26 9.75 L 22.00 9.97 L 22.00 14.03 L 19.26 14.25 A 7.6 7.6 0 0 1 18.72 15.55 L 20.50 17.64 L 17.64 20.50 L 15.55 18.72 A 7.6 7.6 0 0 1 14.25 19.26 L 14.03 22.00 L 9.97 22.00 L 9.75 19.26 A 7.6 7.6 0 0 1 8.45 18.72 L 6.36 20.50 L 3.50 17.64 L 5.28 15.55 A 7.6 7.6 0 0 1 4.74 14.25 L 2.00 14.03 L 2.00 9.97 L 4.74 9.75 A 7.6 7.6 0 0 1 5.28 8.45 L 3.50 6.36 L 6.36 3.50 L 8.45 5.28 A 7.6 7.6 0 0 1 9.75 4.74 L 9.97 2.00 L 14.03 2.00 L 14.25 4.74 A 7.6 7.6 0 0 1 15.55 5.28 L 17.64 3.50 L 20.50 6.36 L 18.72 8.45 A 7.6 7.6 0 0 1 19.26 9.75 Z M 15.20 12 A 3.2 3.2 0 1 0 8.80 12 A 3.2 3.2 0 1 0 15.20 12 Z";
     }
     if root.name == "quit": Path {
         width: parent.width;
@@ -1278,7 +1276,9 @@ component HeaderRight inherits Rectangle {
         }
     }
 
-    HorizontalLayout {
+    // Largeur occupée par les icônes (marge droite comprise) : cadre de la visite guidée.
+    out property <length> used-w: hr-lay.preferred-width;
+    hr-lay := HorizontalLayout {
         alignment: end;
         spacing: 12px * root.k;
         padding-right: 32px * root.k;
@@ -1456,7 +1456,6 @@ export component AppWindow inherits Window {
     in-out property <int> boot-phase;
     in-out property <bool> boot-lang-open;
     in property <string> boot-lang-title;
-    in property <bool> boot-lang-fx: true;
     in property <[TrackData]> boot-langs;
     in-out property <int> boot-lang-sel;
     callback boot-continue();
@@ -3163,6 +3162,17 @@ export component AppWindow inherits Window {
                 height: parent.height;
                 x: max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
                 spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
+                // Position réelle des onglets, pour le cadre de la visite guidée.
+                init => {
+                    root.tabs-x = self.x;
+                    root.tabs-w = self.width;
+                }
+                changed x => {
+                    root.tabs-x = self.x;
+                }
+                changed width => {
+                    root.tabs-w = self.width;
+                }
 
                 Tab {
                     text: Tr.t(Tr.k, "Accueil");
@@ -3210,6 +3220,12 @@ export component AppWindow inherits Window {
                 dl-text: root.dl-pill;
                 dl-p: root.dl-p;
                 dl-paused: root.dl-paused;
+                init => {
+                    root.right-w = self.used-w;
+                }
+                changed used-w => {
+                    root.right-w = self.used-w;
+                }
                 activate(i) => {
                     root.right-activate(i);
                 }
@@ -5606,8 +5622,11 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.DownArrow) {
                         root.ch-sel = min(root.ch-items.length - 1, root.ch-sel + 1);
                     } else if (event.text == Key.Return) {
+                        // Langue : la liste reste ouverte pendant l'effet de changement (Rust la ferme).
                         root.settings-choose(root.ch-key, root.ch-items[root.ch-sel].id);
-                        root.ch-key = "";
+                        if (root.ch-key != "language") {
+                            root.ch-key = "";
+                        }
                     } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
                         root.ch-key = "";
                     }
@@ -5842,14 +5861,14 @@ export component AppWindow inherits Window {
                             alignment: center;
                             spacing: 3px * root.k;
                             if r.label != "": Text {
-                                text: Tr.x(Tr.k, r.label);
+                                text: r.label;
                                 color: white;
                                 font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                                 overflow: elide;
                             }
                             if r.hint != "": Text {
-                                text: Tr.x(Tr.k, r.hint);
+                                text: r.hint;
                                 color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
@@ -5866,7 +5885,7 @@ export component AppWindow inherits Window {
                             val-t := Text {
                                 x: 16px * root.k;
                                 height: parent.height;
-                                text: Tr.x(Tr.k, r.value);
+                                text: r.value;
                                 color: white;
                                 font-size: 15px * root.k;
                                 font-weight: 600;
@@ -5890,7 +5909,7 @@ export component AppWindow inherits Window {
                             x: parent.width - 260px * root.k;
                             width: 240px * root.k;
                             height: parent.height;
-                            text: Tr.x(Tr.k, r.value);
+                            text: r.value;
                             color: #ffffffd9;
                             font-size: 15px * root.k;
                             font-weight: 600;
@@ -5931,16 +5950,6 @@ export component AppWindow inherits Window {
         // Liste de choix d'un réglage : panneau de verre à droite, l'option actuelle cochée.
         property <float> ch-p: root.ch-key != "" ? 1 : 0;
         animate ch-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-        // Choix de la langue ouvert : les textes de la page se défont en « pixels », puis se
-        // reforment (dans la nouvelle langue) une fois la liste fermée.
-        property <int> fx-target: root.ch-key == "language" ? 72 : 0;
-        Timer {
-            interval: 16ms;
-            running: Tr.fx != sets.fx-target;
-            triggered => {
-                Tr.fx = Tr.fx < sets.fx-target ? min(sets.fx-target, Tr.fx + 4) : max(sets.fx-target, Tr.fx - 3);
-            }
-        }
         if sets.ch-p > 0.01: ch-pane := Rectangle {
             background: #00000080.transparentize(1 - sets.ch-p);
             TouchArea {
@@ -6010,7 +6019,9 @@ export component AppWindow inherits Window {
                         ch-area := TouchArea {
                             clicked => {
                                 root.settings-choose(root.ch-key, t.id);
-                                root.ch-key = "";
+                                if (root.ch-key != "language") {
+                                    root.ch-key = "";
+                                }
                             }
                         }
                     }
@@ -7102,28 +7113,47 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Visite guidée
-    // Par-dessus l'accueil : voile sombre, zone expliquée éclairée, bulle de texte. Entrée / → :
-    // suivant · ← : précédent · Échap : fin. Fiche et lecture : petits schémas dans la bulle.
+    // Par-dessus l'accueil : voile sombre, zone expliquée éclairée, bulle de texte. ← → : choix du
+    // bouton (Retour, Passer la visite, Suivant) · Entrée : l'active · Échap : fin. Fiche et lecture :
+    // petits schémas dans la bulle.
     in-out property <int> tour-step: -1;
     property <int> tour-count: 8;
     property <float> tour-p: root.tour-step >= 0 ? 1 : 0;
     animate tour-p { duration: 300ms; easing: ease-out; }
     property <int> tour-last: 0;
+    function tour-press(b: int) {
+        if (b == 0) {
+            root.tour-step = max(0, root.tour-last - 1);
+        } else if (b == 1) {
+            root.tour-step = -1;
+        } else {
+            root.tour-step = root.tour-last < root.tour-count - 1 ? root.tour-last + 1 : -1;
+        }
+    }
     changed tour-step => {
         if (root.tour-step >= 0) {
             root.tour-last = root.tour-step;
+            root.tour-btn = 2;
         } else {
             root.refocus += 1;
         }
     }
-    // Zone éclairée de chaque étape (x, y, largeur, hauteur) ; largeur 0 : aucune.
+    // Bouton choisi au clavier (← →, Entrée) : 0 retour · 1 passer la visite · 2 suivant.
+    property <int> tour-btn: 2;
+    // Zone éclairée de chaque étape (x, y, largeur, hauteur) ; largeur 0 : aucune. Onglets et icônes
+    // de droite : positions réelles relevées dans l'en-tête de l'accueil (tabs-x, tabs-w, right-w).
+    in-out property <length> tabs-x: root.width * 0.35;
+    in-out property <length> tabs-w: root.width * 0.25;
+    in-out property <length> right-w: 330px * root.k;
     property <length> tour-row-h: root.sections.length > 0 ? root.sections[0].h-px * 1px : 300px * root.k;
-    property <length> hx: root.tour-last == 1 ? 0px : root.tour-last == 2 ? 8px * root.k : root.tour-last == 3 ? root.width * 0.3
-        : root.tour-last == 4 ? root.width * 0.62 : 0px;
-    property <length> hy: root.tour-last == 1 ? root.header-h : root.tour-last >= 2 && root.tour-last <= 4 ? 4px * root.k : 0px;
-    property <length> hw: root.tour-last == 1 ? root.width : root.tour-last == 2 ? 230px * root.k : root.tour-last == 3 ? root.width * 0.32
-        : root.tour-last == 4 ? root.width * 0.37 : 0px;
-    property <length> hh: root.tour-last == 1 ? root.tour-row-h : root.tour-last >= 2 && root.tour-last <= 4 ? root.header-h - 8px * root.k : 0px;
+    property <length> hx: root.tour-last == 1 ? 6px * root.k : root.tour-last == 2 ? 10px * root.k
+        : root.tour-last == 3 ? root.tabs-x - 20px * root.k
+        : root.tour-last == 4 ? root.width - root.right-w - 16px * root.k : 0px;
+    property <length> hy: root.tour-last == 1 ? root.header-h - 4px * root.k : root.tour-last >= 2 && root.tour-last <= 4 ? 6px * root.k : 0px;
+    property <length> hw: root.tour-last == 1 ? root.width - 12px * root.k : root.tour-last == 2 ? 250px * root.k
+        : root.tour-last == 3 ? root.tabs-w + 40px * root.k
+        : root.tour-last == 4 ? root.right-w - 32px * root.k + 32px * root.k : 0px;
+    property <length> hh: root.tour-last == 1 ? root.tour-row-h + 8px * root.k : root.tour-last >= 2 && root.tour-last <= 4 ? root.header-h - 12px * root.k : 0px;
     animate hx, hy, hw, hh { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
 
     if root.tour-p > 0.01 && !root.playing: Rectangle {
@@ -7295,28 +7325,28 @@ export component AppWindow inherits Window {
                 y: parent.height - 58px * root.k;
                 height: 40px * root.k;
                 spacing: 10px * root.k;
-                if root.tour-last < root.tour-count - 1: Rectangle {
-                    width: skip-t.preferred-width + 30px * root.k;
+                for b in [0, 1, 2]: Rectangle {
+                    property <bool> shown: b == 0 ? root.tour-last > 0 : b == 1 ? root.tour-last < root.tour-count - 1 : true;
+                    property <bool> on: root.tour-btn == b;
+                    visible: self.shown;
+                    width: self.shown ? b-t.preferred-width + 34px * root.k : 0px;
                     border-radius: 10px * root.k;
-                    background: skip-a.has-hover ? #ffffff26 : #ffffff12;
-                    skip-t := Text { text: Tr.t(Tr.k, "Passer la visite"); color: #ffffffcc; font-size: 15px * root.k; horizontal-alignment: center; vertical-alignment: center; }
-                    skip-a := TouchArea { clicked => { root.tour-step = -1; } }
-                }
-                Rectangle {
-                    width: next-t.preferred-width + 36px * root.k;
-                    border-radius: 10px * root.k;
-                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-                    next-t := Text {
-                        text: root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
-                        color: white;
+                    background: b == 2 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                        : b-a.has-hover || self.on ? #ffffff2e : #ffffff12;
+                    border-width: self.on ? 2px * root.k : 0px;
+                    border-color: white;
+                    b-t := Text {
+                        text: b == 0 ? Tr.t(Tr.k, "Retour") : b == 1 ? Tr.t(Tr.k, "Passer la visite")
+                            : root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
+                        color: b == 2 || parent.on ? white : #ffffffcc;
                         font-size: 15px * root.k;
-                        font-weight: 700;
+                        font-weight: b == 2 ? 700 : 400;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
-                    TouchArea {
+                    b-a := TouchArea {
                         clicked => {
-                            root.tour-step = root.tour-last < root.tour-count - 1 ? root.tour-last + 1 : -1;
+                            root.tour-press(b);
                         }
                     }
                 }
@@ -7339,10 +7369,14 @@ export component AppWindow inherits Window {
                 if (event.repeat) {
                     return EventResult.accept;
                 }
-                if (event.text == Key.Return || event.text == Key.RightArrow || event.text == " ") {
-                    root.tour-step = root.tour-step < root.tour-count - 1 ? root.tour-step + 1 : -1;
+                // ← → choisissent un bouton (retour, passer, suivant), Entrée l'active.
+                if (event.text == Key.Return || event.text == " ") {
+                    root.tour-press(root.tour-btn);
+                } else if (event.text == Key.RightArrow) {
+                    root.tour-btn = root.tour-btn == 0 && root.tour-last < root.tour-count - 1 ? 1 : 2;
                 } else if (event.text == Key.LeftArrow) {
-                    root.tour-step = max(0, root.tour-step - 1);
+                    root.tour-btn = root.tour-btn == 2 && root.tour-last < root.tour-count - 1 ? 1
+                        : root.tour-last > 0 ? 0 : root.tour-btn;
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
                     root.tour-step = -1;
                 }
@@ -7362,7 +7396,6 @@ export component AppWindow inherits Window {
         phase: root.boot-phase;
         lang-open: root.boot-lang-open;
         lang-title: root.boot-lang-title;
-        lang-fx: root.boot-lang-fx;
         langs: root.boot-langs;
         lang-sel <=> root.boot-lang-sel;
         continue-boot => {
@@ -7378,5 +7411,21 @@ export component AppWindow inherits Window {
             root.boot-on = false;
             root.refocus += 1;
         }
+    }
+
+    // Changement de langue « en poussière » (dust.rs) : image calculée en Rust, par-dessus tout.
+    in property <bool> dust-on;
+    in property <image> dust-img;
+    in property <length> dust-x;
+    in property <length> dust-y;
+    in property <length> dust-w;
+    in property <length> dust-h;
+    if root.dust-on: Image {
+        x: root.dust-x;
+        y: root.dust-y;
+        width: root.dust-w;
+        height: root.dust-h;
+        source: root.dust-img;
+        image-fit: fill;
     }
 }

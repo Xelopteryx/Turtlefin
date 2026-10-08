@@ -20,7 +20,6 @@ export component BootLogo inherits Rectangle {
     in property <int> phase;              // 0 vérifications · 1 liaison · 2 zoom
     in property <bool> lang-open;
     // Fragmenter les textes derrière (choix de la langue) ; pas pour la question de la visite guidée.
-    in property <bool> lang-fx: true;
     in property <string> lang-title;
     in property <[TrackData]> langs;
     in-out property <int> lang-sel;
@@ -191,7 +190,7 @@ export component BootLogo inherits Rectangle {
                 x: self.ox * root.u + (parent.width - self.width) / 2;
                 y: self.oy * root.u + (parent.height - self.height) / 2;
                 width: 160px * root.k;
-                text: Tr.x(Tr.k, root.labels[i]);
+                text: root.labels[i];
                 color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
                 font-size: 13px * root.k;
                 font-weight: 600;
@@ -217,7 +216,7 @@ export component BootLogo inherits Rectangle {
                 x: (parent.width - self.width) / 2;
                 y: parent.height + 6px * root.k;
                 width: 160px * root.k;
-                text: Tr.x(Tr.k, root.labels[6]);
+                text: root.labels[6];
                 color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
                 font-size: 13px * root.k;
                 font-weight: 600;
@@ -266,18 +265,10 @@ export component BootLogo inherits Rectangle {
     }
 
     // Choix de la langue (premier lancement).
-    // Apparition : fondu du voile, la boîte monte et grandit ; fermeture : l'inverse. Pendant le
-    // choix, les textes derrière se défont en « pixels » (Tr.fx) puis se reforment dans la langue choisie.
+    // Apparition : fondu du voile, la boîte monte et grandit ; fermeture : l'inverse. Langue
+    // choisie : les textes changent « en poussière » (dust.rs).
     property <float> lang-p: root.lang-open ? 1 : 0;
     animate lang-p { duration: 320ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-    property <int> fx-target: root.lang-open && root.lang-fx ? 72 : 0;
-    Timer {
-        interval: 16ms;
-        running: Tr.fx != root.fx-target;
-        triggered => {
-            Tr.fx = Tr.fx < root.fx-target ? min(root.fx-target, Tr.fx + 4) : max(root.fx-target, Tr.fx - 3);
-        }
-    }
     if root.lang-p > 0.01: Rectangle {
         background: #000000a6.transparentize(1 - root.lang-p);
         TouchArea { }

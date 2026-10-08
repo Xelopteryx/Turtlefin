@@ -469,32 +469,6 @@ pub fn tr_str(fr: &str) -> String {
     CURRENT.read().unwrap().as_ref().and_then(|m| m.strs.get(fr).and_then(|v| v.first().map(|s| s.to_string()))).unwrap_or_else(|| fr.to_string())
 }
 
-/// Texte « en pixels » pendant le choix de la langue : une partie des lettres (`level` sur 100)
-/// devient un bloc. Le tirage dépend de la lettre et de sa place, pas de l'instant : en montant,
-/// le niveau défait les lettres une à une, toujours les mêmes ; en descendant, elles se reforment.
-pub fn fragment(text: &str, level: i32) -> String {
-    if level <= 0 {
-        return text.to_string();
-    }
-    // Caractères présents dans Montserrat (sinon : carrés vides) ; surtout des « pixels » carrés.
-    const BLOCKS: [char; 8] = ['■', '■', '■', '•', '■', '·', '∙', '◆'];
-    let seed = text.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619));
-    text.chars()
-        .enumerate()
-        .map(|(i, c)| {
-            if !c.is_alphanumeric() {
-                return c;
-            }
-            let h = (seed ^ (i as u32).wrapping_mul(2654435761)).wrapping_mul(0x9E37_79B1) >> 7;
-            if ((h % 100) as i32) < level {
-                BLOCKS[(h / 100 % BLOCKS.len() as u32) as usize]
-            } else {
-                c
-            }
-        })
-        .collect()
-}
-
 /// Remplace les `{}` de `t` par les valeurs, dans l'ordre.
 fn fill(t: &str, args: &[&dyn std::fmt::Display]) -> String {
     let mut out = String::with_capacity(t.len() + 16);

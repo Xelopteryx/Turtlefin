@@ -125,6 +125,13 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   menu and category icons (`NavIcon`); guided tour (`tour-step`, offered at startup, `--tutorial`, Settings →
   About); orange server dot while no server is chosen.
 
+- **October 8, 2026**: language change “into dust” (`dust.rs`, like the loadix.fun slogan) — the window is
+  captured before and after (`take_snapshot`, same instant), the changed pixels are the texts; an image computed
+  in Rust over the UI (`dust-img`), grains carried by a curl-noise field, new grains pulled back by a spring;
+  replaces the fragmentation (`Tr.fx`, `i18n::fragment` removed). Tour: highlights follow the real positions
+  (`tabs-x`, `right-w`), Back / Skip / Next buttons with the keyboard (← →, Enter). Home shown at once when going
+  back (no longer the previous page during the reload). Menu cogwheel redrawn.
+
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).
 

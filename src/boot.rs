@@ -209,15 +209,27 @@ pub async fn run(app: Arc<App>, start: Start) {
             let mut p = config::ui_prefs();
             p.language = if code.is_empty() { "fr".into() } else { code };
             config::save_ui_prefs(&p);
-            crate::i18n::set_language(&p.language);
-            let labels = self::labels();
-            let txt = format!("{}…", tr(NAMES[0]));
+            // La liste se ferme, puis les textes du logo passent « en poussière » à la langue
+            // choisie (dust.rs) ; la suite attend la fin de l'effet.
+            ui(&app, |u| u.set_boot_lang_open(false));
+            tokio::time::sleep(Duration::from_millis(380)).await;
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            let lang = p.language.clone();
             ui(&app, move |u| {
-                u.set_boot_lang_open(false);
-                u.set_boot_labels(ModelRc::new(VecModel::from(labels)));
-                u.set_boot_text(txt.into());
-                u.set_boot_on(animate);
+                crate::dust::switch(
+                    u,
+                    |u| {
+                        crate::i18n::set_language(&lang);
+                        u.set_boot_labels(ModelRc::new(VecModel::from(self::labels())));
+                        u.set_boot_text(format!("{}…", tr(NAMES[0])).into());
+                    },
+                    move |u| {
+                        u.set_boot_on(animate);
+                        let _ = tx.send(());
+                    },
+                );
             });
+            let _ = rx.await;
         }
 
         // Visite guidée : proposée une fois, juste après la langue (pas sans animation : --no-intro).
@@ -228,7 +240,6 @@ pub async fn run(app: Arc<App>, start: Start) {
             ];
             let title = tr("Visite guidée ?");
             ui(&app, move |u| {
-                u.set_boot_lang_fx(false);
                 u.set_boot_lang_title(title.into());
                 u.set_boot_langs(ModelRc::new(VecModel::from(items)));
                 u.set_boot_lang_sel(0);
@@ -239,10 +250,7 @@ pub async fn run(app: Arc<App>, start: Start) {
             p.tutorial_offered = true;
             p.tutorial_pending = answer == "yes";
             config::save_ui_prefs(&p);
-            ui(&app, |u| {
-                u.set_boot_lang_open(false);
-                u.set_boot_lang_fx(true);
-            });
+            ui(&app, |u| u.set_boot_lang_open(false));
         }
 
         let result = check(i, &start).await;

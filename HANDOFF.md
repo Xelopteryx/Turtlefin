@@ -127,6 +127,14 @@ Points notables, non évidents dans le code :
   (`Tr.fx`, `Tr.k`, `i18n::fragment`) ; icônes du menu et des catégories (`NavIcon`) ; visite guidée (`tour-step`,
   proposée au démarrage, `--tutorial`, Paramètres → À propos) ; point serveur orange tant qu'aucun serveur.
 
+- **8 octobre 2026** : changement de langue « en poussière » (`dust.rs`, comme le slogan de loadix.fun) — la
+  fenêtre est capturée avant et après (`take_snapshot`, même instant), les pixels changés sont les textes ;
+  image calculée en Rust par-dessus l'interface (`dust-img`), grains emportés par un champ de « curl noise »,
+  nouveaux grains ramenés par un ressort ; remplace la fragmentation (`Tr.fx`, `i18n::fragment` retirés). Visite :
+  cadres calés sur les vraies positions (`tabs-x`, `right-w`), boutons Retour / Passer / Suivant au clavier
+  (← →, Entrée). Accueil affiché tout de suite au retour (plus l'ancienne page pendant le rechargement).
+  Roue crantée du menu redessinée.
+
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).
 

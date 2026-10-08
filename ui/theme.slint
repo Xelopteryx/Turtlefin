@@ -22,17 +22,13 @@ export global Prefs {
 // changement à chaud. `l` change à chaque changement de langue : passé à chaque appel, il fait
 // recalculer les textes affichés.
 export global Tr {
-    in property <int> l;
-    // Fragmentation des textes (0 : nets · 100 : tout en « pixels »), le temps de choisir une langue.
-    in-out property <int> fx;
-    // Clé passée à chaque appel : change avec la langue ET la fragmentation (recalcul des textes).
-    out property <int> k: self.l * 1000 + self.fx;
+    in-out property <int> l;
+    // Clé passée à chaque appel (recalcul des textes) : la même que `l`.
+    out property <int> k: self.l;
     // Texte simple.
     pure callback t(int, string) -> string;
     // Texte avec une ou deux valeurs à la place des {} ("" si une seule).
     pure callback f(int, string, string, string) -> string;
     // Pluriel : forme « un », forme « plusieurs », n ({n} remplacé par n).
     pure callback p(int, string, string, int) -> string;
-    // Texte déjà traduit (fourni par Rust) : seulement la fragmentation.
-    pure callback x(int, string) -> string;
 }

@@ -9,6 +9,7 @@ mod winfull;
 mod config;
 mod discovery;
 mod downloads;
+mod dust;
 mod i18n;
 mod mpv;
 mod paths;
@@ -2351,8 +2352,18 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         let mut p = config::ui_prefs();
         p.language = value.to_string();
         config::save_ui_prefs(&p);
-        i18n::set_language(value);
-        refresh_settings(app);
+        // Les textes partent en poussière et reviennent dans la nouvelle langue (voir dust.rs) ;
+        // la liste reste ouverte pendant l'effet, la coche passe sur la langue choisie.
+        let Some(u) = app.ui().upgrade() else { return };
+        dust::switch(
+            &u,
+            |_| {
+                i18n::set_language(value);
+                refresh_settings(app);
+                open_choice(app, "language");
+            },
+            |u| u.set_ch_key("".into()),
+        );
         return;
     }
     if key == "subsize" {
@@ -3183,10 +3194,11 @@ fn go_home_at(app: &Arc<App>, top: bool) {
         u.set_lib_items(ModelRc::default());
         u.set_overview_open(false);
         u.set_h_focus(false);
+        // Toujours l'accueil tout de suite : la page quittée ne reste pas affichée pendant le
+        // rechargement (voir aussi menu_action : onglet changé, ses rangées partent).
+        show_screen(&u, "home");
         if stale {
-            begin_loading(&u);
-        } else {
-            show_screen(&u, "home");
+            u.set_loading(true);
         }
     }
     if stale {
@@ -3999,11 +4011,10 @@ fn main() -> anyhow::Result<()> {
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
         let t = ui.global::<Tr>();
-        // k = langue * 1000 + fragmentation (0 à 100) : voir Tr.k.
-        t.on_t(|k, s| i18n::fragment(&i18n::tr_str(&s), k % 1000).into());
-        t.on_f(|k, s, a, b| i18n::fragment(&i18n::trf_str(&s, &[a.as_str(), b.as_str()]), k % 1000).into());
-        t.on_p(|k, one, other, n| i18n::fragment(&i18n::trn(&one, &other, n as i64), k % 1000).into());
-        t.on_x(|k, s| if k % 1000 == 0 { s } else { i18n::fragment(&s, k % 1000).into() });
+        // Le premier argument (Tr.l) ne sert qu'à faire recalculer les textes au changement de langue.
+        t.on_t(|_, s| i18n::tr_str(&s).into());
+        t.on_f(|_, s, a, b| i18n::trf_str(&s, &[a.as_str(), b.as_str()]).into());
+        t.on_p(|_, one, other, n| i18n::trn(&one, &other, n as i64).into());
         // Changement de langue (de n'importe quel fil) : `Tr.l` change, les textes se recalculent.
         let weak = std::sync::Mutex::new(ui.as_weak());
         i18n::on_change(move || {
@@ -4415,17 +4426,25 @@ fn main() -> anyhow::Result<()> {
             if a == "home" {
                 // Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (pas Favoris
                 // ni Demandes), rechargé s'il n'était pas affiché.
-                if std::mem::replace(&mut *app.tab.lock().unwrap(), "home".to_string()) != "home" {
+                let changed = std::mem::replace(&mut *app.tab.lock().unwrap(), "home".to_string()) != "home";
+                if changed {
                     app.home_stale.store(true, Ordering::SeqCst);
                 }
                 if let Some(u) = app.ui().upgrade() {
                     u.set_tab("home".into());
+                    // Rangées de l'autre onglet : retirées, pour ne rien montrer d'autre avant l'accueil.
+                    if changed {
+                        u.set_sections(ModelRc::default());
+                    }
                 }
                 go_home_at(&app, true);
             } else if a == "requests" {
-                *app.tab.lock().unwrap() = "requests".to_string();
+                let changed = std::mem::replace(&mut *app.tab.lock().unwrap(), "requests".to_string()) != "requests";
                 if let Some(u) = app.ui().upgrade() {
                     u.set_tab("requests".into());
+                    if changed {
+                        u.set_sections(ModelRc::default());
+                    }
                 }
                 app.home_stale.store(true, Ordering::SeqCst);
                 go_home(&app);
