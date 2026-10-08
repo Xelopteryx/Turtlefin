@@ -708,10 +708,10 @@ component NavIcon inherits Rectangle {
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        // Roue crantée pleine (8 dents), trou au centre.
+        // Roue crantée pleine (8 dents fines et profondes), trou au centre.
         fill: root.tint;
         fill-rule: evenodd;
-        commands: "M 19.26 9.75 L 22.00 9.97 L 22.00 14.03 L 19.26 14.25 A 7.6 7.6 0 0 1 18.72 15.55 L 20.50 17.64 L 17.64 20.50 L 15.55 18.72 A 7.6 7.6 0 0 1 14.25 19.26 L 14.03 22.00 L 9.97 22.00 L 9.75 19.26 A 7.6 7.6 0 0 1 8.45 18.72 L 6.36 20.50 L 3.50 17.64 L 5.28 15.55 A 7.6 7.6 0 0 1 4.74 14.25 L 2.00 14.03 L 2.00 9.97 L 4.74 9.75 A 7.6 7.6 0 0 1 5.28 8.45 L 3.50 6.36 L 6.36 3.50 L 8.45 5.28 A 7.6 7.6 0 0 1 9.75 4.74 L 9.97 2.00 L 14.03 2.00 L 14.25 4.74 A 7.6 7.6 0 0 1 15.55 5.28 L 17.64 3.50 L 20.50 6.36 L 18.72 8.45 A 7.6 7.6 0 0 1 19.26 9.75 Z M 15.20 12 A 3.2 3.2 0 1 0 8.80 12 A 3.2 3.2 0 1 0 15.20 12 Z";
+        commands: "M 10.12 4.64 L 10.25 1.14 L 13.75 1.14 L 13.88 4.64 A 7.6 7.6 0 0 1 15.88 5.46 L 18.44 3.08 L 20.92 5.56 L 18.54 8.12 A 7.6 7.6 0 0 1 19.36 10.12 L 22.86 10.25 L 22.86 13.75 L 19.36 13.88 A 7.6 7.6 0 0 1 18.54 15.88 L 20.92 18.44 L 18.44 20.92 L 15.88 18.54 A 7.6 7.6 0 0 1 13.88 19.36 L 13.75 22.86 L 10.25 22.86 L 10.12 19.36 A 7.6 7.6 0 0 1 8.12 18.54 L 5.56 20.92 L 3.08 18.44 L 5.46 15.88 A 7.6 7.6 0 0 1 4.64 13.88 L 1.14 13.75 L 1.14 10.25 L 4.64 10.12 A 7.6 7.6 0 0 1 5.46 8.12 L 3.08 5.56 L 5.56 3.08 L 8.12 5.46 A 7.6 7.6 0 0 1 10.12 4.64 Z M 15.40 12 A 3.4 3.4 0 1 0 8.60 12 A 3.4 3.4 0 1 0 15.40 12 Z";
     }
     if root.name == "quit": Path {
         width: parent.width;
@@ -6581,7 +6581,8 @@ export component AppWindow inherits Window {
                 // À l'ouverture (même pendant qu'il se refermait), le clavier va au menu.
                 property <bool> open: root.menu-open;
                 changed open => {
-                    if (self.open) {
+                    // Ouvert par la visite guidée : le clavier reste à la visite.
+                    if (self.open && root.tour-step < 0) {
                         self.focus();
                     }
                 }
@@ -7113,14 +7114,20 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Visite guidée
-    // Par-dessus l'accueil : voile sombre, zone expliquée éclairée, bulle de texte. ← → : choix du
-    // bouton (Retour, Passer la visite, Suivant) · Entrée : l'active · Échap : fin. Fiche et lecture :
-    // petits schémas dans la bulle.
+    // Par-dessus l'accueil, elle montre l'interface pour de vrai : la sélection se promène sur les
+    // affiches, les onglets et les icônes, le menu s'ouvre. Voile sombre autour de la zone expliquée,
+    // bulle de texte. ← → : choix du bouton (Retour, Passer la visite, Suivant) · OK : l'active ·
+    // Échap : fin. Étapes : 0 bienvenue (télécommande) · 1 affiches · 2 onglets · 3 icônes du haut ·
+    // 4 menu · 5 lecture (schéma) · 6 fin.
     in-out property <int> tour-step: -1;
-    property <int> tour-count: 8;
+    property <int> tour-count: 7;
     property <float> tour-p: root.tour-step >= 0 ? 1 : 0;
     animate tour-p { duration: 300ms; easing: ease-out; }
     property <int> tour-last: 0;
+    // Bouton choisi au clavier : 0 retour · 1 passer la visite · 2 suivant.
+    property <int> tour-btn: 2;
+    // Démonstration de l'étape (sélection qui avance toute seule).
+    property <int> tour-demo: 0;
     function tour-press(b: int) {
         if (b == 0) {
             root.tour-step = max(0, root.tour-last - 1);
@@ -7130,30 +7137,71 @@ export component AppWindow inherits Window {
             root.tour-step = root.tour-last < root.tour-count - 1 ? root.tour-last + 1 : -1;
         }
     }
+    function tour-show() {
+        root.menu-open = root.tour-step == 4;
+        root.h-focus = root.tour-step == 2 || root.tour-step == 3;
+        if (root.tour-step == 1) {
+            root.sel-section = 0;
+            root.sel-item = 0;
+        } else if (root.tour-step == 2) {
+            root.h-sel = root.nav-n;
+        } else if (root.tour-step == 3) {
+            root.h-sel = root.right-base;
+        } else if (root.tour-step == 4) {
+            root.menu-sel = root.menu-entries.length > 1 && root.menu-entries[0].header ? 1 : 0;
+        }
+    }
+    function tour-tick() {
+        root.tour-demo += 1;
+        if (root.tour-step == 1 && root.sections.length > 0) {
+            root.sel-item = mod(root.tour-demo, max(1, min(4, root.sections[0].items.length)));
+        } else if (root.tour-step == 2) {
+            root.h-sel = root.nav-n + mod(root.tour-demo, root.tab-count);
+        } else if (root.tour-step == 3) {
+            root.h-sel = root.right-base + mod(root.tour-demo, root.offline ? 1 : 4);
+        } else if (root.tour-step == 4) {
+            let before = root.menu-sel;
+            root.menu-move(1);
+            if (root.menu-sel == before) {
+                root.menu-sel = root.menu-entries.length > 1 && root.menu-entries[0].header ? 1 : 0;
+            }
+        }
+    }
     changed tour-step => {
         if (root.tour-step >= 0) {
             root.tour-last = root.tour-step;
             root.tour-btn = 2;
+            root.tour-demo = 0;
+            root.tour-show();
         } else {
+            root.menu-open = false;
+            root.h-focus = false;
+            root.sel-item = 0;
             root.refocus += 1;
         }
     }
-    // Bouton choisi au clavier (← →, Entrée) : 0 retour · 1 passer la visite · 2 suivant.
-    property <int> tour-btn: 2;
+    Timer {
+        interval: 1200ms;
+        running: root.tour-step >= 1 && root.tour-step <= 4;
+        triggered => {
+            root.tour-tick();
+        }
+    }
     // Zone éclairée de chaque étape (x, y, largeur, hauteur) ; largeur 0 : aucune. Onglets et icônes
     // de droite : positions réelles relevées dans l'en-tête de l'accueil (tabs-x, tabs-w, right-w).
     in-out property <length> tabs-x: root.width * 0.35;
     in-out property <length> tabs-w: root.width * 0.25;
     in-out property <length> right-w: 330px * root.k;
     property <length> tour-row-h: root.sections.length > 0 ? root.sections[0].h-px * 1px : 300px * root.k;
-    property <length> hx: root.tour-last == 1 ? 6px * root.k : root.tour-last == 2 ? 10px * root.k
-        : root.tour-last == 3 ? root.tabs-x - 20px * root.k
-        : root.tour-last == 4 ? root.width - root.right-w - 16px * root.k : 0px;
-    property <length> hy: root.tour-last == 1 ? root.header-h - 4px * root.k : root.tour-last >= 2 && root.tour-last <= 4 ? 6px * root.k : 0px;
-    property <length> hw: root.tour-last == 1 ? root.width - 12px * root.k : root.tour-last == 2 ? 250px * root.k
-        : root.tour-last == 3 ? root.tabs-w + 40px * root.k
-        : root.tour-last == 4 ? root.right-w - 32px * root.k + 32px * root.k : 0px;
-    property <length> hh: root.tour-last == 1 ? root.tour-row-h + 8px * root.k : root.tour-last >= 2 && root.tour-last <= 4 ? root.header-h - 12px * root.k : 0px;
+    property <length> menu-w: 340px * root.k;
+    property <length> hx: root.tour-last == 1 ? 6px * root.k : root.tour-last == 2 ? root.tabs-x - 20px * root.k
+        : root.tour-last == 3 ? root.width - root.right-w - 16px * root.k : root.tour-last == 4 ? 4px * root.k : 0px;
+    property <length> hy: root.tour-last == 1 ? root.header-h - 4px * root.k : root.tour-last == 2 || root.tour-last == 3 ? 6px * root.k
+        : root.tour-last == 4 ? 4px * root.k : 0px;
+    property <length> hw: root.tour-last == 1 ? root.width - 12px * root.k : root.tour-last == 2 ? root.tabs-w + 40px * root.k
+        : root.tour-last == 3 ? root.right-w : root.tour-last == 4 ? root.menu-w : 0px;
+    property <length> hh: root.tour-last == 1 ? root.tour-row-h + 8px * root.k : root.tour-last == 2 || root.tour-last == 3 ? root.header-h - 12px * root.k
+        : root.tour-last == 4 ? root.height - 8px * root.k : 0px;
     animate hx, hy, hw, hh { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
 
     if root.tour-p > 0.01 && !root.playing: Rectangle {
@@ -7175,15 +7223,16 @@ export component AppWindow inherits Window {
         }
 
         tour-box := Rectangle {
-            property <bool> below: root.tour-last >= 2 && root.tour-last <= 4;
-            property <bool> has-art: root.tour-last == 5 || root.tour-last == 6;
-            width: min(parent.width - 80px * root.k, 620px * root.k);
-            height: 150px * root.k + (self.has-art ? 170px * root.k : 0px) + tour-body.preferred-height;
-            x: (parent.width - self.width) / 2;
+            property <bool> below: root.tour-last == 2 || root.tour-last == 3;
+            property <length> art-h: root.tour-last == 0 ? 190px * root.k : root.tour-last == 3 ? 210px * root.k
+                : root.tour-last == 5 ? 170px * root.k : 0px;
+            width: min((root.tour-last == 4 ? parent.width - root.menu-w : parent.width) - 80px * root.k, 620px * root.k);
+            height: 150px * root.k + self.art-h + tour-body.preferred-height;
+            x: root.tour-last == 4 ? root.menu-w + (parent.width - root.menu-w - self.width) / 2 : (parent.width - self.width) / 2;
             y: self.below ? root.header-h + 40px * root.k
                 : root.tour-last == 1 ? min(parent.height - self.height - 30px * root.k, root.header-h + root.tour-row-h + 30px * root.k)
                 : (parent.height - self.height) / 2;
-            animate y, height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            animate x, y, height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
             border-radius: 20px * root.k;
             background: #0b1520f2;
             border-width: 1px;
@@ -7194,9 +7243,9 @@ export component AppWindow inherits Window {
                 y: 22px * root.k;
                 width: parent.width - 56px * root.k;
                 text: root.tour-last == 0 ? Tr.t(Tr.k, "Bienvenue dans Turtlefin") : root.tour-last == 1 ? Tr.t(Tr.k, "Tes médias")
-                    : root.tour-last == 2 ? Tr.t(Tr.k, "Le menu") : root.tour-last == 3 ? Tr.t(Tr.k, "Les onglets")
-                    : root.tour-last == 4 ? Tr.t(Tr.k, "La barre du haut") : root.tour-last == 5 ? Tr.t(Tr.k, "La fiche d'un média")
-                    : root.tour-last == 6 ? Tr.t(Tr.k, "Pendant la lecture") : Tr.t(Tr.k, "C'est parti !");
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "Les onglets") : root.tour-last == 3 ? Tr.t(Tr.k, "La barre du haut")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Le menu") : root.tour-last == 5 ? Tr.t(Tr.k, "Pendant la lecture")
+                    : Tr.t(Tr.k, "C'est parti !");
                 color: white;
                 font-size: 24px * root.k;
                 font-weight: 700;
@@ -7206,58 +7255,142 @@ export component AppWindow inherits Window {
                 y: 66px * root.k;
                 width: parent.width - 56px * root.k;
                 wrap: word-wrap;
-                text: root.tour-last == 0 ? Tr.t(Tr.k, "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi.")
-                    : root.tour-last == 1 ? Tr.t(Tr.k, "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie.")
-                    : root.tour-last == 2 ? Tr.t(Tr.k, "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres.")
-                    : root.tour-last == 3 ? Tr.t(Tr.k, "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr).")
-                    : root.tour-last == 4 ? Tr.t(Tr.k, "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil.")
-                    : root.tour-last == 5 ? Tr.t(Tr.k, "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions.")
-                    : root.tour-last == 6 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison.")
-                    : Tr.t(Tr.k, "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée.");
+                text: root.tour-last == 0 ? Tr.t(Tr.k, "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière.")
+                    : root.tour-last == 1 ? Tr.t(Tr.k, "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici.")
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr).")
+                    : root.tour-last == 3 ? Tr.t(Tr.k, "À droite, quatre raccourcis :")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres.")
+                    : root.tour-last == 5 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture.")
+                    : Tr.t(Tr.k, "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos.");
                 color: #ffffffd9;
                 font-size: 17px * root.k;
             }
 
-            // Schéma de la fiche : affiche et boutons.
-            if root.tour-last == 5: Rectangle {
+            // Télécommande : croix (flèches) avec OK au centre, et le bouton Retour ; les touches
+            // s'allument l'une après l'autre.
+            if root.tour-last == 0: Rectangle {
                 x: 28px * root.k;
-                y: tour-body.y + tour-body.preferred-height + 16px * root.k;
+                y: tour-body.y + tour-body.preferred-height + 14px * root.k;
                 width: parent.width - 56px * root.k;
-                height: 150px * root.k;
-                border-radius: 12px * root.k;
-                background: #ffffff0d;
+                height: 176px * root.k;
+                property <int> lit: mod(floor(animation-tick() / 700ms), 6); // 0 haut 1 droite 2 bas 3 gauche 4 OK 5 retour
+                property <length> d: 118px * root.k;
+                property <length> cx: self.width / 2 - 50px * root.k;
+                pad := Rectangle {
+                    x: parent.cx - parent.d / 2;
+                    y: 0px;
+                    width: parent.d;
+                    height: parent.d;
+                    border-radius: self.width / 2;
+                    background: #ffffff12;
+                    border-width: 1px;
+                    border-color: #ffffff26;
+                    property <int> lit: parent.lit;
+                    for a[i] in ["↑", "→", "↓", "←"]: Text {
+                        property <length> r: pad.width / 2 - 17px * root.k;
+                        x: pad.width / 2 - 12px * root.k + (i == 1 ? self.r : i == 3 ? -self.r : 0px);
+                        y: pad.height / 2 - 14px * root.k + (i == 0 ? -self.r : i == 2 ? self.r : 0px);
+                        width: 24px * root.k;
+                        height: 28px * root.k;
+                        text: a;
+                        color: pad.lit == i ? Theme.accent2 : #ffffffb0;
+                        font-size: (pad.lit == i ? 24px : 20px) * root.k;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 46px * root.k;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: pad.lit == 4 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
+                        Text { text: "OK"; color: white; font-size: 15px * root.k; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                }
                 Rectangle {
-                    x: 16px * root.k;
-                    y: 15px * root.k;
-                    width: 80px * root.k;
-                    height: 120px * root.k;
-                    border-radius: 8px * root.k;
-                    background: @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+                    x: parent.cx + parent.d / 2 + 40px * root.k;
+                    y: (parent.d - self.height) / 2;
+                    width: 52px * root.k;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: parent.lit == 5 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
+                    Path {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 24px * root.k;
+                        height: 24px * root.k;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        fill: transparent;
+                        stroke: white;
+                        stroke-width: 2.4px * root.k;
+                        stroke-line-cap: round;
+                        stroke-line-join: round;
+                        commands: "M 9 5 L 4 10 L 9 15 M 4 10 L 14 10 C 18 10 20 12.5 20 15.5 C 20 18.5 18 20 15 20 L 12 20";
+                    }
                 }
-                for ic[i] in ["play", "heart", "check", "download"]: Rectangle {
-                    x: 120px * root.k + i * 54px * root.k;
-                    y: 40px * root.k;
-                    width: 44px * root.k;
-                    height: 44px * root.k;
-                    border-radius: 10px * root.k;
-                    background: i == 0 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
-                    if ic == "play": NavIcon { x: 11px * root.k; y: 11px * root.k; width: 22px * root.k; height: 22px * root.k; name: "play"; }
-                    if ic == "download": NavIcon { x: 11px * root.k; y: 11px * root.k; width: 22px * root.k; height: 22px * root.k; name: "downloads"; }
-                    if ic == "heart": Text { text: "♥"; color: #ff4d6d; font-size: 22px * root.k; horizontal-alignment: center; vertical-alignment: center; }
-                    if ic == "check": Text { text: "✓"; color: white; font-size: 22px * root.k; horizontal-alignment: center; vertical-alignment: center; }
+                Text {
+                    x: parent.cx - 80px * root.k;
+                    y: parent.d + 4px * root.k;
+                    width: 160px * root.k;
+                    text: Tr.t(Tr.k, "Flèches et OK");
+                    color: #ffffffa0;
+                    font-size: 13px * root.k;
+                    horizontal-alignment: center;
                 }
-                for j in 3: Rectangle {
-                    x: 120px * root.k + j * 70px * root.k;
-                    y: 100px * root.k;
-                    width: 60px * root.k;
-                    height: 34px * root.k;
-                    border-radius: 6px * root.k;
-                    background: #ffffff14;
+                Text {
+                    x: parent.cx + parent.d / 2 + 66px * root.k - 60px * root.k;
+                    y: parent.d / 2 + 30px * root.k;
+                    width: 120px * root.k;
+                    text: Tr.t(Tr.k, "Retour");
+                    color: #ffffffa0;
+                    font-size: 13px * root.k;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    y: parent.height - self.preferred-height;
+                    width: parent.width;
+                    wrap: word-wrap;
+                    text: Tr.t(Tr.k, "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi.");
+                    color: #ffffff80;
+                    font-size: 13px * root.k;
+                    horizontal-alignment: center;
+                }
+            }
+
+            // Icônes du haut : les mêmes qu'à l'écran, celle sélectionnée en ce moment s'allume.
+            if root.tour-last == 3: VerticalLayout {
+                x: 28px * root.k;
+                y: tour-body.y + tour-body.preferred-height + 12px * root.k;
+                width: parent.width - 56px * root.k;
+                spacing: 6px * root.k;
+                for it[i] in [
+                    { icon: "party", text: Tr.t(Tr.k, "Watch party : regarder la même chose, en même temps, sur plusieurs appareils.") },
+                    { icon: "dice", text: Tr.t(Tr.k, "Au hasard : Turtlefin choisit un média pour toi.") },
+                    { icon: "search", text: Tr.t(Tr.k, "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque.") },
+                    { icon: "profile", text: Tr.t(Tr.k, "Ton profil : changer de compte ou de photo.") },
+                ]: HorizontalLayout {
+                    spacing: 14px * root.k;
+                    property <bool> on: root.h-sel == root.right-base + i;
+                    HeaderIcon {
+                        icon: it.icon;
+                        k: root.k;
+                        focused: parent.on;
+                    }
+                    Text {
+                        text: it.text;
+                        wrap: word-wrap;
+                        color: parent.on ? white : #ffffffa8;
+                        font-size: 15px * root.k;
+                        vertical-alignment: center;
+                    }
                 }
             }
 
             // Schéma du lecteur : panneau (barre + boutons) et, dessous, les épisodes qui montent.
-            if root.tour-last == 6: Rectangle {
+            if root.tour-last == 5: Rectangle {
                 x: 28px * root.k;
                 y: tour-body.y + tour-body.preferred-height + 16px * root.k;
                 width: parent.width - 56px * root.k;
@@ -7310,7 +7443,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Points d'avancement et boutons.
+            // Points d'avancement et boutons (le bouton choisi prend le dégradé, comme partout).
             for d[i] in root.tour-count: Rectangle {
                 x: 28px * root.k + i * 16px * root.k;
                 y: parent.height - 40px * root.k;
@@ -7331,16 +7464,14 @@ export component AppWindow inherits Window {
                     visible: self.shown;
                     width: self.shown ? b-t.preferred-width + 34px * root.k : 0px;
                     border-radius: 10px * root.k;
-                    background: b == 2 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : b-a.has-hover || self.on ? #ffffff2e : #ffffff12;
-                    border-width: self.on ? 2px * root.k : 0px;
-                    border-color: white;
+                    background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                        : b-a.has-hover ? #ffffff26 : #ffffff12;
                     b-t := Text {
                         text: b == 0 ? Tr.t(Tr.k, "Retour") : b == 1 ? Tr.t(Tr.k, "Passer la visite")
                             : root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
-                        color: b == 2 || parent.on ? white : #ffffffcc;
+                        color: parent.on ? white : #ffffffcc;
                         font-size: 15px * root.k;
-                        font-weight: b == 2 ? 700 : 400;
+                        font-weight: parent.on ? 700 : 400;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -7369,7 +7500,7 @@ export component AppWindow inherits Window {
                 if (event.repeat) {
                     return EventResult.accept;
                 }
-                // ← → choisissent un bouton (retour, passer, suivant), Entrée l'active.
+                // ← → choisissent un bouton (retour, passer, suivant), OK l'active.
                 if (event.text == Key.Return || event.text == " ") {
                     root.tour-press(root.tour-btn);
                 } else if (event.text == Key.RightArrow) {

@@ -1278,14 +1278,10 @@ msgstr "Si parte!"
 msgid "La barre du haut"
 msgstr "La barra in alto"
 
-msgid "La fiche d'un média"
-msgstr "La scheda di un media"
 
 msgid "Le menu"
 msgstr "Il menu"
 
-msgid "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions."
-msgstr "Riproduci, preferito, visto e scarica; sotto: stagioni, episodi e suggerimenti."
 
 msgid "Les onglets"
 msgstr "Le schede"
@@ -1311,11 +1307,7 @@ msgstr "Fine"
 msgid "Tes médias"
 msgstr "I tuoi media"
 
-msgid "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi."
-msgstr "Tutto si fa con le frecce, Invio per aprire e Indietro (o Esc) per tornare. Funziona anche il mouse."
 
-msgid "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée."
-msgstr "Puoi rivedere questa visita in Impostazioni → Informazioni → Visita guidata."
 
 msgid "Visite guidée"
 msgstr "Visita guidata"
@@ -1323,17 +1315,41 @@ msgstr "Visita guidata"
 msgid "Visite guidée ?"
 msgstr "Visita guidata?"
 
-msgid "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil."
-msgstr "Watch party per guardare insieme, dado per un media a caso, ricerca e il tuo profilo."
+msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "Tutto si fa con il telecomando: le frecce per spostarsi, OK per aprire o confermare, Indietro per tornare indietro."
 
-msgid "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie."
-msgstr "← → scorrono una riga, ↑ ↓ passano da una riga all'altra. Invio apre la locandina scelta."
+msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
+msgstr "← → scorrono una riga, ↑ ↓ passano da una riga all'altra. OK apre la scheda del titolo scelto; Indietro ti riporta qui."
 
-msgid "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres."
-msgstr "← sulla prima scheda (o Indietro) apre il menu: librerie, download, watch party, account e impostazioni."
+msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
+msgstr "Dalla prima riga, ↑ sale qui. Home: i tuoi contenuti · Preferiti: ciò che hai segnato come preferito · Richieste: i film e le serie richiesti (se il server ha Seerr)."
 
-msgid "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr)."
-msgstr "↑ dalla prima riga: Home, Preferiti e Richieste (se il server offre Seerr)."
+msgid "À droite, quatre raccourcis :"
+msgstr "A destra, quattro scorciatoie:"
 
-msgid "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison."
-msgstr "← →: 10 s indietro o avanti. ↓ mostra i comandi (volume, audio, sottotitoli); ↓ di nuovo: gli episodi della stagione."
+msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
+msgstr "Si apre con ← dalla prima locandina, o con Indietro. Librerie, download (da guardare senza connessione), watch party, cambio di account o di server, e Impostazioni."
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
+msgstr "← →: 10 s indietro o avanti. OK o ↓: i comandi (pausa, volume, audio, sottotitoli); ancora ↓: gli episodi della stagione. Indietro: interrompere la riproduzione."
+
+msgid "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Lingua, sottotitoli, interfaccia TV… tutto si regola nel menu, Impostazioni. Questa visita si riavvia da Impostazioni → Informazioni."
+
+msgid "Flèches et OK"
+msgstr "Frecce e OK"
+
+msgid "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi."
+msgstr "Da tastiera: Invio = OK, Esc = Indietro. Funzionano anche mouse e touch."
+
+msgid "Watch party : regarder la même chose, en même temps, sur plusieurs appareils."
+msgstr "Watch party: guardare la stessa cosa, nello stesso momento, su più dispositivi."
+
+msgid "Au hasard : Turtlefin choisit un média pour toi."
+msgstr "A caso: Turtlefin sceglie qualcosa per te."
+
+msgid "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque."
+msgstr "Ricerca: nella tua libreria, e un modo per richiedere ciò che manca."
+
+msgid "Ton profil : changer de compte ou de photo."
+msgstr "Il tuo profilo: cambiare account o foto."

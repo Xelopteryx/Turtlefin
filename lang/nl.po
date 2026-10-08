@@ -1278,14 +1278,10 @@ msgstr "Daar gaan we!"
 msgid "La barre du haut"
 msgstr "De bovenste balk"
 
-msgid "La fiche d'un média"
-msgstr "De pagina van een item"
 
 msgid "Le menu"
 msgstr "Het menu"
 
-msgid "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions."
-msgstr "Afspelen, favoriet, gezien en downloaden; daaronder: seizoenen, afleveringen en suggesties."
 
 msgid "Les onglets"
 msgstr "De tabbladen"
@@ -1311,11 +1307,7 @@ msgstr "Klaar"
 msgid "Tes médias"
 msgstr "Jouw media"
 
-msgid "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi."
-msgstr "Alles gaat met de pijltjestoetsen, Enter om te openen en Terug (of Esc) om terug te gaan. De muis werkt ook."
 
-msgid "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée."
-msgstr "Je kunt deze rondleiding opnieuw bekijken in Instellingen → Over → Rondleiding."
 
 msgid "Visite guidée"
 msgstr "Rondleiding"
@@ -1323,17 +1315,41 @@ msgstr "Rondleiding"
 msgid "Visite guidée ?"
 msgstr "Rondleiding?"
 
-msgid "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil."
-msgstr "Watch party om samen te kijken, dobbelsteen voor een willekeurig item, zoeken en je profiel."
+msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "Alles gaat met de afstandsbediening: de pijlen om te bewegen, OK om te openen of te bevestigen, Terug om terug te gaan."
 
-msgid "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie."
-msgstr "← → scrollen door een rij, ↑ ↓ gaan naar een andere rij. Enter opent de gekozen poster."
+msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
+msgstr "← → bladeren door een rij, ↑ ↓ gaan naar een andere rij. OK opent de pagina van het gekozen item; Terug brengt je hier."
 
-msgid "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres."
-msgstr "← op de eerste kaart (of Terug) opent het menu: bibliotheken, downloads, watch party, account en instellingen."
+msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
+msgstr "Vanaf de eerste rij gaat ↑ hierheen. Start: je media · Favorieten: wat je als favoriet hebt gemarkeerd · Verzoeken: aangevraagde films en series (als de server Seerr heeft)."
 
-msgid "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr)."
-msgstr "↑ vanaf de eerste rij: Start, Favorieten en Verzoeken (als de server Seerr aanbiedt)."
+msgid "À droite, quatre raccourcis :"
+msgstr "Rechts vier snelkoppelingen:"
 
-msgid "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison."
-msgstr "← →: 10 s terug of vooruit. ↓ toont de bediening (volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen."
+msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
+msgstr "Het opent met ← vanaf de eerste poster, of met Terug. Bibliotheken, downloads (om zonder verbinding te kijken), watch party, wisselen van account of server, en Instellingen."
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
+msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen."
+
+msgid "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Taal, ondertitels, tv-interface… alles stel je in via het menu, Instellingen. Deze rondleiding start je opnieuw via Instellingen → Over."
+
+msgid "Flèches et OK"
+msgstr "Pijlen en OK"
+
+msgid "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi."
+msgstr "Met een toetsenbord: Enter = OK, Esc = Terug. Muis en aanraken werken ook."
+
+msgid "Watch party : regarder la même chose, en même temps, sur plusieurs appareils."
+msgstr "Watch party: hetzelfde kijken, op hetzelfde moment, op meerdere apparaten."
+
+msgid "Au hasard : Turtlefin choisit un média pour toi."
+msgstr "Willekeurig: Turtlefin kiest iets voor je."
+
+msgid "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque."
+msgstr "Zoeken: in je bibliotheek, en een manier om aan te vragen wat ontbreekt."
+
+msgid "Ton profil : changer de compte ou de photo."
+msgstr "Je profiel: wissel van account of foto."

@@ -1278,14 +1278,10 @@ msgstr "Let's go!"
 msgid "La barre du haut"
 msgstr "The top bar"
 
-msgid "La fiche d'un média"
-msgstr "A media page"
 
 msgid "Le menu"
 msgstr "The menu"
 
-msgid "Lecture, favori, vu et téléchargement ; en dessous, saisons, épisodes et suggestions."
-msgstr "Play, favorite, watched and download; below: seasons, episodes and suggestions."
 
 msgid "Les onglets"
 msgstr "The tabs"
@@ -1311,11 +1307,7 @@ msgstr "Done"
 msgid "Tes médias"
 msgstr "Your media"
 
-msgid "Tout se fait avec les flèches, Entrée pour ouvrir et Retour (ou Échap) pour revenir. La souris marche aussi."
-msgstr "Everything works with the arrow keys, Enter to open and Back (or Esc) to go back. The mouse works too."
 
-msgid "Tu pourras revoir cette visite dans Paramètres → À propos → Visite guidée."
-msgstr "You can watch this tour again in Settings → About → Guided tour."
 
 msgid "Visite guidée"
 msgstr "Guided tour"
@@ -1323,17 +1315,41 @@ msgstr "Guided tour"
 msgid "Visite guidée ?"
 msgstr "Guided tour?"
 
-msgid "Watch party pour regarder à plusieurs, dé pour un média au hasard, recherche, et ton profil."
-msgstr "Watch party to watch together, dice for a random pick, search, and your profile."
+msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "Everything is done with the remote: the arrows to move, OK to open or confirm, Back to go back."
 
-msgid "← → font défiler une rangée, ↑ ↓ passent d'une rangée à l'autre. Entrée ouvre l'affiche choisie."
-msgstr "← → scroll a row, ↑ ↓ move between rows. Enter opens the chosen poster."
+msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
+msgstr "← → move along a row, ↑ ↓ go from one row to another. OK opens the selected item's page; Back brings you here."
 
-msgid "← sur la première carte (ou Retour) ouvre le menu : bibliothèques, téléchargements, watch party, compte et paramètres."
-msgstr "← on the first card (or Back) opens the menu: libraries, downloads, watch party, account and settings."
+msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
+msgstr "From the first row, ↑ comes up here. Home: your media · Favorites: what you marked as favorite · Requests: the movies and shows requested (if the server has Seerr)."
 
-msgid "↑ depuis la première rangée : Accueil, Favoris et Demandes (si le serveur propose Seerr)."
-msgstr "↑ from the first row: Home, Favorites and Requests (if the server offers Seerr)."
+msgid "À droite, quatre raccourcis :"
+msgstr "On the right, four shortcuts:"
 
-msgid "← → : 10 s en arrière ou en avant. ↓ affiche les commandes (volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison."
-msgstr "← →: 10 s back or forward. ↓ shows the controls (volume, audio, subtitles); ↓ again: the season's episodes."
+msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
+msgstr "It opens with ← from the first poster, or with Back. Libraries, downloads (to watch without a connection), watch party, switching account or server, and Settings."
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
+msgstr "← →: 10 s back or forward. OK or ↓: the controls (pause, volume, audio, subtitles); ↓ again: the season's episodes. Back: stop playback."
+
+msgid "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Language, subtitles, TV interface… everything is set in the menu, Settings. This tour can be replayed from Settings → About."
+
+msgid "Flèches et OK"
+msgstr "Arrows and OK"
+
+msgid "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi."
+msgstr "On a keyboard: Enter = OK, Esc = Back. Mouse and touch work too."
+
+msgid "Watch party : regarder la même chose, en même temps, sur plusieurs appareils."
+msgstr "Watch party: watch the same thing, at the same time, on several devices."
+
+msgid "Au hasard : Turtlefin choisit un média pour toi."
+msgstr "Random: Turtlefin picks something for you."
+
+msgid "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque."
+msgstr "Search: in your library, and a way to request what is missing."
+
+msgid "Ton profil : changer de compte ou de photo."
+msgstr "Your profile: switch account or picture."

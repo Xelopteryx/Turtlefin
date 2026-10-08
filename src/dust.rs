@@ -70,13 +70,13 @@ thread_local! {
 /// (tout de suite si l'effet est impossible : rendu logiciel, rien n'a changé à l'écran).
 pub fn switch(u: &AppWindow, change: impl FnOnce(&AppWindow), done: impl FnOnce(&AppWindow) + 'static) {
     finish(u);
-    let before = u.window().take_snapshot().ok();
+    let before = u.window().take_snapshot().map_err(|e| eprintln!("turtlefin : effet de langue impossible (capture : {e})")).ok();
     change(u);
     // Les textes de l'interface se recalculent sur Tr.l (voir i18n::on_change, qui passe plus tard).
     let t = u.global::<Tr>();
     t.set_l(t.get_l() + 1);
     let run = before.and_then(|a| {
-        let b = u.window().take_snapshot().ok()?;
+        let b = u.window().take_snapshot().map_err(|e| eprintln!("turtlefin : effet de langue impossible (capture : {e})")).ok()?;
         Run::new(&a, &b, u.window().scale_factor())
     });
     let Some(mut run) = run else {
@@ -156,6 +156,7 @@ impl Run {
     fn new(a: &SharedPixelBuffer<Rgba8Pixel>, b: &SharedPixelBuffer<Rgba8Pixel>, s: f32) -> Option<Run> {
         let (fw, fh) = (a.width() as usize, a.height() as usize);
         if fw == 0 || fh == 0 || b.width() as usize != fw || b.height() as usize != fh {
+            eprintln!("turtlefin : effet de langue : captures de tailles différentes");
             return None;
         }
         let px = |buf: &SharedPixelBuffer<Rgba8Pixel>, i: usize| {
@@ -178,6 +179,7 @@ impl Run {
             }
         }
         if minx == usize::MAX {
+            eprintln!("turtlefin : effet de langue : aucun texte n'a changé à l'écran");
             return None;
         }
         // Zone animée : le cadre et une marge pour l'envol des grains.

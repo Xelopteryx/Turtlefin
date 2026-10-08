@@ -2355,6 +2355,11 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         // Les textes partent en poussière et reviennent dans la nouvelle langue (voir dust.rs) ;
         // la liste reste ouverte pendant l'effet, la coche passe sur la langue choisie.
         let Some(u) = app.ui().upgrade() else { return };
+        // Sélection déjà sur la langue choisie (clic) : la barre ne bouge pas pendant l'effet.
+        let items = u.get_ch_items();
+        if let Some(i) = (0..items.row_count()).find(|&i| items.row_data(i).is_some_and(|t| t.id.as_str() == value)) {
+            u.set_ch_sel(i as i32);
+        }
         dust::switch(
             &u,
             |_| {
