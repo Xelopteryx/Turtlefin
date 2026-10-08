@@ -147,18 +147,17 @@ Portable: everything in `data\` next to `turtlefin.exe` (`config`, `cache`, `dow
 
 ## Translate Turtlefin
 
-No programming and no compiling needed:
+No programming and no compiling needed. Added languages live in a single folder, **Turtlefin Languages**: in
+**Documents** (installed version) or next to `turtlefin.exe` (portable version).
 
-1. Get the template: **Settings → Display → Add a language** writes `modele.po` in Turtlefin's `languages`
-   folder (inside its configuration folder). Its texts are in English, with the French original and your current
-   language as notes.
-2. Save a copy as `<code>.po` (`sv.po` for Swedish, `ja.po` for Japanese…) and fill in each `msgstr ""` with the
-   translation of the English `msgid` above it. Keep the `{}` and `{n}`. Also fill in `X-Language-Name` (the name
-   shown in the list) and, if needed, `Plural-Forms` (standard gettext rule for your language). Any `.po` editor
-   works, for example [Poedit](https://poedit.net).
-3. Put the file in **Downloads** or on the **Desktop** of the device, then choose **Add a language** again: Turtlefin
-   finds it, copies it into place and opens the language list. No file manager needed (TV, system without a
-   desktop). Texts left empty are shown in English.
+1. **Settings → Display → Add a language** opens the explorer of that folder; **Create the template** writes
+   `modele.po` there, with English texts, the French original and your current language as notes.
+2. Save a copy as `<code>.po` (`sv.po` for Swedish, `ja.po` for Japanese…), in that folder or one of its
+   subfolders, and fill in each `msgstr ""` with the translation of the English `msgid` above it. Keep the `{}`
+   and `{n}`. Also fill in `X-Language-Name` (name shown) and, if needed, `Plural-Forms` (standard gettext rule
+   for your language). Any `.po` editor works, for example [Poedit](https://poedit.net).
+3. **Add a language** again: the translation is listed with how much is translated; picking it applies it.
+   Texts left empty are shown in English.
 
 To share it with everyone, open a pull request adding the file to `lang/` (and to `BUILTIN` in `src/i18n.rs`);
 `python tools/lang-check.py` checks that nothing is missing.

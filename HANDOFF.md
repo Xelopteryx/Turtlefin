@@ -143,6 +143,10 @@ Points notables, non évidents dans le code :
   (bureau), `turtlefin "Nom"` non enregistré qui ouvrait un autre compte, Retour sur « Qui regarde ? » après
   « Changer de compte », « Retenu pour toute la série » sur un film, mise à jour d'une version locale non
   publiée affichée en échec (404 GitHub reconnu sans dépendre de la langue). Watch party vérifiée à deux.
+  Langues ajoutées : un seul dossier, `Turtlefin Languages` (Documents, ou à côté de l'exécutable en portable ;
+  `i18n::lang_dir`, l'ancien dossier `languages` y est déplacé), parcouru par un explorateur intégré
+  (`ui/langx.slint`, `lx_*` dans main.rs) ; plus de recherche dans Téléchargements / Bureau. Connexion : la photo
+  du compte choisi va au centre puis rejoint l'avatar en haut à droite en arc (`fly-phase`).
 
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).

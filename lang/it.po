@@ -1257,14 +1257,8 @@ msgstr "AppImage"
 msgid "Configuration"
 msgstr "Configurazione"
 
-msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
-msgstr "Cerca le traduzioni (.po) in Download e sul Desktop; nessuna compilazione necessaria."
 
-msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
-msgstr "Lingue aggiunte: {}. Sceglila in «Lingua dell'interfaccia»."
 
-msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
-msgstr "Nessuna traduzione trovata. Metti un file <codice>.po in Download, sul Desktop o in {} (modello: modele.po)."
 
 msgid "Aucun serveur choisi : la recherche des serveurs va suivre."
 msgstr "Nessun server scelto: segue la ricerca dei server."
@@ -1399,3 +1393,56 @@ msgstr "Ricordato per questo film"
 
 msgid "Photo de profil : modifiable quand le serveur répond."
 msgstr "Foto del profilo: modificabile quando il server risponde."
+
+msgid "C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici."
+msgstr "È il modello: copialo col nome della tua lingua (sv.po, ja.po…), traducilo e sceglilo qui."
+
+msgid "Ce dossier est vide."
+msgstr "Questa cartella è vuota."
+
+msgid "Ce fichier n'est pas une traduction de Turtlefin."
+msgstr "Questo file non è una traduzione di Turtlefin."
+
+msgid "Choisis une langue, ou Retour pour remonter."
+msgstr "Scegli una lingua, o Indietro per risalire."
+
+msgid "Choisis une traduction (.po) dans le dossier « {} »."
+msgstr "Scegli una traduzione (.po) nella cartella «{}»."
+
+msgid "Créer le modèle"
+msgstr "Crea il modello"
+
+msgid "Dossier des langues introuvable."
+msgstr "Cartella delle lingue non trovata."
+
+msgid "Dossier parent"
+msgstr "Cartella superiore"
+
+msgid "Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici."
+msgstr "Metti i tuoi file di traduzione (.po) in questa cartella, poi scegli la lingua qui."
+
+msgid "Impossible d'ouvrir le dossier : {}"
+msgstr "Impossibile aprire la cartella: {}"
+
+msgid "Langue : {}"
+msgstr "Lingua: {}"
+
+msgid "Langue actuelle"
+msgstr "Lingua attuale"
+
+msgid "Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)"
+msgstr "Modello da tradurre: copialo come <codice>.po (sv.po, ja.po…)"
+
+msgid "Modèle écrit : modele.po, dans le dossier des langues."
+msgstr "Modello scritto: modele.po, nella cartella delle lingue."
+
+msgid "Ouvrir le dossier"
+msgstr "Apri la cartella"
+
+msgid "Pas une traduction de Turtlefin"
+msgstr "Non è una traduzione di Turtlefin"
+
+msgid "{n} fichier de langue"
+msgid_plural "{n} fichiers de langue"
+msgstr[0] "{n} file di lingua"
+msgstr[1] "{n} file di lingua"

@@ -1257,14 +1257,8 @@ msgstr "AppImage"
 msgid "Configuration"
 msgstr "Configuratie"
 
-msgid "Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."
-msgstr "Zoekt vertalingen (.po) in Downloads en op het bureaublad; compileren is niet nodig."
 
-msgid "Langues ajoutées : {}. Choisis-la dans « Langue de l'interface »."
-msgstr "Toegevoegde talen: {}. Kies hem bij „Taal van de interface”."
 
-msgid "Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po)."
-msgstr "Geen vertaling gevonden. Zet een bestand <code>.po in Downloads, op het bureaublad of in {} (sjabloon: modele.po)."
 
 msgid "Aucun serveur choisi : la recherche des serveurs va suivre."
 msgstr "Nog geen server gekozen: hierna wordt naar servers gezocht."
@@ -1399,3 +1393,56 @@ msgstr "Onthouden voor deze film"
 
 msgid "Photo de profil : modifiable quand le serveur répond."
 msgstr "Profielfoto: te wijzigen zodra de server antwoordt."
+
+msgid "C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici."
+msgstr "Dit is de sjabloon: kopieer hem onder de naam van je taal (sv.po, ja.po…), vertaal hem en kies hem hier."
+
+msgid "Ce dossier est vide."
+msgstr "Deze map is leeg."
+
+msgid "Ce fichier n'est pas une traduction de Turtlefin."
+msgstr "Dit bestand is geen Turtlefin-vertaling."
+
+msgid "Choisis une langue, ou Retour pour remonter."
+msgstr "Kies een taal, of Terug om omhoog te gaan."
+
+msgid "Choisis une traduction (.po) dans le dossier « {} »."
+msgstr "Kies een vertaling (.po) in de map ‘{}’."
+
+msgid "Créer le modèle"
+msgstr "Sjabloon maken"
+
+msgid "Dossier des langues introuvable."
+msgstr "Talenmap niet gevonden."
+
+msgid "Dossier parent"
+msgstr "Bovenliggende map"
+
+msgid "Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici."
+msgstr "Zet je vertaalbestanden (.po) in deze map en kies de taal hier."
+
+msgid "Impossible d'ouvrir le dossier : {}"
+msgstr "Kan de map niet openen: {}"
+
+msgid "Langue : {}"
+msgstr "Taal: {}"
+
+msgid "Langue actuelle"
+msgstr "Huidige taal"
+
+msgid "Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)"
+msgstr "Sjabloon om te vertalen: kopieer als <code>.po (sv.po, ja.po…)"
+
+msgid "Modèle écrit : modele.po, dans le dossier des langues."
+msgstr "Sjabloon geschreven: modele.po, in de talenmap."
+
+msgid "Ouvrir le dossier"
+msgstr "Map openen"
+
+msgid "Pas une traduction de Turtlefin"
+msgstr "Geen Turtlefin-vertaling"
+
+msgid "{n} fichier de langue"
+msgid_plural "{n} fichiers de langue"
+msgstr[0] "{n} taalbestand"
+msgstr[1] "{n} taalbestanden"

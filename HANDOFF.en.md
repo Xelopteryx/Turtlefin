@@ -140,7 +140,10 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   refused, password field without keyboard focus (desktop), `turtlefin "Name"` not saved opening another
   account, Back on “Who's watching?” after “Switch account”, “Remembered for the whole series” on a movie,
   update check of an unpublished local build shown as a failure (GitHub 404 detected regardless of language).
-  Watch party checked with two clients.
+  Watch party checked with two clients. Added languages: a single folder, `Turtlefin Languages` (Documents, or
+  next to the executable when portable; `i18n::lang_dir`, the old `languages` folder is moved there), browsed
+  by a built-in explorer (`ui/langx.slint`, `lx_*` in main.rs); no more Downloads / Desktop scan. Sign-in: the
+  chosen account's picture goes to the centre, then joins the top-right avatar along an arc (`fly-phase`).
 
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).

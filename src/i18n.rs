@@ -41,35 +41,123 @@ pub fn on_change(f: impl Fn() + Send + Sync + 'static) {
     let _ = ON_CHANGE.set(Box::new(f));
 }
 
-/// Dossiers où chercher des langues ajoutées (le premier est celui proposé à l'utilisateur).
-pub fn custom_dirs() -> Vec<PathBuf> {
-    let mut v = Vec::new();
-    if let Some(d) = crate::paths::config_dir() {
-        v.push(d.join("languages"));
+/// Nom du dossier des langues ajoutées (le même dans toutes les langues).
+pub const LANG_DIR_NAME: &str = "Turtlefin Languages";
+
+/// Dossier des langues ajoutées, le seul où elles sont cherchées : dans Documents (version
+/// installée), à côté de l'exécutable (version portable), dans la configuration d'essai
+/// (`TURTLEFIN_CONFIG_DIR`). Créé au besoin ; les langues d'avant (dossier `languages` de la
+/// configuration) y sont déplacées.
+pub fn lang_dir() -> Option<PathBuf> {
+    let dir = if std::env::var_os("TURTLEFIN_CONFIG_DIR").is_some() {
+        crate::paths::config_dir()?.join(LANG_DIR_NAME)
+    } else if crate::paths::portable_root().is_some() {
+        crate::paths::exe_dir()?.join(LANG_DIR_NAME)
+    } else {
+        directories::UserDirs::new()
+            .and_then(|u| u.document_dir().map(|d| d.join(LANG_DIR_NAME)))
+            .or_else(|| crate::paths::config_dir().map(|d| d.join(LANG_DIR_NAME)))?
+    };
+    static MIGRATED: OnceLock<()> = OnceLock::new();
+    MIGRATED.get_or_init(|| {
+        let _ = std::fs::create_dir_all(&dir);
+        let old = [crate::paths::config_dir(), crate::paths::exe_dir()].into_iter().flatten().map(|d| d.join("languages"));
+        for o in old {
+            for e in std::fs::read_dir(&o).into_iter().flatten().flatten() {
+                let p = e.path();
+                let name = p.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+                if p.extension().and_then(|s| s.to_str()) == Some("po") && !dir.join(&name).exists() {
+                    let _ = std::fs::rename(&p, dir.join(&name)).or_else(|_| std::fs::copy(&p, dir.join(&name)).map(|_| ()));
+                }
+            }
+        }
+    });
+    Some(dir)
+}
+
+/// Fichiers .po d'un dossier (sous-dossiers compris, sur `depth` niveaux).
+fn po_files(dir: &std::path::Path, depth: u32, out: &mut Vec<PathBuf>) {
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    entries.sort();
+    for p in entries {
+        if p.is_dir() {
+            if depth > 0 {
+                po_files(&p, depth - 1, out);
+            }
+        } else if p.extension().and_then(|s| s.to_str()) == Some("po") {
+            out.push(p);
+        }
     }
-    if let Some(d) = crate::paths::exe_dir() {
-        v.push(d.join("languages"));
-    }
-    v
+}
+
+/// Le fichier est-il le modèle de traduction (pas une langue) ?
+fn is_template(p: &std::path::Path) -> bool {
+    matches!(p.file_stem().and_then(|s| s.to_str()).map(str::to_lowercase).as_deref(), Some("modele" | "template"))
 }
 
 /// Langues ajoutées : (code, chemin). Un fichier peut remplacer une langue intégrée (même code).
 fn custom_files() -> Vec<(String, PathBuf)> {
     let mut out: Vec<(String, PathBuf)> = Vec::new();
-    for dir in custom_dirs() {
-        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-            let p = e.path();
-            let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
-            if p.extension().and_then(|s| s.to_str()) != Some("po") || stem == "modele" || stem == "template" {
-                continue;
-            }
-            let code = stem.to_lowercase();
-            if !out.iter().any(|(c, _)| *c == code) {
-                out.push((code, p));
-            }
+    let Some(dir) = lang_dir() else { return out };
+    let mut files = Vec::new();
+    po_files(&dir, 3, &mut files);
+    for p in files {
+        if is_template(&p) {
+            continue;
+        }
+        let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
+        let code = stem.to_lowercase();
+        if !out.iter().any(|(c, _)| *c == code) && std::fs::read_to_string(&p).is_ok_and(|t| is_turtlefin_po(&t)) {
+            out.push((code, p));
         }
     }
     out
+}
+
+/// Élément de l'explorateur des langues.
+pub struct Entry {
+    pub path: PathBuf,
+    /// "dir" · "lang" (traduction de Turtlefin) · "template" (modèle) · "other" (autre .po)
+    pub kind: &'static str,
+    pub name: String,
+    /// Code de la langue (fichier), ou nombre de fichiers .po (dossier).
+    pub code: String,
+    /// Part traduite (0 à 1), pour une langue.
+    pub done: f32,
+}
+
+/// Contenu d'un dossier de l'explorateur : sous-dossiers puis fichiers .po, par nom.
+pub fn browse(dir: &std::path::Path) -> Vec<Entry> {
+    let mut dirs = Vec::new();
+    let mut files = Vec::new();
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    entries.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+    let total = po_text("en").map(|t| parse_po(&t).len().saturating_sub(1)).unwrap_or(1).max(1);
+    for p in entries {
+        let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if fname.starts_with('.') {
+            continue;
+        }
+        if p.is_dir() {
+            let mut inner = Vec::new();
+            po_files(&p, 2, &mut inner);
+            dirs.push(Entry { path: p, kind: "dir", name: fname, code: inner.len().to_string(), done: 0.0 });
+        } else if p.extension().and_then(|s| s.to_str()) == Some("po") {
+            let text = std::fs::read_to_string(&p).unwrap_or_default();
+            let code = p.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+            if is_template(&p) {
+                files.push(Entry { path: p, kind: "template", name: fname, code, done: 0.0 });
+            } else if is_turtlefin_po(&text) {
+                let filled = parse_po(&text).iter().filter(|(k, v)| !k.is_empty() && v.first().is_some_and(|s| !s.is_empty())).count();
+                let name = header(&text, "X-Language-Name").filter(|n| !n.trim().is_empty()).unwrap_or_else(|| code.clone());
+                files.push(Entry { path: p, kind: "lang", name, code, done: (filled as f32 / total as f32).min(1.0) });
+            } else {
+                files.push(Entry { path: p, kind: "other", name: fname, code, done: 0.0 });
+            }
+        }
+    }
+    dirs.extend(files);
+    dirs
 }
 
 /// Texte d'un fichier .po (langue ajoutée en priorité, sinon intégrée).
@@ -516,7 +604,7 @@ fn esc(s: &str) -> String {
 /// Modèle d'une nouvelle langue, écrit dans le dossier des langues ajoutées (`modele.po`) : textes
 /// en anglais à traduire, avec en note le français (texte d'origine) et la langue en cours.
 pub fn write_template() -> std::io::Result<PathBuf> {
-    let dir = custom_dirs().into_iter().next().ok_or_else(|| std::io::Error::other("dossier de configuration introuvable"))?;
+    let dir = lang_dir().ok_or_else(|| std::io::Error::other("dossier des langues introuvable"))?;
     std::fs::create_dir_all(&dir)?;
     let cur = current();
     let cur_name = languages().into_iter().find(|(c, _)| *c == cur).map(|(_, n)| n).unwrap_or_default();
@@ -526,8 +614,8 @@ pub fn write_template() -> std::io::Result<PathBuf> {
          # 1. Copy this file as <code>.po (es.po, ja.po, sv.po…) and translate every msgstr from the English\n\
          #    msgid above it. Keep the {} and {n} placeholders. Notes (#.) show the French original.\n\
          # 2. Fill in X-Language-Name (shown in the list) and Plural-Forms (gettext rule of the language).\n\
-         # 3. Put the file in this folder, in Downloads or on the Desktop, then in Turtlefin:\n\
-         #    Settings → Display → Add a language. Empty msgstr: the English text is shown.\n\
+         # 3. Keep it in this folder (Turtlefin Languages), then in Turtlefin: Settings → Display →\n\
+         #    Add a language, and select it. Empty msgstr: the English text is shown.\n\
          msgid \"\"\n\
          msgstr \"\"\n\
          \"Content-Type: text/plain; charset=UTF-8\\n\"\n\
@@ -562,39 +650,6 @@ pub fn write_template() -> std::io::Result<PathBuf> {
 /// Un fichier .po est-il une traduction de Turtlefin (et pas un autre .po de passage) ?
 fn is_turtlefin_po(text: &str) -> bool {
     text.contains("msgid \"Reprendre\"") || text.contains("msgid \"Continue watching\"") || text.contains("X-Source-Language: en")
-}
-
-/// « Ajouter une langue » : copie dans le dossier des langues les traductions déposées dans
-/// Téléchargements ou sur le Bureau (sans gestionnaire de fichiers : télé, système sans bureau),
-/// puis renvoie (langues ajoutées ou mises à jour, toutes les langues ajoutées).
-pub fn import_languages() -> (Vec<String>, Vec<(String, String)>) {
-    let mut new = Vec::new();
-    let Some(dest) = custom_dirs().into_iter().next() else { return (new, Vec::new()) };
-    let mut sources: Vec<PathBuf> = Vec::new();
-    if let Some(u) = directories::UserDirs::new() {
-        sources.extend(u.download_dir().map(|p| p.to_path_buf()));
-        sources.extend(u.desktop_dir().map(|p| p.to_path_buf()));
-    }
-    for dir in sources {
-        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-            let p = e.path();
-            let Some(stem) = p.file_stem().and_then(|s| s.to_str()).map(str::to_lowercase) else { continue };
-            if p.extension().and_then(|s| s.to_str()) != Some("po") || stem == "modele" || stem == "template" {
-                continue;
-            }
-            let Ok(text) = std::fs::read_to_string(&p) else { continue };
-            let target = dest.join(format!("{stem}.po"));
-            if !is_turtlefin_po(&text) || std::fs::read_to_string(&target).ok().as_deref() == Some(text.as_str()) {
-                continue;
-            }
-            if std::fs::create_dir_all(&dest).and_then(|_| std::fs::write(&target, &text)).is_ok() {
-                new.push(header(&text, "X-Language-Name").unwrap_or(stem));
-            }
-        }
-    }
-    let files = custom_files();
-    let custom = languages().into_iter().filter(|(c, _)| files.iter().any(|(f, _)| f == c)).collect();
-    (new, custom)
 }
 
 #[cfg(test)]

@@ -1,0 +1,323 @@
+// « Ajouter une langue » : petit explorateur de fichiers de Turtlefin, limité au dossier des
+// langues (Turtlefin Languages) et à ses sous-dossiers. Dossiers, langues (.po de Turtlefin, avec
+// la part traduite), modèle à traduire ; choisir une langue l'applique. Au clavier : ↑ ↓ dans la
+// liste puis les boutons, ← → entre les boutons, OK ouvre / choisit, Retour remonte d'un dossier
+// (ou ferme à la racine). La souris marche aussi.
+import { Theme, Tr } from "theme.slint";
+
+export struct LxItem {
+    kind: string,   // "up" · "dir" · "lang" · "template" · "other"
+    name: string,
+    detail: string,
+    done: float,    // part traduite (langue)
+    current: bool,  // langue en cours
+}
+
+component LxIcon inherits Rectangle {
+    in property <string> kind;
+    in property <brush> tint: white;
+    if root.kind == "dir" || root.kind == "up": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.kind == "up" ? transparent : root.tint;
+        stroke: root.tint;
+        stroke-width: root.kind == "up" ? root.height / 11 : 0px;
+        stroke-line-join: round;
+        stroke-line-cap: round;
+        commands: root.kind == "up" ? "M 12 19 L 12 6 M 6 11 L 12 5 L 18 11"
+            : "M 2.5 6 C 2.5 5 3.3 4 4.5 4 L 9.5 4 L 11.5 6.5 L 19.5 6.5 C 20.7 6.5 21.5 7.3 21.5 8.5 L 21.5 18 C 21.5 19.2 20.7 20 19.5 20 L 4.5 20 C 3.3 20 2.5 19.2 2.5 18 Z";
+    }
+    if root.kind == "lang": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 12;
+        stroke-line-cap: round;
+        commands: "M 12 3 A 9 9 0 1 1 11.99 3 Z M 3 12 L 21 12 M 12 3 C 15 6 15 18 12 21 C 9 18 9 6 12 3";
+    }
+    if root.kind == "template" || root.kind == "other": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 12;
+        stroke-line-join: round;
+        stroke-line-cap: round;
+        commands: "M 6 3 L 14 3 L 19 8 L 19 21 L 6 21 Z M 14 3 L 14 8 L 19 8 M 9 13 L 16 13 M 9 17 L 14 17";
+    }
+}
+
+export component LangExplorer inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <bool> open;
+    in property <string> place;      // chemin affiché (Documents › Turtlefin Languages › …)
+    in property <string> hint;
+    in property <[LxItem]> items;
+    in property <bool> can-open-folder;
+    in property <int> tick;          // change à chaque dossier affiché (cascade des lignes)
+    in-out property <int> sel;
+    callback activate(int);
+    callback back();
+    callback button(string);         // "template" · "folder" · "close"
+
+    property <float> p: root.open ? 1 : 0;
+    animate p { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    visible: self.p > 0.01;
+    // Boutons sous la liste : modèle, dossier (bureau), fermer.
+    property <int> n: root.items.length;
+    property <[string]> btns: root.can-open-folder ? ["template", "folder", "close"] : ["template", "close"];
+    property <duration> list-t0;
+    changed tick => {
+        root.list-t0 = animation-tick();
+        list.content-y = 0px;
+    }
+
+    // Voile
+    Rectangle {
+        background: #000000a0.transparentize(1 - root.p);
+        TouchArea {
+            clicked => {
+                root.button("close");
+            }
+        }
+    }
+
+    panel := Rectangle {
+        width: min(parent.width - 60px * root.k, 760px * root.k);
+        height: min(parent.height - 60px * root.k, 620px * root.k);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2 + (1 - root.p) * 40px * root.k;
+        opacity: root.p;
+        transform-scale: 0.94 + 0.06 * root.p;
+        border-radius: 22px * root.k;
+        background: #0b1520f5;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        drop-shadow-blur: 40px * root.k;
+        drop-shadow-color: #00000080;
+        TouchArea { }
+
+        fs := FocusScope {
+            property <bool> o: root.open;
+            changed o => {
+                if (root.open) {
+                    self.focus();
+                }
+            }
+            key-pressed(event) => {
+                if (!root.open) {
+                    return EventResult.reject;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.sel = root.sel >= root.n ? max(0, root.n - 1) : max(0, root.sel - 1);
+                } else if (event.text == Key.DownArrow) {
+                    root.sel = root.sel < root.n - 1 ? root.sel + 1 : root.sel < root.n ? root.n : root.sel;
+                } else if (event.text == Key.LeftArrow) {
+                    if (root.sel > root.n) {
+                        root.sel -= 1;
+                    }
+                } else if (event.text == Key.RightArrow) {
+                    if (root.sel >= root.n && root.sel < root.n + root.btns.length - 1) {
+                        root.sel += 1;
+                    }
+                } else if (event.text == Key.Return || event.text == " ") {
+                    if (root.sel < root.n) {
+                        root.activate(root.sel);
+                    } else {
+                        root.button(root.btns[root.sel - root.n]);
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.back();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        Text {
+            x: 30px * root.k;
+            y: 24px * root.k;
+            text: Tr.t(Tr.k, "Ajouter une langue");
+            color: white;
+            font-size: 26px * root.k;
+            font-weight: 700;
+        }
+        // Chemin
+        Rectangle {
+            x: 30px * root.k;
+            y: 66px * root.k;
+            width: parent.width - 60px * root.k;
+            height: 30px * root.k;
+            border-radius: 8px * root.k;
+            background: #ffffff0f;
+            LxIcon {
+                x: 10px * root.k;
+                y: (parent.height - self.height) / 2;
+                width: 16px * root.k;
+                height: 16px * root.k;
+                kind: "dir";
+                tint: Theme.accent2;
+            }
+            Text {
+                x: 34px * root.k;
+                width: parent.width - 44px * root.k;
+                height: parent.height;
+                text: root.place;
+                color: #ffffffcc;
+                font-size: 13px * root.k;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        hint-t := Text {
+            x: 30px * root.k;
+            y: 106px * root.k;
+            width: parent.width - 60px * root.k;
+            text: root.hint;
+            color: Theme.muted;
+            font-size: 13px * root.k;
+            wrap: word-wrap;
+        }
+
+        // Liste
+        property <length> row-h: 58px * root.k;
+        list := Flickable {
+            x: 20px * root.k;
+            y: hint-t.y + hint-t.preferred-height + 14px * root.k;
+            width: parent.width - 40px * root.k;
+            height: parent.height - self.y - 84px * root.k;
+            content-height: root.n * panel.row-h;
+            // Garde la ligne choisie visible.
+            property <int> s: root.sel;
+            changed s => {
+                if (root.sel < root.n) {
+                    let top = root.sel * panel.row-h;
+                    if (top + self.content-y < 0px) {
+                        self.content-y = -top;
+                    } else if (top + panel.row-h + self.content-y > self.height) {
+                        self.content-y = self.height - top - panel.row-h;
+                    }
+                }
+            }
+            if root.n == 0: Text {
+                width: list.width;
+                height: list.height;
+                text: Tr.t(Tr.k, "Ce dossier est vide.");
+                color: Theme.muted;
+                font-size: 15px * root.k;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            for it[i] in root.items: row := Rectangle {
+                // Cascade à chaque dossier affiché.
+                property <float> e: clamp((animation-tick() - root.list-t0) / 1ms / 260 - i * 0.06, 0, 1);
+                x: (1 - self.e) * 24px * root.k;
+                y: i * panel.row-h;
+                opacity: self.e * (it.kind == "other" ? 0.55 : 1);
+                width: list.width;
+                height: panel.row-h - 6px * root.k;
+                border-radius: 12px * root.k;
+                property <bool> on: i == root.sel;
+                background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                    : area.has-hover ? #ffffff1a : #ffffff0a;
+                LxIcon {
+                    x: 16px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    width: 24px * root.k;
+                    height: 24px * root.k;
+                    kind: it.kind;
+                    tint: row.on ? white : it.kind == "lang" ? Theme.accent2 : #ffffffb0;
+                }
+                Text {
+                    x: 54px * root.k;
+                    y: 9px * root.k;
+                    width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
+                    text: it.name;
+                    color: white;
+                    font-size: 16px * root.k;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    x: 54px * root.k;
+                    y: 31px * root.k;
+                    width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
+                    text: it.detail;
+                    color: row.on ? #ffffffd9 : Theme.muted;
+                    font-size: 12px * root.k;
+                    overflow: elide;
+                }
+                // Part traduite.
+                if it.kind == "lang": Rectangle {
+                    x: parent.width - 136px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    width: 120px * root.k;
+                    height: 26px * root.k;
+                    Rectangle {
+                        y: 18px * root.k;
+                        height: 5px * root.k;
+                        border-radius: 3px * root.k;
+                        background: row.on ? #ffffff40 : #ffffff1f;
+                    }
+                    Rectangle {
+                        x: 0px;
+                        y: 18px * root.k;
+                        width: parent.width * it.done * row.e;
+                        height: 5px * root.k;
+                        border-radius: 3px * root.k;
+                        background: row.on ? white : Theme.accent2;
+                    }
+                    Text {
+                        width: parent.width;
+                        height: 14px * root.k;
+                        text: it.current ? Tr.t(Tr.k, "Langue actuelle") : round(it.done * 100) + " %";
+                        color: row.on ? white : #ffffffb0;
+                        font-size: 12px * root.k;
+                        font-weight: 600;
+                        horizontal-alignment: right;
+                    }
+                }
+                area := TouchArea {
+                    clicked => {
+                        root.sel = i;
+                        root.activate(i);
+                    }
+                }
+            }
+        }
+
+        // Boutons
+        HorizontalLayout {
+            x: parent.width - self.preferred-width - 24px * root.k;
+            y: parent.height - 62px * root.k;
+            height: 42px * root.k;
+            spacing: 10px * root.k;
+            for b[j] in root.btns: Rectangle {
+                property <bool> on: root.sel == root.n + j;
+                width: bt.preferred-width + 34px * root.k;
+                border-radius: 10px * root.k;
+                background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                    : ba.has-hover ? #ffffff26 : #ffffff12;
+                bt := Text {
+                    text: b == "template" ? Tr.t(Tr.k, "Créer le modèle") : b == "folder" ? Tr.t(Tr.k, "Ouvrir le dossier") : Tr.t(Tr.k, "Fermer");
+                    color: white;
+                    font-size: 15px * root.k;
+                    font-weight: parent.on ? 700 : 500;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                ba := TouchArea {
+                    clicked => {
+                        root.button(b);
+                    }
+                }
+            }
+        }
+    }
+}

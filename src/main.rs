@@ -179,6 +179,9 @@ struct App {
     prev_account: Mutex<Option<String>>,
     /// Type du média de la fiche (« Movie », « Episode »...) : texte de la liste des pistes.
     detail_kind: Mutex<String>,
+    /// Explorateur des langues : dossier affiché et chemins de ses éléments (même ordre que la liste).
+    lx_dir: Mutex<std::path::PathBuf>,
+    lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
     home_keep: Mutex<Option<(String, String)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
@@ -2249,7 +2252,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         ],
         3 => vec![
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
-            row("addlang", tr("Ajouter une langue"), tr("Cherche les traductions (.po) dans Téléchargements et sur le Bureau ; aucune compilation nécessaire."), String::new(), "action", false),
+            row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
@@ -2855,29 +2858,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             }
             refresh_settings(app);
         }
-        "addlang" => {
-            // Sans gestionnaire de fichiers (télé, système sans bureau) : on va chercher les
-            // traductions déposées dans Téléchargements ou sur le Bureau, et le modèle est (re)écrit
-            // dans le dossier des langues pour qui veut traduire.
-            let template = i18n::write_template();
-            let (new, custom) = i18n::import_languages();
-            let msg = if !custom.is_empty() {
-                let names: Vec<String> = if new.is_empty() { custom.into_iter().map(|(_, n)| n).collect() } else { new };
-                trf("Langues ajoutées : {}. Choisis-la dans « Langue de l'interface ».", &[&names.join(", ")])
-            } else {
-                match template {
-                    Ok(dir) => trf("Aucune traduction trouvée. Dépose un fichier <code>.po dans Téléchargements, sur le Bureau ou dans {} (modèle : modele.po).", &[&dir.display()]),
-                    Err(e) => trf("Impossible de créer le modèle : {}", &[&e]),
-                }
-            };
-            if let Some(u) = app.ui().upgrade() {
-                u.set_toast(msg.into());
-            }
-            refresh_settings(app);
-            if i18n::languages().len() > 8 {
-                open_choice(app, "language");
-            }
-        }
+        "addlang" => lx_open(app),
         "switch" => switch_account(app),
         "update" => update_action(app),
         "backdrop" => {
@@ -3088,6 +3069,134 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
 // ---------------------------------------------------------------------------
 // Menu latéral : bibliothèques, demandes, compte
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Ajouter une langue : explorateur du dossier des langues (ui/langx.slint)
+// ---------------------------------------------------------------------------
+fn lx_open(app: &Arc<App>) {
+    let Some(root) = i18n::lang_dir() else {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_toast(tr("Dossier des langues introuvable.").into());
+        }
+        return;
+    };
+    lx_show(app, root, None);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_lx_open(true);
+    }
+}
+
+/// Affiche un dossier ; `select` : élément à choisir (sinon le premier).
+fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::Path>) {
+    let Some(root) = i18n::lang_dir() else { return };
+    let cur = i18n::current();
+    let mut items: Vec<LxItem> = Vec::new();
+    let mut paths: Vec<(std::path::PathBuf, &'static str)> = Vec::new();
+    if dir != root {
+        if let Some(parent) = dir.parent() {
+            items.push(LxItem { kind: "up".into(), name: tr("Dossier parent").into(), detail: "..".into(), done: 0.0, current: false });
+            paths.push((parent.to_path_buf(), "up"));
+        }
+    }
+    for e in i18n::browse(&dir) {
+        let detail = match e.kind {
+            "dir" => {
+                let n: i64 = e.code.parse().unwrap_or(0);
+                i18n::trn("{n} fichier de langue", "{n} fichiers de langue", n)
+            }
+            "lang" => format!("{}.po", e.code),
+            "template" => tr("Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)").to_string(),
+            _ => tr("Pas une traduction de Turtlefin").to_string(),
+        };
+        items.push(LxItem { kind: e.kind.into(), name: e.name.into(), detail: detail.into(), done: e.done, current: e.kind == "lang" && e.code == cur });
+        paths.push((e.path, e.kind));
+    }
+    let sel = select.and_then(|s| paths.iter().position(|(p, _)| p == s)).unwrap_or(0) as i32;
+    // Chemin affiché depuis le dossier qui contient « Turtlefin Languages ».
+    let base = root.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let place = dir
+        .strip_prefix(&base)
+        .map(|r| r.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("  ›  "))
+        .unwrap_or_else(|_| dir.display().to_string());
+    let place = match base.file_name() {
+        Some(b) => format!("{}  ›  {place}", b.to_string_lossy()),
+        None => place,
+    };
+    let hint = if dir == root {
+        tr("Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici.").to_string()
+    } else {
+        tr("Choisis une langue, ou Retour pour remonter.").to_string()
+    };
+    *app.lx_dir.lock().unwrap() = dir;
+    *app.lx_paths.lock().unwrap() = paths;
+    if let Some(u) = app.ui().upgrade() {
+        u.set_lx_items(ModelRc::new(VecModel::from(items)));
+        u.set_lx_sel(sel);
+        u.set_lx_place(place.into());
+        u.set_lx_hint(hint.into());
+        u.set_lx_can_folder(!u.get_tv_mode());
+        u.set_lx_tick(u.get_lx_tick() + 1);
+    }
+}
+
+fn lx_activate(app: &Arc<App>, i: usize) {
+    let Some((path, kind)) = app.lx_paths.lock().unwrap().get(i).cloned() else { return };
+    let Some(u) = app.ui().upgrade() else { return };
+    match kind {
+        "up" | "dir" => lx_show(app, path, None),
+        "lang" => {
+            let code = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+            let mut p = config::ui_prefs();
+            p.language = code.clone();
+            config::save_ui_prefs(&p);
+            i18n::set_language(&code);
+            refresh_settings(app);
+            language_changed(app);
+            u.set_lx_open(false);
+            let name = i18n::languages().into_iter().find(|(c, _)| *c == code).map(|(_, n)| n).unwrap_or(code);
+            u.set_toast(trf("Langue : {}", &[&name]).into());
+        }
+        "template" => u.set_toast(tr("C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici.").into()),
+        _ => u.set_toast(tr("Ce fichier n'est pas une traduction de Turtlefin.").into()),
+    }
+}
+
+fn lx_back(app: &Arc<App>) {
+    let dir = app.lx_dir.lock().unwrap().clone();
+    match i18n::lang_dir() {
+        Some(root) if dir != root => {
+            let parent = dir.parent().map(|p| p.to_path_buf()).unwrap_or(root);
+            lx_show(app, parent, Some(&dir));
+        }
+        _ => {
+            if let Some(u) = app.ui().upgrade() {
+                u.set_lx_open(false);
+            }
+        }
+    }
+}
+
+fn lx_button(app: &Arc<App>, b: &str) {
+    let Some(u) = app.ui().upgrade() else { return };
+    match b {
+        "template" => match i18n::write_template() {
+            Ok(dir) => {
+                let file = dir.join("modele.po");
+                lx_show(app, dir, Some(&file));
+                u.set_toast(tr("Modèle écrit : modele.po, dans le dossier des langues.").into());
+            }
+            Err(e) => u.set_toast(trf("Impossible de créer le modèle : {}", &[&e]).into()),
+        },
+        "folder" => {
+            let dir = app.lx_dir.lock().unwrap().clone();
+            let prog = if cfg!(windows) { "explorer" } else if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+            if paths::quiet_command(prog).arg(&dir).spawn().is_err() {
+                u.set_toast(trf("Impossible d'ouvrir le dossier : {}", &[&dir.display()]).into());
+            }
+        }
+        _ => u.set_lx_open(false),
+    }
+}
+
 /// Langue changée : les textes fabriqués en Rust hors des Paramètres suivent (menu, watch party) ;
 /// l'accueil (titres des rangées) est rechargé au retour.
 fn language_changed(app: &Arc<App>) {
@@ -4181,6 +4290,8 @@ fn main() -> anyhow::Result<()> {
         home_stale: AtomicBool::new(false),
         prev_account: Mutex::new(None),
         detail_kind: Mutex::new(String::new()),
+        lx_dir: Mutex::new(std::path::PathBuf::new()),
+        lx_paths: Mutex::new(Vec::new()),
         home_keep: Mutex::new(None),
         player_tx: Mutex::new(None),
     });
@@ -4601,6 +4712,18 @@ fn main() -> anyhow::Result<()> {
     });
 
     // Liste des langues fermée sans choix : les grains réécrivent les mots d'avant.
+    ui.on_lx_activate({
+        let app = app.clone();
+        move |i| lx_activate(&app, i.max(0) as usize)
+    });
+    ui.on_lx_back({
+        let app = app.clone();
+        move || lx_back(&app)
+    });
+    ui.on_lx_button({
+        let app = app.clone();
+        move |b| lx_button(&app, b.as_str())
+    });
     ui.on_dust_resized({
         let w = ui.as_weak();
         move || {
