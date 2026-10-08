@@ -1,6 +1,6 @@
 // Texte tapé dans un champ (recherche) : la lettre ajoutée apparaît en grossissant, celle effacée
-// s'envole en s'estompant, le curseur clignote juste après la dernière lettre, le texte d'exemple
-// glisse et s'efface à la première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau
+// glisse vers la droite en s'estompant, le curseur clignote juste après la dernière lettre, le
+// texte d'exemple s'efface en fondu à la première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau
 // (par-dessus un TextInput dont le texte et le curseur sont masqués).
 import { Theme } from "theme.slint";
 
@@ -61,10 +61,9 @@ export component TypedText inherits Rectangle {
     property <float> ap: root.adding ? clamp((animation-tick() - root.add-t0) / 180ms, 0, 1) : 1;
     property <float> dp: root.deleting ? clamp((animation-tick() - root.del-t0) / 260ms, 0, 1) : 1;
 
-    // Texte d'exemple : glisse vers la droite et s'efface dès la première lettre.
+    // Texte d'exemple : s'efface en fondu dès la première lettre, revient quand le champ est vide.
     Text {
-        x: root.text == "" ? 0px : 36px * root.k;
-        animate x { duration: 260ms; easing: ease-out; }
+        x: 0px;
         opacity: root.text == "" ? 1 : 0;
         animate opacity { duration: 220ms; }
         height: parent.height;
@@ -96,10 +95,9 @@ export component TypedText inherits Rectangle {
         }
     }
     property <length> end-x: head.preferred-width + last.preferred-width;
-    // Lettre effacée : s'envole en s'estompant.
+    // Lettre effacée : glisse vers la droite en s'estompant.
     if root.deleting && root.dp < 1: Rectangle {
-        x: root.end-x;
-        y: -root.dp * 14px * root.k;
+        x: root.end-x + root.dp * 16px * root.k;
         width: gh.preferred-width;
         height: parent.height;
         opacity: 1 - root.dp;
@@ -111,7 +109,8 @@ export component TypedText inherits Rectangle {
         }
     }
     if root.cursor && root.blink: Rectangle {
-        x: (root.cursor-x >= 0px ? root.cursor-x : root.end-x) + 1px;
+        // Champ vide : tout à gauche (le texte vide a parfois une largeur, d'où un écart).
+        x: (root.text == "" ? 0px : root.cursor-x >= 0px ? root.cursor-x : root.end-x) + 1px;
         y: (parent.height - self.height) / 2;
         width: 2px * root.k;
         height: root.font-size * 1.2;

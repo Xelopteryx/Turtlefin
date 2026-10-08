@@ -18,6 +18,8 @@ use std::rc::Rc;
 const SWEEP_MS: i64 = 420;
 const MORPH_MS: i64 = 260;
 const STAGGER_MAX_MS: i64 = 420;
+/// Attente avant de repérer les textes (fin des animations lancées par l'ouverture de la liste).
+const SETTLE_MS: u64 = 280;
 
 /// Ligne de texte, en pixels logiques.
 #[derive(Clone, Copy)]
@@ -171,6 +173,25 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
 /// blocs sont posés (1 Paramètres, 2 démarrage), sous la liste.
 pub fn dissolve(u: &AppWindow, layer: i32) {
     finish(u);
+    // Les textes sont repérés une fois l'écran posé : la liste vient de s'ouvrir, et ce qu'elle
+    // change dessous s'anime encore (la ligne choisie perd son léger agrandissement…). Repérés
+    // trop tôt, ces textes se décaleraient ensuite hors de leurs blocs.
+    let weak = u.as_weak();
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(SETTLE_MS), move || {
+        if let Some(u) = weak.upgrade() {
+            // Choix déjà fait ou liste fermée entre-temps (finish a vidé l'état) : rien à faire.
+            if STATE.with(|s| s.borrow().is_some()) {
+                STATE.with(|s| s.borrow_mut().take());
+                cover(&u, layer);
+            }
+        }
+    });
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines: Vec::new(), timer: Some(timer), done: None }));
+}
+
+/// Repère les lignes de texte et lance la barre qui les recouvre.
+fn cover(u: &AppWindow, layer: i32) {
     let Some(lines) = find_lines(u) else { return };
     u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
     u.set_dust_layer(layer);
@@ -189,7 +210,6 @@ pub fn dissolve(u: &AppWindow, layer: i32) {
     STATE.with(|s| *s.borrow_mut() = Some(State { lines, timer: None, done: None }));
 }
 
-/// Choix fait (`change` : nouvelle langue et textes) ou annulé (None) : les blocs prennent la
 /// Applique une langue (code) : langue, textes venus de Rust, liste des langues.
 pub type Apply = Rc<dyn Fn(&AppWindow, &str)>;
 

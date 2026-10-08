@@ -1426,6 +1426,9 @@ component HeaderRight inherits Rectangle {
         }
         if Prefs.clock: Text {
             text: root.clock;
+            // Police nommée : l'heure ne dépend pas de la langue, l'effet de changement de langue
+            // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
+            font-family: "Montserrat";
             color: Theme.text;
             font-size: 18px * root.k;
             font-weight: 500;
