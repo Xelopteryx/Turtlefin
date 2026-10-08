@@ -1396,3 +1396,6 @@ msgstr "Back: leave the tour"
 
 msgid "Retenu pour ce film"
 msgstr "Remembered for this movie"
+
+msgid "Photo de profil : modifiable quand le serveur répond."
+msgstr "Profile picture: can be changed when the server answers."

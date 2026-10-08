@@ -2615,13 +2615,18 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock) {
+                // Bureau, formulaire affiché : le clavier va au champ à remplir, pas à la page.
+                if (!root.tv-mode && root.login-mode == "form") {
+                    root.login-focus-tick += 1;
+                } else if (!root.menu-open && !root.tour-lock) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock) {
+                if (!root.tv-mode && root.login-mode == "form") {
+                    root.login-focus-tick += 1;
+                } else if (!root.menu-open && !root.tour-lock) {
                     self.focus();
                 }
             }

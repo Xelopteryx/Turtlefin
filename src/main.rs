@@ -881,8 +881,8 @@ fn login_pick(app: &Arc<App>, action: String) {
                 });
             }
             Err(_) => {
-                // Jeton expiré ou révoqué : on demande le mot de passe.
-                config::forget_account(&acc.user_id);
+                // Jeton expiré ou révoqué : on demande le mot de passe. Le compte reste dans
+                // « Qui regarde ? » (avec sa photo) ; une connexion réussie remplace son jeton.
                 let name = acc.user_name.clone();
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     u.set_busy(false);
@@ -2219,11 +2219,14 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                     trf("{} avatars proposés par le serveur.", &[&n])
                 };
                 v.push(row("avatar", tr("Photo de profil"), &hint, tr("Changer").into(), "action", false));
+            } else if srv.is_empty() {
+                v.push(row("info", "", tr("Photo de profil : modifiable quand le serveur répond."), String::new(), "info", false));
             } else {
                 v.push(row("info", "", tr("Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide)."), String::new(), "info", false));
             }
             let p = config::ui_prefs();
-            let me = app.client().map(|c| c.user_id).unwrap_or_default();
+            // Hors ligne (pas de client) : le compte de la session enregistrée.
+            let me = app.client().map(|c| c.user_id).unwrap_or_else(|| saved.user_id.clone());
             let on = !me.is_empty() && p.autostart_user == me && p.autostart_server == saved.server_id;
             v.push(row("autostart", tr("Ouvrir ce compte au démarrage"), tr("Sinon, Turtlefin démarre sur « Qui regarde ? »."), String::new(), "toggle", on));
             v.push(row("switch", tr("Changer de compte"), tr("Les comptes enregistrés restent disponibles."), String::new(), "action", false));
@@ -2801,8 +2804,12 @@ fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
         "alang" | "slang" | "submode" | "subsize" | "language" => open_choice(app, key),
         "autostart" => {
-            let me = app.client().map(|c| c.user_id).unwrap_or_default();
-            let sid = config::load().server_id;
+            let saved = config::load();
+            let me = app.client().map(|c| c.user_id).unwrap_or_else(|| saved.user_id.clone());
+            if me.is_empty() {
+                return;
+            }
+            let sid = saved.server_id;
             let mut p = config::ui_prefs();
             if p.autostart_user == me && p.autostart_server == sid {
                 p.autostart_user.clear();
@@ -3086,24 +3093,32 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
 // ---------------------------------------------------------------------------
 // Menu latéral : bibliothèques, demandes, compte
 // ---------------------------------------------------------------------------
+/// Hors ligne (`app.offline`) : seulement ce qui marche sans serveur (téléchargements, comptes,
+/// serveur, paramètres).
 fn set_menu(app: &Arc<App>, views: &[api::Item]) {
     *app.views.lock().unwrap() = views.to_vec();
+    let offline = app.offline.load(Ordering::SeqCst);
     let has_requests = app.seerr_user.lock().unwrap().is_some();
-    let mut e: Vec<(String, String, bool)> = vec![
-        (tr("Navigation").into(), String::new(), true),
-        (tr("Accueil").into(), "home".into(), false),
-    ];
-    if has_requests {
+    let mut e: Vec<(String, String, bool)> = vec![(tr("Navigation").into(), String::new(), true)];
+    if !offline {
+        e.push((tr("Accueil").into(), "home".into(), false));
+    }
+    if has_requests && !offline {
         e.push((tr("Demandes").into(), "requests".into(), false));
     }
     e.push((tr("Téléchargements").into(), "downloads".into(), false));
-    e.push((tr("Watch party").into(), "party".into(), false));
-    e.push((tr("Bibliothèques").into(), String::new(), true));
-    for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
-        e.push((v.name.clone(), format!("lib:{}", v.id), false));
+    if !offline {
+        e.push((tr("Watch party").into(), "party".into(), false));
+        e.push((tr("Bibliothèques").into(), String::new(), true));
+        for v in views.iter().filter(|v| v.collection_type.as_deref() != Some("livetv")) {
+            e.push((v.name.clone(), format!("lib:{}", v.id), false));
+        }
     }
     e.push((tr("Compte").into(), String::new(), true));
     for (label, action) in [(tr("Changer de compte"), "switch"), (tr("Sélectionner un serveur"), "server"), (tr("Se déconnecter"), "logout")] {
+        if offline && action == "logout" {
+            continue;
+        }
         e.push((label.into(), action.into(), false));
     }
     e.push((tr("Application").into(), String::new(), true));
@@ -5481,6 +5496,8 @@ fn local_key_exists(key: &str) -> bool {
 /// Mode hors ligne : écran Téléchargements, avec un message.
 fn go_offline(app: &Arc<App>) {
     let was = app.offline.swap(true, Ordering::SeqCst);
+    // Menu sans les bibliothèques ni la watch party (rien à ouvrir sans serveur).
+    set_menu(app, &[]);
     let a = app.clone();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_offline(true);

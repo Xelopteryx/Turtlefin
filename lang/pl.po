@@ -1398,3 +1398,6 @@ msgstr "Wstecz: zakończ prezentację"
 
 msgid "Retenu pour ce film"
 msgstr "Zapamiętane dla tego filmu"
+
+msgid "Photo de profil : modifiable quand le serveur répond."
+msgstr "Zdjęcie profilowe: można je zmienić, gdy serwer odpowie."

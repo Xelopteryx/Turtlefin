@@ -1396,3 +1396,6 @@ msgstr "Volver: salir de la visita"
 
 msgid "Retenu pour ce film"
 msgstr "Se recuerda para esta película"
+
+msgid "Photo de profil : modifiable quand le serveur répond."
+msgstr "Foto de perfil: se puede cambiar cuando el servidor responda."

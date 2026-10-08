@@ -332,6 +332,15 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
             crate::login_pick(app, format!("acc:{}", acc.user_id));
             return;
         }
+        // Pas enregistré sur cet appareil : sa connexion (mot de passe), pas un autre compte.
+        if !saved.server.is_empty() || !start.server.is_empty() {
+            u.set_screen("login".into());
+            u.set_login_title(crate::i18n::trf("Connexion de {}", &[name]).into());
+            u.set_login_user(name.as_str().into());
+            u.set_login_field(1);
+            u.set_login_mode("form".into());
+            return;
+        }
     }
     // 3. Compte choisi pour le démarrage (s'il est toujours enregistré sur cet appareil).
     let p = config::ui_prefs();
