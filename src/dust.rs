@@ -7,7 +7,7 @@
 //! Les textes sont trouvés sans rien savoir de la page : elle est capturée telle quelle, puis avec
 //! une police aux lettres vides (mêmes largeurs) : les pixels qui changent sont ceux des textes.
 
-use crate::{i18n, AppWindow, DustLine, Tr};
+use crate::{AppWindow, DustLine, Tr};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,7 +16,7 @@ use std::rc::Rc;
 /// Durées des phases (voir ui/dust.slint) : passage de la barre sur une ligne, changement de
 /// largeur des blocs, et départ de la dernière ligne au plus tard.
 const SWEEP_MS: i64 = 420;
-const MORPH_MS: i64 = 260;
+const MORPH_MS: i64 = 300;
 const STAGGER_MAX_MS: i64 = 420;
 /// Attente avant de repérer les textes (fin des animations lancées par l'ouverture de la liste).
 const SETTLE_MS: u64 = 280;
@@ -32,7 +32,7 @@ struct Line {
 
 struct State {
     lines: Vec<Line>,
-    /// Fin du dévoilement (phase 3), et ce qui est à faire alors.
+    /// Fin du dévoilement (phase 5), et ce qui est à faire alors.
     timer: Option<slint::Timer>,
     done: Option<Box<dyn FnOnce(&AppWindow)>>,
 }
@@ -224,7 +224,7 @@ fn pairs_model(pairs: &[(Line, Line)]) -> ModelRc<DustLine> {
     let rows: Vec<DustLine> = pairs
         .iter()
         .enumerate()
-        .map(|(i, (f, t))| DustLine { x: t.x, y: t.y, w: t.w, h: t.h, fx: f.x, fw: f.w, delay: i as i64 * step })
+        .map(|(i, (f, t))| DustLine { x: t.x, y: t.y, w: t.w, h: t.h, fx: f.x, fy: f.y, fw: f.w, fh: f.h, delay: i as i64 * step })
         .collect();
     ModelRc::new(VecModel::from(rows))
 }
@@ -236,15 +236,10 @@ fn matching<'a>(old: &'a [Line], l: &Line) -> Option<&'a Line> {
         .min_by(|a, b| (a.x - l.x).abs().total_cmp(&(b.x - l.x).abs()))
 }
 
-fn union(a: &Line, b: &Line) -> Line {
-    let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
-    Line { x: x0, y: y0, w: (a.x + a.w).max(b.x + b.w) - x0, h: (a.y + a.h).max(b.y + b.h) - y0 }
-}
-
 /// Choix fait (`change` : code de la langue et comment l'appliquer) ou annulé (None).
-/// Choix : les blocs s'élargissent d'abord pour couvrir aussi la place des nouveaux mots (l'ancienne
-/// langue reste affichée dessous, rien ne dépasse), la langue change, puis ils se resserrent sur les
-/// nouveaux mots et la barre les dévoile. Annulation : la barre dévoile les anciens mots.
+/// Choix : la langue change sous les blocs (textes invisibles, police vide), les blocs prennent en un
+/// seul mouvement la place des nouveaux mots, puis la barre les dévoile. Annulation : la barre
+/// dévoile les anciens mots.
 /// `done` à la fin (tout de suite s'il n'y a pas d'effet en cours).
 pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(&AppWindow) + 'static) {
     let st = STATE.with(|s| s.borrow_mut().take());
@@ -259,32 +254,28 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
     };
     u.set_dust_cloud(false);
     let Some((code, apply)) = change else {
-        // Annulation : les anciens mots sont dévoilés.
+        // Annulation : les anciens mots réapparaissent sous les blocs, la barre les dévoile.
         let pairs: Vec<(Line, Line)> = st.lines.iter().map(|l| (*l, *l)).collect();
         u.set_dust_lines(pairs_model(&pairs));
         u.set_dust_blank(false);
-        u.invoke_dust_start(3);
-        schedule_end(u, st.lines, pairs.len(), Box::new(done));
+        u.invoke_dust_start(5);
+        schedule_end(u, st.lines, pairs.len(), 0, Box::new(done));
         return;
     };
-    // Lignes de la nouvelle langue (rendue hors écran pour les captures), puis retour à l'ancienne
-    // le temps que les blocs s'élargissent.
-    let old_code = i18n::current();
+    // Textes invisibles (même si le choix arrive avant la fin du recouvrement), la langue change
+    // dessous, et les lignes de la nouvelle langue sont repérées.
+    u.set_dust_blank(true);
     apply(u, &code);
     bump(u);
-    let new = find_lines(u);
-    apply(u, &old_code);
-    bump(u);
-    let Some(new) = new else {
+    let Some(new) = find_lines(u) else {
         finish(u);
-        apply(u, &code);
-        bump(u);
         done(u);
         return;
     };
+    // Chaque bloc passe en un seul mouvement de la ligne d'avant correspondante à la nouvelle ;
+    // les lignes d'avant sans équivalent se referment sur leur milieu.
     let mut used = vec![false; st.lines.len()];
-    let mut grow: Vec<(Line, Line)> = Vec::new();
-    let mut shrink: Vec<(Line, Line)> = Vec::new();
+    let mut moves: Vec<(Line, Line)> = Vec::new();
     for l in &new {
         let prev = matching(&st.lines, l);
         if let Some(p) = prev {
@@ -292,51 +283,35 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
                 used[i] = true;
             }
         }
-        let from = prev.copied().unwrap_or(*l);
-        let big = union(&from, l);
-        grow.push((from, big));
-        shrink.push((big, *l));
+        moves.push((prev.copied().unwrap_or(*l), *l));
     }
-    // Lignes d'avant sans équivalent : restent couvertes jusqu'au changement de langue.
-    for (o, u) in st.lines.iter().zip(&used) {
-        if !u {
-            grow.push((*o, *o));
+    for (o, used) in st.lines.iter().zip(&used) {
+        if !used {
+            moves.push((*o, Line { x: o.x + o.w / 2.0, y: o.y, w: 0.0, h: o.h }));
         }
     }
-    u.set_dust_lines(pairs_model(&grow));
+    u.set_dust_lines(pairs_model(&moves));
     u.invoke_dust_start(4);
-    let (apply_keep, code_keep) = (apply.clone(), code.clone());
     let weak = u.as_weak();
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis((MORPH_MS + 40) as u64), move || {
         let Some(u) = weak.upgrade() else { return };
         // Effet arrêté entre-temps (finish a déjà fait la suite) : rien à faire.
         let Some(d) = STATE.with(|s| s.borrow_mut().as_mut().and_then(|st| st.done.take())) else { return };
-        // Tout est couvert : la langue change dessous, les textes réapparaissent sous les blocs,
-        // qui se resserrent, puis la barre dévoile.
-        apply(&u, &code);
-        bump(&u);
+        // Blocs à la place des nouveaux mots : les textes réapparaissent dessous, la barre dévoile.
+        let pairs: Vec<(Line, Line)> = new.iter().map(|l| (*l, *l)).collect();
         u.set_dust_blank(false);
-        u.set_dust_lines(pairs_model(&shrink));
-        u.invoke_dust_start(3);
-        schedule_end(&u, new.clone(), shrink.len(), d);
+        u.set_dust_lines(pairs_model(&pairs));
+        u.invoke_dust_start(5);
+        schedule_end(&u, new.clone(), pairs.len(), 0, d);
     });
-    // Arrêt pendant que les blocs s'élargissent : la nouvelle langue est appliquée quand même.
-    let (apply2, code2) = (apply_keep, code_keep);
-    let done: Box<dyn FnOnce(&AppWindow)> = Box::new(move |u: &AppWindow| {
-        if i18n::current() != code2 {
-            apply2(u, &code2);
-            bump(u);
-        }
-        done(u);
-    });
-    STATE.with(|s| *s.borrow_mut() = Some(State { lines: st.lines, timer: Some(timer), done: Some(done) }));
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines: st.lines, timer: Some(timer), done: Some(Box::new(done)) }));
 }
 
-/// Fin du dévoilement (phase 3) : `done` après le passage de la barre sur la dernière ligne.
-fn schedule_end(u: &AppWindow, lines: Vec<Line>, n: usize, done: Box<dyn FnOnce(&AppWindow)>) {
+/// Fin du dévoilement (phase 5) : `done` après le passage de la barre sur la dernière ligne.
+fn schedule_end(u: &AppWindow, lines: Vec<Line>, n: usize, before_ms: i64, done: Box<dyn FnOnce(&AppWindow)>) {
     let n = n.max(1) as i64;
-    let total = MORPH_MS + (STAGGER_MAX_MS / n).min(28) * n + SWEEP_MS + 40;
+    let total = before_ms + (STAGGER_MAX_MS / n).min(28) * n + SWEEP_MS + 40;
     let timer = slint::Timer::default();
     let weak = u.as_weak();
     timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(total as u64), move || {
@@ -364,33 +339,45 @@ pub fn finish(u: &AppWindow) {
     }
 }
 
-/// Fenêtre redimensionnée pendant le choix (textes recouverts) : les lignes sont repérées de
-/// nouveau, une fois la taille posée, et les blocs suivent la nouvelle mise en page. En attendant,
-/// les textes restent invisibles (police vide).
+/// Fenêtre redimensionnée pendant le choix (textes recouverts, invisibles) : les blocs suivent la
+/// nouvelle mise en page pendant le redimensionnement (lignes repérées au plus toutes les 50 ms),
+/// et une dernière fois quand la taille est posée.
 pub fn resized(u: &AppWindow) {
     if !u.get_dust_cloud() || !u.get_dust_blank() {
         return;
     }
+    let due = LAST_FIND.with(|l| l.get().is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(50)));
+    if due {
+        refind(u);
+    }
     let weak = u.as_weak();
     let timer = slint::Timer::default();
-    timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(220), move || {
-        let Some(u) = weak.upgrade() else { return };
-        if !u.get_dust_cloud() {
-            return;
-        }
-        if let Some(lines) = find_lines(&u) {
-            u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
-            STATE.with(|s| {
-                if let Some(st) = s.borrow_mut().as_mut() {
-                    st.lines = lines;
-                }
-            });
+    timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(120), move || {
+        if let Some(u) = weak.upgrade() {
+            refind(&u);
         }
     });
     RESIZE.with(|r| *r.borrow_mut() = Some(timer));
 }
 
+/// Lignes repérées de nouveau, blocs posés dessus (sans animation).
+fn refind(u: &AppWindow) {
+    if !u.get_dust_cloud() {
+        return;
+    }
+    LAST_FIND.with(|l| l.set(Some(std::time::Instant::now())));
+    if let Some(lines) = find_lines(u) {
+        u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
+        STATE.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.lines = lines;
+            }
+        });
+    }
+}
+
 thread_local! {
-    /// Repérage après redimensionnement en attente (remplacé à chaque nouveau changement de taille).
+    /// Dernier repérage final en attente (remplacé à chaque nouveau changement de taille).
     static RESIZE: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
+    static LAST_FIND: std::cell::Cell<Option<std::time::Instant>> = const { std::cell::Cell::new(None) };
 }

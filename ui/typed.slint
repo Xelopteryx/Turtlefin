@@ -7,10 +7,30 @@ import { Theme } from "theme.slint";
 
 // Découpe d'un texte (faite en Rust, Slint n'a pas de sous-chaînes).
 export global Str {
-    // Tout sauf le dernier caractère.
-    pure callback head(string) -> string;
-    // Dernier caractère.
-    pure callback last(string) -> string;
+    // Tout sauf les `n` derniers caractères.
+    pure callback head(string, int) -> string;
+    // Caractère `k` en partant de la fin (0 : le dernier) ; "" s'il n'y en a pas.
+    pure callback at(string, int) -> string;
+}
+
+// Une des dernières lettres tapées : apparaît en grossissant (chacune garde son animation, même
+// en tapant vite).
+component Typed inherits Rectangle {
+    in property <string> ch;
+    in property <duration> t0;
+    in property <bool> live;
+    in property <length> font-size;
+    property <float> p: root.live ? clamp((animation-tick() - root.t0) / 180ms, 0, 1) : 1;
+    out property <length> w: root.ch == "" ? 0px : t.preferred-width;
+    width: root.w;
+    opacity: root.p;
+    transform-scale: 1.6 - 0.6 * (1 - (1 - root.p) * (1 - root.p));
+    t := Text {
+        text: root.ch;
+        color: white;
+        font-size: root.font-size;
+        vertical-alignment: center;
+    }
 }
 
 // Lettre effacée : glisse vers la droite en s'estompant, depuis la place qu'elle occupait.
@@ -58,7 +78,12 @@ export component TypedText inherits Rectangle {
     clip: true;
 
     property <string> prev;
-    property <duration> add-t0;
+    // Moments où les 4 dernières lettres ont été tapées (0 : la dernière).
+    property <duration> a0;
+    property <duration> a1;
+    property <duration> a2;
+    property <duration> a3;
+    property <duration> add-last;
     property <bool> adding;
     property <bool> blink: true;
     // Lettres effacées : 8 places utilisées tour à tour (touche maintenue : une lettre toutes les
@@ -75,10 +100,18 @@ export component TypedText inherits Rectangle {
     property <string> g7; property <length> x7; property <duration> t7; property <int> s7;
     changed text => {
         if (root.text.character-count > root.prev.character-count) {
-            root.add-t0 = animation-tick();
+            root.a3 = root.a2;
+            root.a2 = root.a1;
+            root.a1 = root.a0;
+            root.a0 = animation-tick();
+            root.add-last = root.a0;
             root.adding = true;
         } else if (root.text.character-count < root.prev.character-count) {
-            let ch = Str.last(root.prev);
+            root.a0 = root.a1;
+            root.a1 = root.a2;
+            root.a2 = root.a3;
+            root.a3 = 0ms;
+            let ch = Str.at(root.prev, 0);
             let now = animation-tick();
             root.serial += 1;
             if (root.slot == 0) { root.g0 = ch; root.x0 = root.end-x; root.t0 = now; root.s0 = root.serial; }
@@ -94,11 +127,14 @@ export component TypedText inherits Rectangle {
         root.prev = root.text;
         root.blink = true;
     }
+    // Animations d'apparition en cours tant que la dernière frappe a moins de 240 ms.
     Timer {
-        interval: 240ms;
+        interval: 60ms;
         running: root.adding;
         triggered => {
-            root.adding = false;
+            if (animation-tick() - root.add-last > 240ms) {
+                root.adding = false;
+            }
         }
     }
     // Clignotement du curseur (pas d'animation continue : une bascule toutes les 530 ms).
@@ -109,7 +145,6 @@ export component TypedText inherits Rectangle {
             root.blink = !root.blink;
         }
     }
-    property <float> ap: root.adding ? clamp((animation-tick() - root.add-t0) / 180ms, 0, 1) : 1;
 
     // Texte d'exemple : s'efface en fondu dès la première lettre, revient quand le champ est vide.
     Text {
@@ -122,31 +157,21 @@ export component TypedText inherits Rectangle {
         font-size: root.font-size;
         vertical-alignment: center;
     }
+    // Tout sauf les 4 dernières lettres (un texte vide a quand même une petite largeur : 0 alors).
     head := Text {
         x: 0px;
         height: parent.height;
-        text: Str.head(root.text);
+        text: Str.head(root.text, 4);
         color: white;
         font-size: root.font-size;
         vertical-alignment: center;
     }
-    // Un texte vide a quand même une petite largeur : à 0 ou 1 lettre, rien avant la dernière.
-    property <length> head-w: root.text.character-count > 1 ? head.preferred-width : 0px;
-    // Dernière lettre : apparaît en grossissant puis se pose.
-    Rectangle {
-        x: root.head-w;
-        width: last.preferred-width;
-        height: parent.height;
-        opacity: root.ap;
-        transform-scale: 1.6 - 0.6 * (1 - (1 - root.ap) * (1 - root.ap));
-        last := Text {
-            text: Str.last(root.text);
-            color: white;
-            font-size: root.font-size;
-            vertical-alignment: center;
-        }
-    }
-    property <length> end-x: root.text == "" ? 0px : root.head-w + last.preferred-width;
+    property <length> head-w: root.text.character-count > 4 ? head.preferred-width : 0px;
+    c3 := Typed { x: root.head-w; height: parent.height; ch: Str.at(root.text, 3); t0: root.a3; live: root.adding; font-size: root.font-size; }
+    c2 := Typed { x: c3.x + c3.w; height: parent.height; ch: Str.at(root.text, 2); t0: root.a2; live: root.adding; font-size: root.font-size; }
+    c1 := Typed { x: c2.x + c2.w; height: parent.height; ch: Str.at(root.text, 1); t0: root.a1; live: root.adding; font-size: root.font-size; }
+    c0 := Typed { x: c1.x + c1.w; height: parent.height; ch: Str.at(root.text, 0); t0: root.a0; live: root.adding; font-size: root.font-size; }
+    property <length> end-x: c0.x + c0.w;
     Ghost { ch: root.g0; x0: root.x0; t0: root.t0; serial: root.s0; height: parent.height; font-size: root.font-size; k: root.k; }
     Ghost { ch: root.g1; x0: root.x1; t0: root.t1; serial: root.s1; height: parent.height; font-size: root.font-size; k: root.k; }
     Ghost { ch: root.g2; x0: root.x2; t0: root.t2; serial: root.s2; height: parent.height; font-size: root.font-size; k: root.k; }

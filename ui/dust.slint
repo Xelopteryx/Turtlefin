@@ -1,19 +1,21 @@
 // Changement de langue (dust.rs) : une barre lumineuse parcourt chaque ligne de texte et la
-// recouvre de blanc (phase 1), les lignes restent blanches pendant le choix (2) ; au choix, les
-// blocs s'élargissent pour couvrir aussi la place des nouveaux mots (4, l'ancienne langue toujours
-// affichée dessous), la langue change, puis ils se resserrent et la barre les dévoile (3).
-// Peu coûteux : quelques rectangles animés ; les lignes sont repérées une fois, en Rust.
+// recouvre de blanc (phase 1) ; les lignes restent blanches pendant le choix (2), les textes ne
+// sont alors plus dessinés (police vide). Au choix, la langue change dessous, les blocs prennent
+// en un seul mouvement la place et la taille des nouveaux mots (4), puis la barre les dévoile (5).
+// Peu coûteux : quelques rectangles animés ; les lignes sont repérées en Rust.
 import { Theme } from "theme.slint";
 
 export struct DustLine {
-    // Ligne de texte (px logiques) ; fx / fw : position et largeur d'avant (phase 3, les blocs
-    // passent de l'ancienne largeur à la nouvelle) ; delay : départ de la barre sur cette ligne.
+    // Ligne de texte (px logiques) ; fx, fy, fw, fh : place d'avant (phase 4, le bloc passe de
+    // l'une à l'autre) ; delay : départ de la barre sur cette ligne.
     x: length,
     y: length,
     w: length,
     h: length,
     fx: length,
+    fy: length,
     fw: length,
+    fh: length,
     delay: duration,
 }
 
@@ -24,38 +26,39 @@ export component DustLines inherits Rectangle {
     in property <float> k: 1.0;
     // Recouvert (phase 2) : rien ne bouge, pas de rafraîchissement continu.
     property <duration> now: root.phase == 2 ? 0ms : animation-tick() - root.t0;
-    property <duration> morph: 260ms;
+    property <duration> morph: 300ms;
     property <duration> sweep: 420ms;
 
     for l in root.lines: ln := Rectangle {
-        // Phase 3 : de l'ancienne largeur à la nouvelle, puis la barre dévoile.
-        property <float> m: root.phase == 3 || root.phase == 4 ? clamp(root.now / root.morph, 0, 1) : 1;
-        property <float> me: 1 - (1 - self.m) * (1 - self.m);
+        // Phase 4 : de la place d'avant à la nouvelle (un seul mouvement, position et taille).
+        property <float> m: root.phase == 4 ? clamp(root.now / root.morph, 0, 1) : 1;
+        property <float> me: 1 - (1 - self.m) * (1 - self.m) * (1 - self.m);
         property <length> bx: l.fx + (l.x - l.fx) * self.me;
+        property <length> by: l.fy + (l.y - l.fy) * self.me;
         property <length> bw: l.fw + (l.w - l.fw) * self.me;
-        property <float> p: root.phase == 1 ? clamp((root.now - l.delay) / root.sweep, 0, 1)
-            : root.phase == 3 ? clamp((root.now - root.morph - l.delay) / root.sweep, 0, 1)
+        property <length> bh: l.fh + (l.h - l.fh) * self.me;
+        property <float> p: root.phase == 1 || root.phase == 5 ? clamp((root.now - l.delay) / root.sweep, 0, 1)
             : root.phase == 4 ? 0 : 1;
         property <float> e: self.p * self.p * (3 - 2 * self.p);
         // Bord qui avance avec la barre : droite du bloc (recouvrir), gauche (dévoiler).
-        property <length> left: root.phase == 3 || root.phase == 4 ? self.bx + self.bw * self.e : self.bx;
+        property <length> left: root.phase == 5 ? self.bx + self.bw * self.e : self.bx;
         property <length> right: root.phase == 1 ? self.bx + self.bw * self.e : self.bx + self.bw;
         property <length> pad: 4px * root.k;
 
         if ln.right > ln.left: Rectangle {
             x: ln.left - ln.pad;
-            y: l.y - ln.pad;
+            y: ln.by - ln.pad;
             width: ln.right - ln.left + 2 * ln.pad;
-            height: l.h + 2 * ln.pad;
+            height: ln.bh + 2 * ln.pad;
             border-radius: 4px * root.k;
             background: white;
         }
         // La barre, pendant son passage.
         if ln.p > 0 && ln.p < 1: Rectangle {
-            x: (root.phase == 3 ? ln.left : ln.right) - 2px * root.k;
-            y: l.y - 7px * root.k;
+            x: (root.phase == 5 ? ln.left : ln.right) - 2px * root.k;
+            y: ln.by - 7px * root.k;
             width: 4px * root.k;
-            height: l.h + 14px * root.k;
+            height: ln.bh + 14px * root.k;
             border-radius: 2px * root.k;
             background: Theme.accent2;
             drop-shadow-blur: 10px * root.k;

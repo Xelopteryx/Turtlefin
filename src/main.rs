@@ -4078,14 +4078,16 @@ fn main() -> anyhow::Result<()> {
     let ui = AppWindow::new()?;
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
-        // Découpe du texte tapé (ui/typed.slint) : tout sauf le dernier caractère, et le dernier.
+        // Découpe du texte tapé (ui/typed.slint) : tout sauf les n derniers caractères, et le k-ième en partant de la fin.
         let st = ui.global::<Str>();
-        st.on_head(|s| {
+        st.on_head(|s, n| {
             let mut c = s.chars();
-            c.next_back();
+            for _ in 0..n.max(0) {
+                c.next_back();
+            }
             c.as_str().into()
         });
-        st.on_last(|s| s.chars().next_back().map(|c| c.to_string()).unwrap_or_default().into());
+        st.on_at(|s, k| s.chars().rev().nth(k.max(0) as usize).map(|c| c.to_string()).unwrap_or_default().into());
         let t = ui.global::<Tr>();
         // Le premier argument (Tr.l) ne sert qu'à faire recalculer les textes au changement de langue.
         t.on_t(|_, s| i18n::tr_str(&s).into());
