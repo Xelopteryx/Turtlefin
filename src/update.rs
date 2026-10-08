@@ -86,6 +86,18 @@ fn http() -> Result<reqwest::Client> {
         .build()?)
 }
 
+/// Réponse 404 de GitHub (reconnue sans dépendre de la langue du message).
+#[derive(Debug)]
+struct NotFound;
+
+impl std::fmt::Display for NotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", tr("introuvable sur GitHub"))
+    }
+}
+
+impl std::error::Error for NotFound {}
+
 async fn github(path: &str) -> Result<serde_json::Value> {
     let resp = http()?
         .get(format!("https://api.github.com/repos/{REPO}/{path}"))
@@ -93,7 +105,7 @@ async fn github(path: &str) -> Result<serde_json::Value> {
         .await
         .map_err(|_| anyhow!("{}", tr("GitHub injoignable (connexion Internet ?)")))?;
     match resp.status().as_u16() {
-        404 => Err(anyhow!("{}", tr("introuvable sur GitHub"))),
+        404 => Err(NotFound.into()),
         403 | 429 => Err(anyhow!("{}", tr("GitHub limite les vérifications : réessaie dans une heure"))),
         s if !(200..300).contains(&s) => Err(anyhow!("{}", trf("GitHub a répondu {}", &[&s]))),
         _ => Ok(resp.json().await?),
@@ -122,13 +134,13 @@ async fn check_source() -> Result<Option<(String, Vec<String>)>> {
     if local.is_empty() {
         return Err(anyhow!("{}", tr("version installée inconnue (compilée sans git)")));
     }
-    let v = github(&format!("compare/{local}...main")).await.map_err(|e| {
-        if e.to_string().starts_with("introuvable") {
-            anyhow!("{}", tr("cette version contient des modifications pas encore publiées sur GitHub ; rien à installer"))
-        } else {
-            e
-        }
-    })?;
+    // Version qui contient des modifications pas encore publiées (commit inconnu de GitHub) :
+    // rien de plus récent à installer, ce n'est pas un échec.
+    let v = match github(&format!("compare/{local}...main")).await {
+        Ok(v) => v,
+        Err(e) if e.downcast_ref::<NotFound>().is_some() => return Ok(None),
+        Err(e) => return Err(e),
+    };
     let ahead = v["ahead_by"].as_u64().unwrap_or(0);
     if ahead == 0 {
         return Ok(None);

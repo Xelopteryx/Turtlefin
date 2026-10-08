@@ -134,7 +134,12 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   first grain-cloud attempt, too costly (a whole-window image every frame). Tour redone: it shows
   the UI (selection moving by itself, menu opened, `tour-tick`), speaks remote (arrows / OK / Back drawing),
   highlights follow the real positions (`tabs-x`, `right-w`), Back / Skip / Next buttons (← →, OK). Home shown at once when going
-  back (no longer the previous page during the reload). Menu cogwheel redrawn.
+  back (no longer the previous page during the reload). Menu cogwheel redrawn. Fixed while testing everything
+  (two instances, offline...): empty menu offline, account removed from “Who's watching?” when its token is
+  refused, password field without keyboard focus (desktop), `turtlefin "Name"` not saved opening another
+  account, Back on “Who's watching?” after “Switch account”, “Remembered for the whole series” on a movie,
+  update check of an unpublished local build shown as a failure (GitHub 404 detected regardless of language).
+  Watch party checked with two clients.
 
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).

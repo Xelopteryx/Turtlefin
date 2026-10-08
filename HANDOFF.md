@@ -138,7 +138,11 @@ Points notables, non évidents dans le code :
   elle montre l'interface (sélection qui se promène, menu ouvert, `tour-tick`), parle télécommande
   (schéma flèches / OK / Retour), cadres calés sur les vraies positions (`tabs-x`, `right-w`), boutons
   Retour / Passer / Suivant au clavier (← →, OK). Accueil affiché tout de suite au retour (plus l'ancienne page pendant le rechargement).
-  Roue crantée du menu redessinée.
+  Roue crantée du menu redessinée. Corrigés en testant tout (deux instances, hors ligne...) : menu vide hors
+  ligne, compte retiré de « Qui regarde ? » quand son jeton est refusé, champ du mot de passe sans le clavier
+  (bureau), `turtlefin "Nom"` non enregistré qui ouvrait un autre compte, Retour sur « Qui regarde ? » après
+  « Changer de compte », « Retenu pour toute la série » sur un film, mise à jour d'une version locale non
+  publiée affichée en échec (404 GitHub reconnu sans dépendre de la langue). Watch party vérifiée à deux.
 
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).
