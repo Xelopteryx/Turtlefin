@@ -1304,8 +1304,6 @@ msgstr "Rivedi la presentazione di Turtlefin."
 msgid "Terminer"
 msgstr "Fine"
 
-msgid "Tes médias"
-msgstr "I tuoi media"
 
 
 
@@ -1315,20 +1313,10 @@ msgstr "Visita guidata"
 msgid "Visite guidée ?"
 msgstr "Visita guidata?"
 
-msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
-msgstr "Tutto si fa con il telecomando: le frecce per spostarsi, OK per aprire o confermare, Indietro per tornare indietro."
 
-msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
-msgstr "← → scorrono una riga, ↑ ↓ passano da una riga all'altra. OK apre la scheda del titolo scelto; Indietro ti riporta qui."
 
-msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
-msgstr "Dalla prima riga, ↑ sale qui. Home: i tuoi contenuti · Preferiti: ciò che hai segnato come preferito · Richieste: i film e le serie richiesti (se il server ha Seerr)."
 
-msgid "À droite, quatre raccourcis :"
-msgstr "A destra, quattro scorciatoie:"
 
-msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
-msgstr "Si apre con ← dalla prima locandina, o con Indietro. Librerie, download (da guardare senza connessione), watch party, cambio di account o di server, e Impostazioni."
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
 msgstr "← →: 10 s indietro o avanti. OK o ↓: i comandi (pausa, volume, audio, sottotitoli); ancora ↓: gli episodi della stagione. Indietro: interrompere la riproduzione."
@@ -1353,3 +1341,51 @@ msgstr "Ricerca: nella tua libreria, e un modo per richiedere ciò che manca."
 
 msgid "Ton profil : changer de compte ou de photo."
 msgstr "Il tuo profilo: cambiare account o foto."
+
+msgid "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "Questa visita ti fa provare l'app. Tutto si fa con il telecomando: le frecce per spostarsi, OK per aprire o confermare, Indietro per tornare indietro."
+
+msgid "Commencer"
+msgstr "Inizia"
+
+msgid "Les rangées"
+msgstr "Le righe"
+
+msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
+msgstr "Prova: premi → due volte per scorrere la riga."
+
+msgid "Changer de rangée"
+msgstr "Cambiare riga"
+
+msgid "Appuie sur ↓ pour passer à la rangée suivante."
+msgstr "Premi ↓ per passare alla riga successiva."
+
+msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
+msgstr "Premi ↑ fino a salire nella barra in alto."
+
+msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
+msgstr "Percorrila con ← →: le schede Home, Preferiti e Richieste, poi queste icone. Premi ↓ per tornare giù."
+
+msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
+msgstr "Vai all'inizio di una riga con ←, poi premi ancora ←: si apre il menu. Anche Indietro lo apre."
+
+msgid "Dans le menu"
+msgstr "Nel menu"
+
+msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →."
+msgstr "Librerie, download (da guardare senza connessione), watch party, account, server e Impostazioni. Percorrilo con ↑ ↓, poi chiudilo con →."
+
+msgid "Ouvrir un média"
+msgstr "Aprire un titolo"
+
+msgid "Choisis une affiche et appuie sur OK pour l'ouvrir."
+msgstr "Scegli una locandina e premi OK per aprirla."
+
+msgid "Revenir"
+msgstr "Tornare"
+
+msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
+msgstr "Una scheda (film, serie) o un'intera libreria: tutto si percorre allo stesso modo. Premi Indietro per tornare alla home."
+
+msgid "Échap : quitter la visite"
+msgstr "Esc: esci dalla visita"

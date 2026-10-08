@@ -1304,8 +1304,6 @@ msgstr "De rondleiding door Turtlefin opnieuw bekijken."
 msgid "Terminer"
 msgstr "Klaar"
 
-msgid "Tes médias"
-msgstr "Jouw media"
 
 
 
@@ -1315,20 +1313,10 @@ msgstr "Rondleiding"
 msgid "Visite guidée ?"
 msgstr "Rondleiding?"
 
-msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
-msgstr "Alles gaat met de afstandsbediening: de pijlen om te bewegen, OK om te openen of te bevestigen, Terug om terug te gaan."
 
-msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
-msgstr "← → bladeren door een rij, ↑ ↓ gaan naar een andere rij. OK opent de pagina van het gekozen item; Terug brengt je hier."
 
-msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
-msgstr "Vanaf de eerste rij gaat ↑ hierheen. Start: je media · Favorieten: wat je als favoriet hebt gemarkeerd · Verzoeken: aangevraagde films en series (als de server Seerr heeft)."
 
-msgid "À droite, quatre raccourcis :"
-msgstr "Rechts vier snelkoppelingen:"
 
-msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
-msgstr "Het opent met ← vanaf de eerste poster, of met Terug. Bibliotheken, downloads (om zonder verbinding te kijken), watch party, wisselen van account of server, en Instellingen."
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
 msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen."
@@ -1353,3 +1341,51 @@ msgstr "Zoeken: in je bibliotheek, en een manier om aan te vragen wat ontbreekt.
 
 msgid "Ton profil : changer de compte ou de photo."
 msgstr "Je profiel: wissel van account of foto."
+
+msgid "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "Met deze rondleiding probeer je de app uit. Alles gaat met de afstandsbediening: de pijlen om te bewegen, OK om te openen of te bevestigen, Terug om terug te gaan."
+
+msgid "Commencer"
+msgstr "Beginnen"
+
+msgid "Les rangées"
+msgstr "De rijen"
+
+msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
+msgstr "Probeer het: druk twee keer op → om door de rij te bladeren."
+
+msgid "Changer de rangée"
+msgstr "Van rij wisselen"
+
+msgid "Appuie sur ↓ pour passer à la rangée suivante."
+msgstr "Druk op ↓ om naar de volgende rij te gaan."
+
+msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
+msgstr "Druk op ↑ tot je in de bovenste balk bent."
+
+msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
+msgstr "Loop erdoor met ← →: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen. Druk op ↓ om weer naar beneden te gaan."
+
+msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
+msgstr "Ga met ← naar het begin van een rij en druk nog eens op ←: het menu gaat open. Terug opent het ook."
+
+msgid "Dans le menu"
+msgstr "In het menu"
+
+msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →."
+msgstr "Bibliotheken, downloads (om zonder verbinding te kijken), watch party, account, server en Instellingen. Blader erdoor met ↑ ↓ en sluit het met →."
+
+msgid "Ouvrir un média"
+msgstr "Een item openen"
+
+msgid "Choisis une affiche et appuie sur OK pour l'ouvrir."
+msgstr "Kies een poster en druk op OK om hem te openen."
+
+msgid "Revenir"
+msgstr "Teruggaan"
+
+msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
+msgstr "Een pagina (film, serie) of een hele bibliotheek: alles blader je op dezelfde manier door. Druk op Terug om naar het startscherm te gaan."
+
+msgid "Échap : quitter la visite"
+msgstr "Esc: rondleiding verlaten"

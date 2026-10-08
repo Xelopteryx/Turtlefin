@@ -1304,8 +1304,6 @@ msgstr "See the Turtlefin tour again."
 msgid "Terminer"
 msgstr "Done"
 
-msgid "Tes médias"
-msgstr "Your media"
 
 
 
@@ -1315,20 +1313,10 @@ msgstr "Guided tour"
 msgid "Visite guidée ?"
 msgstr "Guided tour?"
 
-msgid "Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
-msgstr "Everything is done with the remote: the arrows to move, OK to open or confirm, Back to go back."
 
-msgid "← → parcourent une rangée, ↑ ↓ passent d'une rangée à l'autre. OK ouvre la fiche du média choisi ; Retour te ramène ici."
-msgstr "← → move along a row, ↑ ↓ go from one row to another. OK opens the selected item's page; Back brings you here."
 
-msgid "Depuis la première rangée, ↑ monte ici. Accueil : tes médias · Favoris : ce que tu as mis en favori · Demandes : les films et séries demandés (si le serveur a Seerr)."
-msgstr "From the first row, ↑ comes up here. Home: your media · Favorites: what you marked as favorite · Requests: the movies and shows requested (if the server has Seerr)."
 
-msgid "À droite, quatre raccourcis :"
-msgstr "On the right, four shortcuts:"
 
-msgid "Il s'ouvre avec ← depuis la première affiche, ou avec Retour. Bibliothèques, téléchargements (à regarder sans connexion), watch party, changement de compte ou de serveur, et Paramètres."
-msgstr "It opens with ← from the first poster, or with Back. Libraries, downloads (to watch without a connection), watch party, switching account or server, and Settings."
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture."
 msgstr "← →: 10 s back or forward. OK or ↓: the controls (pause, volume, audio, subtitles); ↓ again: the season's episodes. Back: stop playback."
@@ -1353,3 +1341,51 @@ msgstr "Search: in your library, and a way to request what is missing."
 
 msgid "Ton profil : changer de compte ou de photo."
 msgstr "Your profile: switch account or picture."
+
+msgid "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
+msgstr "This tour lets you try the app. Everything is done with the remote: the arrows to move, OK to open or confirm, Back to go back."
+
+msgid "Commencer"
+msgstr "Start"
+
+msgid "Les rangées"
+msgstr "Rows"
+
+msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
+msgstr "Try it: press → twice to move along the row."
+
+msgid "Changer de rangée"
+msgstr "Change row"
+
+msgid "Appuie sur ↓ pour passer à la rangée suivante."
+msgstr "Press ↓ to go to the next row."
+
+msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
+msgstr "Press ↑ until you reach the top bar."
+
+msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
+msgstr "Move along it with ← →: the Home, Favorites and Requests tabs, then these icons. Press ↓ to go back down."
+
+msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
+msgstr "Go to the start of a row with ←, then press ← again: the menu opens. Back opens it too."
+
+msgid "Dans le menu"
+msgstr "In the menu"
+
+msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →."
+msgstr "Libraries, downloads (to watch without a connection), watch party, account, server and Settings. Browse it with ↑ ↓, then close it with →."
+
+msgid "Ouvrir un média"
+msgstr "Open an item"
+
+msgid "Choisis une affiche et appuie sur OK pour l'ouvrir."
+msgstr "Pick a poster and press OK to open it."
+
+msgid "Revenir"
+msgstr "Go back"
+
+msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
+msgstr "A page (movie, show) or a whole library: everything is browsed the same way. Press Back to return to the home screen."
+
+msgid "Échap : quitter la visite"
+msgstr "Esc: leave the tour"
