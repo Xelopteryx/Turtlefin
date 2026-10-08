@@ -6,6 +6,7 @@ import "fonts/Montserrat-SemiBold.ttf";
 import "fonts/Montserrat-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr } from "theme.slint";
+import { DustLine, DustLines } from "dust.slint";
 import { CardData } from "card.slint";
 import { Osk, OskKeys } from "osk.slint";
 export { OskKeys }
@@ -14,7 +15,7 @@ import { BootLogo } from "boot.slint";
 
 export { CardData, Prefs, Tr }
 
-export { TrackData }
+export { TrackData, DustLine }
 
 
 export struct Section {
@@ -5973,20 +5974,23 @@ export component AppWindow inherits Window {
         }
 
         // Effet de langue (dust.rs) : sous la liste de choix, à la place des textes de la page.
-        if root.dust-on && root.dust-layer == 1: Image {
+        if root.dust-on && root.dust-layer == 1: DustLines {
             x: 0px;
             y: -sets.y;
-            width: root.dust-w;
-            height: root.dust-h;
-            source: root.dust-img;
-            image-fit: fill;
+            width: root.width;
+            height: root.height;
+            lines: root.dust-lines;
+            phase: root.dust-phase;
+            t0: root.dust-t0;
+            k: root.k;
         }
 
         // Liste de choix d'un réglage : panneau de verre à droite, l'option actuelle cochée.
         property <float> ch-p: root.ch-key != "" ? 1 : 0;
         animate ch-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.ch-p > 0.01 && !root.dust-snap: ch-pane := Rectangle {
-            background: #00000080.transparentize(1 - sets.ch-p);
+            // Langue : voile léger, les blocs blancs de l'effet restent blancs.
+            background: (root.ch-key == "language" || root.dust-on ? #00000026 : #00000080).transparentize(1 - sets.ch-p);
             TouchArea {
                 clicked => {
                     root.ch-key = "";
@@ -7668,9 +7672,9 @@ export component AppWindow inherits Window {
         lang-title: root.boot-lang-title;
         snap: root.dust-snap;
         dust-on: root.dust-on && root.dust-layer == 2;
-        dust-img: root.dust-img;
-        dust-w: root.dust-w;
-        dust-h: root.dust-h;
+        dust-lines: root.dust-lines;
+        dust-phase: root.dust-phase;
+        dust-t0: root.dust-t0;
         langs: root.boot-langs;
         lang-sel <=> root.boot-lang-sel;
         continue-boot => {
@@ -7688,29 +7692,26 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Changement de langue « en poussière » (dust.rs) : image de toute la fenêtre calculée en Rust,
-    // posée sous la liste des langues (couche 1 : Paramètres, 2 : démarrage) ou par-dessus tout (0).
-    // dust-snap : captures en cours, la liste est masquée ; dust-cloud : textes en nuage (liste
-    // ouverte), sa fermeture sans choix les fait revenir (dust-cancel).
+    // Changement de langue (dust.rs, ui/dust.slint) : blocs blancs posés sur les lignes de texte,
+    // sous la liste des langues (couche 1 : Paramètres, 2 : démarrage). dust-snap : captures en
+    // cours, la liste est masquée ; dust-cloud : textes recouverts (liste ouverte), sa fermeture
+    // sans choix les fait revenir (dust-cancel).
     in-out property <bool> dust-on;
-    in property <image> dust-img;
-    in property <length> dust-w;
-    in property <length> dust-h;
+    in property <[DustLine]> dust-lines;
     in property <int> dust-layer;
     in-out property <bool> dust-snap;
     in-out property <bool> dust-cloud;
+    property <int> dust-phase;
+    property <duration> dust-t0;
     callback dust-cancel();
+    // Phase de l'effet (1 recouvrir, 2 recouvert, 3 dévoiler), avec son départ.
+    public function dust-start(phase: int) {
+        root.dust-phase = phase;
+        root.dust-t0 = animation-tick();
+    }
     changed ch-key => {
         if (root.dust-cloud && root.ch-key != "language") {
             root.dust-cancel();
         }
-    }
-    if root.dust-on && root.dust-layer == 0: Image {
-        x: 0px;
-        y: 0px;
-        width: root.dust-w;
-        height: root.dust-h;
-        source: root.dust-img;
-        image-fit: fill;
     }
 }

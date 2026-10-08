@@ -125,12 +125,13 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   menu and category icons (`NavIcon`); guided tour (`tour-step`, offered at startup, `--tutorial`, Settings →
   About); orange server dot while no server is chosen.
 
-- **October 8, 2026**: language change “into dust” (`dust.rs`, like the loadix.fun slogan) — when the language
-  list opens, every text turns into a cloud (`dissolve`); on choosing, the same grains rewrite the words in the
-  new language (`reform`), on cancel the old ones. Letters are found by capturing the page (`take_snapshot`) as
-  is, then with each text reversed and shifted (`i18n::set_pseudo`, same letters so same width); image under
-  the list (`dust-layer`), list hidden during captures (`dust-snap`); value pills with animated width. Replaces
-  the fragmentation (`Tr.fx`, `i18n::fragment` removed). Tour redone: it shows
+- **October 8, 2026**: language change (`dust.rs`, `ui/dust.slint`) — when the language list opens, a glowing bar
+  runs along each text line and covers it in white; on choosing, the blocks take the width of the new words and
+  the bar reveals them (on cancel, the old ones). Lines are found by capturing the page (`take_snapshot`) as is,
+  then with each text reversed and shifted (`i18n::set_pseudo`, same letters so same width), grouped into lines;
+  Slint does the animation (a few rectangles, nothing while choosing). Blocks under the list (`dust-layer`), list
+  hidden during captures (`dust-snap`); value pills with animated width. Replaces the fragmentation (`Tr.fx`) and a
+  first grain-cloud attempt, too costly (a whole-window image every frame). Tour redone: it shows
   the UI (selection moving by itself, menu opened, `tour-tick`), speaks remote (arrows / OK / Back drawing),
   highlights follow the real positions (`tabs-x`, `right-w`), Back / Skip / Next buttons (← →, OK). Home shown at once when going
   back (no longer the previous page during the reload). Menu cogwheel redrawn.
