@@ -7253,9 +7253,21 @@ export component AppWindow inherits Window {
     changed menu-open => {
         root.tour-ev(5);
     }
+    // Arrivée de la bulle à chaque étape (voir tour-box).
+    property <bool> tour-fresh;
+    property <duration> tour-t0;
+    Timer {
+        interval: 300ms;
+        running: root.tour-fresh;
+        triggered => {
+            root.tour-fresh = false;
+        }
+    }
     changed tour-step => {
         root.tour-ok = false;
         root.tour-n = 0;
+        root.tour-t0 = animation-tick();
+        root.tour-fresh = true;
         if (root.tour-step >= 0) {
             root.tour-last = root.tour-step;
             root.tour-btn = 2;
@@ -7284,14 +7296,14 @@ export component AppWindow inherits Window {
         : root.tour-last == 6 ? 4px * root.k : 0px;
     property <length> hy: root.tour-last == 1 ? root.header-h - 4px * root.k : root.tour-last == 3 || root.tour-last == 4 ? 4px * root.k
         : root.tour-last == 6 ? 4px * root.k : 0px;
-    property <length> hw: root.tour-last == 1 ? root.width - 12px * root.k : root.tour-last == 3 || root.tour-last == 4 ? root.width - 8px * root.k
+    property <length> hw: root.tour-last == 1 ? 0px : root.tour-last == 3 || root.tour-last == 4 ? root.width - 8px * root.k
         : root.tour-last == 6 ? root.menu-w : 0px;
-    property <length> hh: root.tour-last == 1 ? root.tour-row-h + 8px * root.k : root.tour-last == 3 || root.tour-last == 4 ? root.header-h - 8px * root.k
+    property <length> hh: root.tour-last == 1 ? 0px : root.tour-last == 3 || root.tour-last == 4 ? root.header-h - 8px * root.k
         : root.tour-last == 6 ? root.height - 8px * root.k : 0px;
     animate hx, hy, hw, hh { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Voile : sombre pour les étapes à boutons et celles qui éclairent une zone ; léger sinon (la page
     // reste lisible pendant qu'on y navigue).
-    property <color> tour-veil: root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8 ? #00000040 : #000000b8;
+    property <color> tour-veil: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8 ? #00000040 : #000000b8;
     animate tour-veil { duration: 300ms; }
 
     if root.tour-p > 0.01 && !root.playing: Rectangle {
@@ -7317,7 +7329,7 @@ export component AppWindow inherits Window {
             // Placement : sous l'en-tête (barre du haut), à droite du menu, en bas à droite pendant
             // qu'on navigue dans la page, sinon au centre.
             property <bool> below: root.tour-last == 3 || root.tour-last == 4;
-            property <bool> corner: root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8;
+            property <bool> corner: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8;
             property <length> art-h: root.tour-last == 0 ? 190px * root.k : root.tour-last == 4 ? 210px * root.k
                 : root.tour-last == 9 ? 170px * root.k : 0px;
             property <bool> buttons: !root.tour-act;
@@ -7329,7 +7341,12 @@ export component AppWindow inherits Window {
                 : self.corner ? parent.height - self.height - 30px * root.k
                 : root.tour-last == 1 ? min(parent.height - self.height - 30px * root.k, root.header-h + root.tour-row-h + 30px * root.k)
                 : (parent.height - self.height) / 2;
-            animate x, y, width, height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            // Nouvelle étape : la bulle apparaît à sa place (fondu, léger zoom) au lieu de
+            // glisser depuis celle de l'étape d'avant.
+            animate height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            property <float> fresh: root.tour-fresh ? clamp((animation-tick() - root.tour-t0) / 240ms, 0, 1) : 1;
+            opacity: self.fresh;
+            transform-scale: 0.96 + 0.04 * self.fresh;
             border-radius: 20px * root.k;
             background: #0b1520f2;
             border-width: root.tour-ok ? 2px * root.k : 1px;

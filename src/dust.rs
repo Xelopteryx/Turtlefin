@@ -190,10 +190,14 @@ fn model(lines: &[Line], from: Option<&[Line]>) -> ModelRc<DustLine> {
                     .filter(|o| o.y < l.y + l.h && l.y < o.y + o.h)
                     .min_by(|a, b| (a.x - l.x).abs().total_cmp(&(b.x - l.x).abs()))
             });
+            // Au départ, le bloc couvre l'ancien texte ET le nouveau (déjà affiché dessous, peut-être
+            // plus long) ; il se resserre ensuite sur le nouveau.
             let (fx, fw) = match (from, prev) {
-                (None, _) => (l.x, l.w),
-                (Some(_), Some(o)) => (o.x, o.w),
-                (Some(_), None) => (l.x, 0.0),
+                (Some(_), Some(o)) => {
+                    let x0 = o.x.min(l.x);
+                    (x0, (o.x + o.w).max(l.x + l.w) - x0)
+                }
+                _ => (l.x, l.w),
             };
             DustLine { x: l.x, y: l.y, w: l.w, h: l.h, fx, fw, delay: i as i64 * step }
         })
