@@ -1801,6 +1801,10 @@ export component AppWindow inherits Window {
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
         root.tour-ev(6);
+        // Effet de langue en cours sur une page quittée : les mots reviennent, la liste se ferme.
+        if (root.dust-cloud) {
+            root.ch-key = "";
+        }
         if (root.screen == "detail") {
             root.d-t0 = animation-tick();
         }
@@ -2193,6 +2197,7 @@ export component AppWindow inherits Window {
     callback switch-account();
     callback login-opened();               // écran de connexion affiché : tuiles des comptes
     callback login-pick(string);           // "acc:<id>" | "pub:<nom>" | "other"
+    callback login-back();                 // Retour sur « Qui regarde ? » (compte quitté rouvert)
     callback login-forget(string);         // retirer un compte enregistré ("acc:<id>")
     in property <int> login-saved;         // comptes enregistrés parmi les tuiles
     in property <string> login-title: Tr.t(Tr.k, "Ajouter un compte");
@@ -2657,7 +2662,11 @@ export component AppWindow inherits Window {
                             root.login-sel = min(lg.last-tile, lg.n - 1);
                         }
                     } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.login-edit = false;
+                        if (root.login-edit) {
+                            root.login-edit = false;
+                        } else {
+                            root.login-back();
+                        }
                     } else if (event.text == Key.Return) {
                         if (root.login-edit) {
                             if (root.login-sel >= lg.n) {

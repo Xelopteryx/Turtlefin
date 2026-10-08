@@ -175,6 +175,8 @@ struct App {
     playing: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
     home_stale: AtomicBool,
+    /// Compte quitté par « Changer de compte » : Retour sur « Qui regarde ? » le rouvre.
+    prev_account: Mutex<Option<String>>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
     home_keep: Mutex<Option<(String, String)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
@@ -895,6 +897,12 @@ fn login_pick(app: &Arc<App>, action: String) {
 
 /// Fin de session (déconnexion ou changement de compte) puis écran de connexion.
 /// `forget` : le compte est retiré des comptes enregistrés.
+/// « Changer de compte » : retour à « Qui regarde ? », en retenant le compte quitté.
+fn switch_account(app: &Arc<App>) {
+    *app.prev_account.lock().unwrap() = app.client().map(|c| c.user_id.clone());
+    end_session(app, false);
+}
+
 fn end_session(app: &Arc<App>, forget: bool) {
     if app.sp.lock().unwrap().group.is_some() {
         if let Some(c) = app.client() {
@@ -2863,7 +2871,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 open_choice(app, "language");
             }
         }
-        "switch" => end_session(app, false),
+        "switch" => switch_account(app),
         "update" => update_action(app),
         "backdrop" => {
             let mut saved = config::load();
@@ -4135,6 +4143,7 @@ fn main() -> anyhow::Result<()> {
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
+        prev_account: Mutex::new(None),
         home_keep: Mutex::new(None),
         player_tx: Mutex::new(None),
     });
@@ -4172,7 +4181,19 @@ fn main() -> anyhow::Result<()> {
 
     ui.on_login_pick({
         let app = app.clone();
-        move |a| login_pick(&app, a.to_string())
+        move |a| {
+            app.prev_account.lock().unwrap().take();
+            login_pick(&app, a.to_string())
+        }
+    });
+    // Retour sur « Qui regarde ? » : le compte quitté par « Changer de compte » est rouvert.
+    ui.on_login_back({
+        let app = app.clone();
+        move || {
+            if let Some(id) = app.prev_account.lock().unwrap().take() {
+                login_pick(&app, format!("acc:{id}"));
+            }
+        }
     });
 
     // Mot de passe affiché en points.
@@ -4498,7 +4519,7 @@ fn main() -> anyhow::Result<()> {
             } else if a == "server" {
                 open_servers(&app);
             } else if a == "switch" {
-                end_session(&app, false);
+                switch_account(&app);
             } else if a == "logout" {
                 if let Some(u) = app.ui().upgrade() {
                     u.invoke_logout();
