@@ -1393,3 +1393,6 @@ msgstr "Open het menu: ga in de bovenste balk helemaal naar links naar ≡ en dr
 
 msgid "Retour : quitter la visite"
 msgstr "Terug: rondleiding verlaten"
+
+msgid "Retenu pour ce film"
+msgstr "Onthouden voor deze film"

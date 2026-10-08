@@ -1395,3 +1395,6 @@ msgstr "Otwórz menu: na górnym pasku przejdź całkiem w lewo na ≡ i naciśn
 
 msgid "Retour : quitter la visite"
 msgstr "Wstecz: zakończ prezentację"
+
+msgid "Retenu pour ce film"
+msgstr "Zapamiętane dla tego filmu"

@@ -2131,6 +2131,7 @@ export component AppWindow inherits Window {
     // Choix des pistes de la fiche (liste au premier plan) : "" | "audio" | "sub"
     in-out property <string> tp-kind;
     in property <[TrackData]> tp-items;
+    in property <string> tp-hint;          // « Retenu pour toute la série » ou « pour ce film »
     in-out property <int> tp-sel;
     in-out property <[Section]> detail-rows; // casting, plus de ce genre, Seerr (zones 4 et +)
     in-out property <int> d-x: 0;            // carte sélectionnée dans une rangée du bas
@@ -4603,7 +4604,7 @@ export component AppWindow inherits Window {
                 Text {
                     x: 24px * root.k;
                     y: 42px * root.k;
-                    text: Tr.t(Tr.k, "Retenu pour toute la série");
+                    text: root.tp-hint;
                     color: Theme.muted;
                     font-size: 12px * root.k;
                 }

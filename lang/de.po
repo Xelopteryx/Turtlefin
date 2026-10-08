@@ -1393,3 +1393,6 @@ msgstr "Öffne das Menü: in der oberen Leiste ganz nach links auf ≡ und OK dr
 
 msgid "Retour : quitter la visite"
 msgstr "Zurück: Tour verlassen"
+
+msgid "Retenu pour ce film"
+msgstr "Für diesen Film gemerkt"

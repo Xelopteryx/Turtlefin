@@ -177,6 +177,8 @@ struct App {
     home_stale: AtomicBool,
     /// Compte quitté par « Changer de compte » : Retour sur « Qui regarde ? » le rouvre.
     prev_account: Mutex<Option<String>>,
+    /// Type du média de la fiche (« Movie », « Episode »...) : texte de la liste des pistes.
+    detail_kind: Mutex<String>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
     home_keep: Mutex<Option<(String, String)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
@@ -1347,6 +1349,9 @@ fn open_track_picker(app: &Arc<App>, kind: &str) {
     if let Some(u) = app.ui().upgrade() {
         u.set_tp_items(ModelRc::new(VecModel::from(rows)));
         u.set_tp_sel(sel);
+        // Choix retenu pour toute la série (épisode, saison, série) ou pour ce film seulement.
+        let series = matches!(app.detail_kind.lock().unwrap().as_str(), "Episode" | "Season" | "Series");
+        u.set_tp_hint(if series { tr("Retenu pour toute la série") } else { tr("Retenu pour ce film") }.into());
         u.set_tp_kind(kind.into());
     }
 }
@@ -3563,6 +3568,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         }
     }
     *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
+    *app.detail_kind.lock().unwrap() = item.kind.clone();
     if downloads::exists(&item.id) {
         for b in buttons.iter_mut().filter(|b| b.1 == "download") {
             b.3 = true;
@@ -4144,6 +4150,7 @@ fn main() -> anyhow::Result<()> {
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         prev_account: Mutex::new(None),
+        detail_kind: Mutex::new(String::new()),
         home_keep: Mutex::new(None),
         player_tx: Mutex::new(None),
     });

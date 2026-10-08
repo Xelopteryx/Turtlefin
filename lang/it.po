@@ -1393,3 +1393,6 @@ msgstr "Apri il menu: nella barra in alto vai tutto a sinistra su ≡ e premi OK
 
 msgid "Retour : quitter la visite"
 msgstr "Indietro: esci dalla visita"
+
+msgid "Retenu pour ce film"
+msgstr "Ricordato per questo film"

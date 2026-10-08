@@ -1393,3 +1393,6 @@ msgstr "Open the menu: in the top bar, go far left to ≡ and press OK; from the
 
 msgid "Retour : quitter la visite"
 msgstr "Back: leave the tour"
+
+msgid "Retenu pour ce film"
+msgstr "Remembered for this movie"
