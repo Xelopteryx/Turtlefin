@@ -1351,23 +1351,15 @@ msgstr "Empezar"
 msgid "Les rangées"
 msgstr "Las filas"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Prueba: pulsa → dos veces para recorrer la fila."
 
 msgid "Changer de rangée"
 msgstr "Cambiar de fila"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Pulsa ↓ para pasar a la fila siguiente."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Pulsa ↑ hasta subir a la barra superior."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Recórrela con ← →: las pestañas Inicio, Favoritos y Solicitudes, y luego estos iconos. Pulsa ↓ para volver a bajar."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Ve al principio de una fila con ← y pulsa ← otra vez: se abre el menú. Volver también lo abre."
 
 msgid "Dans le menu"
 msgstr "En el menú"
@@ -1387,5 +1379,17 @@ msgstr "Volver atrás"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Una ficha (película, serie) o una biblioteca entera: todo se recorre igual. Pulsa Volver para regresar al inicio."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: salir de la visita"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Prueba: muévete dos veces con las flechas, ← → en una fila, ↑ ↓ de una fila a otra."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Cambia de fila con ↓ o ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Recórrela con → hasta tu perfil, a la derecha del todo: las pestañas Inicio, Favoritos y Solicitudes, y luego estos iconos."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Abre el menú: en la barra superior, ve a la izquierda del todo hasta ≡ y pulsa OK; desde los pósteres, ← al principio de una fila (o Volver)."
+
+msgid "Retour : quitter la visite"
+msgstr "Volver: salir de la visita"

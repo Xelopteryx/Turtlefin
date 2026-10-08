@@ -1351,23 +1351,15 @@ msgstr "Inizia"
 msgid "Les rangées"
 msgstr "Le righe"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Prova: premi → due volte per scorrere la riga."
 
 msgid "Changer de rangée"
 msgstr "Cambiare riga"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Premi ↓ per passare alla riga successiva."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Premi ↑ fino a salire nella barra in alto."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Percorrila con ← →: le schede Home, Preferiti e Richieste, poi queste icone. Premi ↓ per tornare giù."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Vai all'inizio di una riga con ←, poi premi ancora ←: si apre il menu. Anche Indietro lo apre."
 
 msgid "Dans le menu"
 msgstr "Nel menu"
@@ -1387,5 +1379,17 @@ msgstr "Tornare"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Una scheda (film, serie) o un'intera libreria: tutto si percorre allo stesso modo. Premi Indietro per tornare alla home."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: esci dalla visita"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Prova: spostati due volte con le frecce, ← → in una riga, ↑ ↓ da una riga all'altra."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Cambia riga con ↓ o ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Percorrila con → fino al tuo profilo, tutto a destra: le schede Home, Preferiti e Richieste, poi queste icone."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Apri il menu: nella barra in alto vai tutto a sinistra su ≡ e premi OK; dalle locandine, ← all'inizio di una riga (o Indietro)."
+
+msgid "Retour : quitter la visite"
+msgstr "Indietro: esci dalla visita"

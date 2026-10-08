@@ -1351,23 +1351,15 @@ msgstr "Beginnen"
 msgid "Les rangées"
 msgstr "De rijen"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Probeer het: druk twee keer op → om door de rij te bladeren."
 
 msgid "Changer de rangée"
 msgstr "Van rij wisselen"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Druk op ↓ om naar de volgende rij te gaan."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Druk op ↑ tot je in de bovenste balk bent."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Loop erdoor met ← →: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen. Druk op ↓ om weer naar beneden te gaan."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Ga met ← naar het begin van een rij en druk nog eens op ←: het menu gaat open. Terug opent het ook."
 
 msgid "Dans le menu"
 msgstr "In het menu"
@@ -1387,5 +1379,17 @@ msgstr "Teruggaan"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Een pagina (film, serie) of een hele bibliotheek: alles blader je op dezelfde manier door. Druk op Terug om naar het startscherm te gaan."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: rondleiding verlaten"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Probeer het: beweeg twee keer met de pijlen, ← → in een rij, ↑ ↓ van rij naar rij."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Wissel van rij met ↓ of ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Loop erdoor met → tot je profiel, helemaal rechts: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Open het menu: ga in de bovenste balk helemaal naar links naar ≡ en druk op OK; bij de posters ← aan het begin van een rij (of Terug)."
+
+msgid "Retour : quitter la visite"
+msgstr "Terug: rondleiding verlaten"

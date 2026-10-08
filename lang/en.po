@@ -1351,23 +1351,15 @@ msgstr "Start"
 msgid "Les rangées"
 msgstr "Rows"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Try it: press → twice to move along the row."
 
 msgid "Changer de rangée"
 msgstr "Change row"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Press ↓ to go to the next row."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Press ↑ until you reach the top bar."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Move along it with ← →: the Home, Favorites and Requests tabs, then these icons. Press ↓ to go back down."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Go to the start of a row with ←, then press ← again: the menu opens. Back opens it too."
 
 msgid "Dans le menu"
 msgstr "In the menu"
@@ -1387,5 +1379,17 @@ msgstr "Go back"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "A page (movie, show) or a whole library: everything is browsed the same way. Press Back to return to the home screen."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: leave the tour"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Try it: move twice with the arrows, ← → along a row, ↑ ↓ from one row to another."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Change row with ↓ or ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Move along it with → up to your profile, far right: the Home, Favorites and Requests tabs, then these icons."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Open the menu: in the top bar, go far left to ≡ and press OK; from the posters, ← at the start of a row (or Back)."
+
+msgid "Retour : quitter la visite"
+msgstr "Back: leave the tour"

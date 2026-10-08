@@ -1353,23 +1353,15 @@ msgstr "Zaczynamy"
 msgid "Les rangées"
 msgstr "Rzędy"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Spróbuj: naciśnij dwa razy →, aby przewinąć rząd."
 
 msgid "Changer de rangée"
 msgstr "Zmiana rzędu"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Naciśnij ↓, aby przejść do następnego rzędu."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Naciskaj ↑, aż dojdziesz do górnego paska."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Przejdź po nim strzałkami ← →: karty Start, Ulubione i Prośby, a potem te ikony. Naciśnij ↓, aby wrócić na dół."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Przejdź strzałką ← na początek rzędu i naciśnij ← jeszcze raz: otworzy się menu. Wstecz też je otwiera."
 
 msgid "Dans le menu"
 msgstr "W menu"
@@ -1389,5 +1381,17 @@ msgstr "Powrót"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Strona (film, serial) lub cała biblioteka: wszystko przegląda się tak samo. Naciśnij Wstecz, aby wrócić do ekranu startowego."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: zakończ prezentację"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Spróbuj: przesuń się dwa razy strzałkami, ← → w rzędzie, ↑ ↓ między rzędami."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Zmień rząd strzałką ↓ lub ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Przejdź po nim strzałką → aż do swojego profilu, całkiem po prawej: karty Start, Ulubione i Prośby, a potem te ikony."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Otwórz menu: na górnym pasku przejdź całkiem w lewo na ≡ i naciśnij OK; przy plakatach ← na początku rzędu (lub Wstecz)."
+
+msgid "Retour : quitter la visite"
+msgstr "Wstecz: zakończ prezentację"

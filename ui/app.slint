@@ -3271,9 +3271,13 @@ export component AppWindow inherits Window {
                     root.cancel-open();
                     return EventResult.accept;
                 }
-                // Visite guidée : Échap la quitte (étapes où il ne sert pas au geste demandé).
-                if (root.tour-esc && event.text == Key.Escape) {
+                // Visite guidée : Retour / Échap la quittent (étapes où ils ne servent pas au geste
+                // demandé) ; OK n'ouvre rien tant que l'étape ne le demande pas.
+                if (root.tour-esc && (event.text == Key.Escape || event.text == Key.Backspace)) {
                     root.tour-step = -1;
+                    return EventResult.accept;
+                }
+                if (root.tour-no-ok && event.text == Key.Return) {
                     return EventResult.accept;
                 }
                 // Sélection dans l'en-tête : menu, onglets, recherche, profil
@@ -6634,6 +6638,9 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.DownArrow) {
                         root.menu-move(1);
                     } else if (event.text == Key.Return) {
+                        if (root.tour-step == 6) {
+                            return EventResult.accept;
+                        }
                         root.close-menu();
                         root.nav-out("menu", root.menu-entries[root.menu-sel].action);
                     } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.RightArrow) {
@@ -7159,8 +7166,14 @@ export component AppWindow inherits Window {
     property <bool> tour-act: root.tour-step >= 1 && root.tour-step <= 8;
     // Visite affichée et étape à boutons : elle garde le clavier.
     property <bool> tour-lock: root.tour-step >= 0 && !root.tour-act;
-    // Échap quitte la visite (étapes où il ne sert pas au geste demandé).
+    // Échap / Retour quittent la visite (étapes où ils ne servent pas au geste demandé).
     property <bool> tour-esc: (root.tour-step >= 1 && root.tour-step <= 4) || root.tour-step == 7;
+    // Pendant la visite, OK n'ouvre rien sur l'accueil, sauf à l'étape « ouvrir un média » et le
+    // bouton menu à l'étape « ouvrir le menu » (sinon on quitterait l'accueil en pleine visite).
+    property <bool> tour-no-ok: (root.tour-step >= 1 && root.tour-step <= 6 && root.tour-step != 5)
+        || (root.tour-step == 5 && !(root.h-focus && root.h-sel == root.nav-n - 1));
+    // Gestes possibles avec ce qu'affiche l'accueil (une seule affiche, une seule rangée, rien).
+    property <int> tour-cards: root.sections.length == 0 ? 0 : root.sections.length > 1 ? 2 : root.sections[0].items.length;
     // Bouton choisi au clavier : 0 retour · 1 passer la visite · 2 suivant.
     property <int> tour-btn: 2;
     // Gestes déjà faits dans l'étape (→ de l'étape 1, icônes de l'étape 4).
@@ -7186,7 +7199,12 @@ export component AppWindow inherits Window {
         if (!root.tour-act || root.tour-ok) {
             return;
         }
-        if (root.tour-step == 1 && kind == 1) {
+        // Accueil quitté (clic, raccourci) pendant les étapes qui s'y déroulent : fin de la visite.
+        if (kind == 6 && root.tour-step <= 6 && root.screen != "home") {
+            root.tour-step = -1;
+            return;
+        }
+        if (root.tour-step == 1 && (kind == 1 || kind == 2)) {
             root.tour-n += 1;
             if (root.tour-n >= 2) {
                 root.tour-done();
@@ -7195,8 +7213,9 @@ export component AppWindow inherits Window {
             root.tour-done();
         } else if (root.tour-step == 3 && kind == 3 && root.h-focus) {
             root.tour-done();
-        } else if (root.tour-step == 4 && kind == 4) {
-            root.tour-n += 1;
+        } else if (root.tour-step == 4 && kind == 4 && root.h-sel >= root.right-base + (root.offline ? 0 : 3)) {
+            // Arrivé au profil, tout à droite.
+            root.tour-done();
         } else if (root.tour-step == 4 && kind == 3 && !root.h-focus) {
             root.tour-done();
         } else if (root.tour-step == 5 && kind == 5 && root.menu-open) {
@@ -7238,6 +7257,12 @@ export component AppWindow inherits Window {
             if (root.tour-act) {
                 // Les touches retournent à la page (ou au menu ouvert).
                 root.refocus += 1;
+            }
+            // Geste impossible ici (une seule affiche, une seule rangée, aucun média, pas de page
+            // ouverte) : l'étape est sautée.
+            if ((root.tour-step == 1 && root.tour-cards < 2) || (root.tour-step == 2 && root.sections.length < 2)
+                    || (root.tour-step == 7 && root.sections.length == 0) || (root.tour-step == 8 && root.screen == "home")) {
+                root.tour-step += 1;
             }
         } else {
             root.refocus += 1;
@@ -7349,11 +7374,11 @@ export component AppWindow inherits Window {
                 width: parent.width - 56px * root.k;
                 wrap: word-wrap;
                 text: root.tour-last == 0 ? Tr.t(Tr.k, "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière.")
-                    : root.tour-last == 1 ? Tr.t(Tr.k, "Essaie : appuie deux fois sur → pour parcourir la rangée.")
-                    : root.tour-last == 2 ? Tr.t(Tr.k, "Appuie sur ↓ pour passer à la rangée suivante.")
+                    : root.tour-last == 1 ? Tr.t(Tr.k, "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre.")
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "Change de rangée avec ↓ ou ↑.")
                     : root.tour-last == 3 ? Tr.t(Tr.k, "Appuie sur ↑ jusqu'à monter dans la barre du haut.")
-                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre.")
-                    : root.tour-last == 5 ? Tr.t(Tr.k, "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi.")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes.")
+                    : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →.")
                     : root.tour-last == 7 ? Tr.t(Tr.k, "Choisis une affiche et appuie sur OK pour l'ouvrir.")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil.")
@@ -7555,7 +7580,7 @@ export component AppWindow inherits Window {
                 x: parent.width - self.width - 24px * root.k;
                 y: parent.height - 38px * root.k;
                 height: 24px * root.k;
-                text: root.tour-esc ? Tr.t(Tr.k, "Échap : quitter la visite") : "";
+                text: root.tour-esc ? Tr.t(Tr.k, "Retour : quitter la visite") : "";
                 color: #ffffff80;
                 font-size: 13px * root.k;
                 vertical-alignment: center;

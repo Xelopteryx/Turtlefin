@@ -1351,23 +1351,15 @@ msgstr "Começar"
 msgid "Les rangées"
 msgstr "As filas"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Experimenta: carrega duas vezes em → para percorrer a fila."
 
 msgid "Changer de rangée"
 msgstr "Mudar de fila"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Carrega em ↓ para passar à fila seguinte."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Carrega em ↑ até subires à barra de cima."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Percorre-a com ← →: os separadores Início, Favoritos e Pedidos, e depois estes ícones. Carrega em ↓ para voltar a descer."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Vai ao início de uma fila com ← e carrega outra vez em ←: o menu abre-se. Voltar também o abre."
 
 msgid "Dans le menu"
 msgstr "No menu"
@@ -1387,5 +1379,17 @@ msgstr "Regressar"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Uma ficha (filme, série) ou uma biblioteca inteira: tudo se percorre da mesma maneira. Carrega em Voltar para regressar ao início."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: sair da visita"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Experimenta: desloca-te duas vezes com as setas, ← → numa fila, ↑ ↓ de uma fila para outra."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Muda de fila com ↓ ou ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Percorre-a com → até ao teu perfil, à direita de tudo: os separadores Início, Favoritos e Pedidos, e depois estes ícones."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Abre o menu: na barra de cima, vai à esquerda de tudo até ≡ e carrega em OK; a partir dos cartazes, ← no início de uma fila (ou Voltar)."
+
+msgid "Retour : quitter la visite"
+msgstr "Voltar: sair da visita"

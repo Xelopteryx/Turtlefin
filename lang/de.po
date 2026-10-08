@@ -1351,23 +1351,15 @@ msgstr "Los geht's"
 msgid "Les rangées"
 msgstr "Die Reihen"
 
-msgid "Essaie : appuie deux fois sur → pour parcourir la rangée."
-msgstr "Probier es: drücke zweimal →, um durch die Reihe zu blättern."
 
 msgid "Changer de rangée"
 msgstr "Reihe wechseln"
 
-msgid "Appuie sur ↓ pour passer à la rangée suivante."
-msgstr "Drücke ↓, um zur nächsten Reihe zu gehen."
 
 msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
 msgstr "Drücke ↑, bis du oben in der Leiste bist."
 
-msgid "Parcours-la avec ← → : les onglets Accueil, Favoris et Demandes, puis ces icônes. Appuie sur ↓ pour redescendre."
-msgstr "Geh sie mit ← → durch: die Tabs Start, Favoriten und Anfragen, dann diese Symbole. Drücke ↓, um wieder nach unten zu gehen."
 
-msgid "Va au début d'une rangée avec ←, puis appuie encore sur ← : le menu s'ouvre. Retour l'ouvre aussi."
-msgstr "Geh mit ← an den Anfang einer Reihe und drücke noch einmal ←: das Menü öffnet sich. Zurück öffnet es auch."
 
 msgid "Dans le menu"
 msgstr "Im Menü"
@@ -1387,5 +1379,17 @@ msgstr "Zurückgehen"
 msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
 msgstr "Eine Seite (Film, Serie) oder eine ganze Bibliothek: alles wird gleich durchblättert. Drücke Zurück, um zum Start zurückzukehren."
 
-msgid "Échap : quitter la visite"
-msgstr "Esc: Tour verlassen"
+msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Probier es: beweg dich zweimal mit den Pfeilen, ← → in einer Reihe, ↑ ↓ von Reihe zu Reihe."
+
+msgid "Change de rangée avec ↓ ou ↑."
+msgstr "Wechsle die Reihe mit ↓ oder ↑."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
+msgstr "Geh sie mit → bis zu deinem Profil ganz rechts durch: die Tabs Start, Favoriten und Anfragen, dann diese Symbole."
+
+msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Öffne das Menü: in der oberen Leiste ganz nach links auf ≡ und OK drücken; bei den Postern ← am Anfang einer Reihe (oder Zurück)."
+
+msgid "Retour : quitter la visite"
+msgstr "Zurück: Tour verlassen"
