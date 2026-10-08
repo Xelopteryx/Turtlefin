@@ -4,9 +4,15 @@ import "fonts/Montserrat-Regular.ttf";
 import "fonts/Montserrat-Medium.ttf";
 import "fonts/Montserrat-SemiBold.ttf";
 import "fonts/Montserrat-Bold.ttf";
+// Mêmes largeurs que Montserrat, lettres vides : effet de changement de langue (dust.rs).
+import "fonts/TurtlefinBlank-Regular.ttf";
+import "fonts/TurtlefinBlank-Medium.ttf";
+import "fonts/TurtlefinBlank-SemiBold.ttf";
+import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr } from "theme.slint";
 import { DustLine, DustLines } from "dust.slint";
+import { Str, TypedText } from "typed.slint";
 import { CardData } from "card.slint";
 import { Osk, OskKeys } from "osk.slint";
 export { OskKeys }
@@ -15,7 +21,7 @@ import { BootLogo } from "boot.slint";
 
 export { CardData, Prefs, Tr }
 
-export { TrackData, DustLine }
+export { TrackData, DustLine, Str }
 
 
 export struct Section {
@@ -1441,7 +1447,8 @@ export component AppWindow inherits Window {
     in property <bool> frameless;
     no-frame: root.frameless;
     background: Theme.bg;
-    default-font-family: "Montserrat";
+    // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
+    default-font-family: root.dust-blank ? "Turtlefin Blank" : "Montserrat";
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
@@ -2114,7 +2121,9 @@ export component AppWindow inherits Window {
     in property <bool> search-busy;
     in-out property <int> s-section;
     in-out property <int> s-item;
-    in-out property <bool> s-osk;            // sélection sur le clavier (mode TV) / le champ
+    in-out property <bool> s-osk;            // mode TV : clavier à l'écran ouvert (la sélection y est)
+    in-out property <bool> s-field;          // mode TV : sélection sur le champ (OK ouvre le clavier)
+    property <length> s-cur-x: -1px;         // bureau : position du curseur dans le champ
 
     // Bibliothèque (grille)
     in property <string> lib-title;
@@ -3677,13 +3686,25 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.reject;
                 }
+                // Mode TV, sélection sur le champ : OK ouvre le clavier, ↓ va aux résultats, ↑ à la barre.
+                if (root.tv-mode && (root.s-field || root.search-sections.length == 0)) {
+                    if (event.text == Key.Return) {
+                        root.s-field = false;
+                        root.s-osk = true;
+                    } else if (event.text == Key.DownArrow && root.search-sections.length > 0) {
+                        root.s-field = false;
+                    } else if (event.text == Key.UpArrow) {
+                        root.nav-enter();
+                    } else if (event.text == Key.Backspace) {
+                        root.nav-out("go-home", "");
+                    } else {
+                        root.s-field = true;
+                    }
+                    return EventResult.accept;
+                }
                 if (root.search-sections.length == 0) {
                     if (event.text == Key.UpArrow) {
-                        if (root.tv-mode) {
-                            root.s-osk = true;
-                        } else {
-                            s-input.focus();
-                        }
+                        s-input.focus();
                     }
                     return EventResult.accept;
                 }
@@ -3707,7 +3728,8 @@ export component AppWindow inherits Window {
                             root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w);
                         root.s-section -= 1;
                     } else if (root.tv-mode) {
-                        root.s-osk = true;
+                        // Retour au champ, sans rouvrir le clavier.
+                        root.s-field = true;
                     } else {
                         s-input.focus();
                     }
@@ -3728,8 +3750,9 @@ export component AppWindow inherits Window {
             height: parent.box-h;
             border-radius: self.height / 2;
             background: #ffffff14;
-            border-width: (root.tv-mode && root.s-osk) || s-input.has-focus ? 2px : 1px;
-            border-color: (root.tv-mode && root.s-osk) || s-input.has-focus ? Theme.accent2 : #ffffff33;
+            border-width: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? 2px : 1px;
+            border-color: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? Theme.accent2 : #ffffff33;
+            clip: true;
 
             Path {
                 x: 18px * root.k;
@@ -3743,16 +3766,18 @@ export component AppWindow inherits Window {
                 stroke-width: 2.4px * root.k;
                 commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
             }
-            // Mode TV : texte tapé au clavier à l'écran ; sinon, champ classique.
-            if root.tv-mode: Text {
+            // Texte tapé (animé, curseur qui clignote) : clavier à l'écran en mode TV, champ
+            // classique au bureau (son texte et son curseur sont masqués, celui-ci les dessine).
+            TypedText {
                 x: 54px * root.k;
                 width: parent.width - 70px * root.k;
                 height: parent.height;
-                text: root.search-text == "" ? Tr.t(Tr.k, "Titre d'un film, d'une série, d'un épisode…") : root.search-text + "│";
-                color: root.search-text == "" ? Theme.muted : white;
+                text: root.search-text;
+                placeholder: Tr.t(Tr.k, "Titre d'un film, d'une série, d'un épisode…");
+                cursor: root.tv-mode ? root.s-osk : s-input.has-focus;
+                cursor-x: root.tv-mode ? -1px : root.s-cur-x;
                 font-size: 18px * root.k;
-                vertical-alignment: center;
-                overflow: elide;
+                k: root.k;
             }
             s-input := TextInput {
                 x: 54px * root.k;
@@ -3761,10 +3786,14 @@ export component AppWindow inherits Window {
                 visible: !root.tv-mode;
                 enabled: !root.tv-mode;
                 text <=> root.search-text;
-                color: white;
+                color: transparent;
+                text-cursor-width: 0px;
                 font-size: 18px * root.k;
                 vertical-alignment: center;
                 single-line: true;
+                cursor-position-changed(pos) => {
+                    root.s-cur-x = pos.x;
+                }
                 edited => {
                     root.search-changed(self.text);
                 }
@@ -3794,14 +3823,6 @@ export component AppWindow inherits Window {
                     return EventResult.reject;
                 }
             }
-            if !root.tv-mode && root.search-text == "": Text {
-                x: 54px * root.k;
-                height: parent.height;
-                text: Tr.t(Tr.k, "Titre d'un film, d'une série, d'un épisode…");
-                color: Theme.muted;
-                font-size: 18px * root.k;
-                vertical-alignment: center;
-            }
         }
 
         // Clavier à l'écran (mode TV)
@@ -3820,18 +3841,18 @@ export component AppWindow inherits Window {
                 root.search-text = t;
                 root.search-changed(root.search-text);
             }
+            // OK du clavier, ou ↓ sous sa dernière ligne : il se ferme ; la sélection va aux
+            // résultats (ou reste sur le champ s'il n'y en a pas).
             done => {
-                if (root.search-sections.length > 0) {
-                    root.s-osk = false;
-                }
+                root.s-osk = false;
+                root.s-field = root.search-sections.length == 0;
             }
             leave-up => {
                 root.nav-enter();
             }
             leave-down => {
-                if (root.search-sections.length > 0) {
-                    root.s-osk = false;
-                }
+                root.s-osk = false;
+                root.s-field = root.search-sections.length == 0;
             }
         }
 
@@ -3863,7 +3884,7 @@ export component AppWindow inherits Window {
                     card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
                     ratio: section.landscape ? 0.5625 : 1.5;
                     k: root.k;
-                    active: !root.h-focus && !root.s-osk && si == root.s-section;
+                    active: !root.h-focus && !root.s-osk && !(root.tv-mode && root.s-field) && si == root.s-section;
                     focus-index: root.s-item;
                     key: 2000 + si;
                     activated(i) => {
@@ -4883,9 +4904,9 @@ export component AppWindow inherits Window {
                 spacing: 8px * root.k;
                 alignment: start;
                 Text {
-                    text: root.srv-searching ? Tr.t(Tr.k, "Recherche sur tes réseaux (local et VPN)")
+                    text: root.srv-searching ? Tr.t(Tr.k, "Recherche sur tes réseaux")
                         : root.servers.length == 0 ? Tr.t(Tr.k, "Aucun serveur trouvé : saisis son adresse.")
-                        : Tr.p(Tr.k, "{n} serveur trouvé sur tes réseaux (local et VPN)", "{n} serveurs trouvés sur tes réseaux (local et VPN)", root.servers.length);
+                        : Tr.p(Tr.k, "{n} serveur trouvé sur tes réseaux", "{n} serveurs trouvés sur tes réseaux", root.servers.length);
                     color: Theme.muted;
                     font-size: 15px * root.k;
                     vertical-alignment: center;
@@ -6451,7 +6472,7 @@ export component AppWindow inherits Window {
                     }
                     Text {
                         text: root.addr-edit == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
-                            : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau, VPN…). Laisse vide pour n'en avoir aucune.");
+                            : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
                         wrap: word-wrap;
@@ -7722,6 +7743,7 @@ export component AppWindow inherits Window {
     in property <[DustLine]> dust-lines;
     in property <int> dust-layer;
     in-out property <bool> dust-snap;
+    in-out property <bool> dust-blank;
     in-out property <bool> dust-cloud;
     property <int> dust-phase;
     property <duration> dust-t0;

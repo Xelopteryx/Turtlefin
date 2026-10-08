@@ -14,7 +14,7 @@ Version actuelle : **0.9.1** · Langues de l'interface : Français, English, Esp
 
 - **Comptes** : écran « Qui regarde ? » avec avatars (GIF animés compris), jusqu'à 12 comptes enregistrés sur
   l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans ressaisie, « Gérer les comptes »
-  pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil (local et VPN) ; une adresse
+  pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil ; une adresse
   principale et une adresse de secours, essayée quand la principale ne répond pas (Paramètres → Réseau).
 - **Démarrage** : logo animé dont les sept points sont de vraies vérifications (langue, affichage, lecteur vidéo,
   stockage, configuration, réseau, et le serveur au centre) ; ils se relient ensuite pour former le logo, puis ouvre

@@ -48,3 +48,17 @@ pub fn data_dir() -> Option<PathBuf> {
     }
     project().map(|d| d.data_dir().to_path_buf())
 }
+
+/// Commande système lancée sans fenêtre de console (Windows : sinon une fenêtre CMD s'ouvre un
+/// instant, Turtlefin n'ayant pas de console à partager).
+pub fn quiet_command(prog: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(prog);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}

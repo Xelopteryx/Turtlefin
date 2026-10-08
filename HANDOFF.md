@@ -130,8 +130,8 @@ Points notables, non évidents dans le code :
 - **8 octobre 2026** : changement de langue (`dust.rs`, `ui/dust.slint`) — à l'ouverture de la liste des
   langues, une barre lumineuse parcourt chaque ligne de texte et la recouvre de blanc ; au choix, les blocs
   prennent la largeur des nouveaux mots et la barre les dévoile (à l'annulation, les anciens). Les lignes sont
-  repérées en capturant la page (`take_snapshot`) telle quelle puis avec chaque texte inversé et décalé
-  (`i18n::set_pseudo`, mêmes lettres donc même largeur), regroupées en lignes ; l'animation est faite par Slint
+  repérées en capturant la page (`take_snapshot`) telle quelle puis avec une police aux lettres vides et aux
+  largeurs identiques (`Turtlefin Blank`, `tools/make-blank-font.py`, `dust-blank`), regroupées en lignes ; l'animation est faite par Slint
   (quelques rectangles, rien pendant le choix). Blocs sous la liste (`dust-layer`), liste masquée pendant les
   captures (`dust-snap`) ; pastilles de valeur à largeur animée. Remplace la fragmentation (`Tr.fx`) et un
   premier essai en nuage de grains, trop coûteux (image de toute la fenêtre à chaque image). Visite refaite :

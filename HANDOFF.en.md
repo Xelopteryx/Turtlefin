@@ -128,7 +128,8 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
 - **October 8, 2026**: language change (`dust.rs`, `ui/dust.slint`) — when the language list opens, a glowing bar
   runs along each text line and covers it in white; on choosing, the blocks take the width of the new words and
   the bar reveals them (on cancel, the old ones). Lines are found by capturing the page (`take_snapshot`) as is,
-  then with each text reversed and shifted (`i18n::set_pseudo`, same letters so same width), grouped into lines;
+  then with a font with empty glyphs and identical widths (`Turtlefin Blank`, `tools/make-blank-font.py`,
+  `dust-blank`), grouped into lines;
   Slint does the animation (a few rectangles, nothing while choosing). Blocks under the list (`dust-layer`), list
   hidden during captures (`dust-snap`); value pills with animated width. Replaces the fragmentation (`Tr.fx`) and a
   first grain-cloud attempt, too costly (a whole-window image every frame). Tour redone: it shows

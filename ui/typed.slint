@@ -1,0 +1,121 @@
+// Texte tapé dans un champ (recherche) : la lettre ajoutée apparaît en grossissant, celle effacée
+// s'envole en s'estompant, le curseur clignote juste après la dernière lettre, le texte d'exemple
+// glisse et s'efface à la première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau
+// (par-dessus un TextInput dont le texte et le curseur sont masqués).
+import { Theme } from "theme.slint";
+
+// Découpe d'un texte (faite en Rust, Slint n'a pas de sous-chaînes).
+export global Str {
+    // Tout sauf le dernier caractère.
+    pure callback head(string) -> string;
+    // Dernier caractère.
+    pure callback last(string) -> string;
+}
+
+export component TypedText inherits Rectangle {
+    in property <string> text;
+    in property <string> placeholder;
+    // Saisie en cours : curseur affiché.
+    in property <bool> cursor;
+    // Bureau : position du curseur donnée par le champ ; négative : fin du texte.
+    in property <length> cursor-x: -1px;
+    in property <length> font-size: 18px;
+    in property <float> k: 1.0;
+    clip: true;
+
+    property <string> prev;
+    property <string> ghost;
+    property <duration> add-t0;
+    property <duration> del-t0;
+    property <bool> adding;
+    property <bool> deleting;
+    property <bool> blink: true;
+    changed text => {
+        if (root.text.character-count > root.prev.character-count) {
+            root.add-t0 = animation-tick();
+            root.adding = true;
+        } else if (root.text.character-count < root.prev.character-count) {
+            root.ghost = Str.last(root.prev);
+            root.del-t0 = animation-tick();
+            root.deleting = true;
+        }
+        root.prev = root.text;
+        root.blink = true;
+    }
+    Timer {
+        interval: 320ms;
+        running: root.adding || root.deleting;
+        triggered => {
+            root.adding = false;
+            root.deleting = false;
+        }
+    }
+    // Clignotement du curseur (pas d'animation continue : une bascule toutes les 530 ms).
+    Timer {
+        interval: 530ms;
+        running: root.cursor;
+        triggered => {
+            root.blink = !root.blink;
+        }
+    }
+    property <float> ap: root.adding ? clamp((animation-tick() - root.add-t0) / 180ms, 0, 1) : 1;
+    property <float> dp: root.deleting ? clamp((animation-tick() - root.del-t0) / 260ms, 0, 1) : 1;
+
+    // Texte d'exemple : glisse vers la droite et s'efface dès la première lettre.
+    Text {
+        x: root.text == "" ? 0px : 36px * root.k;
+        animate x { duration: 260ms; easing: ease-out; }
+        opacity: root.text == "" ? 1 : 0;
+        animate opacity { duration: 220ms; }
+        height: parent.height;
+        text: root.placeholder;
+        color: Theme.muted;
+        font-size: root.font-size;
+        vertical-alignment: center;
+    }
+    head := Text {
+        x: 0px;
+        height: parent.height;
+        text: Str.head(root.text);
+        color: white;
+        font-size: root.font-size;
+        vertical-alignment: center;
+    }
+    // Dernière lettre : apparaît en grossissant puis se pose.
+    Rectangle {
+        x: head.preferred-width;
+        width: last.preferred-width;
+        height: parent.height;
+        opacity: root.ap;
+        transform-scale: 1.6 - 0.6 * (1 - (1 - root.ap) * (1 - root.ap));
+        last := Text {
+            text: Str.last(root.text);
+            color: white;
+            font-size: root.font-size;
+            vertical-alignment: center;
+        }
+    }
+    property <length> end-x: head.preferred-width + last.preferred-width;
+    // Lettre effacée : s'envole en s'estompant.
+    if root.deleting && root.dp < 1: Rectangle {
+        x: root.end-x;
+        y: -root.dp * 14px * root.k;
+        width: gh.preferred-width;
+        height: parent.height;
+        opacity: 1 - root.dp;
+        gh := Text {
+            text: root.ghost;
+            color: white;
+            font-size: root.font-size;
+            vertical-alignment: center;
+        }
+    }
+    if root.cursor && root.blink: Rectangle {
+        x: (root.cursor-x >= 0px ? root.cursor-x : root.end-x) + 1px;
+        y: (parent.height - self.height) / 2;
+        width: 2px * root.k;
+        height: root.font-size * 1.2;
+        border-radius: 1px;
+        background: Theme.accent2;
+    }
+}

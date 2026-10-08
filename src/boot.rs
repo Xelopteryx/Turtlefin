@@ -72,12 +72,10 @@ fn labels() -> Vec<slint::SharedString> {
     NAMES.into_iter().map(|n| tr(n).into()).collect()
 }
 
-/// Textes du logo pendant le choix de la langue (étiquettes, « Langue… »), tels qu'affichés
-/// pendant le repérage des lettres de l'effet (i18n::pseudo).
+/// Textes du logo dans la langue en cours (étiquettes, « Langue… »).
 fn boot_texts(u: &AppWindow) {
-    let l: Vec<slint::SharedString> = labels().iter().map(|s| crate::i18n::pseudo(s).into()).collect();
-    u.set_boot_labels(ModelRc::new(VecModel::from(l)));
-    u.set_boot_text(crate::i18n::pseudo(&format!("{}…", tr(NAMES[0]))).into());
+    u.set_boot_labels(ModelRc::new(VecModel::from(labels())));
+    u.set_boot_text(format!("{}…", tr(NAMES[0])).into());
 }
 
 /// Un dossier accepte-t-il l'écriture (fichier créé, relu, supprimé) ?
@@ -212,7 +210,7 @@ pub async fn run(app: Arc<App>, start: Start) {
                 u.set_boot_langs(ModelRc::new(VecModel::from(langs)));
                 u.set_boot_lang_sel(sel);
                 // Les textes du logo partent en nuage pendant le choix (dust.rs).
-                crate::dust::dissolve(u, 2, std::rc::Rc::new(boot_texts));
+                crate::dust::dissolve(u, 2);
                 u.set_boot_lang_open(true);
             });
             let code = wait(&app, None).await;

@@ -5,16 +5,13 @@
 //! les lignes de texte, une fois à l'ouverture et une fois au choix.
 //!
 //! Les textes sont trouvés sans rien savoir de la page : elle est capturée telle quelle, puis avec
-//! chaque texte inversé, puis décalé d'une lettre (`i18n::set_pseudo`) — mêmes lettres, même
-//! largeur, mais chaque lettre change de place : les pixels qui changent sont ceux des textes, tous.
+//! une police aux lettres vides (mêmes largeurs) : les pixels qui changent sont ceux des textes.
 
 use crate::{i18n, AppWindow, DustLine, Tr};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// Recalcule les textes venus de Rust (rangées des Paramètres, étiquettes du démarrage).
-pub type Refresh = Rc<dyn Fn(&AppWindow)>;
 
 /// Durées des phases (voir ui/dust.slint) : passage de la barre sur une ligne, changement de
 /// largeur des blocs, et départ de la dernière ligne au plus tard.
@@ -33,7 +30,6 @@ struct Line {
 
 struct State {
     lines: Vec<Line>,
-    refresh: Refresh,
     /// Fin du dévoilement (phase 3), et ce qui est à faire alors.
     timer: Option<slint::Timer>,
     done: Option<Box<dyn FnOnce(&AppWindow)>>,
@@ -63,39 +59,30 @@ fn snap(u: &AppWindow) -> Option<Snap> {
     Some(Snap { w, h, px: b.as_slice().iter().map(|p| [p.r, p.g, p.b]).collect() })
 }
 
-/// Lignes de texte de la page (sans la liste des langues ni l'effet : dust-snap).
-fn find_lines(u: &AppWindow, refresh: &Refresh) -> Option<Vec<Line>> {
+/// Lignes de texte de la page (sans la liste des langues ni l'effet : dust-snap). La page est
+/// capturée telle quelle, puis avec une police aux lettres vides mais aux largeurs identiques
+/// (« Turtlefin Blank », tools/make-blank-font.py) : les pixels qui changent sont ceux des textes.
+fn find_lines(u: &AppWindow) -> Option<Vec<Line>> {
     let on = u.get_dust_on();
     u.set_dust_on(false);
     u.set_dust_snap(true);
     let a = snap(u);
-    let mut others = Vec::new();
-    for mode in [1u8, 2] {
-        i18n::set_pseudo(mode);
-        refresh(u);
-        bump(u);
-        others.push(snap(u));
-    }
-    i18n::set_pseudo(0);
-    refresh(u);
-    bump(u);
+    u.set_dust_blank(true);
+    let b = snap(u);
+    u.set_dust_blank(false);
     u.set_dust_snap(false);
     u.set_dust_on(on);
-    let a = a?;
+    let (a, b) = (a?, b?);
     let (w, h) = (a.w, a.h);
-    let mut mask = vec![false; w * h];
-    for o in others.into_iter().flatten() {
-        if o.w != w || o.h != h {
-            return None;
-        }
-        for (i, m) in mask.iter_mut().enumerate() {
-            let (p, q) = (a.px[i], o.px[i]);
-            let d = (p[0] as i32 - q[0] as i32).abs() + (p[1] as i32 - q[1] as i32).abs() + (p[2] as i32 - q[2] as i32).abs();
-            if d > 12 {
-                *m = true;
-            }
-        }
+    if b.w != w || b.h != h {
+        return None;
     }
+    let mask: Vec<bool> = a
+        .px
+        .iter()
+        .zip(&b.px)
+        .map(|(p, q)| (p[0] as i32 - q[0] as i32).abs() + (p[1] as i32 - q[1] as i32).abs() + (p[2] as i32 - q[2] as i32).abs() > 6)
+        .collect();
     let s = u.window().scale_factor();
     let lines = group_lines(&mask, w, h, s);
     if lines.is_empty() {
@@ -181,10 +168,10 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
 }
 
 /// Ouverture de la liste des langues : la barre recouvre les lignes de texte. `layer` : où les
-/// blocs sont posés (1 Paramètres, 2 démarrage), sous la liste ; `refresh` : textes venus de Rust.
-pub fn dissolve(u: &AppWindow, layer: i32, refresh: Refresh) {
+/// blocs sont posés (1 Paramètres, 2 démarrage), sous la liste.
+pub fn dissolve(u: &AppWindow, layer: i32) {
     finish(u);
-    let Some(lines) = find_lines(u, &refresh) else { return };
+    let Some(lines) = find_lines(u) else { return };
     u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
     u.set_dust_layer(layer);
     u.set_dust_on(true);
@@ -199,7 +186,7 @@ pub fn dissolve(u: &AppWindow, layer: i32, refresh: Refresh) {
             }
         }
     });
-    STATE.with(|s| *s.borrow_mut() = Some(State { lines, refresh, timer: None, done: None }));
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines, timer: None, done: None }));
 }
 
 /// Choix fait (`change` : nouvelle langue et textes) ou annulé (None) : les blocs prennent la
@@ -252,7 +239,7 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
         let pairs: Vec<(Line, Line)> = st.lines.iter().map(|l| (*l, *l)).collect();
         u.set_dust_lines(pairs_model(&pairs));
         u.invoke_dust_start(3);
-        schedule_end(u, st.lines, st.refresh, pairs.len(), Box::new(done));
+        schedule_end(u, st.lines, pairs.len(), Box::new(done));
         return;
     };
     // Lignes de la nouvelle langue (rendue hors écran pour les captures), puis retour à l'ancienne
@@ -260,7 +247,7 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
     let old_code = i18n::current();
     apply(u, &code);
     bump(u);
-    let new = find_lines(u, &st.refresh);
+    let new = find_lines(u);
     apply(u, &old_code);
     bump(u);
     let Some(new) = new else {
@@ -295,7 +282,6 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
     u.invoke_dust_start(4);
     let (apply_keep, code_keep) = (apply.clone(), code.clone());
     let weak = u.as_weak();
-    let refresh = st.refresh.clone();
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis((MORPH_MS + 40) as u64), move || {
         let Some(u) = weak.upgrade() else { return };
@@ -306,7 +292,7 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
         bump(&u);
         u.set_dust_lines(pairs_model(&shrink));
         u.invoke_dust_start(3);
-        schedule_end(&u, new.clone(), refresh.clone(), shrink.len(), d);
+        schedule_end(&u, new.clone(), shrink.len(), d);
     });
     // Arrêt pendant que les blocs s'élargissent : la nouvelle langue est appliquée quand même.
     let (apply2, code2) = (apply_keep, code_keep);
@@ -317,11 +303,11 @@ pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(
         }
         done(u);
     });
-    STATE.with(|s| *s.borrow_mut() = Some(State { lines: st.lines, refresh: st.refresh, timer: Some(timer), done: Some(done) }));
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines: st.lines, timer: Some(timer), done: Some(done) }));
 }
 
 /// Fin du dévoilement (phase 3) : `done` après le passage de la barre sur la dernière ligne.
-fn schedule_end(u: &AppWindow, lines: Vec<Line>, refresh: Refresh, n: usize, done: Box<dyn FnOnce(&AppWindow)>) {
+fn schedule_end(u: &AppWindow, lines: Vec<Line>, n: usize, done: Box<dyn FnOnce(&AppWindow)>) {
     let n = n.max(1) as i64;
     let total = MORPH_MS + (STAGGER_MAX_MS / n).min(28) * n + SWEEP_MS + 40;
     let timer = slint::Timer::default();
@@ -331,7 +317,7 @@ fn schedule_end(u: &AppWindow, lines: Vec<Line>, refresh: Refresh, n: usize, don
             finish(&u);
         }
     });
-    STATE.with(|s| *s.borrow_mut() = Some(State { lines, refresh, timer: Some(timer), done: Some(done) }));
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines, timer: Some(timer), done: Some(done) }));
 }
 
 /// Arrête l'effet sans attendre (le texte reste tel quel) et fait ce qui était prévu à la fin.

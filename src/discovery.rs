@@ -97,7 +97,7 @@ fn neighbours() -> Vec<Ipv4Addr> {
     let text = if cfg!(target_os = "linux") {
         std::fs::read_to_string("/proc/net/arp").unwrap_or_default()
     } else {
-        std::process::Command::new("arp").arg("-a").output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
+        crate::paths::quiet_command("arp").arg("-a").output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
     };
     text.split(|c: char| c.is_whitespace() || c == '(' || c == ')')
         .filter_map(|w| w.parse::<Ipv4Addr>().ok())
@@ -114,7 +114,7 @@ fn mesh_peers() -> Vec<Ipv4Addr> {
         &["tailscale"]
     };
     for exe in candidates {
-        let Ok(out) = std::process::Command::new(exe).args(["status", "--json"]).output() else { continue };
+        let Ok(out) = crate::paths::quiet_command(exe).args(["status", "--json"]).output() else { continue };
         let Ok(v) = serde_json::from_slice::<Value>(&out.stdout) else { continue };
         let mut ips: Vec<Ipv4Addr> = Vec::new();
         let mut add = |p: &Value| {

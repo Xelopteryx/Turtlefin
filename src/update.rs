@@ -193,7 +193,7 @@ fn asset_name(version: &str) -> Result<String> {
 static PENDING: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
 fn run(dir: &Path, prog: &str, args: &[&str]) -> Result<()> {
-    let out = Command::new(prog).args(args).current_dir(dir).output().map_err(|e| anyhow!("{prog} introuvable ({e})"))?;
+    let out = crate::paths::quiet_command(prog).args(args).current_dir(dir).output().map_err(|e| anyhow!("{prog} introuvable ({e})"))?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
         let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();

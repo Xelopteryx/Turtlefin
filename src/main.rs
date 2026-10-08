@@ -1601,7 +1601,9 @@ fn party_action(app: &Arc<App>, action: String) {
 fn open_search(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
         u.set_h_focus(false);
-        u.set_s_osk(u.get_tv_mode());
+        // Clavier à l'écran fermé : la sélection est sur le champ, OK l'ouvre (mode TV).
+        u.set_s_osk(false);
+        u.set_s_field(u.get_tv_mode());
         u.set_screen("search".into());
     }
 }
@@ -2260,7 +2262,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             let current = app.client().map(|c| c.server).unwrap_or_default();
             let main = if saved.server_main.is_empty() { tr("Aucune").to_string() } else { saved.server_main.clone() };
             let backup = if saved.server_backup.is_empty() {
-                tr("Aucune · essayée quand la principale ne répond pas (autre réseau, VPN…)").to_string()
+                tr("Aucune · essayée quand la principale ne répond pas (autre réseau…)").to_string()
             } else {
                 trf("{} · essayée quand la principale ne répond pas", &[&saved.server_backup])
             };
@@ -2273,7 +2275,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             }
             let now = if current.is_empty() { tr("Hors ligne : aucune adresse ne répond.").to_string() } else { trf("Connecté en ce moment par {}", &[&current]) };
             v.push(row("info", "", &now, String::new(), "info", false));
-            v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux (local et VPN)."), String::new(), "action", false));
+            v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux."), String::new(), "action", false));
             v
         }
         5 => {
@@ -2357,8 +2359,7 @@ fn open_choice(app: &Arc<App>, key: &str) {
     if key == "language" {
         if let Some(u) = app.ui().upgrade() {
             if u.get_ch_key().as_str() != "language" {
-                let a = app.clone();
-                dust::dissolve(&u, 1, std::rc::Rc::new(move |_| refresh_settings(&a)));
+                dust::dissolve(&u, 1);
             }
         }
     }
@@ -2488,15 +2489,7 @@ fn toggle_ui_pref(app: &Arc<App>, f: impl Fn(&mut config::UiPrefs)) {
 
 fn refresh_settings(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
-    let mut rows = settings_rows(app, u.get_set_cat());
-    // Repérage des lettres pour l'effet de langue (dust.rs) : tous les textes, même non traduits.
-    if i18n::pseudo_on() {
-        for r in &mut rows {
-            r.label = i18n::pseudo(&r.label).into();
-            r.hint = i18n::pseudo(&r.hint).into();
-            r.value = i18n::pseudo(&r.value).into();
-        }
-    }
+    let rows = settings_rows(app, u.get_set_cat());
     // Même liste (mêmes réglages) : rangées mises à jour sur place, les pastilles de valeur
     // changent de largeur en douceur au lieu d'être recréées.
     let cur = u.get_set_rows();
@@ -3470,6 +3463,7 @@ fn go_back(app: &Arc<App>) {
                     if let Some(u) = app.ui().upgrade() {
                         u.set_h_focus(false);
                         u.set_s_osk(false);
+                        u.set_s_field(u.get_search_sections().row_count() == 0 && u.get_tv_mode());
                         u.set_screen("search".into());
                     }
                 }
@@ -4084,11 +4078,19 @@ fn main() -> anyhow::Result<()> {
     let ui = AppWindow::new()?;
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
+        // Découpe du texte tapé (ui/typed.slint) : tout sauf le dernier caractère, et le dernier.
+        let st = ui.global::<Str>();
+        st.on_head(|s| {
+            let mut c = s.chars();
+            c.next_back();
+            c.as_str().into()
+        });
+        st.on_last(|s| s.chars().next_back().map(|c| c.to_string()).unwrap_or_default().into());
         let t = ui.global::<Tr>();
         // Le premier argument (Tr.l) ne sert qu'à faire recalculer les textes au changement de langue.
-        t.on_t(|_, s| i18n::pseudo(&i18n::tr_str(&s)).into());
-        t.on_f(|_, s, a, b| i18n::pseudo(&i18n::trf_str(&s, &[a.as_str(), b.as_str()])).into());
-        t.on_p(|_, one, other, n| i18n::pseudo(&i18n::trn(&one, &other, n as i64)).into());
+        t.on_t(|_, s| i18n::tr_str(&s).into());
+        t.on_f(|_, s, a, b| i18n::trf_str(&s, &[a.as_str(), b.as_str()]).into());
+        t.on_p(|_, one, other, n| i18n::trn(&one, &other, n as i64).into());
         // Changement de langue (de n'importe quel fil) : `Tr.l` change, les textes se recalculent.
         let weak = std::sync::Mutex::new(ui.as_weak());
         i18n::on_change(move || {
