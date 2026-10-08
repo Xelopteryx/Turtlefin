@@ -226,11 +226,11 @@ pub async fn run(app: Arc<App>, start: Start) {
             let (tx, rx) = tokio::sync::oneshot::channel::<()>();
             let lang = p.language.clone();
             ui(&app, move |u| {
-                let change = |u: &AppWindow| {
-                    crate::i18n::set_language(&lang);
+                let apply: crate::dust::Apply = std::rc::Rc::new(|u: &AppWindow, code: &str| {
+                    crate::i18n::set_language(code);
                     boot_texts(u);
-                };
-                crate::dust::reform(u, Some(&change), move |u| {
+                });
+                crate::dust::reform(u, Some((lang, apply)), move |u| {
                     u.set_boot_on(animate);
                     let _ = tx.send(());
                 });

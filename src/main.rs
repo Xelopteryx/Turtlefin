@@ -2386,13 +2386,15 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         if let Some(i) = (0..items.row_count()).find(|&i| items.row_data(i).is_some_and(|t| t.id.as_str() == value)) {
             u.set_ch_sel(i as i32);
         }
-        // Les grains du nuage réécrivent les mots dans la nouvelle langue, puis la liste se ferme.
-        let change = |_: &AppWindow| {
-            i18n::set_language(value);
-            refresh_settings(app);
-            open_choice(app, "language");
-        };
-        dust::reform(&u, Some(&change), |u| u.set_ch_key("".into()));
+        // Les blocs prennent la place des nouveaux mots, la barre les dévoile, puis la liste se ferme.
+        let a = app.clone();
+        let apply: dust::Apply = std::rc::Rc::new(move |_: &AppWindow, code: &str| {
+            i18n::set_language(code);
+            refresh_settings(&a);
+            open_choice(&a, "language");
+            language_changed(&a);
+        });
+        dust::reform(&u, Some((value.to_string(), apply)), |u| u.set_ch_key("".into()));
         return;
     }
     if key == "subsize" {
@@ -3093,6 +3095,15 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
 // ---------------------------------------------------------------------------
 // Menu latéral : bibliothèques, demandes, compte
 // ---------------------------------------------------------------------------
+/// Langue changée : les textes fabriqués en Rust hors des Paramètres suivent (menu, watch party) ;
+/// l'accueil (titres des rangées) est rechargé au retour.
+fn language_changed(app: &Arc<App>) {
+    let views = app.views.lock().unwrap().clone();
+    set_menu(app, &views);
+    refresh_party(app);
+    app.home_stale.store(true, Ordering::SeqCst);
+}
+
 /// Hors ligne (`app.offline`) : seulement ce qui marche sans serveur (téléchargements, comptes,
 /// serveur, paramètres).
 fn set_menu(app: &Arc<App>, views: &[api::Item]) {

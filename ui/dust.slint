@@ -1,6 +1,7 @@
 // Changement de langue (dust.rs) : une barre lumineuse parcourt chaque ligne de texte et la
-// recouvre de blanc (phase 1), les lignes restent blanches pendant le choix (2), puis les blocs
-// prennent la largeur des nouveaux mots et la barre repasse en dévoilant le texte (3).
+// recouvre de blanc (phase 1), les lignes restent blanches pendant le choix (2) ; au choix, les
+// blocs s'élargissent pour couvrir aussi la place des nouveaux mots (4, l'ancienne langue toujours
+// affichée dessous), la langue change, puis ils se resserrent et la barre les dévoile (3).
 // Peu coûteux : quelques rectangles animés ; les lignes sont repérées une fois, en Rust.
 import { Theme } from "theme.slint";
 
@@ -28,17 +29,18 @@ export component DustLines inherits Rectangle {
 
     for l in root.lines: ln := Rectangle {
         // Phase 3 : de l'ancienne largeur à la nouvelle, puis la barre dévoile.
-        property <float> m: root.phase == 3 ? clamp(root.now / root.morph, 0, 1) : 1;
+        property <float> m: root.phase == 3 || root.phase == 4 ? clamp(root.now / root.morph, 0, 1) : 1;
         property <float> me: 1 - (1 - self.m) * (1 - self.m);
         property <length> bx: l.fx + (l.x - l.fx) * self.me;
         property <length> bw: l.fw + (l.w - l.fw) * self.me;
         property <float> p: root.phase == 1 ? clamp((root.now - l.delay) / root.sweep, 0, 1)
-            : root.phase == 3 ? clamp((root.now - root.morph - l.delay) / root.sweep, 0, 1) : 1;
+            : root.phase == 3 ? clamp((root.now - root.morph - l.delay) / root.sweep, 0, 1)
+            : root.phase == 4 ? 0 : 1;
         property <float> e: self.p * self.p * (3 - 2 * self.p);
         // Bord qui avance avec la barre : droite du bloc (recouvrir), gauche (dévoiler).
-        property <length> left: root.phase == 3 ? self.bx + self.bw * self.e : self.bx;
+        property <length> left: root.phase == 3 || root.phase == 4 ? self.bx + self.bw * self.e : self.bx;
         property <length> right: root.phase == 1 ? self.bx + self.bw * self.e : self.bx + self.bw;
-        property <length> pad: 3px * root.k;
+        property <length> pad: 4px * root.k;
 
         if ln.right > ln.left: Rectangle {
             x: ln.left - ln.pad;

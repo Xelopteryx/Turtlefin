@@ -91,7 +91,7 @@ fn find_lines(u: &AppWindow, refresh: &Refresh) -> Option<Vec<Line>> {
         for (i, m) in mask.iter_mut().enumerate() {
             let (p, q) = (a.px[i], o.px[i]);
             let d = (p[0] as i32 - q[0] as i32).abs() + (p[1] as i32 - q[1] as i32).abs() + (p[2] as i32 - q[2] as i32).abs();
-            if d > 24 {
+            if d > 12 {
                 *m = true;
             }
         }
@@ -109,6 +109,7 @@ fn find_lines(u: &AppWindow, refresh: &Refresh) -> Option<Vec<Line>> {
 /// (écart de moins de 12 px) forment un bloc ; les lignes d'un paragraphe restent séparées.
 fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
     let gap = (12.0 * s) as usize;
+    let vgap = ((3.0 * s).round() as usize).max(2);
     // Suites de pixels de texte par rangée, rapprochées si l'écart est petit.
     let mut runs: Vec<Vec<(usize, usize)>> = vec![Vec::new(); h];
     for (y, row_runs) in runs.iter_mut().enumerate() {
@@ -146,10 +147,12 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
             let id = parent.len();
             parent.push(id);
             boxes.push((l, y, r, y + 1));
-            if y > 0 {
-                for (k, &(pl, pr)) in runs[y - 1].iter().enumerate() {
+            // Rangées voisines jusqu'à `vgap` au-dessus : les accents, points et apostrophes,
+            // séparés de leur lettre par un ou deux pixels, rejoignent sa ligne.
+            for d in 1..=vgap.min(y) {
+                for (k, &(pl, pr)) in runs[y - d].iter().enumerate() {
                     if pl < r && l < pr {
-                        let (a, b) = (find(&mut parent, ids[y - 1][k]), find(&mut parent, id));
+                        let (a, b) = (find(&mut parent, ids[y - d][k]), find(&mut parent, id));
                         if a != b {
                             parent[b] = a;
                         }
@@ -169,7 +172,7 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
     }
     let mut lines: Vec<Line> = merged
         .into_values()
-        .filter(|&(x0, y0, x1, y1)| (x1 - x0) as f32 >= 4.0 * s && (y1 - y0) as f32 >= 4.0 * s && ((y1 - y0) as f32) < 90.0 * s)
+        .filter(|&(x0, y0, x1, y1)| (x1 - x0) * (y1 - y0) >= 3 && ((y1 - y0) as f32) < 90.0 * s)
         .map(|(x0, y0, x1, y1)| Line { x: x0 as f32 / s, y: y0 as f32 / s, w: (x1 - x0) as f32 / s, h: (y1 - y0) as f32 / s })
         .collect();
     // Ordre de lecture : de haut en bas, puis de gauche à droite (lignes à peu près alignées).
@@ -177,40 +180,12 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
     lines
 }
 
-fn model(lines: &[Line], from: Option<&[Line]>) -> ModelRc<DustLine> {
-    let n = lines.len().max(1) as i64;
-    let step = (STAGGER_MAX_MS / n).min(28);
-    let rows: Vec<DustLine> = lines
-        .iter()
-        .enumerate()
-        .map(|(i, l)| {
-            // Largeur d'avant : la ligne d'avant qui chevauche le plus celle-ci (même rangée).
-            let prev = from.and_then(|f| {
-                f.iter()
-                    .filter(|o| o.y < l.y + l.h && l.y < o.y + o.h)
-                    .min_by(|a, b| (a.x - l.x).abs().total_cmp(&(b.x - l.x).abs()))
-            });
-            // Au départ, le bloc couvre l'ancien texte ET le nouveau (déjà affiché dessous, peut-être
-            // plus long) ; il se resserre ensuite sur le nouveau.
-            let (fx, fw) = match (from, prev) {
-                (Some(_), Some(o)) => {
-                    let x0 = o.x.min(l.x);
-                    (x0, (o.x + o.w).max(l.x + l.w) - x0)
-                }
-                _ => (l.x, l.w),
-            };
-            DustLine { x: l.x, y: l.y, w: l.w, h: l.h, fx, fw, delay: i as i64 * step }
-        })
-        .collect();
-    ModelRc::new(VecModel::from(rows))
-}
-
 /// Ouverture de la liste des langues : la barre recouvre les lignes de texte. `layer` : où les
 /// blocs sont posés (1 Paramètres, 2 démarrage), sous la liste ; `refresh` : textes venus de Rust.
 pub fn dissolve(u: &AppWindow, layer: i32, refresh: Refresh) {
     finish(u);
     let Some(lines) = find_lines(u, &refresh) else { return };
-    u.set_dust_lines(model(&lines, None));
+    u.set_dust_lines(pairs_model(&lines.iter().map(|l| (*l, *l)).collect::<Vec<_>>()));
     u.set_dust_layer(layer);
     u.set_dust_on(true);
     u.set_dust_cloud(true);
@@ -228,42 +203,126 @@ pub fn dissolve(u: &AppWindow, layer: i32, refresh: Refresh) {
 }
 
 /// Choix fait (`change` : nouvelle langue et textes) ou annulé (None) : les blocs prennent la
-/// largeur des nouveaux mots, la barre les dévoile ; `done` à la fin (tout de suite sans effet).
-pub fn reform(u: &AppWindow, change: Option<&dyn Fn(&AppWindow)>, done: impl FnOnce(&AppWindow) + 'static) {
+/// Applique une langue (code) : langue, textes venus de Rust, liste des langues.
+pub type Apply = Rc<dyn Fn(&AppWindow, &str)>;
+
+/// Blocs pour une liste de paires (départ, arrivée) ; la barre part dans l'ordre de la liste.
+fn pairs_model(pairs: &[(Line, Line)]) -> ModelRc<DustLine> {
+    let n = pairs.len().max(1) as i64;
+    let step = (STAGGER_MAX_MS / n).min(28);
+    let rows: Vec<DustLine> = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, (f, t))| DustLine { x: t.x, y: t.y, w: t.w, h: t.h, fx: f.x, fw: f.w, delay: i as i64 * step })
+        .collect();
+    ModelRc::new(VecModel::from(rows))
+}
+
+/// Ligne d'avant qui correspond à `l` : même rangée, la plus proche à gauche.
+fn matching<'a>(old: &'a [Line], l: &Line) -> Option<&'a Line> {
+    old.iter()
+        .filter(|o| o.y < l.y + l.h && l.y < o.y + o.h)
+        .min_by(|a, b| (a.x - l.x).abs().total_cmp(&(b.x - l.x).abs()))
+}
+
+fn union(a: &Line, b: &Line) -> Line {
+    let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
+    Line { x: x0, y: y0, w: (a.x + a.w).max(b.x + b.w) - x0, h: (a.y + a.h).max(b.y + b.h) - y0 }
+}
+
+/// Choix fait (`change` : code de la langue et comment l'appliquer) ou annulé (None).
+/// Choix : les blocs s'élargissent d'abord pour couvrir aussi la place des nouveaux mots (l'ancienne
+/// langue reste affichée dessous, rien ne dépasse), la langue change, puis ils se resserrent sur les
+/// nouveaux mots et la barre les dévoile. Annulation : la barre dévoile les anciens mots.
+/// `done` à la fin (tout de suite s'il n'y a pas d'effet en cours).
+pub fn reform(u: &AppWindow, change: Option<(String, Apply)>, done: impl FnOnce(&AppWindow) + 'static) {
     let st = STATE.with(|s| s.borrow_mut().take());
     let Some(st) = st.filter(|_| u.get_dust_cloud()) else {
         finish(u);
-        if let Some(c) = change {
-            c(u);
+        if let Some((code, apply)) = change {
+            apply(u, &code);
             bump(u);
         }
         done(u);
         return;
     };
     u.set_dust_cloud(false);
-    let lines = match change {
-        Some(c) => {
-            c(u);
-            bump(u);
-            match find_lines(u, &st.refresh) {
-                Some(new) => {
-                    u.set_dust_lines(model(&new, Some(&st.lines)));
-                    new
-                }
-                None => {
-                    finish(u);
-                    done(u);
-                    return;
-                }
+    let Some((code, apply)) = change else {
+        // Annulation : les anciens mots sont dévoilés.
+        let pairs: Vec<(Line, Line)> = st.lines.iter().map(|l| (*l, *l)).collect();
+        u.set_dust_lines(pairs_model(&pairs));
+        u.invoke_dust_start(3);
+        schedule_end(u, st.lines, st.refresh, pairs.len(), Box::new(done));
+        return;
+    };
+    // Lignes de la nouvelle langue (rendue hors écran pour les captures), puis retour à l'ancienne
+    // le temps que les blocs s'élargissent.
+    let old_code = i18n::current();
+    apply(u, &code);
+    bump(u);
+    let new = find_lines(u, &st.refresh);
+    apply(u, &old_code);
+    bump(u);
+    let Some(new) = new else {
+        finish(u);
+        apply(u, &code);
+        bump(u);
+        done(u);
+        return;
+    };
+    let mut used = vec![false; st.lines.len()];
+    let mut grow: Vec<(Line, Line)> = Vec::new();
+    let mut shrink: Vec<(Line, Line)> = Vec::new();
+    for l in &new {
+        let prev = matching(&st.lines, l);
+        if let Some(p) = prev {
+            if let Some(i) = st.lines.iter().position(|o| std::ptr::eq(o, p)) {
+                used[i] = true;
             }
         }
-        None => {
-            u.set_dust_lines(model(&st.lines, None));
-            st.lines.clone()
+        let from = prev.copied().unwrap_or(*l);
+        let big = union(&from, l);
+        grow.push((from, big));
+        shrink.push((big, *l));
+    }
+    // Lignes d'avant sans équivalent : restent couvertes jusqu'au changement de langue.
+    for (o, u) in st.lines.iter().zip(&used) {
+        if !u {
+            grow.push((*o, *o));
         }
-    };
-    u.invoke_dust_start(3);
-    let n = lines.len().max(1) as i64;
+    }
+    u.set_dust_lines(pairs_model(&grow));
+    u.invoke_dust_start(4);
+    let (apply_keep, code_keep) = (apply.clone(), code.clone());
+    let weak = u.as_weak();
+    let refresh = st.refresh.clone();
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis((MORPH_MS + 40) as u64), move || {
+        let Some(u) = weak.upgrade() else { return };
+        // Effet arrêté entre-temps (finish a déjà fait la suite) : rien à faire.
+        let Some(d) = STATE.with(|s| s.borrow_mut().as_mut().and_then(|st| st.done.take())) else { return };
+        // Tout est couvert : la langue change dessous, les blocs se resserrent, la barre dévoile.
+        apply(&u, &code);
+        bump(&u);
+        u.set_dust_lines(pairs_model(&shrink));
+        u.invoke_dust_start(3);
+        schedule_end(&u, new.clone(), refresh.clone(), shrink.len(), d);
+    });
+    // Arrêt pendant que les blocs s'élargissent : la nouvelle langue est appliquée quand même.
+    let (apply2, code2) = (apply_keep, code_keep);
+    let done: Box<dyn FnOnce(&AppWindow)> = Box::new(move |u: &AppWindow| {
+        if i18n::current() != code2 {
+            apply2(u, &code2);
+            bump(u);
+        }
+        done(u);
+    });
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines: st.lines, refresh: st.refresh, timer: Some(timer), done: Some(done) }));
+}
+
+/// Fin du dévoilement (phase 3) : `done` après le passage de la barre sur la dernière ligne.
+fn schedule_end(u: &AppWindow, lines: Vec<Line>, refresh: Refresh, n: usize, done: Box<dyn FnOnce(&AppWindow)>) {
+    let n = n.max(1) as i64;
     let total = MORPH_MS + (STAGGER_MAX_MS / n).min(28) * n + SWEEP_MS + 40;
     let timer = slint::Timer::default();
     let weak = u.as_weak();
@@ -272,7 +331,7 @@ pub fn reform(u: &AppWindow, change: Option<&dyn Fn(&AppWindow)>, done: impl FnO
             finish(&u);
         }
     });
-    STATE.with(|s| *s.borrow_mut() = Some(State { lines, refresh: st.refresh, timer: Some(timer), done: Some(Box::new(done)) }));
+    STATE.with(|s| *s.borrow_mut() = Some(State { lines, refresh, timer: Some(timer), done: Some(done) }));
 }
 
 /// Arrête l'effet sans attendre (le texte reste tel quel) et fait ce qui était prévu à la fin.
