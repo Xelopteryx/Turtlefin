@@ -86,6 +86,9 @@ export component LangExplorer inherits Rectangle {
             clicked => {
                 root.button("close");
             }
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
         }
     }
 
@@ -102,7 +105,12 @@ export component LangExplorer inherits Rectangle {
         border-color: Theme.glass-border;
         drop-shadow-blur: 40px * root.k;
         drop-shadow-color: #00000080;
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
 
         fs := FocusScope {
             property <bool> o: root.open;

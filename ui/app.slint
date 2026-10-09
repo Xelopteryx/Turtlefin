@@ -1134,7 +1134,12 @@ component OverviewPanel inherits Rectangle {
         border-color: #ffffff24;
 
         // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau).
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
 
         view := Rectangle {
             x: 28px;
@@ -3675,7 +3680,10 @@ export component AppWindow inherits Window {
 
         property <length> box-h: 52px * root.k;
         property <length> osk-h: root.tv-mode ? 7 * 48px * root.k + 16px * root.k : 0px;
-        property <length> res-y: 16px * root.k + self.box-h + 16px * root.k + (root.s-osk ? self.osk-h : 0px);
+        // Clavier à l'écran : apparaît en descendant et en fondu, les résultats glissent dessous.
+        property <float> osk-p: root.tv-mode && root.s-osk ? 1 : 0;
+        animate osk-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        property <length> res-y: 16px * root.k + self.box-h + 16px * root.k + self.osk-p * self.osk-h;
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -3859,9 +3867,10 @@ export component AppWindow inherits Window {
         // Clavier à l'écran (mode TV)
         osk := Osk {
             x: max(32px * root.k, (parent.width - 900px * root.k) / 2);
-            y: 16px * root.k + parent.box-h + 16px * root.k;
+            y: 16px * root.k + parent.box-h + 16px * root.k - (1 - parent.osk-p) * 30px * root.k;
             width: min(parent.width - 64px * root.k, 900px * root.k);
-            visible: root.tv-mode && root.s-osk;
+            visible: parent.osk-p > 0.01;
+            opacity: parent.osk-p;
             k: root.k;
             active: root.s-osk;
             text: root.search-text;
@@ -4642,6 +4651,9 @@ export component AppWindow inherits Window {
                 clicked => {
                     root.tp-kind = "";
                 }
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
             }
             Rectangle {
                 width: 480px * root.k;
@@ -4650,7 +4662,12 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
-                TouchArea { }
+                TouchArea {
+                    // La molette ne fait pas défiler la page dessous.
+                    scroll-event(e) => {
+                        return EventResult.accept;
+                    }
+                }
                 Text {
                     x: 24px * root.k;
                     y: 16px * root.k;
@@ -5077,7 +5094,12 @@ export component AppWindow inherits Window {
             height: parent.height + root.header-h;
             background: #000000b3.transparentize(1 - srv.mo-p);
 
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             property <length> dw: min(self.width - 64px * root.k, 600px * root.k);
             property <length> dh: 384px * root.k;
@@ -5283,7 +5305,12 @@ export component AppWindow inherits Window {
         if root.choice-a != "": Rectangle {
             background: #000000c0;
 
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             choice := Rectangle {
                 width: 600px * root.k;
@@ -6052,6 +6079,15 @@ export component AppWindow inherits Window {
                 clicked => {
                     root.ch-key = "";
                 }
+                // Liste ouverte : la molette choisit dans la liste, la page dessous ne bouge pas.
+                scroll-event(e) => {
+                    if (e.delta-y > 0) {
+                        root.ch-sel = max(0, root.ch-sel - 1);
+                    } else if (e.delta-y < 0) {
+                        root.ch-sel = min(root.ch-items.length - 1, root.ch-sel + 1);
+                    }
+                    return EventResult.accept;
+                }
             }
             property <length> row-h: 46px * root.k;
             // Autant de lignes que l'écran en permet (la liste défile avec la sélection).
@@ -6066,7 +6102,12 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
-                TouchArea { }
+                TouchArea {
+                    // La molette ne fait pas défiler la page dessous.
+                    scroll-event(e) => {
+                        return EventResult.accept;
+                    }
+                }
                 Text {
                     x: 22px * root.k;
                     y: 0px;
@@ -6137,7 +6178,12 @@ export component AppWindow inherits Window {
             background: Theme.bg;
             opacity: sets.av-p;
             transform-scale: 0.94 + 0.06 * sets.av-p;
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             Text {
                 x: 32px * root.k;
@@ -6424,7 +6470,12 @@ export component AppWindow inherits Window {
             y: -root.header-h;
             height: parent.height + root.header-h;
             background: #000000b3.transparentize(1 - sets.ad-p);
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             property <length> dw: min(self.width - 64px * root.k, 620px * root.k);
             property <length> dh: 290px * root.k;
@@ -6658,6 +6709,10 @@ export component AppWindow inherits Window {
                     root.close-menu();
                 }
             }
+            // Menu ouvert : la molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
         }
 
         drawer := Rectangle {
@@ -6672,8 +6727,19 @@ export component AppWindow inherits Window {
             property <length> top: 84px * root.k;
             // Défilement si le menu dépasse l'écran (mode TV).
             property <length> scroll: max(0px, (root.menu-sel + 1) * self.row-h - (self.height - self.top - 16px * root.k));
+            animate scroll { duration: 220ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
 
-            TouchArea { }
+            TouchArea {
+                // Molette dans le menu : la sélection monte ou descend.
+                scroll-event(e) => {
+                    if (e.delta-y > 0) {
+                        root.menu-move(-1);
+                    } else if (e.delta-y < 0) {
+                        root.menu-move(1);
+                    }
+                    return EventResult.accept;
+                }
+            }
 
             FocusScope {
                 // À l'ouverture (même pendant qu'il se refermait), le clavier va au menu.
@@ -6820,7 +6886,12 @@ export component AppWindow inherits Window {
         property <length> pad: 40 * self.u;
         property <length> poster-h: 300 * self.u;
 
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
 
         FocusScope {
             init => {
@@ -7085,7 +7156,12 @@ export component AppWindow inherits Window {
         // Sous une vignette qui grandit jusqu'au plein écran : léger assombrissement seulement
         // (pas de « fondu au noir » avant que l'image ne couvre tout).
         background: Theme.bg.transparentize(1 - root.veil * (root.hero-on && root.hero-big && root.hero-dest ? 0.45 : 1));
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
     }
 
     // Chargement qui traîne (réseau lent) : après 1,2 s, une pastille discrète le signale en bas.
@@ -7368,7 +7444,12 @@ export component AppWindow inherits Window {
     if root.tour-p > 0.01 && !root.playing: Rectangle {
         opacity: root.tour-p;
         // Étapes à boutons : la page dessous ne prend pas les clics.
-        if root.tour-lock: TouchArea { }
+        if root.tour-lock: TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
         // Voile autour de la zone éclairée (quatre bandes).
         Rectangle { x: 0px; y: 0px; width: parent.width; height: root.hy; background: root.tour-veil; }
         Rectangle { x: 0px; y: root.hy + root.hh; width: parent.width; height: max(0px, parent.height - root.hy - root.hh); background: root.tour-veil; }
@@ -7839,7 +7920,12 @@ export component AppWindow inherits Window {
         Rectangle {
             background: Theme.bg;
             opacity: root.fly-phase < 4 ? 1 : 1 - clamp(parent.t / 300, 0, 1);
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
         }
         // Phase 1 : vers le centre (élastique).
         property <float> a: root.fly-phase == 1 ? clamp(self.t / 460, 0, 1) : 1;

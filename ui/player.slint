@@ -852,7 +852,12 @@ export component PlayerView inherits Rectangle {
             border-color: Theme.glass-border;
 
             // Absorbe les clics sur le panneau (sinon ils mettraient en pause).
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             Text {
                 x: root.m;
@@ -1076,7 +1081,12 @@ export component PlayerView inherits Rectangle {
             border-width: 1px;
             border-color: Theme.glass-border;
 
-            TouchArea { }
+            TouchArea {
+                // La molette ne fait pas défiler la page dessous.
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
 
             Text {
                 x: root.m;
@@ -1192,7 +1202,12 @@ export component PlayerView inherits Rectangle {
         border-width: 1px;
         border-color: Theme.glass-border;
 
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
 
         Icon {
             x: 22px * root.k;

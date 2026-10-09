@@ -288,7 +288,12 @@ export component BootLogo inherits Rectangle {
     }
     if root.lang-p > 0.01 && !root.snap: Rectangle {
         background: #000000a6.transparentize(1 - root.lang-p);
-        TouchArea { }
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
         lang-box := Rectangle {
             // Liste qui défile au-delà de ce qui tient à l'écran (langues ajoutées).
             property <length> row-h: 56px * root.k;
