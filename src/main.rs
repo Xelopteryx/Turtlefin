@@ -2358,6 +2358,23 @@ fn sub_size_label(v: f64) -> &'static str {
 }
 
 /// Réglages de l'appareil appliqués à l'interface (global Prefs).
+/// Changement de thème animé : l'écran se voile dans la couleur de l'ancien thème, le nouveau est
+/// posé dessous, puis le voile se dissipe (sans animation si « Arrivée des pages » est coupée).
+fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
+    if !p.anim.pages {
+        apply_ui_prefs(u, &p);
+        return;
+    }
+    u.set_theme_veil(1.0);
+    let weak = u.as_weak();
+    slint::Timer::single_shot(std::time::Duration::from_millis(240), move || {
+        if let Some(u) = weak.upgrade() {
+            apply_ui_prefs(&u, &p);
+            u.set_theme_veil(0.0);
+        }
+    });
+}
+
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
     // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
@@ -2746,7 +2763,7 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         p.theme = value.to_string();
         config::save_ui_prefs(&p);
         if let Some(u) = app.ui().upgrade() {
-            apply_ui_prefs(&u, &p);
+            switch_theme(&u, p);
         }
         refresh_settings(app);
         return;
@@ -3208,8 +3225,8 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 p.theme = "turtlefin".into();
                 config::save_ui_prefs(&p);
                 if let Some(u) = app.ui().upgrade() {
-                    apply_ui_prefs(&u, &p);
                     u.set_toast(trf("Thème supprimé : {}", &[&name]).into());
+                    switch_theme(&u, p.clone());
                 }
                 refresh_settings(app);
             }
@@ -3677,7 +3694,7 @@ fn lx_activate(app: &Arc<App>, i: usize) {
                 p.theme = format!("custom:{}", t.name);
                 p.themes.push(t);
                 config::save_ui_prefs(&p);
-                apply_ui_prefs(&u, &p);
+                switch_theme(&u, p);
                 refresh_settings(app);
                 u.set_lx_open(false);
                 u.set_toast(trf("Thème importé : {}", &[&name]).into());

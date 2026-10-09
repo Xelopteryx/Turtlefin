@@ -8451,6 +8451,15 @@ export component AppWindow inherits Window {
     }
 
     // Démarrage (au-dessus de tout) : vérifications, liaison du logo, puis zoom vers la page suivante.
+    // Changement de thème : voile dans la couleur du fond, qui se lève sur le nouveau thème (Rust : switch_theme).
+    in property <float> theme-veil;
+    property <float> tv-a: root.theme-veil;
+    animate tv-a { duration: root.theme-veil > 0.5 ? 220ms : 420ms; easing: ease-in-out; }
+    if root.tv-a > 0.005: Rectangle {
+        background: @linear-gradient(180deg, Theme.bg.with-alpha(root.tv-a) 0%, Theme.bg-mid.with-alpha(root.tv-a) 55%, Theme.bg-end.with-alpha(root.tv-a) 100%);
+        TouchArea { }
+    }
+
     if root.boot-on: BootLogo {
         k: root.k;
         state: root.boot-state;

@@ -71,17 +71,22 @@ export component BootLogo inherits Rectangle {
             zoom-timer.running = true;
         }
     }
-    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / (root.aero ? 1500ms : 900ms), 0, 1) : 1;
+    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / (root.aero ? 2400ms : 900ms), 0, 1) : 1;
     // Aero : tourbillon (0 -> 1), éclair (monte puis retombe), apparition du logo.
-    property <float> swirl: root.ease-io(clamp(root.lp / 0.6, 0, 1));
-    property <float> flash: sin(clamp((root.lp - 0.48) / 0.4, 0, 1) * 180deg);
-    property <float> reveal: root.aero ? root.ease(clamp((root.lp - 0.58) / 0.42, 0, 1)) : 1;
+    // Aero, sur 2,4 s : tourbillon (0 -> 0,35), éclair (0,28 -> 0,53), l'orbe surgit en zoomant avec un
+    // rebond (0,36 -> 0,6), puis le logo se redessine sur elle : contour (0,5 -> 0,74), rayons et centre
+    // (0,72 -> 0,9).
+    property <float> swirl: root.ease-io(clamp(root.lp / 0.35, 0, 1));
+    property <float> flash: sin(clamp((root.lp - 0.28) / 0.25, 0, 1) * 180deg);
+    property <float> reveal: root.aero ? clamp((root.lp - 0.45) / 0.08, 0, 1) : 1;
+    property <float> orb-t: clamp((root.lp - 0.36) / 0.24, 0, 1);
+    property <float> orb-s: root.orb-t == 0 ? 0 : 1 + 0.12 * sin(root.orb-t * 180deg) - (1 - root.ease(root.orb-t)) * 0.9;
     property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 750ms, 0, 1);
     // Liaison : contour (première moitié), puis rayons et hexagone central (seconde moitié).
-    property <float> edge-p: root.aero ? (root.lp >= 0.58 ? 1 : 0) : root.ease(clamp(root.lp * 2, 0, 1));
-    property <float> spoke-p: root.aero ? (root.lp >= 0.58 ? 1 : 0) : root.ease(clamp(root.lp * 2 - 1, 0, 1));
+    property <float> edge-p: root.aero ? root.ease(clamp((root.lp - 0.5) / 0.24, 0, 1)) : root.ease(clamp(root.lp * 2, 0, 1));
+    property <float> spoke-p: root.aero ? root.ease(clamp((root.lp - 0.72) / 0.18, 0, 1)) : root.ease(clamp(root.lp * 2 - 1, 0, 1));
     link-timer := Timer {
-        interval: root.aero ? 1650ms : 1100ms;
+        interval: root.aero ? 2550ms : 1100ms;
         running: false;
         triggered => {
             self.running = false;
@@ -138,13 +143,13 @@ export component BootLogo inherits Rectangle {
         transform-scale: 1 + root.zp * root.zp * 26;
 
         // Orbe de verre derrière le logo : sphère d'accent sombre au bord, lueur en bas.
-        if root.orb && root.lp > 0.5: Rectangle {
-            x: 28 * root.u;
-            y: 28 * root.u;
-            width: 200 * root.u;
+        if root.orb && root.orb-t > 0: Rectangle {
+            x: (128 - 100 * root.orb-s) * root.u;
+            y: (128 - 100 * root.orb-s) * root.u;
+            width: 200 * root.orb-s * root.u;
             height: self.width;
             border-radius: self.width / 2;
-            opacity: root.reveal;
+            opacity: min(1, root.orb-t * 3);
             background: @radial-gradient(circle, Theme.accent1 0%, Theme.accent1.mix(Theme.bg, 0.55) 70%, Theme.bg 100%);
             border-width: 2px;
             border-color: Theme.accent2.with-alpha(0.45);
@@ -256,7 +261,7 @@ export component BootLogo inherits Rectangle {
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            visible: !root.aero || root.lp < 0.62;
+            visible: !root.aero || root.lp < 0.37;
             background: root.aero
                 ? @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%)
                 : root.dot-color(self.s, root.px[i], root.py[i]);
@@ -301,12 +306,12 @@ export component BootLogo inherits Rectangle {
             border-radius: self.d / 2;
             // Fondu par la couleur (voir les libellés).
             background: root.aero
-                ? (root.lp >= 0.6 ? transparent : @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%))
+                ? (root.lp >= 0.37 ? transparent : @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%))
                 : root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
             animate background { duration: 300ms; }
-            drop-shadow-blur: root.aero && root.lp < 0.6 ? self.d * 0.9 : 0px;
+            drop-shadow-blur: root.aero && root.lp < 0.37 ? self.d * 0.9 : 0px;
             drop-shadow-color: root.orb-color(self.s).with-alpha(0.85);
-            if root.aero && root.lp < 0.6: Rectangle {
+            if root.aero && root.lp < 0.37: Rectangle {
                 x: parent.width * 0.2;
                 y: parent.height * 0.1;
                 width: parent.width * 0.6;
@@ -328,13 +333,13 @@ export component BootLogo inherits Rectangle {
             }
         }
         // Grand reflet blanc de l'orbe, par-dessus la carapace.
-        if root.orb && root.lp > 0.5: Rectangle {
-            x: (28 + 200 * 0.13) * root.u;
-            y: (28 + 200 * 0.04) * root.u;
-            width: 200 * 0.74 * root.u;
-            height: 200 * 0.44 * root.u;
+        if root.orb && root.orb-t > 0: Rectangle {
+            x: (128 - 100 * root.orb-s + 200 * root.orb-s * 0.13) * root.u;
+            y: (128 - 100 * root.orb-s + 200 * root.orb-s * 0.04) * root.u;
+            width: 200 * 0.74 * root.orb-s * root.u;
+            height: 200 * 0.44 * root.orb-s * root.u;
             border-radius: self.height / 2;
-            opacity: root.reveal;
+            opacity: min(1, root.orb-t * 3);
             background: @linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.06) 100%);
         }
     }

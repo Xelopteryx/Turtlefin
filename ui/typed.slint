@@ -163,20 +163,24 @@ export component TypedText inherits Rectangle {
         font-size: root.font-size;
         vertical-alignment: center;
     }
-    // Tout sauf les 4 dernières lettres (un texte vide a quand même une petite largeur : 0 alors).
+    // Lettres séparées seulement pendant la frappe (chacune grossit) ; le reste du temps, et en
+    // effaçant, le texte est d'un seul tenant : des lettres posées une à une perdent le crénage et
+    // s'espacent. En dehors de la frappe : tout le texte ici, les 4 cases ci-dessous sont vides.
+    property <int> split: root.adding ? 4 : 0;
     head := Text {
         x: 0px;
         height: parent.height;
-        text: Str.head(root.text, 4);
+        text: Str.head(root.text, root.split);
         color: Theme.fg;
         font-size: root.font-size;
         vertical-alignment: center;
     }
-    property <length> head-w: root.text.character-count > 4 ? head.preferred-width : 0px;
-    c3 := Typed { x: root.head-w; height: parent.height; ch: Str.at(root.text, 3); t0: root.a3; live: root.adding; font-size: root.font-size; }
-    c2 := Typed { x: c3.x + c3.w; height: parent.height; ch: Str.at(root.text, 2); t0: root.a2; live: root.adding; font-size: root.font-size; }
-    c1 := Typed { x: c2.x + c2.w; height: parent.height; ch: Str.at(root.text, 1); t0: root.a1; live: root.adding; font-size: root.font-size; }
-    c0 := Typed { x: c1.x + c1.w; height: parent.height; ch: Str.at(root.text, 0); t0: root.a0; live: root.adding; font-size: root.font-size; }
+    // Un texte vide a quand même une petite largeur : 0 alors.
+    property <length> head-w: root.text.character-count > root.split ? head.preferred-width : 0px;
+    c3 := Typed { x: root.head-w; height: parent.height; ch: root.split > 0 ? Str.at(root.text, 3) : ""; t0: root.a3; live: root.adding; font-size: root.font-size; }
+    c2 := Typed { x: c3.x + c3.w; height: parent.height; ch: root.split > 0 ? Str.at(root.text, 2) : ""; t0: root.a2; live: root.adding; font-size: root.font-size; }
+    c1 := Typed { x: c2.x + c2.w; height: parent.height; ch: root.split > 0 ? Str.at(root.text, 1) : ""; t0: root.a1; live: root.adding; font-size: root.font-size; }
+    c0 := Typed { x: c1.x + c1.w; height: parent.height; ch: root.split > 0 ? Str.at(root.text, 0) : ""; t0: root.a0; live: root.adding; font-size: root.font-size; }
     property <length> end-x: c0.x + c0.w;
     Ghost { ch: root.g0; x0: root.x0; t0: root.t0; serial: root.s0; height: parent.height; font-size: root.font-size; k: root.k; }
     Ghost { ch: root.g1; x0: root.x1; t0: root.t1; serial: root.s1; height: parent.height; font-size: root.font-size; k: root.k; }
