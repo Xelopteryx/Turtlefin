@@ -533,6 +533,41 @@ fn anim_set(u: &AppWindow, slot: AnimSlot, key: &str, img: slint::Image) -> bool
     }
 }
 
+/// Avatar d'un utilisateur gardé sur le disque (fichier tel que donné par le serveur) : affiché tout
+/// de suite aux lancements suivants, puis rafraîchi depuis le serveur.
+fn avatar_cache_path(uid: &str) -> Option<std::path::PathBuf> {
+    let still = if STILL_GIFS.load(Ordering::Relaxed) { "still" } else { "anim" };
+    api::image_cache_dir().map(|d| d.join(format!("avatar_{uid}_{still}.bin")))
+}
+
+fn avatar_cached(uid: &str) -> Option<(Vec<u8>, Frames)> {
+    let bytes = std::fs::read(avatar_cache_path(uid)?).ok()?;
+    let frames = decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })?;
+    Some((bytes, frames))
+}
+
+/// Avatar à jour depuis le serveur : `None` s'il n'a pas changé depuis `known` (ou en cas d'échec) ;
+/// sinon ses images, et le cache est mis à jour.
+async fn avatar_fetch(http: &reqwest::Client, server: &str, uid: &str, known: Option<&[u8]>) -> Option<Frames> {
+    // Fichier d'origine si les GIF sont animés (réduit par le serveur, un GIF ne l'est plus).
+    let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
+    let r = http.get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await.ok()?;
+    if !r.status().is_success() {
+        return None;
+    }
+    let bytes = r.bytes().await.ok()?.to_vec();
+    if known == Some(&bytes[..]) {
+        return None;
+    }
+    if let Some(path) = avatar_cache_path(uid) {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(path, &bytes);
+    }
+    tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })).await.ok().flatten()
+}
+
 /// Photo du compte qui se connecte : ses images animées (celles de sa tuile, ou chargées pour la
 /// connexion automatique) continuent pendant l'animation de connexion.
 fn fly_frames_from_tile(key: &str) {
@@ -553,22 +588,20 @@ fn fly_autostart(app: &Arc<App>, server: String, uid: String, name: String) {
     if !config::ui_prefs().anim.login {
         return;
     }
+    let cached = avatar_cached(&uid);
     if let Some(u) = app.ui().upgrade() {
         u.set_fly_has_img(false);
         u.set_fly_letter(name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default().into());
         u.invoke_fly_wait();
+        // Avatar déjà connu : affiché d'emblée (pas d'initiale le temps de le charger).
+        if let Some((_, frames)) = &cached {
+            show_frames(&u, AnimSlot::Fly, "", frames.clone());
+        }
     }
     let ui = app.ui();
     app.rt.spawn(async move {
-        let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
-        let Ok(r) = reqwest::Client::new().get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await else { return };
-        if !r.status().is_success() {
-            return;
-        }
-        let Ok(bytes) = r.bytes().await else { return };
-        let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })).await.ok().flatten() else {
-            return;
-        };
+        let known = cached.map(|c| c.0);
+        let Some(frames) = avatar_fetch(&reqwest::Client::new(), &server, &uid, known.as_deref()).await else { return };
         let _ = ui.upgrade_in_event_loop(move |u| {
             if u.get_fly_phase() > 0 {
                 show_frames(&u, AnimSlot::Fly, "", frames);
@@ -846,6 +879,15 @@ fn login_opened(app: &Arc<App>) {
         }
         tiles.push(("other".into(), tr("Autre compte").into(), String::new(), String::new()));
         let rows = tiles.clone();
+        // Avatars déjà connus : décodés avant l'affichage des tuiles, posés en même temps.
+        let ids: Vec<String> = tiles.iter().map(|t| t.3.clone()).collect();
+        let cached: Vec<Option<(Vec<u8>, Frames)>> = tokio::task::spawn_blocking(move || {
+            ids.iter().map(|uid| if uid.is_empty() { None } else { avatar_cached(uid) }).collect()
+        })
+        .await
+        .unwrap_or_default();
+        let first: Vec<Option<Frames>> = cached.iter().map(|c| c.as_ref().map(|c| c.1.clone())).collect();
+        let keys: Vec<String> = tiles.iter().map(|t| t.0.clone()).collect();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let cards: Vec<CardData> = rows
                 .iter()
@@ -860,6 +902,11 @@ fn login_opened(app: &Arc<App>) {
                 .collect();
             let saved = rows.iter().filter(|r| r.0.starts_with("acc:")).count() as i32;
             u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+            for (i, frames) in first.into_iter().enumerate() {
+                if let Some(frames) = frames {
+                    show_frames(&u, AnimSlot::Login(i), &keys[i], frames);
+                }
+            }
             u.set_login_saved(saved);
             if saved == 0 {
                 u.set_login_edit(false);
@@ -872,26 +919,14 @@ fn login_opened(app: &Arc<App>) {
             u.set_server_name(if reachable { sname.into() } else { tr("Serveur injoignable").into() });
         });
         // Avatars (publics, sans connexion), en cercle.
-        for (i, (key, _, _, uid)) in tiles.into_iter().enumerate() {
+        for (i, ((key, _, _, uid), known)) in tiles.into_iter().zip(cached).enumerate() {
             if uid.is_empty() {
                 continue;
             }
             let (http, server, ui) = (http.clone(), server.clone(), app2.ui());
             tokio::spawn(async move {
-                // Fichier d'origine si les GIF sont animés (réduit par le serveur, un GIF ne l'est plus).
-                let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
-                let Ok(r) = http.get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await else { return };
-                if !r.status().is_success() {
-                    return;
-                }
-                let Ok(bytes) = r.bytes().await else { return };
-                let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false }))
-                    .await
-                    .ok()
-                    .flatten()
-                else {
-                    return;
-                };
+                let known = known.map(|k| k.0);
+                let Some(frames) = avatar_fetch(&http, &server, &uid, known.as_deref()).await else { return };
                 let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Login(i), &key, frames));
             });
         }
