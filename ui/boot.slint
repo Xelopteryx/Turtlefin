@@ -35,7 +35,7 @@ export component BootLogo inherits Rectangle {
     callback linked();                     // fin de la liaison : Rust ouvre la page suivante
     callback finished();                   // fin du zoom
 
-    background: Theme.bg;
+    background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
 
     // Géométrie commune avec l'icône (packaging/turtlefin.svg, packaging/icons/make-icons.py) :
     // repère 256, centre (128, 128) ; hexagone de rayon 68 (trait 14), hexagone central plein de

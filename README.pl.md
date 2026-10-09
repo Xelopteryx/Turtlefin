@@ -161,6 +161,18 @@ presetów obok programu.
 - `TURTLEFIN_LIBMPV=ścieżka`: inne położenie libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: zgłasza wolne klatki.
 - Renderowanie musi używać OpenGL (wybierane automatycznie): z `SLINT_BACKEND=winit-software` nie ma obrazu wideo.
 
+## Motywy
+
+Ustawienia → Wyświetlanie → **Motyw**: Turtlefin (domyślny), Ciemny, Jasny, Frutiger Aero (niebo, trawa, bańki,
+błyszczące żelowe przyciski), Turtlefin zielony — albo własny motyw.
+
+- **Utwórz motyw** otwiera *Turtlefin Theme Creator* w przeglądarce: każdy kolor, zaokrąglenie, połysk, niebo i
+  bańki, z podglądem na żywo; zapisuje plik `.tftheme`.
+- Ten plik należy umieścić w folderze **Turtlefin Themes** (Dokumenty, lub obok `turtlefin.exe` w wersji
+  przenośnej), a potem wybrać **Importuj motyw**. **Eksportuj motyw** zapisuje bieżący motyw w tym folderze jako
+  punkt wyjścia.
+- Kreator jest też w repozytorium, `tools/theme-creator.html`: jeden plik, który działa offline.
+
 ## Tłumaczenie Turtlefin
 
 Bez programowania i kompilowania. Dodane języki znajdują się w jednym folderze, **Turtlefin Languages**: w

@@ -161,6 +161,18 @@ de langues et de presets à côté du programme.
 - `TURTLEFIN_LIBMPV=chemin` : autre emplacement de libmpv · `TURTLEFIN_DEBUG_FRAMES=1` : signale les images lentes.
 - Le rendu doit être OpenGL (choisi automatiquement) : avec `SLINT_BACKEND=winit-software`, pas de vidéo.
 
+## Thèmes
+
+Paramètres → Affichage → **Thème** : Turtlefin (par défaut), Sombre, Clair, Frutiger Aero (ciel, herbe, bulles,
+boutons en gel brillant), Turtlefin vert — ou un thème à soi.
+
+- **Créer un thème** ouvre le *Turtlefin Theme Creator* dans le navigateur : chaque couleur, l'arrondi, le reflet
+  brillant, le ciel et les bulles, avec un aperçu en direct ; il enregistre un fichier `.tftheme`.
+- Mettre ce fichier dans le dossier **Turtlefin Themes** (Documents, ou à côté de `turtlefin.exe` en version
+  portable), puis **Importer un thème**. **Exporter le thème** écrit le thème actuel dans ce dossier, comme point de
+  départ.
+- Le créateur est aussi dans le dépôt, `tools/theme-creator.html` : un seul fichier, qui s'ouvre hors ligne.
+
 ## Traduire Turtlefin
 
 Sans programmer ni compiler. Les langues ajoutées vivent dans un seul dossier, **Turtlefin Languages** :

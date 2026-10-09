@@ -160,6 +160,17 @@ language and preset folders next to the program.
 - `TURTLEFIN_LIBMPV=path`: other libmpv location · `TURTLEFIN_DEBUG_FRAMES=1`: reports slow frames.
 - Rendering must be OpenGL (chosen automatically): with `SLINT_BACKEND=winit-software`, no video.
 
+## Themes
+
+Settings → Display → **Theme**: Turtlefin (default), Dark, Light, Frutiger Aero (sky, grass, bubbles, glossy gel
+buttons), Turtlefin green — or a theme of your own.
+
+- **Create a theme** opens the *Turtlefin Theme Creator* in the browser: every color, the corner radius, the glossy
+  highlight, the sky and bubbles, with a live preview; it saves a `.tftheme` file.
+- Put that file in the **Turtlefin Themes** folder (Documents, or next to `turtlefin.exe` for the portable version),
+  then **Import a theme**. **Export the theme** writes the current theme to that folder, as a starting point.
+- The creator is also in the repository, `tools/theme-creator.html`: a single file that works offline.
+
 ## Translate Turtlefin
 
 No programming, no compiling. Added languages live in a single folder, **Turtlefin Languages**: in

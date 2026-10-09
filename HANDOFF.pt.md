@@ -63,9 +63,11 @@ src/syncplay.rs     watch party (WebSocket /socket)
 src/paths.rs        pastas de configuração / cache / dados; modo portátil; quiet_command
 src/update.rs       atualização conforme a instalação (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: ecrã / área de trabalho, janela animada ao ser movida
+src/theme.rs        temas integrados, ficheiros .tftheme (ThemeDef), aplicação ao global Theme
+ui/sky.slint        cenário do Frutiger Aero (céu, colina, bolhas), estático
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logótipo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   compilação e publicação com uma etiqueta `v*` (ensaio: ramo `ci`)
 ```
 
@@ -146,13 +148,18 @@ Mecanismos que não são evidentes no código:
   um clique ao lado de um campo não lhe tira o teclado (`focus-on-click: root.tv-mode`).
 - **Teclas mantidas premidas**: Enter, Esc e Retrocesso não repetem a ação (`event.repeat`), exceto Retrocesso
   ao apagar texto.
+- **Temas** (`src/theme.rs`, global `Theme` de ui/theme.slint): nenhuma cor fixa na interface; as superfícies
+  translúcidas escrevem-se `Theme.fg.with-alpha(…)` (branco num tema escuro, tinta num claro), o texto sobre o
+  gradiente de acento usa `Theme.on-accent`. `Gloss` (brilho de gel) e `AeroSky` (ui/sky.slint) só aparecem com
+  `Theme.gloss` / `Theme.bubbles`. Os temas importados ficam em prefs.json (`theme`, `themes`); o criador
+  (`tools/theme-creator.html`) está integrado no programa (`theme::CREATOR`) e «Criar um tema» põe-no em
+  «Turtlefin Themes». Os seus temas de partida têm de ficar iguais aos de theme.rs.
 - **Rato**: clique em todo o lado; roda na página inicial, na ficha (`d-nav`, partilhado com o teclado), na
   pesquisa, nas bibliotecas, nas transferências e nas definições; as janelas em primeiro plano absorvem a roda.
 
 Por fazer: Quick Connect; comando de jogos; licença (a escolher por quem mantém o projeto, antes ou depois da
-1.0.0); ligação ao XeLauncher (lançador do centro multimédia de quem mantém o projeto, sem prioridade). Previsto
-depois da 1.0.0: otimização, temas (claro, escuro, Turtlefin por omissão, Frutiger Aero, verde, temas
-instaláveis), versão para Android TV.
+1.0.0); ligação ao XeLauncher (lançador do centro multimédia de quem mantém o projeto, sem prioridade). Previsto a
+seguir: otimização, versão para Android TV.
 
 ## 6. Traduções
 

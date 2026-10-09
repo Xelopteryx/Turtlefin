@@ -165,6 +165,17 @@ en presets naast het programma.
 - `TURTLEFIN_LIBMPV=pad`: andere locatie van libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: meldt trage beelden.
 - De weergave moet OpenGL zijn (automatisch gekozen): met `SLINT_BACKEND=winit-software` is er geen video.
 
+## Thema's
+
+Instellingen → Weergave → **Thema**: Turtlefin (standaard), Donker, Licht, Frutiger Aero (lucht, gras, bellen,
+glanzende gelknoppen), Turtlefin groen — of een eigen thema.
+
+- **Thema maken** opent de *Turtlefin Theme Creator* in de browser: elke kleur, de afronding, de glans, de lucht en
+  de bellen, met een live voorbeeld; hij bewaart een `.tftheme`-bestand.
+- Zet dat bestand in de map **Turtlefin Themes** (Documenten, of naast `turtlefin.exe` in de draagbare versie) en
+  kies dan **Thema importeren**. **Thema exporteren** schrijft het huidige thema in die map, als vertrekpunt.
+- De themamaker staat ook in de repository, `tools/theme-creator.html`: één bestand dat offline werkt.
+
 ## Turtlefin vertalen
 
 Zonder programmeren of compileren. Toegevoegde talen staan in één map, **Turtlefin Languages**: in

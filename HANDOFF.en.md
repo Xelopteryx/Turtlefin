@@ -63,9 +63,11 @@ src/syncplay.rs     watch party (WebSocket /socket)
 src/paths.rs        config / cache / data folders; portable mode; quiet_command
 src/update.rs       update by installation kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: screen / work area, window animated while moved
+src/theme.rs        built-in themes, .tftheme files (ThemeDef), applied to the Theme global
+ui/sky.slint        Frutiger Aero scenery (sky, hill, bubbles), static
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   build and publish on a `v*` tag (trial: `ci` branch)
 ```
 
@@ -145,12 +147,17 @@ Mechanisms that are not obvious in the code:
   clicking next to a field does not take the keyboard away from it (`focus-on-click: root.tv-mode`).
 - **Held keys**: Enter, Esc and Backspace do not repeat their action (`event.repeat`), except Backspace erasing
   text.
+- **Themes** (`src/theme.rs`, global `Theme` in ui/theme.slint): no hard-coded color in the interface; translucent
+  surfaces are written `Theme.fg.with-alpha(…)` (white on a dark theme, ink on a light one), text on the accent
+  gradient uses `Theme.on-accent`. `Gloss` (gel highlight) and `AeroSky` (ui/sky.slint) only show when
+  `Theme.gloss` / `Theme.bubbles` are set. Imported themes are kept in prefs.json (`theme`, `themes`); the creator
+  (`tools/theme-creator.html`) is embedded in the program (`theme::CREATOR`) and dropped into “Turtlefin Themes” by
+  “Create a theme”. Its starting themes must stay identical to those in theme.rs.
 - **Mouse**: click everywhere; wheel on home, detail page (`d-nav`, shared with the keyboard), search, libraries,
   downloads, settings; foreground windows swallow the wheel.
 
 Not done: Quick Connect; gamepad; license (to be chosen by the maintainer, before or after 1.0.0); XeLauncher
-bridge (the maintainer's media center launcher, low priority). Planned after 1.0.0: optimization, themes (light,
-dark, Turtlefin by default, Frutiger Aero, green, installable themes), Android TV version.
+bridge (the maintainer's media center launcher, low priority). Planned next: optimization, Android TV version.
 
 ## 6. Translations
 

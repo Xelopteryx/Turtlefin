@@ -63,9 +63,11 @@ src/syncplay.rs     Watch Party (WebSocket /socket)
 src/paths.rs        Ordner für Konfiguration / Cache / Daten; portabler Modus; quiet_command
 src/update.rs       Update je nach Installation (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: Bildschirm / Arbeitsbereich, Fenster beim Verschieben animiert
+src/theme.rs        eingebaute Designs, .tftheme-Dateien (ThemeDef), Anwendung auf das Global Theme
+ui/sky.slint        Kulisse von Frutiger Aero (Himmel, Hügel, Blasen), statisch
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (Logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   Kompilieren und Veröffentlichen bei einem Tag `v*` (Test: Branch `ci`)
 ```
 
@@ -148,12 +150,18 @@ Mechanismen, die im Code nicht offensichtlich sind:
   Computer nimmt ein Klick neben ein Feld diesem nicht die Tastatur weg (`focus-on-click: root.tv-mode`).
 - **Gehaltene Tasten**: Eingabe, Esc und Rücktaste wiederholen ihre Aktion nicht (`event.repeat`), außer der
   Rücktaste beim Löschen von Text.
+- **Designs** (`src/theme.rs`, Global `Theme` in ui/theme.slint): keine fest eingetragene Farbe in der Oberfläche;
+  durchscheinende Flächen werden `Theme.fg.with-alpha(…)` geschrieben (weiß auf dunklem, Tinte auf hellem Design),
+  Text auf dem Akzentverlauf nutzt `Theme.on-accent`. `Gloss` (Gel-Glanz) und `AeroSky` (ui/sky.slint) erscheinen
+  nur bei `Theme.gloss` / `Theme.bubbles`. Importierte Designs liegen in prefs.json (`theme`, `themes`); der Editor
+  (`tools/theme-creator.html`) ist ins Programm eingebettet (`theme::CREATOR`) und wird von „Design erstellen“ in
+  „Turtlefin Themes“ abgelegt. Seine Ausgangsdesigns müssen mit denen in theme.rs übereinstimmen.
 - **Maus**: Klick überall; Mausrad auf Startseite, Detailseite (`d-nav`, mit der Tastatur geteilt), Suche,
   Bibliotheken, Downloads, Einstellungen; Fenster im Vordergrund schlucken das Mausrad.
 
 Nicht gemacht: Quick Connect; Gamepad; Lizenz (vom Maintainer zu wählen, vor oder nach 1.0.0); Anbindung an
-XeLauncher (Mediacenter-Starter des Maintainers, keine Priorität). Nach 1.0.0 geplant: Optimierung, Themes (hell,
-dunkel, Turtlefin als Standard, Frutiger Aero, grün, installierbare Themes), Version für Android TV.
+XeLauncher (Mediacenter-Starter des Maintainers, keine Priorität). Als Nächstes geplant: Optimierung,
+Version für Android TV.
 
 ## 6. Übersetzungen
 

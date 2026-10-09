@@ -63,9 +63,11 @@ src/syncplay.rs     watch party (WebSocket /socket)
 src/paths.rs        mappen voor configuratie / cache / gegevens; draagbare modus; quiet_command
 src/update.rs       bijwerken volgens de installatie (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: scherm / werkgebied, venster geanimeerd tijdens het verplaatsen
+src/theme.rs        ingebouwde thema's, .tftheme-bestanden (ThemeDef), toegepast op het global Theme
+ui/sky.slint        decor van Frutiger Aero (lucht, heuvel, bellen), statisch
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   compileren en publiceren bij een tag `v*` (proef: branch `ci`)
 ```
 
@@ -147,13 +149,18 @@ Mechanismen die in de code niet vanzelf spreken:
   desktop neemt een klik naast een veld het toetsenbord niet af (`focus-on-click: root.tv-mode`).
 - **Ingedrukt gehouden toetsen**: Enter, Esc en Backspace herhalen hun actie niet (`event.repeat`), behalve
   Backspace bij het wissen van tekst.
+- **Thema's** (`src/theme.rs`, global `Theme` in ui/theme.slint): geen vaste kleur in de interface; doorschijnende
+  vlakken worden `Theme.fg.with-alpha(…)` geschreven (wit op een donker thema, inkt op een licht), tekst op het
+  accentverloop gebruikt `Theme.on-accent`. `Gloss` (gelglans) en `AeroSky` (ui/sky.slint) verschijnen alleen bij
+  `Theme.gloss` / `Theme.bubbles`. Geïmporteerde thema's staan in prefs.json (`theme`, `themes`); de themamaker
+  (`tools/theme-creator.html`) zit in het programma (`theme::CREATOR`) en „Thema maken” zet hem in
+  „Turtlefin Themes”. Zijn startthema's moeten gelijk blijven aan die in theme.rs.
 - **Muis**: overal klikken; scrollwiel op de startpagina, de detailpagina (`d-nav`, gedeeld met het toetsenbord),
   zoeken, bibliotheken, downloads, instellingen; vensters op de voorgrond vangen het scrollwiel op.
 
 Niet gedaan: Quick Connect; gamepad; licentie (te kiezen door wie het project onderhoudt, voor of na 1.0.0);
-koppeling met XeLauncher (starter van het mediacenter van wie het project onderhoudt, geen prioriteit). Gepland na
-1.0.0: optimalisatie, thema's (licht, donker, Turtlefin als standaard, Frutiger Aero, groen, installeerbare
-thema's), versie voor Android TV.
+koppeling met XeLauncher (starter van het mediacenter van wie het project onderhoudt, geen prioriteit). Hierna
+gepland: optimalisatie, versie voor Android TV.
 
 ## 6. Vertalingen
 

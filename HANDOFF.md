@@ -63,9 +63,11 @@ src/syncplay.rs     watch party (WebSocket /socket)
 src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_command
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant un déplacement
+src/theme.rs        thèmes intégrés, fichiers .tftheme (ThemeDef), application au global Theme
+ui/sky.slint        décor du Frutiger Aero (ciel, colline, bulles), statique
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   compilation et publication sur étiquette `v*` (essai : branche `ci`)
 ```
 
@@ -146,12 +148,18 @@ Mécanismes non évidents dans le code :
   à côté d'un champ ne lui retire pas le clavier au bureau (`focus-on-click: root.tv-mode`).
 - **Touches maintenues** : Entrée, Échap et Retour arrière ne répètent pas leur action (`event.repeat`), sauf
   Retour arrière pour effacer du texte.
+- **Thèmes** (`src/theme.rs`, global `Theme` de ui/theme.slint) : aucune couleur en dur dans l'interface ; les
+  surfaces translucides s'écrivent `Theme.fg.with-alpha(…)` (blanc sur un thème sombre, encre sur un clair), le
+  texte posé sur le dégradé d'accent prend `Theme.on-accent`. `Gloss` (reflet de gel) et `AeroSky` (ui/sky.slint)
+  ne s'affichent que si `Theme.gloss` / `Theme.bubbles`. Thèmes importés gardés dans prefs.json (`theme`,
+  `themes`) ; le créateur (`tools/theme-creator.html`) est intégré au programme (`theme::CREATOR`) et déposé dans
+  « Turtlefin Themes » par « Créer un thème ». Ses thèmes de départ doivent rester identiques à ceux de theme.rs.
 - **Souris** : clic partout ; molette sur l'accueil, la fiche (`d-nav`, partagé avec le clavier), la recherche,
   les bibliothèques, les téléchargements, les paramètres ; les fenêtres au premier plan absorbent la molette.
 
 Pas fait : Quick Connect ; manette ; licence (à choisir par le mainteneur avant ou après la 1.0.0) ; passerelle
-XeLauncher (lanceur du média center du mainteneur, pas prioritaire). Prévu après la 1.0.0 : optimisation, thèmes
-(clair, sombre, Turtlefin par défaut, Frutiger Aero, vert, thèmes installables), version Android TV.
+XeLauncher (lanceur du média center du mainteneur, pas prioritaire). Prévu ensuite : optimisation, version
+Android TV.
 
 ## 6. Traductions
 

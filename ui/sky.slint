@@ -36,6 +36,9 @@ component Bubble inherits Rectangle {
 
 export component AeroSky inherits Rectangle {
     in property <float> k: 1.0;
+    // Décor fixe : dessiné une fois dans une image gardée par le moteur de rendu, puis recopié tel
+    // quel à chaque image (bulles, dégradés et courbes coûtent sinon à chaque rafraîchissement).
+    cache-rendering-hint: true;
     property <length> u: min(self.width, self.height * 1.6) / 100;
 
     // Halo du soleil (en haut à droite)

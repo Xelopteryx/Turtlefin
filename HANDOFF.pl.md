@@ -63,9 +63,11 @@ src/syncplay.rs     watch party (WebSocket /socket)
 src/paths.rs        foldery konfiguracji / pamięci podręcznej / danych; tryb przenośny; quiet_command
 src/update.rs       aktualizacja zależnie od instalacji (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: ekran / obszar roboczy, okno animowane podczas przesuwania
+src/theme.rs        wbudowane motywy, pliki .tftheme (ThemeDef), nakładanie na globalny Theme
+ui/sky.slint        sceneria Frutiger Aero (niebo, wzgórze, bańki), statyczna
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
 .github/workflows/release.yml   kompilacja i publikacja po tagu `v*` (próba: gałąź `ci`)
 ```
 
@@ -147,13 +149,18 @@ Mechanizmy nieoczywiste w kodzie:
   komputerze kliknięcie obok pola nie odbiera mu klawiatury (`focus-on-click: root.tv-mode`).
 - **Przytrzymane klawisze**: Enter, Esc i Backspace nie powtarzają swojej akcji (`event.repeat`), z wyjątkiem
   Backspace przy kasowaniu tekstu.
+- **Motywy** (`src/theme.rs`, globalny `Theme` z ui/theme.slint): żadnego koloru wpisanego na stałe w interfejsie;
+  półprzezroczyste powierzchnie zapisuje się jako `Theme.fg.with-alpha(…)` (biel w motywie ciemnym, atrament w
+  jasnym), tekst na gradiencie akcentu używa `Theme.on-accent`. `Gloss` (żelowy połysk) i `AeroSky` (ui/sky.slint)
+  pojawiają się tylko przy `Theme.gloss` / `Theme.bubbles`. Zaimportowane motywy są w prefs.json (`theme`,
+  `themes`); kreator (`tools/theme-creator.html`) jest wbudowany w program (`theme::CREATOR`), a „Utwórz motyw”
+  zapisuje go w „Turtlefin Themes”. Jego motywy startowe muszą być identyczne z tymi w theme.rs.
 - **Mysz**: kliknięcie wszędzie; kółko na stronie głównej, stronie szczegółów (`d-nav`, wspólne z klawiaturą),
   w wyszukiwaniu, bibliotekach, pobranych, ustawieniach; okna na pierwszym planie przechwytują kółko.
 
 Niezrobione: Quick Connect; pad do gier; licencja (do wyboru przez osobę utrzymującą projekt, przed 1.0.0 lub po
 niej); połączenie z XeLauncher (programem startowym centrum multimedialnego osoby utrzymującej projekt, bez
-priorytetu). Plan po 1.0.0: optymalizacja, motywy (jasny, ciemny, domyślny Turtlefin, Frutiger Aero, zielony,
-motywy do zainstalowania), wersja na Android TV.
+priorytetu). Plan na dalej: optymalizacja, wersja na Android TV.
 
 ## 6. Tłumaczenia
 

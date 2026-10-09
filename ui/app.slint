@@ -2894,7 +2894,7 @@ export component AppWindow inherits Window {
             opacity: lg.in-e(0);
             width: parent.width;
             text: "Turtlefin";
-            color: Theme.accent2;
+            color: Theme.dark ? Theme.accent2 : Theme.accent1;
             font-size: 44 * lg.u;
             font-weight: 800;
             horizontal-alignment: center;
@@ -3289,7 +3289,7 @@ export component AppWindow inherits Window {
             y: parent.height / 2 - 60px * root.k;
             width: parent.width;
             text: "Turtlefin";
-            color: Theme.accent2;
+            color: Theme.dark ? Theme.accent2 : Theme.accent1;
             font-size: 48px * root.k;
             font-weight: 800;
             horizontal-alignment: center;
@@ -3330,7 +3330,7 @@ export component AppWindow inherits Window {
                 can-back: false;
                 show-home: false;
                 title: "Turtlefin";
-                title-color: root.offline ? Theme.ok : Theme.accent2;
+                title-color: root.offline ? Theme.ok : Theme.dark ? Theme.accent2 : Theme.accent1;
                 sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
                 activate(i) => {
                     root.nav-activate(i);
@@ -6495,7 +6495,7 @@ export component AppWindow inherits Window {
         property <float> av-p: root.av-open ? 1 : 0;
         animate av-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.av-p > 0.01: Rectangle {
-            background: Theme.bg;
+            background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
             opacity: sets.av-p;
             transform-scale: 0.94 + 0.06 * sets.av-p;
             TouchArea {
@@ -7131,7 +7131,7 @@ export component AppWindow inherits Window {
                 y: 0px;
                 height: parent.top;
                 text: "Turtlefin";
-                color: Theme.accent2;
+                color: Theme.dark ? Theme.accent2 : Theme.accent1;
                 font-size: 26px * root.k;
                 font-weight: 700;
                 vertical-alignment: center;
@@ -8305,7 +8305,7 @@ export component AppWindow inherits Window {
         property <float> t: (animation-tick() - root.fly-t0) / 1ms;
         // Fond : cache l'écran de chargement puis l'accueil jusqu'à la fin du départ de la photo.
         Rectangle {
-            background: Theme.bg;
+            background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
             opacity: root.fly-phase < 4 ? 1 : 1 - clamp(parent.t / 300, 0, 1);
             TouchArea {
                 // La molette ne fait pas défiler la page dessous.

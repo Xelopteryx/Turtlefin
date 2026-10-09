@@ -162,6 +162,18 @@ Preset-Ordner neben dem Programm.
 - `TURTLEFIN_LIBMPV=Pfad`: anderer Ort für libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: meldet langsame Bilder.
 - Die Darstellung muss OpenGL sein (automatisch gewählt): mit `SLINT_BACKEND=winit-software` gibt es kein Video.
 
+## Designs
+
+Einstellungen → Anzeige → **Design**: Turtlefin (Standard), Dunkel, Hell, Frutiger Aero (Himmel, Gras, Blasen,
+glänzende Gel-Schaltflächen), Turtlefin Grün — oder ein eigenes Design.
+
+- **Design erstellen** öffnet den *Turtlefin Theme Creator* im Browser: jede Farbe, die Rundung, der Glanz, Himmel
+  und Blasen, mit Live-Vorschau; er speichert eine `.tftheme`-Datei.
+- Diese Datei in den Ordner **Turtlefin Themes** legen (Dokumente, oder neben `turtlefin.exe` in der portablen
+  Version), dann **Design importieren**. **Design exportieren** schreibt das aktuelle Design als Ausgangspunkt in
+  diesen Ordner.
+- Der Editor liegt auch im Repository, `tools/theme-creator.html`: eine einzige Datei, die offline funktioniert.
+
 ## Turtlefin übersetzen
 
 Ohne Programmieren, ohne Kompilieren. Hinzugefügte Sprachen liegen in einem einzigen Ordner,
