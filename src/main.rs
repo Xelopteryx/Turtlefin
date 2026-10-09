@@ -2519,6 +2519,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
             row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
+            row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator dans le navigateur : couleurs, aperçu, export."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
@@ -3127,6 +3128,23 @@ fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
         "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
+        "themecreate" => {
+            // Thème intégré en cours : le créateur part de lui (?preset=…).
+            let key = config::ui_prefs().theme;
+            let res = theme::write_creator().and_then(|path| {
+                let url = if key.starts_with("custom:") {
+                    path.display().to_string()
+                } else {
+                    format!("file:///{}?preset={key}", path.display().to_string().replace('\\', "/").replace(' ', "%20").trim_start_matches('/'))
+                };
+                open_url(&url)
+            });
+            if let Err(e) = res {
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_toast(trf("Impossible d'ouvrir le créateur de thèmes : {}", &[&e]).into());
+                }
+            }
+        }
         "themeexport" => {
             let p = config::ui_prefs();
             let t = theme::find(&p.theme, &p.themes);
@@ -3689,6 +3707,20 @@ fn browse_themes(dir: &std::path::Path) -> Vec<i18n::Entry> {
     }
     dirs.extend(files);
     dirs
+}
+
+/// Ouvre une adresse (ou un fichier) avec le programme par défaut du système (navigateur…).
+fn open_url(url: &str) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        // `start` (cmd) garde le « ?preset=… » d'une adresse file:///, contrairement à explorer.
+        paths::quiet_command("cmd").args(["/C", "start", "", url]).spawn().map(|_| ())
+    }
+    #[cfg(not(windows))]
+    {
+        let prog = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+        paths::quiet_command(prog).arg(url).spawn().map(|_| ())
+    }
 }
 
 /// Nom affiché d'un thème intégré (traduit) ; les thèmes importés gardent le leur.

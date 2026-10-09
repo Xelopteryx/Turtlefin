@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turtlefin Theme Creator</title>
+<!--
+  Turtlefin Theme Creator (TTC) : crée un thème pour Turtlefin, avec aperçu en direct, et
+  l'enregistre en fichier .tftheme. Un seul fichier, sans dépendance : il s'ouvre dans n'importe
+  quel navigateur, même hors ligne. Le format est décrit dans src/theme.rs (ThemeDef) ; les thèmes
+  de départ ci-dessous en sont la copie exacte.
+-->
+<style>
+  :root {
+    --ui-bg: #0d1117; --ui-panel: #161b22; --ui-line: #30363d; --ui-text: #e6edf3; --ui-muted: #8b949e;
+    --ui-accent: #2f81f7;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ui-bg: #f6f8fa; --ui-panel: #ffffff; --ui-line: #d0d7de; --ui-text: #1f2328; --ui-muted: #59636e;
+      --ui-accent: #0969da;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ui-bg); color: var(--ui-text);
+         font: 14px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--ui-line);
+           background: var(--ui-panel); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; flex: 1; min-width: 200px; }
+  header h1 small { color: var(--ui-muted); font-weight: 400; }
+  button, select, input[type=text] { font: inherit; color: var(--ui-text); background: var(--ui-bg);
+           border: 1px solid var(--ui-line); border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; font-weight: 600; }
+  main { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 0; min-height: calc(100vh - 58px); }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  aside { border-right: 1px solid var(--ui-line); padding: 12px 16px 40px; overflow: auto; max-height: calc(100vh - 58px); }
+  @media (max-width: 860px) { aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--ui-line); } }
+  fieldset { border: 1px solid var(--ui-line); border-radius: 8px; margin: 0 0 12px; padding: 8px 10px 10px; }
+  legend { color: var(--ui-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 0 4px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; margin: 6px 0; }
+  .row label { font-size: 13px; }
+  .row small { grid-column: 1 / -1; color: var(--ui-muted); font-size: 11.5px; margin-top: -4px; }
+  .col { display: flex; gap: 6px; align-items: center; }
+  .col input[type=color] { width: 34px; height: 28px; padding: 0; border: 1px solid var(--ui-line); border-radius: 6px; background: none; }
+  .col input[type=range] { width: 70px; }
+  .col input[type=text] { width: 92px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 4px 6px; }
+  .wide input[type=range] { width: 150px; }
+  .note { color: var(--ui-muted); font-size: 12px; }
+  #preview-wrap { padding: 16px; overflow: auto; }
+  #err { color: #f85149; font-size: 13px; min-height: 18px; }
+
+  /* ----- Aperçu : une imitation de l'interface de Turtlefin ----- */
+  #pv { position: relative; overflow: hidden; border-radius: 10px; min-height: 620px;
+        font-family: Montserrat, "Segoe UI", system-ui, sans-serif; color: var(--t-text); background: var(--t-bgrad);
+        box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  #pv .backdrop { position: absolute; inset: 0; background:
+        radial-gradient(60% 50% at 70% 25%, #7a4b2a, transparent 70%), radial-gradient(50% 40% at 25% 40%, #2f5f7a, transparent 70%), #1b2530;
+        filter: blur(8px); opacity: .9; }
+  #pv .veil { position: absolute; inset: 0; background: var(--t-veil); }
+  #pv .sky { position: absolute; inset: 0; display: none; pointer-events: none; }
+  #pv.bubbles .sky { display: block; }
+  #pv .sky .sun { position: absolute; right: -15%; top: -40%; width: 60%; aspect-ratio: 1; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,.55), rgba(255,255,240,.22) 30%, transparent 70%); }
+  #pv .sky svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #pv .bubble { position: absolute; border-radius: 50%; aspect-ratio: 1; border: 1px solid rgba(255,255,255,.55);
+        background: radial-gradient(circle, rgba(255,255,255,.02), rgba(255,255,255,.06) 55%, rgba(200,240,255,.28) 85%, rgba(255,255,255,.55)); }
+  #pv .bubble::before { content: ""; position: absolute; left: 16%; top: 10%; width: 42%; height: 26%; border-radius: 50%;
+        background: linear-gradient(rgba(255,255,255,.85), rgba(255,255,255,.05)); }
+  #pv .content { position: relative; z-index: 1; padding: 0 0 20px; }
+  #pv .hdr { display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 22px; }
+  #pv .brand { font-weight: 800; font-size: 22px; color: var(--t-accent2); margin-right: auto; }
+  #pv .tabs { display: flex; gap: 22px; margin-right: auto; font-weight: 600; font-size: 15px; }
+  #pv .tabs span { color: var(--t-fg60); } #pv .tabs span.on { color: var(--t-fg); font-weight: 700; }
+  #pv .ico { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--t-fg); position: relative; overflow: hidden; }
+  #pv .ico.on { background: var(--t-grad); color: var(--t-onacc); transform: scale(1.1); }
+  #pv .ico svg { width: 20px; height: 20px; position: relative; }
+  #pv h3 { margin: 10px 22px 6px; font-weight: 500; font-size: 18px; color: var(--t-fg); display: flex; align-items: center; gap: 10px; }
+  #pv h3::before { content: ""; width: 18px; height: 2px; background: var(--t-fg); }
+  #pv .rowc { display: flex; gap: 14px; padding: 6px 22px 6px; overflow: hidden; }
+  #pv .card { flex: 0 0 130px; border-radius: var(--t-r); background: var(--t-card); overflow: hidden; transition: transform .2s; }
+  #pv .card.on { background: var(--t-cardf); transform: scale(1.06); }
+  #pv .poster { height: 180px; background: linear-gradient(130deg, var(--t-ph1), var(--t-ph2)); display: grid; place-items: center;
+        color: rgba(255,255,255,.85); font-weight: 800; font-size: 15px; text-align: center; padding: 6px; }
+  #pv .card .t { padding: 6px 8px 8px; font-size: 12px; text-align: center; color: var(--t-text); }
+  #pv .card .t small { display: block; color: var(--t-muted); font-size: 10.5px; }
+  #pv .bottom { display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px; padding: 10px 22px 0; }
+  @media (max-width: 1100px) { #pv .bottom { grid-template-columns: 1fr; } }
+  #pv .btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  #pv .btn { position: relative; overflow: hidden; height: 38px; padding: 0 16px; border-radius: var(--t-r); display: grid; place-items: center;
+        background: var(--t-fg12); color: var(--t-fg); font-weight: 600; font-size: 13px; }
+  #pv .btn.on { background: var(--t-grad); color: var(--t-onacc); transform: scale(1.07); }
+  #pv .lbl { position: relative; }
+  #pv .gloss { position: absolute; left: 0; right: 0; top: 0; height: 52%; pointer-events: none;
+        border-radius: var(--t-r) var(--t-r) calc(var(--t-r) * .4) calc(var(--t-r) * .4);
+        background: linear-gradient(rgba(255,255,255,var(--t-g1)), rgba(255,255,255,var(--t-g2))); }
+  #pv .sub { color: var(--t-accent2); font-weight: 600; margin: 4px 0 8px; font-size: 14px; }
+  #pv .ov { margin-top: 10px; padding: 10px 12px; border-radius: var(--t-r); background: var(--t-fg13); color: var(--t-text); font-size: 12.5px; }
+  #pv .panel { position: relative; overflow: hidden; border-radius: 14px; background: var(--t-glass); border: 1px solid var(--t-glassb); padding: 12px; }
+  #pv .srow { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 12px; border-radius: 12px; background: var(--t-fg07); margin-bottom: 8px; }
+  #pv .srow.sel { background: var(--t-fg18); outline: 2px solid var(--t-accent2); outline-offset: -2px; }
+  #pv .srow b { display: block; font-size: 13px; color: var(--t-fg); }
+  #pv .srow span { font-size: 11px; color: var(--t-fg60); }
+  #pv .tog { width: 44px; height: 24px; border-radius: 12px; background: var(--t-fg20); position: relative; flex: none; overflow: hidden; }
+  #pv .tog.on { background: var(--t-grad); }
+  #pv .tog i:not(.gloss) { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-onacc); }
+  #pv .tog.on i:not(.gloss) { left: 23px; }
+  #pv .pill { position: relative; overflow: hidden; padding: 5px 12px; border-radius: 99px; background: var(--t-grad); color: var(--t-onacc); font-size: 12px; font-weight: 600; }
+  #pv .chips { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  #pv .chip { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  #pv .toast { margin-top: 10px; display: inline-block; padding: 8px 14px; border-radius: 12px; background: var(--t-panel);
+        border: 1px solid var(--t-glassb); color: var(--t-text); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Turtlefin Theme Creator <small id="sub">— crée ton thème pour Turtlefin</small></h1>
+  <label class="note" for="lang">🌐</label>
+  <select id="lang"><option value="fr">Français</option><option value="en">English</option></select>
+  <select id="preset" title="Thème de départ"></select>
+  <button id="import" data-t="import">Importer…</button>
+  <input type="file" id="file" accept=".tftheme,.json" hidden>
+  <button class="primary" id="export" data-t="export">Enregistrer le .tftheme</button>
+</header>
+<main>
+  <aside>
+    <div id="err"></div>
+    <div id="controls"></div>
+    <p class="note" data-t="howto">Pour l'utiliser : enregistre le fichier, mets-le dans le dossier « Turtlefin Themes » (Documents), puis dans Turtlefin : Paramètres → Affichage → Importer un thème.</p>
+  </aside>
+  <div id="preview-wrap"><div id="pv"></div></div>
+</main>
+
+<script>
+// ---------------------------------------------------------------- Thèmes de départ (copie de src/theme.rs)
+const BASE = {
+  turtlefin_theme: 1, name: "Turtlefin", dark: true,
+  bg: "#010e18", bg_mid: "#010e18", bg_end: "#010e18", fg: "#ffffff", text: "#ffffffe6", muted: "#ffffff99",
+  accent1: "#a95bc2", accent2: "#00a4db", on_accent: "#ffffff", glass: "#181820d9", glass_border: "#ffffff24",
+  panel: "#0b1520f5", card: "#00000033", card_focus: "#00000080", placeholder1: "#2b2142", placeholder2: "#10283a",
+  scrim: "#000000", danger: "#ff6b6b", danger_text: "#ff8a8a", ok: "#4ade80", warn: "#f59e0b",
+  veil: 1.0, radius: 10, gloss: 0, bubbles: false,
+};
+const PRESETS = {
+  turtlefin: { ...BASE },
+  sombre: { ...BASE, name: "Sombre", bg: "#000000", bg_mid: "#050507", bg_end: "#0a0b0e", text: "#ffffffeb", muted: "#ffffff8c",
+    accent1: "#6366f1", accent2: "#38bdf8", glass: "#121216e6", glass_border: "#ffffff1f", panel: "#0e0f12f7",
+    card: "#ffffff0a", card_focus: "#ffffff1c", placeholder1: "#1d1e2a", placeholder2: "#11161d", veil: 1.15 },
+  clair: { ...BASE, name: "Clair", dark: false, bg: "#f5f8fc", bg_mid: "#eef3f9", bg_end: "#e7eef6", fg: "#0f1a2a",
+    text: "#0f1a2ae8", muted: "#0f1a2a99", accent1: "#8b3fd1", accent2: "#0284c7", glass: "#ffffffe0", glass_border: "#0f1a2a1f",
+    panel: "#fbfcfef7", card: "#ffffffa6", card_focus: "#ffffff", placeholder1: "#ddd3ee", placeholder2: "#cde1ee",
+    scrim: "#0f1a2a", danger: "#dc2626", danger_text: "#b91c1c", ok: "#16a34a", warn: "#d97706", veil: 1.6 },
+  aero: { ...BASE, name: "Frutiger Aero", dark: false, bg: "#4fb8ee", bg_mid: "#c9efff", bg_end: "#a6e58a", fg: "#0b2f52",
+    text: "#0b2f52f2", muted: "#0b2f52b0", accent1: "#0a5fc0", accent2: "#0a8bd3", on_accent: "#ffffff", glass: "#ffffff94",
+    glass_border: "#ffffffe6", panel: "#effaffee", card: "#ffffff80", card_focus: "#ffffffd9", placeholder1: "#9fd8f5",
+    placeholder2: "#bfeeb1", scrim: "#06345a", danger: "#e0313f", danger_text: "#b4162a", ok: "#23a047", warn: "#de8600",
+    veil: 2.0, radius: 14, gloss: 1.0, bubbles: true },
+  vert: { ...BASE, name: "Turtlefin vert", bg: "#02140f", bg_mid: "#031b14", bg_end: "#04211a", accent1: "#1f9d5c",
+    accent2: "#52c96b", glass: "#0d1f19e0", glass_border: "#ffffff21", panel: "#072019f5", placeholder1: "#173a2a",
+    placeholder2: "#0f2c33", ok: "#86efac" },
+};
+
+// ---------------------------------------------------------------- Textes (français / anglais)
+const TXT = {
+  fr: { sub: "— crée ton thème pour Turtlefin", import: "Importer…", export: "Enregistrer le .tftheme",
+    howto: "Pour l'utiliser : enregistre le fichier, mets-le dans le dossier « Turtlefin Themes » (Documents), puis dans Turtlefin : Paramètres → Affichage → Importer un thème.",
+    start: "Départ : ", g_general: "Général", g_bg: "Fond", g_ink: "Texte et icônes", g_acc: "Accents", g_surf: "Surfaces",
+    g_state: "États", g_fx: "Effets", name: "Nom du thème", dark: "Thème sombre (texte clair)",
+    bg: "Haut du fond", bg_mid: "Milieu du fond", bg_end: "Bas du fond", fg: "Encre (texte, icônes)", text: "Texte",
+    muted: "Texte secondaire", accent1: "Accent 1 (début du dégradé)", accent2: "Accent 2 (fin, liens, traits)",
+    on_accent: "Texte sur l'accent", glass: "Verre (fenêtres)", glass_border: "Contour du verre", panel: "Panneaux (menu, bulles)",
+    card: "Carte", card_focus: "Carte choisie", placeholder1: "Affiche absente 1", placeholder2: "Affiche absente 2",
+    scrim: "Voile des fenêtres", danger: "Erreur", danger_text: "Texte d'erreur", ok: "Réussite", warn: "Attention",
+    veil: "Voile sur l'image du média", radius: "Arrondi", gloss: "Reflet brillant", bubbles: "Ciel et bulles (Frutiger Aero)",
+    veil_h: "Plus fort : l'image de fond du média s'efface davantage.", gloss_h: "Moitié haute plus claire des boutons et panneaux.",
+    bad: "Ce fichier n'est pas un thème de Turtlefin.", },
+  en: { sub: "— create your Turtlefin theme", import: "Import…", export: "Save the .tftheme",
+    howto: "To use it: save the file, put it in the “Turtlefin Themes” folder (Documents), then in Turtlefin: Settings → Display → Import a theme.",
+    start: "Start: ", g_general: "General", g_bg: "Background", g_ink: "Text and icons", g_acc: "Accents", g_surf: "Surfaces",
+    g_state: "States", g_fx: "Effects", name: "Theme name", dark: "Dark theme (light text)",
+    bg: "Background top", bg_mid: "Background middle", bg_end: "Background bottom", fg: "Ink (text, icons)", text: "Text",
+    muted: "Secondary text", accent1: "Accent 1 (gradient start)", accent2: "Accent 2 (end, links, lines)",
+    on_accent: "Text on the accent", glass: "Glass (windows)", glass_border: "Glass outline", panel: "Panels (menu, bubbles)",
+    card: "Card", card_focus: "Selected card", placeholder1: "Missing poster 1", placeholder2: "Missing poster 2",
+    scrim: "Window backdrop", danger: "Error", danger_text: "Error text", ok: "Success", warn: "Warning",
+    veil: "Veil over the media image", radius: "Corner radius", gloss: "Glossy highlight", bubbles: "Sky and bubbles (Frutiger Aero)",
+    veil_h: "Stronger: the media background image fades more.", gloss_h: "Lighter top half on buttons and panels.",
+    bad: "This file is not a Turtlefin theme.", },
+};
+let L = (navigator.language || "fr").startsWith("fr") ? "fr" : "en";
+const t = k => TXT[L][k] || k;
+
+// ---------------------------------------------------------------- Couleurs
+function parse(c) {
+  const h = String(c || "").trim().replace(/^#/, "");
+  if (!/^([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(h)) return null;
+  if (h.length === 3) return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16), a: 1 };
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16),
+           a: h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1 };
+}
+const hex2 = n => Math.round(n).toString(16).padStart(2, "0");
+function fmt(c) { return "#" + hex2(c.r) + hex2(c.g) + hex2(c.b) + (c.a < 0.999 ? hex2(c.a * 255) : ""); }
+const rgba = (c, a = 1) => `rgba(${c.r},${c.g},${c.b},${(c.a * a).toFixed(3)})`;
+
+// ---------------------------------------------------------------- Réglages
+const GROUPS = [
+  ["g_bg", ["bg", "bg_mid", "bg_end"]],
+  ["g_ink", ["fg", "text", "muted"]],
+  ["g_acc", ["accent1", "accent2", "on_accent"]],
+  ["g_surf", ["glass", "glass_border", "panel", "card", "card_focus", "placeholder1", "placeholder2", "scrim"]],
+  ["g_state", ["danger", "danger_text", "ok", "warn"]],
+];
+let theme = { ...PRESETS.turtlefin };
+
+function build() {
+  document.documentElement.lang = L;
+  document.getElementById("sub").textContent = t("sub");
+  document.querySelectorAll("[data-t]").forEach(e => e.textContent = t(e.dataset.t));
+  const ps = document.getElementById("preset");
+  ps.innerHTML = Object.entries(PRESETS).map(([k, v]) => `<option value="${k}">${t("start")}${v.name}</option>`).join("");
+  const box = document.getElementById("controls");
+  let h = `<fieldset><legend>${t("g_general")}</legend>
+    <div class="row"><label for="f-name">${t("name")}</label><input type="text" id="f-name" style="width:170px"></div>
+    <div class="row"><label for="f-dark">${t("dark")}</label><input type="checkbox" id="f-dark"></div></fieldset>`;
+  for (const [g, keys] of GROUPS) {
+    h += `<fieldset><legend>${t(g)}</legend>`;
+    for (const k of keys) h += `<div class="row"><label for="c-${k}">${t(k)}</label><span class="col">
+      <input type="color" id="c-${k}"><input type="range" id="a-${k}" min="0" max="100" title="Opacité / opacity">
+      <input type="text" id="x-${k}" spellcheck="false"></span></div>`;
+    h += `</fieldset>`;
+  }
+  h += `<fieldset><legend>${t("g_fx")}</legend>
+    <div class="row wide"><label for="f-veil">${t("veil")}</label><span class="col"><input type="range" id="f-veil" min="20" max="300"><b id="v-veil"></b></span><small>${t("veil_h")}</small></div>
+    <div class="row wide"><label for="f-radius">${t("radius")}</label><span class="col"><input type="range" id="f-radius" min="0" max="30"><b id="v-radius"></b></span></div>
+    <div class="row wide"><label for="f-gloss">${t("gloss")}</label><span class="col"><input type="range" id="f-gloss" min="0" max="150"><b id="v-gloss"></b></span><small>${t("gloss_h")}</small></div>
+    <div class="row"><label for="f-bubbles">${t("bubbles")}</label><input type="checkbox" id="f-bubbles"></div></fieldset>`;
+  box.innerHTML = h;
+  // Liaisons
+  const $ = id => document.getElementById(id);
+  $("f-name").oninput = e => { theme.name = e.target.value; render(); };
+  $("f-dark").onchange = e => { theme.dark = e.target.checked; render(); };
+  for (const [, keys] of GROUPS) for (const k of keys) {
+    const sync = c => { theme[k] = fmt(c); render(); };
+    $("c-" + k).oninput = e => { const c = parse(e.target.value), o = parse(theme[k]) || { a: 1 }; c.a = o.a; sync(c); };
+    $("a-" + k).oninput = e => { const c = parse(theme[k]) || parse("#000"); c.a = e.target.value / 100; sync(c); };
+    $("x-" + k).onchange = e => { const c = parse(e.target.value); if (c) sync(c); else fill(); };
+  }
+  $("f-veil").oninput = e => { theme.veil = e.target.value / 100; render(); };
+  $("f-radius").oninput = e => { theme.radius = +e.target.value; render(); };
+  $("f-gloss").oninput = e => { theme.gloss = e.target.value / 100; render(); };
+  $("f-bubbles").onchange = e => { theme.bubbles = e.target.checked; render(); };
+  fill();
+}
+
+// Remet les champs à jour depuis le thème.
+function fill() {
+  const $ = id => document.getElementById(id);
+  $("f-name").value = theme.name; $("f-dark").checked = !!theme.dark;
+  for (const [, keys] of GROUPS) for (const k of keys) {
+    const c = parse(theme[k]) || parse(BASE[k]);
+    $("c-" + k).value = "#" + hex2(c.r) + hex2(c.g) + hex2(c.b);
+    $("a-" + k).value = Math.round(c.a * 100);
+    $("x-" + k).value = fmt(c);
+  }
+  $("f-veil").value = Math.round((theme.veil || 1) * 100);
+  $("f-radius").value = theme.radius ?? 10;
+  $("f-gloss").value = Math.round((theme.gloss || 0) * 100);
+  $("f-bubbles").checked = !!theme.bubbles;
+  render();
+}
+
+// ---------------------------------------------------------------- Aperçu
+const ICON = {
+  party: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="7.5" r="3.5"/><path d="M1 19c0-4.5 3-6.5 7-6.5s7 2 7 6.5z"/><circle cx="17" cy="8.5" r="3"/></svg>',
+  dice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="10.5" cy="10.5" r="7"/><path d="M15.6 15.6 21 21"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg>',
+};
+function render() {
+  const T = k => parse(theme[k]) || parse(BASE[k]);
+  const fg = T("fg"), v = Math.min(3, Math.max(0.2, theme.veil || 1)), g = Math.min(1.5, Math.max(0, theme.gloss || 0));
+  const pv = document.getElementById("pv");
+  const S = (n, x) => pv.style.setProperty("--t-" + n, x);
+  const bg = T("bg"), bm = parse(theme.bg_mid) || bg, be = parse(theme.bg_end) || bg;
+  S("bgrad", `linear-gradient(180deg, ${rgba(bg)} 0%, ${rgba(bm)} 55%, ${rgba(be)} 100%)`);
+  S("veil", `linear-gradient(180deg, ${rgba(bg, Math.min(1, .25 * v))} 0%, ${rgba(bm, Math.min(1, .69 * v))} 60%, ${rgba(be, Math.min(1, .88 * v))} 100%)`);
+  S("fg", rgba(fg)); S("fg60", rgba(fg, .6)); S("fg07", rgba(fg, .07)); S("fg12", rgba(fg, .12)); S("fg13", rgba(fg, .13));
+  S("fg18", rgba(fg, .18)); S("fg20", rgba(fg, .2));
+  S("text", rgba(parse(theme.text) || { ...fg, a: .9 })); S("muted", rgba(parse(theme.muted) || { ...fg, a: .6 }));
+  S("accent2", rgba(T("accent2"))); S("onacc", rgba(T("on_accent")));
+  S("grad", `linear-gradient(130deg, ${rgba(T("accent1"))}, ${rgba(T("accent2"))})`);
+  S("glass", rgba(T("glass"))); S("glassb", rgba(T("glass_border"))); S("panel", rgba(T("panel")));
+  S("card", rgba(T("card"))); S("cardf", rgba(T("card_focus")));
+  S("ph1", rgba(T("placeholder1"))); S("ph2", rgba(T("placeholder2")));
+  S("r", (theme.radius ?? 10) + "px"); S("g1", (.62 * g).toFixed(3)); S("g2", (.12 * g).toFixed(3));
+  pv.classList.toggle("bubbles", !!theme.bubbles);
+  const gloss = g > 0 ? '<i class="gloss"></i>' : "";
+  const card = (title, sub, on) => `<div class="card${on ? " on" : ""}"><div class="poster">${title}</div><div class="t">${title}<small>${sub}</small></div></div>`;
+  const bub = [[4, 62, 9], [11, 50, 4], [87, 55, 11], [82, 40, 3.6], [94, 28, 5], [47, 84, 3.2], [58, 12, 2.4], [69, 90, 5.5]]
+    .map(([x, y, w]) => `<i class="bubble" style="left:${x}%;top:${y}%;width:${w}%"></i>`).join("");
+  pv.innerHTML = `<div class="backdrop"></div><div class="veil"></div>
+    <div class="sky"><div class="sun"></div>
+      <svg viewBox="0 0 1000 600" preserveAspectRatio="none">
+        <defs><linearGradient id="sw" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgb(160,235,110)" stop-opacity=".55"/><stop offset="1" stop-color="rgb(70,175,60)" stop-opacity=".75"/></linearGradient></defs>
+        <path fill="url(#sw)" d="M -50 330 C 200 220 420 300 620 230 C 800 170 900 120 1050 60 L 1050 110 C 900 170 790 230 620 290 C 420 360 210 280 -50 400 Z"/>
+        <path fill="url(#gr)" d="M 0 552 C 180 474 380 464 560 514 C 720 559 860 504 1000 474 L 1000 600 L 0 600 Z"/>
+      </svg>${bub}</div>
+    <div class="content">
+      <div class="hdr"><span class="ico">${ICON.menu}</span><span class="brand">Turtlefin</span>
+        <span class="tabs"><span class="on">${L === "fr" ? "Accueil" : "Home"}</span><span>${L === "fr" ? "Favoris" : "Favorites"}</span><span>${L === "fr" ? "Demandes" : "Requests"}</span></span>
+        <span class="ico">${ICON.party}</span><span class="ico on">${gloss}${ICON.dice}</span><span class="ico">${ICON.search}</span></div>
+      <h3>${L === "fr" ? "Reprendre" : "Continue watching"}</h3>
+      <div class="rowc">${card("Kaamelott", "S1E2", true)}${card("Cowboy Bebop", "S1E1", false)}${card("Parasite", "S1E3", false)}${card("Beelzebub", "S1E1", false)}${card("Black Lagoon", "S1E4", false)}</div>
+      <div class="bottom">
+        <div>
+          <div class="sub">S1E2 · Honky Tonk Women</div>
+          <div class="btns"><span class="btn on">${gloss}<span class="lbl">▶</span></span><span class="btn">${gloss}<span class="lbl">♡</span></span><span class="btn">${gloss}<span class="lbl">✓</span></span>
+            <span class="btn">${gloss}<span class="lbl">${L === "fr" ? "Voir la série" : "See the series"}</span></span></div>
+          <div class="ov">${L === "fr" ? "Résumé de l'épisode : texte normal sur une surface translucide." : "Episode overview: normal text on a translucent surface."}</div>
+          <div class="chips"><span class="chip" style="background:${rgba(T("ok"))};color:#04210f">OK</span>
+            <span class="chip" style="background:${rgba(T("warn"))};color:#2a1600">!</span>
+            <span class="chip" style="background:${rgba(T("danger"))};color:#fff">×</span>
+            <span class="chip" style="color:${rgba(T("danger_text"))}">${L === "fr" ? "Mot de passe incorrect" : "Wrong password"}</span></div>
+          <div class="toast">${L === "fr" ? "Thème importé : " : "Theme imported: "}${(theme.name || "").replace(/</g, "&lt;")}</div>
+        </div>
+        <div class="panel">${g > 0 ? '<i class="gloss" style="opacity:.45"></i>' : ""}
+          <div class="srow sel"><div><b>${L === "fr" ? "Thème" : "Theme"}</b><span>${L === "fr" ? "Couleurs et style de l'interface." : "Colors and style of the interface."}</span></div><span class="pill">${gloss}<span class="lbl">${(theme.name || "").replace(/</g, "&lt;")}</span></span></div>
+          <div class="srow"><div><b>${L === "fr" ? "Plein écran" : "Full screen"}</b><span>F11</span></div><span class="tog on">${gloss}<i></i></span></div>
+          <div class="srow"><div><b>${L === "fr" ? "Notes sur les affiches" : "Ratings on posters"}</b><span>★</span></div><span class="tog"><i></i></span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------- Import / export
+document.getElementById("preset").onchange = e => { theme = { ...PRESETS[e.target.value] }; fill(); };
+document.getElementById("lang").onchange = e => { L = e.target.value; build(); };
+document.getElementById("import").onclick = () => document.getElementById("file").click();
+document.getElementById("file").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const err = document.getElementById("err"); err.textContent = "";
+  try {
+    const j = JSON.parse((await f.text()).replace(/^﻿/, ""));
+    if (!(j.turtlefin_theme >= 1) || !j.name) throw 0;
+    theme = { ...BASE, ...j }; fill();
+  } catch { err.textContent = t("bad"); }
+  e.target.value = "";
+};
+document.getElementById("export").onclick = () => {
+  const out = { ...theme, turtlefin_theme: 1 };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (theme.name || "theme").replace(/[^\p{L}\p{N} _-]/gu, "_").trim() + ".tftheme";
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+document.getElementById("lang").value = L;
+// « ?preset=aero » (ou sombre, clair, vert) : thème de départ choisi par l'adresse.
+const want = new URLSearchParams(location.search).get("preset");
+if (want && PRESETS[want]) theme = { ...PRESETS[want] };
+build();
+if (want && PRESETS[want]) document.getElementById("preset").value = want;
+</script>
+</body>
+</html>

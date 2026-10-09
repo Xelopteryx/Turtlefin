@@ -277,6 +277,18 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_bubbles(t.bubbles);
 }
 
+/// Turtlefin Theme Creator (tools/theme-creator.html), intégré au programme : déposé dans le
+/// dossier des thèmes et ouvert dans le navigateur (aperçu en direct, export en .tftheme).
+pub const CREATOR: &str = include_str!("../tools/theme-creator.html");
+pub const CREATOR_FILE: &str = "Turtlefin Theme Creator.html";
+
+pub fn write_creator() -> std::io::Result<std::path::PathBuf> {
+    let d = dir().ok_or_else(|| std::io::Error::other("dossier des thèmes introuvable"))?;
+    let path = d.join(CREATOR_FILE);
+    std::fs::write(&path, CREATOR)?;
+    Ok(path)
+}
+
 /// Dossier des thèmes personnels (à côté de celui des langues), créé au besoin.
 pub fn dir() -> Option<std::path::PathBuf> {
     let d = crate::i18n::lang_dir()?.parent()?.join(THEMES_DIR_NAME);

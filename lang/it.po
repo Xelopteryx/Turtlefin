@@ -1654,3 +1654,12 @@ msgid "{n} thème"
 msgid_plural "{n} thèmes"
 msgstr[0] "{n} tema"
 msgstr[1] "{n} temi"
+
+msgid "Créer un thème"
+msgstr "Crea un tema"
+
+msgid "Ouvre le Turtlefin Theme Creator dans le navigateur : couleurs, aperçu, export."
+msgstr "Apre Turtlefin Theme Creator nel browser: colori, anteprima, esportazione."
+
+msgid "Impossible d'ouvrir le créateur de thèmes : {}"
+msgstr "Impossibile aprire il creatore di temi: {}"
