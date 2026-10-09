@@ -151,6 +151,9 @@ Points notables, non évidents dans le code :
   intégrés (Toutes, Légères, Aucune) et personnels, exportés / importés en `.json` dans `Turtlefin Presets`
   (même explorateur que les langues, `lx_mode`). Molette : absorbée par les fenêtres au premier plan, choisit
   dans le menu et la liste des langues. Cascades plafonnées (lignes après la 8e restées décalées).
+  Photos de profil en cache disque (`avatar_<id>_anim.bin` + vignette `_thumb.png`) : vignette posée tout de
+  suite, GIF complet décodé hors du fil de l'interface. Diagnostic `TURTLEFIN_DEBUG_GAPS=1` (avec
+  `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`) : signale les pauses de plus de 40 ms entre deux images.
 
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).

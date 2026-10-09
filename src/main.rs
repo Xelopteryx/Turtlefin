@@ -546,6 +546,25 @@ fn avatar_cached(uid: &str) -> Option<(Vec<u8>, Frames)> {
     Some((bytes, frames))
 }
 
+/// Vignette d'un avatar (sa première image, déjà en cercle) : se lit en une milliseconde, affichée
+/// tout de suite pendant que l'avatar complet (GIF animé, parfois lourd) se décode à part.
+fn avatar_thumb_path(uid: &str) -> Option<std::path::PathBuf> {
+    api::image_cache_dir().map(|d| d.join(format!("avatar_{uid}_thumb.png")))
+}
+
+fn avatar_thumb(uid: &str) -> Option<Frames> {
+    let img = image::open(avatar_thumb_path(uid)?).ok()?.to_rgba8();
+    let buf = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), img.width(), img.height());
+    Some(vec![(buf, 0)])
+}
+
+fn save_avatar_thumb(uid: &str, frames: &Frames) {
+    let (Some(path), Some((first, _))) = (avatar_thumb_path(uid), frames.first()) else { return };
+    if let Some(img) = image::RgbaImage::from_raw(first.width(), first.height(), first.as_bytes().to_vec()) {
+        let _ = img.save(path);
+    }
+}
+
 /// Avatar à jour depuis le serveur : `None` s'il n'a pas changé depuis `known` (ou en cas d'échec) ;
 /// sinon ses images, et le cache est mis à jour.
 async fn avatar_fetch(http: &reqwest::Client, server: &str, uid: &str, known: Option<&[u8]>) -> Option<Frames> {
@@ -565,7 +584,30 @@ async fn avatar_fetch(http: &reqwest::Client, server: &str, uid: &str, known: Op
         }
         let _ = std::fs::write(path, &bytes);
     }
-    tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })).await.ok().flatten()
+    let uid = uid.to_string();
+    tokio::task::spawn_blocking(move || {
+        let frames = decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })?;
+        save_avatar_thumb(&uid, &frames);
+        Some(frames)
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// Avatar complet du cache, décodé hors du fil de l'interface (`None` s'il n'y en a pas) ; la
+/// vignette est recréée au besoin (cache d'une version précédente).
+async fn avatar_cached_async(uid: String) -> Option<(Vec<u8>, Frames)> {
+    tokio::task::spawn_blocking(move || {
+        let c = avatar_cached(&uid)?;
+        if avatar_thumb_path(&uid).is_some_and(|p| !p.exists()) {
+            save_avatar_thumb(&uid, &c.1);
+        }
+        Some(c)
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 /// Photo du compte qui se connecte : ses images animées (celles de sa tuile, ou chargées pour la
@@ -588,19 +630,29 @@ fn fly_autostart(app: &Arc<App>, server: String, uid: String, name: String) {
     if !config::ui_prefs().anim.login {
         return;
     }
-    let cached = avatar_cached(&uid);
+    let thumb = avatar_thumb(&uid);
     if let Some(u) = app.ui().upgrade() {
         u.set_fly_has_img(false);
         u.set_fly_letter(name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default().into());
         u.invoke_fly_wait();
-        // Avatar déjà connu : affiché d'emblée (pas d'initiale le temps de le charger).
-        if let Some((_, frames)) = &cached {
-            show_frames(&u, AnimSlot::Fly, "", frames.clone());
+        // Avatar déjà connu : sa vignette d'emblée (pas d'initiale le temps de le charger).
+        if let Some(frames) = thumb {
+            show_frames(&u, AnimSlot::Fly, "", frames);
         }
     }
     let ui = app.ui();
     app.rt.spawn(async move {
-        let known = cached.map(|c| c.0);
+        // Avatar complet (animé) du cache, décodé à part, puis celui du serveur s'il a changé.
+        let cached = avatar_cached_async(uid.clone()).await;
+        let known = cached.as_ref().map(|c| c.0.clone());
+        if let Some((_, frames)) = cached.filter(|c| c.1.len() > 1) {
+            let ui2 = ui.clone();
+            let _ = ui2.upgrade_in_event_loop(move |u| {
+                if u.get_fly_phase() > 0 {
+                    show_frames(&u, AnimSlot::Fly, "", frames);
+                }
+            });
+        }
         let Some(frames) = avatar_fetch(&reqwest::Client::new(), &server, &uid, known.as_deref()).await else { return };
         let _ = ui.upgrade_in_event_loop(move |u| {
             if u.get_fly_phase() > 0 {
@@ -613,6 +665,25 @@ fn fly_autostart(app: &Arc<App>, server: String, uid: String, name: String) {
 /// Affiche une image (fixe ou animée) à sa place, en remplaçant l'animation qui s'y trouvait.
 fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
     stop_anims(|s| s == slot);
+    // Avatar de l'en-tête animé : changer la source d'une image crée une texture à chaque étape du
+    // GIF, ce qui bloque l'affichage sur l'accueil (~45 ms avec certains pilotes). Toutes ses images
+    // sont données d'un coup à l'interface ; l'animation ne change que celle qui est visible.
+    if slot == AnimSlot::Header {
+        let images: Vec<slint::Image> = frames.iter().map(|(b, _)| slint::Image::from_rgba8(b.clone())).collect();
+        if images.len() > 1 {
+            let delays: Vec<u32> = frames.iter().map(|f| f.1).collect();
+            u.set_avatar(images[0].clone());
+            u.set_has_avatar(true);
+            u.set_avatar_idx(0);
+            u.set_avatar_frames(ModelRc::new(VecModel::from(images.clone())));
+            let frames: Vec<(slint::Image, u32)> = images.into_iter().zip(delays).collect();
+            let due = std::time::Instant::now() + std::time::Duration::from_millis(frames[0].1 as u64);
+            ANIMS.with_borrow_mut(|a| a.push(Anim { slot, key: key.to_string(), frames, idx: 0, due }));
+            start_anim_timer(u);
+            return;
+        }
+        u.set_avatar_frames(ModelRc::default());
+    }
     let frames: Vec<(slint::Image, u32)> = frames.into_iter().map(|(b, ms)| (slint::Image::from_rgba8(b), ms)).collect();
     let Some((first, ms)) = frames.first().cloned() else { return };
     if !anim_set(u, slot, key, first) || frames.len() < 2 {
@@ -620,6 +691,11 @@ fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
     }
     let due = std::time::Instant::now() + std::time::Duration::from_millis(ms as u64);
     ANIMS.with_borrow_mut(|a| a.push(Anim { slot, key: key.to_string(), frames, idx: 0, due }));
+    start_anim_timer(u);
+}
+
+/// Minuterie des avatars animés (une pour tous), lancée au besoin.
+fn start_anim_timer(u: &AppWindow) {
     let ui = u.as_weak();
     ANIM_TIMER.with(|t| {
         if t.running() {
@@ -649,7 +725,13 @@ fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
                     // Animation restée cachée : elle repart d'ici plutôt que de rattraper son retard.
                     let base = if now.duration_since(a.due).as_millis() > 500 { now } else { a.due };
                     a.due = base + std::time::Duration::from_millis(ms as u64);
-                    anim_set(&u, a.slot, &a.key, img)
+                    if a.slot == AnimSlot::Header {
+                        // Seule l'image visible change (aucune nouvelle texture).
+                        u.set_avatar_idx(a.idx as i32);
+                        true
+                    } else {
+                        anim_set(&u, a.slot, &a.key, img)
+                    }
                 });
                 if list.is_empty() {
                     ANIM_TIMER.with(|t| t.stop());
@@ -879,14 +961,9 @@ fn login_opened(app: &Arc<App>) {
         }
         tiles.push(("other".into(), tr("Autre compte").into(), String::new(), String::new()));
         let rows = tiles.clone();
-        // Avatars déjà connus : décodés avant l'affichage des tuiles, posés en même temps.
-        let ids: Vec<String> = tiles.iter().map(|t| t.3.clone()).collect();
-        let cached: Vec<Option<(Vec<u8>, Frames)>> = tokio::task::spawn_blocking(move || {
-            ids.iter().map(|uid| if uid.is_empty() { None } else { avatar_cached(uid) }).collect()
-        })
-        .await
-        .unwrap_or_default();
-        let first: Vec<Option<Frames>> = cached.iter().map(|c| c.as_ref().map(|c| c.1.clone())).collect();
+        // Avatars déjà connus : leurs vignettes, posées avec les tuiles (les avatars complets,
+        // parfois de lourds GIF animés, se décodent ensuite à part).
+        let first: Vec<Option<Frames>> = tiles.iter().map(|t| if t.3.is_empty() { None } else { avatar_thumb(&t.3) }).collect();
         let keys: Vec<String> = tiles.iter().map(|t| t.0.clone()).collect();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let cards: Vec<CardData> = rows
@@ -919,13 +996,18 @@ fn login_opened(app: &Arc<App>) {
             u.set_server_name(if reachable { sname.into() } else { tr("Serveur injoignable").into() });
         });
         // Avatars (publics, sans connexion), en cercle.
-        for (i, ((key, _, _, uid), known)) in tiles.into_iter().zip(cached).enumerate() {
+        for (i, (key, _, _, uid)) in tiles.into_iter().enumerate() {
             if uid.is_empty() {
                 continue;
             }
             let (http, server, ui) = (http.clone(), server.clone(), app2.ui());
             tokio::spawn(async move {
-                let known = known.map(|k| k.0);
+                let cached = avatar_cached_async(uid.clone()).await;
+                let known = cached.as_ref().map(|c| c.0.clone());
+                if let Some((_, frames)) = cached.filter(|c| c.1.len() > 1) {
+                    let key2 = key.clone();
+                    let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Login(i), &key2, frames));
+                }
                 let Some(frames) = avatar_fetch(&http, &server, &uid, known.as_deref()).await else { return };
                 let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Login(i), &key, frames));
             });
@@ -1032,6 +1114,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
         u.set_can_back(false);
         u.set_has_requests(false);
         stop_anims(|s| s == AnimSlot::Header);
+        u.set_avatar_frames(ModelRc::default());
         u.set_has_avatar(false);
         u.set_bg_show(false);
         u.set_menu_open(false);

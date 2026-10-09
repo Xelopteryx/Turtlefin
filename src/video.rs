@@ -65,6 +65,10 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // TURTLEFIN_DEBUG_FPS=1 : nombre d'images dessinées par seconde (avec
     // SLINT_DEBUG_PERFORMANCE=refresh_full_speed pour un rendu continu : le maximum possible).
     let debug_fps = std::env::var_os("TURTLEFIN_DEBUG_FPS").is_some();
+    // TURTLEFIN_DEBUG_GAPS=1 (avec SLINT_DEBUG_PERFORMANCE=refresh_full_speed) : signale chaque pause
+    // de plus de 40 ms entre deux images, c'est-à-dire un à-coup (fil de l'interface occupé).
+    let debug_gaps = std::env::var_os("TURTLEFIN_DEBUG_GAPS").is_some();
+    let mut last_frame: Option<std::time::Instant> = None;
     let (mut fps_n, mut fps_t) = (0u32, std::time::Instant::now());
     ui.window().set_rendering_notifier(move |rs, api| {
         if debug_fps && matches!(rs, slint::RenderingState::AfterRendering) {
@@ -74,6 +78,16 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 fps_n = 0;
                 fps_t = std::time::Instant::now();
             }
+        }
+        if debug_gaps && matches!(rs, slint::RenderingState::AfterRendering) {
+            let now = std::time::Instant::now();
+            if let Some(t) = last_frame {
+                let ms = now.duration_since(t).as_secs_f64() * 1000.0;
+                if ms > 40.0 {
+                    eprintln!("[{:.2} s] à-coup : {ms:.0} ms sans image", t_start.elapsed().as_secs_f64());
+                }
+            }
+            last_frame = Some(now);
         }
         if debug_frames {
             match rs {

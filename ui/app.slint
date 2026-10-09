@@ -1274,6 +1274,9 @@ component HeaderRight inherits Rectangle {
     in property <bool> party-on;
     in property <bool> has-avatar;
     in property <image> avatar;
+    // Avatar animé : ses images (vide : `avatar`, fixe) et celle montrée (voir show_frames).
+    in property <[image]> avatar-frames;
+    in property <int> avatar-idx;
     in property <string> clock;
     in property <bool> offline;
     in property <int> party-count;
@@ -1438,13 +1441,23 @@ component HeaderRight inherits Rectangle {
             clicked => {
                 root.activate(3);
             }
-            if root.has-avatar: Image {
+            if root.has-avatar && root.avatar-frames.length == 0: Image {
                 x: 4px * root.k;
                 y: 4px * root.k;
                 width: parent.width - 8px * root.k;
                 height: parent.height - 8px * root.k;
                 source: root.avatar;
                 image-fit: fill;
+            }
+            // GIF : une image par étape, une seule visible (chaque texture n'est créée qu'une fois).
+            for f[fi] in root.avatar-frames: Image {
+                x: 4px * root.k;
+                y: 4px * root.k;
+                width: parent.width - 8px * root.k;
+                height: parent.height - 8px * root.k;
+                source: f;
+                image-fit: fill;
+                visible: fi == root.avatar-idx;
             }
         }
         if Prefs.clock: Text {
@@ -2107,6 +2120,9 @@ export component AppWindow inherits Window {
     }
     in property <[CardData]> avatar-items;
     in property <image> avatar;
+    // Avatar animé : ses images (vide : `avatar`, fixe) et celle montrée (voir show_frames).
+    in property <[image]> avatar-frames;
+    in property <int> avatar-idx;
     in property <bool> has-avatar;
     in property <bool> offline;             // pas de serveur : téléchargements seulement
     in property <bool> signed-in;           // une session est ouverte (en ligne ou hors ligne)
@@ -3291,6 +3307,8 @@ export component AppWindow inherits Window {
                 party-count: root.sp-count;
                 has-avatar: root.has-avatar;
                 avatar: root.avatar;
+                avatar-frames: root.avatar-frames;
+                avatar-idx: root.avatar-idx;
                 clock: root.clock;
                 offline: root.offline;
                 dl-text: root.dl-pill;
@@ -5968,11 +5986,19 @@ export component AppWindow inherits Window {
                             height: self.width;
                             border-radius: self.width / 2;
                             background: #ffffff1f;
-                            if root.has-avatar: Image {
+                            if root.has-avatar && root.avatar-frames.length == 0: Image {
                                 width: parent.width;
                                 height: parent.height;
                                 source: root.avatar;
                                 image-fit: fill;
+                            }
+                            // GIF : une image par étape, une seule visible (chaque texture n'est créée qu'une fois).
+                            for f[fi] in root.avatar-frames: Image {
+                                width: parent.width;
+                                height: parent.height;
+                                source: f;
+                                image-fit: fill;
+                                visible: fi == root.avatar-idx;
                             }
                         }
                         VerticalLayout {
@@ -6240,13 +6266,23 @@ export component AppWindow inherits Window {
                 background: #ffffff1f;
                 border-width: 2px * root.k;
                 border-color: Theme.accent2;
-                if root.has-avatar: Image {
+                if root.has-avatar && root.avatar-frames.length == 0: Image {
                     x: 3px * root.k;
                     y: 3px * root.k;
                     width: parent.width - 6px * root.k;
                     height: parent.height - 6px * root.k;
                     source: root.avatar;
                     image-fit: fill;
+                }
+                // GIF : une image par étape, une seule visible (chaque texture n'est créée qu'une fois).
+                for f[fi] in root.avatar-frames: Image {
+                    x: 3px * root.k;
+                    y: 3px * root.k;
+                    width: parent.width - 6px * root.k;
+                    height: parent.height - 6px * root.k;
+                    source: f;
+                    image-fit: fill;
+                    visible: fi == root.avatar-idx;
                 }
             }
 
@@ -6696,6 +6732,8 @@ export component AppWindow inherits Window {
         party-count: root.sp-count;
         has-avatar: root.has-avatar;
         avatar: root.avatar;
+        avatar-frames: root.avatar-frames;
+        avatar-idx: root.avatar-idx;
         clock: root.clock;
         offline: root.offline;
         dl-text: root.dl-pill;

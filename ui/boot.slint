@@ -198,11 +198,12 @@ export component BootLogo inherits Rectangle {
                 y: self.oy * root.u + (parent.height - self.height) / 2;
                 width: 160px * root.k;
                 text: root.labels[i];
-                color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
+                // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
+                // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
+                color: (parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc).transparentize(root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
-                opacity: 1 - root.edge-p;
             }
         }
         // Le centre (7e point) : le serveur, vérifié en dernier.
@@ -216,19 +217,20 @@ export component BootLogo inherits Rectangle {
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            background: root.dot-color(self.s, 128, 128);
+            // Fondu par la couleur (voir les libellés).
+            background: root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
             animate background { duration: 300ms; }
-            opacity: 1 - root.spoke-p;
             Text {
                 x: (parent.width - self.width) / 2;
                 y: parent.height + 6px * root.k;
                 width: 160px * root.k;
                 text: root.labels[6];
-                color: parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc;
+                // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
+                // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
+                color: (parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc).transparentize(root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
-                opacity: 1 - root.edge-p;
             }
         }
     }
@@ -238,11 +240,12 @@ export component BootLogo inherits Rectangle {
         y: logo.y + root.side + 24px * root.k;
         width: parent.width;
         spacing: 10px * root.k;
-        opacity: 1 - root.edge-p;
+        // Pas de transparence d'ensemble (voir les libellés) : le texte s'efface par sa couleur, et
+        // le bouton d'un échec n'est pas affiché pendant la liaison.
         alignment: start;
         Text {
             text: root.fail != "" ? root.fail : root.text;
-            color: root.fail != "" ? #fca5a5 : Theme.muted;
+            color: (root.fail != "" ? #fca5a5 : Theme.muted).transparentize(root.edge-p);
             font-size: 16px * root.k;
             horizontal-alignment: center;
             wrap: word-wrap;

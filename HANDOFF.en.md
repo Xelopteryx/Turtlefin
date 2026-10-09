@@ -147,7 +147,10 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   (`fly-phase`). Settings → Animations: 12 switches (`Motion` global in theme.slint, `config::AnimFlags`),
   built-in presets (All, Light, None) and custom ones, exported / imported as `.json` in `Turtlefin Presets`
   (same explorer as languages, `lx_mode`). Mouse wheel: swallowed by front windows, selects in the menu and
-  the language list. Cascades capped (rows after the 8th stayed shifted).
+  the language list. Cascades capped (rows after the 8th stayed shifted). Profile pictures cached on disk
+  (`avatar_<id>_anim.bin` + `_thumb.png` thumbnail): thumbnail shown at once, full GIF decoded off the UI
+  thread. `TURTLEFIN_DEBUG_GAPS=1` diagnostic (with `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`): reports
+  pauses over 40 ms between two frames.
 
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).
