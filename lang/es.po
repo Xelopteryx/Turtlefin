@@ -1446,3 +1446,146 @@ msgid "{n} fichier de langue"
 msgid_plural "{n} fichiers de langue"
 msgstr[0] "{n} archivo de idioma"
 msgstr[1] "{n} archivos de idioma"
+
+msgid "Animations"
+msgstr "Animaciones"
+
+msgid "Arrivée des pages"
+msgstr "Llegada de las páginas"
+
+msgid "Aucun preset à exporter : enregistre d'abord tes réglages comme preset."
+msgstr "No hay presets para exportar: guarda antes tus ajustes como preset."
+
+msgid "Barre qui recouvre puis réécrit les textes."
+msgstr "Barra que cubre y luego reescribe los textos."
+
+msgid "Boutons, onglets, affiches et interrupteurs qui réagissent."
+msgstr "Botones, pestañas, pósteres e interruptores que reaccionan."
+
+msgid "Bulles et cadres de la visite."
+msgstr "Burbujas y marcos de la visita."
+
+msgid "Changement de langue"
+msgstr "Cambio de idioma"
+
+msgid "Choisis un fichier de preset (.json) dans ce dossier."
+msgstr "Elige un archivo de preset (.json) en esta carpeta."
+
+msgid "Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué."
+msgstr "Elige un preset de animaciones (.json): se añade a tus presets y se aplica."
+
+msgid "Commandes, panneaux et boutons pendant la lecture."
+msgstr "Controles, paneles y botones durante la reproducción."
+
+msgid "Dossier des presets introuvable."
+msgstr "No se encuentra la carpeta de presets."
+
+msgid "Défilement"
+msgstr "Desplazamiento"
+
+msgid "Démarrage"
+msgstr "Inicio"
+
+msgid "Enregistrer comme preset"
+msgstr "Guardar como preset"
+
+msgid "Ensemble d'animations : intégré, ou créé ici."
+msgstr "Conjunto de animaciones: integrado o creado aquí."
+
+msgid "Exporter les presets"
+msgstr "Exportar los presets"
+
+msgid "Fiches et lecture"
+msgstr "Fichas y reproducción"
+
+msgid "Garde ces réglages sous un nouveau nom."
+msgstr "Guarda estos ajustes con un nombre nuevo."
+
+msgid "Importer un preset"
+msgstr "Importar un preset"
+
+msgid "Lecteur"
+msgstr "Reproductor"
+
+msgid "Lettres tapées et clavier à l'écran."
+msgstr "Letras escritas y teclado en pantalla."
+
+msgid "Listes de choix, panneaux et fenêtres qui apparaissent."
+msgstr "Listas de opciones, paneles y ventanas que aparecen."
+
+msgid "Logo animé et vérifications au lancement."
+msgstr "Logo animado y comprobaciones al iniciar."
+
+msgid "Légères"
+msgstr "Ligeras"
+
+msgid "Menu latéral"
+msgstr "Menú lateral"
+
+msgid "Mon preset {}"
+msgstr "Mi preset {}"
+
+msgid "Ouverture d'une fiche et lancement de la lecture."
+msgstr "Apertura de una ficha e inicio de la reproducción."
+
+msgid "Ouverture, fermeture et sélection du menu."
+msgstr "Apertura, cierre y selección del menú."
+
+msgid "Pages qui glissent en arrivant, fonds en fondu."
+msgstr "Páginas que se deslizan al llegar, fondos en fundido."
+
+msgid "Panneaux"
+msgstr "Paneles"
+
+msgid "Pas un preset de Turtlefin"
+msgstr "No es un preset de Turtlefin"
+
+msgid "Personnalisé"
+msgstr "Personalizado"
+
+msgid "Photo du compte choisi, arrivée sur l'accueil."
+msgstr "Foto de la cuenta elegida, llegada al inicio."
+
+msgid "Preset"
+msgstr "Preset"
+
+msgid "Preset d'animations"
+msgstr "Preset de animaciones"
+
+msgid "Preset enregistré : {}"
+msgstr "Preset guardado: {}"
+
+msgid "Preset importé : {}"
+msgstr "Preset importado: {}"
+
+msgid "Preset supprimé : {}"
+msgstr "Preset eliminado: {}"
+
+msgid "Rangées et listes qui défilent en douceur."
+msgstr "Filas y listas que se desplazan con suavidad."
+
+msgid "Saisie"
+msgstr "Escritura"
+
+msgid "Supprimer ce preset"
+msgstr "Eliminar este preset"
+
+msgid "Sélection"
+msgstr "Selección"
+
+msgid "Toutes"
+msgstr "Todas"
+
+msgid "Un fichier par preset, dans le dossier « {} »."
+msgstr "Un archivo por preset, en la carpeta «{}»."
+
+msgid "{} animations sur {}"
+msgstr "{} animaciones de {}"
+
+msgid "{} preset(s) exporté(s) dans {}"
+msgstr "{} preset(s) exportado(s) en {}"
+
+msgid "{n} preset"
+msgid_plural "{n} presets"
+msgstr[0] "{n} preset"
+msgstr[1] "{n} presets"

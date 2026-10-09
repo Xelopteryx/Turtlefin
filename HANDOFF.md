@@ -146,7 +146,11 @@ Points notables, non évidents dans le code :
   Langues ajoutées : un seul dossier, `Turtlefin Languages` (Documents, ou à côté de l'exécutable en portable ;
   `i18n::lang_dir`, l'ancien dossier `languages` y est déplacé), parcouru par un explorateur intégré
   (`ui/langx.slint`, `lx_*` dans main.rs) ; plus de recherche dans Téléchargements / Bureau. Connexion : la photo
-  du compte choisi va au centre puis rejoint l'avatar en haut à droite en arc (`fly-phase`).
+  du compte choisi va au centre, part au loin avant l'accueil, puis l'avatar apparaît en zoomant (`fly-phase`).
+  Paramètres → Animations : 12 interrupteurs (global `Motion` de theme.slint, `config::AnimFlags`), presets
+  intégrés (Toutes, Légères, Aucune) et personnels, exportés / importés en `.json` dans `Turtlefin Presets`
+  (même explorateur que les langues, `lx_mode`). Molette : absorbée par les fenêtres au premier plan, choisit
+  dans le menu et la liste des langues. Cascades plafonnées (lignes après la 8e restées décalées).
 
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).

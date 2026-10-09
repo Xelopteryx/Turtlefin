@@ -3,7 +3,7 @@
 // curseur clignote juste après la dernière lettre, le texte d'exemple s'efface en fondu à la
 // première lettre. Utilisé en mode TV (clavier à l'écran) et sur le bureau (par-dessus un
 // TextInput dont le texte et le curseur sont masqués).
-import { Theme } from "theme.slint";
+import { Theme, Motion } from "theme.slint";
 
 // Découpe d'un texte (faite en Rust, Slint n'a pas de sous-chaînes).
 export global Str {
@@ -20,7 +20,7 @@ component Typed inherits Rectangle {
     in property <duration> t0;
     in property <bool> live;
     in property <length> font-size;
-    property <float> p: root.live ? clamp((animation-tick() - root.t0) / 180ms, 0, 1) : 1;
+    property <float> p: root.live && Motion.search ? clamp((animation-tick() - root.t0) / 180ms, 0, 1) : 1;
     out property <length> w: root.ch == "" ? 0px : t.preferred-width;
     width: root.w;
     opacity: root.p;
@@ -53,7 +53,7 @@ component Ghost inherits Rectangle {
             root.live = false;
         }
     }
-    property <float> p: root.live ? clamp((animation-tick() - root.t0) / 260ms, 0, 1) : 1;
+    property <float> p: root.live && Motion.search ? clamp((animation-tick() - root.t0) / 260ms, 0, 1) : 1;
     x: root.x0 + root.p * 16px * root.k;
     width: g.preferred-width;
     opacity: 1 - root.p;
@@ -150,7 +150,7 @@ export component TypedText inherits Rectangle {
     Text {
         x: 0px;
         opacity: root.text == "" ? 1 : 0;
-        animate opacity { duration: 220ms; }
+        animate opacity { duration: Motion.search ? 220ms : 0ms; }
         height: parent.height;
         text: root.placeholder;
         color: Theme.muted;

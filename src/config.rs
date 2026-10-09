@@ -326,6 +326,100 @@ pub struct UiPrefs {
     pub tutorial_offered: bool,
     /// Visite guidée à lancer à la prochaine arrivée sur l'accueil (acceptée, `--tutorial`).
     pub tutorial_pending: bool,
+    /// Animations activées, par partie de l'interface (Paramètres → Animations).
+    pub anim: AnimFlags,
+    /// Presets d'animations créés par l'utilisateur, et preset en cours (nom ; vide : réglages à la main).
+    pub anim_presets: Vec<AnimPreset>,
+    pub anim_preset: String,
+}
+
+/// Animations activées (voir `Motion` dans theme.slint).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct AnimFlags {
+    pub boot: bool,
+    pub pages: bool,
+    pub menu: bool,
+    pub select: bool,
+    pub scroll: bool,
+    pub panels: bool,
+    pub detail: bool,
+    pub player: bool,
+    pub search: bool,
+    pub login: bool,
+    pub language: bool,
+    pub tour: bool,
+}
+
+impl AnimFlags {
+    pub const fn all(on: bool) -> AnimFlags {
+        AnimFlags {
+            boot: on,
+            pages: on,
+            menu: on,
+            select: on,
+            scroll: on,
+            panels: on,
+            detail: on,
+            player: on,
+            search: on,
+            login: on,
+            language: on,
+            tour: on,
+        }
+    }
+    /// Clés (Paramètres, fichiers de preset), dans l'ordre d'affichage.
+    pub const KEYS: [&'static str; 12] = ["boot", "pages", "menu", "select", "scroll", "panels", "detail", "player", "search", "login", "language", "tour"];
+    pub fn get(&self, key: &str) -> bool {
+        match key {
+            "boot" => self.boot,
+            "pages" => self.pages,
+            "menu" => self.menu,
+            "select" => self.select,
+            "scroll" => self.scroll,
+            "panels" => self.panels,
+            "detail" => self.detail,
+            "player" => self.player,
+            "search" => self.search,
+            "login" => self.login,
+            "language" => self.language,
+            "tour" => self.tour,
+            _ => false,
+        }
+    }
+    pub fn set(&mut self, key: &str, on: bool) {
+        match key {
+            "boot" => self.boot = on,
+            "pages" => self.pages = on,
+            "menu" => self.menu = on,
+            "select" => self.select = on,
+            "scroll" => self.scroll = on,
+            "panels" => self.panels = on,
+            "detail" => self.detail = on,
+            "player" => self.player = on,
+            "search" => self.search = on,
+            "login" => self.login = on,
+            "language" => self.language = on,
+            "tour" => self.tour = on,
+            _ => {}
+        }
+    }
+    pub fn count(&self) -> usize {
+        Self::KEYS.iter().filter(|k| self.get(k)).count()
+    }
+}
+
+impl Default for AnimFlags {
+    fn default() -> Self {
+        AnimFlags::all(true)
+    }
+}
+
+/// Preset d'animations (aussi le contenu d'un fichier exporté, `<nom>.json`).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AnimPreset {
+    pub name: String,
+    pub anim: AnimFlags,
 }
 
 impl Default for UiPrefs {
@@ -343,6 +437,9 @@ impl Default for UiPrefs {
             volume: 100,
             tutorial_offered: false,
             tutorial_pending: false,
+            anim: AnimFlags::default(),
+            anim_presets: Vec::new(),
+            anim_preset: String::new(),
         }
     }
 }

@@ -143,7 +143,11 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   Watch party checked with two clients. Added languages: a single folder, `Turtlefin Languages` (Documents, or
   next to the executable when portable; `i18n::lang_dir`, the old `languages` folder is moved there), browsed
   by a built-in explorer (`ui/langx.slint`, `lx_*` in main.rs); no more Downloads / Desktop scan. Sign-in: the
-  chosen account's picture goes to the centre, then joins the top-right avatar along an arc (`fly-phase`).
+  chosen account's picture goes to the centre, flies away before the home screen, then the avatar zooms in
+  (`fly-phase`). Settings → Animations: 12 switches (`Motion` global in theme.slint, `config::AnimFlags`),
+  built-in presets (All, Light, None) and custom ones, exported / imported as `.json` in `Turtlefin Presets`
+  (same explorer as languages, `lx_mode`). Mouse wheel: swallowed by front windows, selects in the menu and
+  the language list. Cascades capped (rows after the 8th stayed shifted).
 
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).

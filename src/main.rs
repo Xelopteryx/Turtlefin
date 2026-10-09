@@ -182,6 +182,7 @@ struct App {
     /// Explorateur des langues : dossier affiché et chemins de ses éléments (même ordre que la liste).
     lx_dir: Mutex<std::path::PathBuf>,
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
+    lx_mode: Mutex<&'static str>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
     home_keep: Mutex<Option<(String, String)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
@@ -2184,6 +2185,89 @@ fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     g.set_ratings(p.show_ratings);
     g.set_marquee(p.marquee);
     g.set_clock(p.show_clock);
+    apply_motion(u, &p.anim);
+}
+
+/// Animations activées, transmises à l'interface (global Motion de theme.slint).
+fn apply_motion(u: &AppWindow, a: &config::AnimFlags) {
+    let m = u.global::<Motion>();
+    m.set_boot(a.boot);
+    m.set_pages(a.pages);
+    m.set_menu(a.menu);
+    m.set_select(a.select);
+    m.set_scroll(a.scroll);
+    m.set_panels(a.panels);
+    m.set_detail(a.detail);
+    m.set_player(a.player);
+    m.set_search(a.search);
+    m.set_login(a.login);
+    m.set_language(a.language);
+    m.set_tour(a.tour);
+}
+
+/// Presets intégrés : (clé, nom, animations).
+fn builtin_presets() -> [(&'static str, &'static str, config::AnimFlags); 3] {
+    let light = config::AnimFlags { boot: false, pages: false, detail: false, login: false, language: false, tour: false, ..config::AnimFlags::all(true) };
+    [
+        ("all", tr("Toutes"), config::AnimFlags::all(true)),
+        ("light", tr("Légères"), light),
+        ("none", tr("Aucune"), config::AnimFlags::all(false)),
+    ]
+}
+
+/// Nom du preset en cours (intégré ou personnel) ; « Personnalisé » si les réglages n'en suivent aucun.
+fn anim_preset_name(p: &config::UiPrefs) -> String {
+    anim_preset_key(p).map(|k| match k.strip_prefix("custom:") {
+        Some(name) => name.to_string(),
+        None => builtin_presets().into_iter().find(|(b, _, _)| *b == k).map(|(_, n, _)| n.to_string()).unwrap_or_default(),
+    })
+    .unwrap_or_else(|| tr("Personnalisé").to_string())
+}
+
+/// Preset suivi par les réglages : celui choisi s'il correspond encore, sinon un preset intégré
+/// identique (réglages par défaut : « Toutes ») ; None : réglages faits à la main.
+fn anim_preset_key(p: &config::UiPrefs) -> Option<String> {
+    if let Some(c) = p.anim_presets.iter().find(|c| c.name == p.anim_preset && c.anim == p.anim) {
+        return Some(format!("custom:{}", c.name));
+    }
+    let b = builtin_presets();
+    b.iter().find(|(k, _, f)| *k == p.anim_preset && *f == p.anim).or_else(|| b.iter().find(|(_, _, f)| *f == p.anim)).map(|(k, _, _)| k.to_string())
+}
+
+/// Libellé de chaque interrupteur d'animation.
+fn anim_label(key: &str) -> (&'static str, &'static str) {
+    match key {
+        "boot" => (tr("Démarrage"), tr("Logo animé et vérifications au lancement.")),
+        "pages" => (tr("Arrivée des pages"), tr("Pages qui glissent en arrivant, fonds en fondu.")),
+        "menu" => (tr("Menu latéral"), tr("Ouverture, fermeture et sélection du menu.")),
+        "select" => (tr("Sélection"), tr("Boutons, onglets, affiches et interrupteurs qui réagissent.")),
+        "scroll" => (tr("Défilement"), tr("Rangées et listes qui défilent en douceur.")),
+        "panels" => (tr("Panneaux"), tr("Listes de choix, panneaux et fenêtres qui apparaissent.")),
+        "detail" => (tr("Fiches et lecture"), tr("Ouverture d'une fiche et lancement de la lecture.")),
+        "player" => (tr("Lecteur"), tr("Commandes, panneaux et boutons pendant la lecture.")),
+        "search" => (tr("Saisie"), tr("Lettres tapées et clavier à l'écran.")),
+        "login" => (tr("Connexion"), tr("Photo du compte choisi, arrivée sur l'accueil.")),
+        "language" => (tr("Changement de langue"), tr("Barre qui recouvre puis réécrit les textes.")),
+        _ => (tr("Visite guidée"), tr("Bulles et cadres de la visite.")),
+    }
+}
+
+/// Dossier des presets exportés (à côté de celui des langues).
+fn presets_dir() -> Option<std::path::PathBuf> {
+    let d = i18n::lang_dir()?.parent()?.join("Turtlefin Presets");
+    let _ = std::fs::create_dir_all(&d);
+    Some(d)
+}
+
+/// Réglages d'animations changés : enregistrés et appliqués.
+fn set_anim(app: &Arc<App>, f: impl FnOnce(&mut config::UiPrefs)) {
+    let mut p = config::ui_prefs();
+    f(&mut p);
+    config::save_ui_prefs(&p);
+    if let Some(u) = app.ui().upgrade() {
+        apply_motion(&u, &p.anim);
+    }
+    refresh_settings(app);
 }
 
 /// Taille du cache d'images sur le disque (octets).
@@ -2194,7 +2278,7 @@ fn cache_size() -> u64 {
 
 /// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » /
 /// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
-/// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 À propos.
+/// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Animations · 6 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let row = |key: &str, label: &str, hint: &str, value: String, kind: &str, on: bool| SettingRow {
         key: key.into(),
@@ -2282,6 +2366,21 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             v
         }
         5 => {
+            let mut v = vec![row("animpreset", tr("Preset"), tr("Ensemble d'animations : intégré, ou créé ici."), anim_preset_name(&prefs), "choice", false)];
+            for k in config::AnimFlags::KEYS {
+                let (label, hint) = anim_label(k);
+                v.push(row(&format!("anim:{k}"), label, hint, String::new(), "toggle", prefs.anim.get(k)));
+            }
+            let custom = anim_preset_key(&prefs).is_some_and(|k| k.starts_with("custom:"));
+            v.push(row("animsave", tr("Enregistrer comme preset"), tr("Garde ces réglages sous un nouveau nom."), String::new(), "action", false));
+            if custom {
+                v.push(row("animdel", tr("Supprimer ce preset"), &prefs.anim_preset, String::new(), "action", false));
+            }
+            v.push(row("animexport", tr("Exporter les presets"), &trf("Un fichier par preset, dans le dossier « {} ».", &[&"Turtlefin Presets"]), String::new(), "action", false));
+            v.push(row("animimport", tr("Importer un preset"), tr("Choisis un fichier de preset (.json) dans ce dossier."), String::new(), "action", false));
+            v
+        }
+        6 => {
             let size = cache_size();
             let srv = app.client().map(|c| c.server).unwrap_or_default();
             let up = app.update_state.lock().unwrap().clone();
@@ -2345,6 +2444,13 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             crate::i18n::languages(),
             i18n::current(),
         )),
+        "animpreset" => {
+            let p = config::ui_prefs();
+            let mut list: Vec<(String, String)> = builtin_presets().into_iter().map(|(k, n, _)| (k.to_string(), n.to_string())).collect();
+            list.extend(p.anim_presets.iter().map(|c| (format!("custom:{}", c.name), c.name.clone())));
+            let cur = anim_preset_key(&p).unwrap_or_default();
+            Some((tr("Preset d'animations").into(), list, cur))
+        }
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
@@ -2361,7 +2467,7 @@ fn open_choice(app: &Arc<App>, key: &str) {
     // liste est déjà ouverte (mise à jour après un choix).
     if key == "language" {
         if let Some(u) = app.ui().upgrade() {
-            if u.get_ch_key().as_str() != "language" {
+            if u.get_ch_key().as_str() != "language" && config::ui_prefs().anim.language {
                 dust::dissolve(&u, 1);
             }
         }
@@ -2399,6 +2505,21 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
             language_changed(&a);
         });
         dust::reform(&u, Some((value.to_string(), apply)), |u| u.set_ch_key("".into()));
+        return;
+    }
+    if key == "animpreset" {
+        let value = value.to_string();
+        set_anim(app, move |p| {
+            if let Some(name) = value.strip_prefix("custom:") {
+                if let Some(c) = p.anim_presets.iter().find(|c| c.name == name) {
+                    p.anim = c.anim;
+                    p.anim_preset = c.name.clone();
+                }
+            } else if let Some((k, _, f)) = builtin_presets().into_iter().find(|(k, _, _)| *k == value) {
+                p.anim = f;
+                p.anim_preset = k.to_string();
+            }
+        });
         return;
     }
     if key == "subsize" {
@@ -2800,7 +2921,57 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "language" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" => open_choice(app, key),
+        k if k.starts_with("anim:") => {
+            let k = k["anim:".len()..].to_string();
+            set_anim(app, move |p| {
+                let on = !p.anim.get(&k);
+                p.anim.set(&k, on);
+            });
+        }
+        "animsave" => {
+            let mut p = config::ui_prefs();
+            let n = (1..).find(|i| !p.anim_presets.iter().any(|c| c.name == trf("Mon preset {}", &[i]))).unwrap_or(1);
+            let name = trf("Mon preset {}", &[&n]);
+            p.anim_presets.push(config::AnimPreset { name: name.clone(), anim: p.anim });
+            p.anim_preset = name.clone();
+            config::save_ui_prefs(&p);
+            refresh_settings(app);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(trf("Preset enregistré : {}", &[&name]).into());
+            }
+        }
+        "animdel" => {
+            let mut p = config::ui_prefs();
+            let name = std::mem::take(&mut p.anim_preset);
+            p.anim_presets.retain(|c| c.name != name);
+            config::save_ui_prefs(&p);
+            refresh_settings(app);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(trf("Preset supprimé : {}", &[&name]).into());
+            }
+        }
+        "animexport" => {
+            let p = config::ui_prefs();
+            let msg = match presets_dir() {
+                _ if p.anim_presets.is_empty() => tr("Aucun preset à exporter : enregistre d'abord tes réglages comme preset.").to_string(),
+                Some(dir) => {
+                    let mut n = 0;
+                    for c in &p.anim_presets {
+                        let file: String = c.name.chars().map(|ch| if ch.is_alphanumeric() || ch == ' ' || ch == '-' { ch } else { '_' }).collect();
+                        if serde_json::to_string_pretty(c).ok().is_some_and(|t| std::fs::write(dir.join(format!("{file}.json")), t).is_ok()) {
+                            n += 1;
+                        }
+                    }
+                    trf("{} preset(s) exporté(s) dans {}", &[&n, &dir.display()])
+                }
+                None => tr("Dossier des presets introuvable.").to_string(),
+            };
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(msg.into());
+            }
+        }
+        "animimport" => lx_open_mode(app, "preset"),
         "autostart" => {
             let saved = config::load();
             let me = app.client().map(|c| c.user_id).unwrap_or_else(|| saved.user_id.clone());
@@ -3073,7 +3244,17 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
 // Ajouter une langue : explorateur du dossier des langues (ui/langx.slint)
 // ---------------------------------------------------------------------------
 fn lx_open(app: &Arc<App>) {
-    let Some(root) = i18n::lang_dir() else {
+    lx_open_mode(app, "lang");
+}
+
+/// Dossier racine de l'explorateur selon son usage (langues ou presets d'animations).
+fn lx_root(app: &Arc<App>) -> Option<std::path::PathBuf> {
+    if *app.lx_mode.lock().unwrap() == "preset" { presets_dir() } else { i18n::lang_dir() }
+}
+
+fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
+    *app.lx_mode.lock().unwrap() = mode;
+    let Some(root) = lx_root(app) else {
         if let Some(u) = app.ui().upgrade() {
             u.set_toast(tr("Dossier des langues introuvable.").into());
         }
@@ -3087,7 +3268,8 @@ fn lx_open(app: &Arc<App>) {
 
 /// Affiche un dossier ; `select` : élément à choisir (sinon le premier).
 fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::Path>) {
-    let Some(root) = i18n::lang_dir() else { return };
+    let Some(root) = lx_root(app) else { return };
+    let presets = *app.lx_mode.lock().unwrap() == "preset";
     let cur = i18n::current();
     let mut items: Vec<LxItem> = Vec::new();
     let mut paths: Vec<(std::path::PathBuf, &'static str)> = Vec::new();
@@ -3097,14 +3279,21 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
             paths.push((parent.to_path_buf(), "up"));
         }
     }
-    for e in i18n::browse(&dir) {
+    let entries = if presets { browse_presets(&dir) } else { i18n::browse(&dir) };
+    for e in entries {
         let detail = match e.kind {
+            "dir" if presets => {
+                let n: i64 = e.code.parse().unwrap_or(0);
+                i18n::trn("{n} preset", "{n} presets", n)
+            }
             "dir" => {
                 let n: i64 = e.code.parse().unwrap_or(0);
                 i18n::trn("{n} fichier de langue", "{n} fichiers de langue", n)
             }
             "lang" => format!("{}.po", e.code),
             "template" => tr("Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)").to_string(),
+            "preset" => trf("{} animations sur {}", &[&e.code, &config::AnimFlags::KEYS.len()]),
+            _ if presets => tr("Pas un preset de Turtlefin").to_string(),
             _ => tr("Pas une traduction de Turtlefin").to_string(),
         };
         items.push(LxItem { kind: e.kind.into(), name: e.name.into(), detail: detail.into(), done: e.done, current: e.kind == "lang" && e.code == cur });
@@ -3121,7 +3310,9 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         Some(b) => format!("{}  ›  {place}", b.to_string_lossy()),
         None => place,
     };
-    let hint = if dir == root {
+    let hint = if presets {
+        tr("Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué.").to_string()
+    } else if dir == root {
         tr("Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici.").to_string()
     } else {
         tr("Choisis une langue, ou Retour pour remonter.").to_string()
@@ -3134,6 +3325,8 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         u.set_lx_place(place.into());
         u.set_lx_hint(hint.into());
         u.set_lx_can_folder(!u.get_tv_mode());
+        u.set_lx_title(if presets { tr("Importer un preset") } else { tr("Ajouter une langue") }.into());
+        u.set_lx_can_template(!presets);
         u.set_lx_tick(u.get_lx_tick() + 1);
     }
 }
@@ -3155,6 +3348,20 @@ fn lx_activate(app: &Arc<App>, i: usize) {
             let name = i18n::languages().into_iter().find(|(c, _)| *c == code).map(|(_, n)| n).unwrap_or(code);
             u.set_toast(trf("Langue : {}", &[&name]).into());
         }
+        "preset" => {
+            let preset = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
+            if let Some(c) = preset {
+                let name = c.name.clone();
+                set_anim(app, move |p| {
+                    p.anim_presets.retain(|x| x.name != c.name);
+                    p.anim = c.anim;
+                    p.anim_preset = c.name.clone();
+                    p.anim_presets.push(c);
+                });
+                u.set_lx_open(false);
+                u.set_toast(trf("Preset importé : {}", &[&name]).into());
+            }
+        }
         "template" => u.set_toast(tr("C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici.").into()),
         _ => u.set_toast(tr("Ce fichier n'est pas une traduction de Turtlefin.").into()),
     }
@@ -3162,7 +3369,7 @@ fn lx_activate(app: &Arc<App>, i: usize) {
 
 fn lx_back(app: &Arc<App>) {
     let dir = app.lx_dir.lock().unwrap().clone();
-    match i18n::lang_dir() {
+    match lx_root(app) {
         Some(root) if dir != root => {
             let parent = dir.parent().map(|p| p.to_path_buf()).unwrap_or(root);
             lx_show(app, parent, Some(&dir));
@@ -3195,6 +3402,32 @@ fn lx_button(app: &Arc<App>, b: &str) {
         }
         _ => u.set_lx_open(false),
     }
+}
+
+/// Contenu d'un dossier de presets : sous-dossiers, puis fichiers .json (preset valide ou non).
+fn browse_presets(dir: &std::path::Path) -> Vec<i18n::Entry> {
+    let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    entries.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+    let mut dirs = Vec::new();
+    let mut files = Vec::new();
+    for p in entries {
+        let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if fname.starts_with('.') {
+            continue;
+        }
+        if p.is_dir() {
+            let n = std::fs::read_dir(&p).into_iter().flatten().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "json")).count();
+            dirs.push(i18n::Entry { path: p, kind: "dir", name: fname, code: n.to_string(), done: 0.0 });
+        } else if p.extension().is_some_and(|x| x == "json") {
+            let preset = std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
+            match preset {
+                Some(c) => files.push(i18n::Entry { path: p, kind: "preset", name: c.name, code: c.anim.count().to_string(), done: 0.0 }),
+                None => files.push(i18n::Entry { path: p, kind: "other", name: fname, code: String::new(), done: 0.0 }),
+            }
+        }
+    }
+    dirs.extend(files);
+    dirs
 }
 
 /// Langue changée : les textes fabriqués en Rust hors des Paramètres suivent (menu, watch party) ;
@@ -4292,6 +4525,7 @@ fn main() -> anyhow::Result<()> {
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
         lx_paths: Mutex::new(Vec::new()),
+        lx_mode: Mutex::new("lang"),
         home_keep: Mutex::new(None),
         player_tx: Mutex::new(None),
     });

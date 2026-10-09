@@ -32,3 +32,20 @@ export global Tr {
     // Pluriel : forme « un », forme « plusieurs », n ({n} remplacé par n).
     pure callback p(int, string, string, int) -> string;
 }
+
+// Animations activées, par partie de l'interface (Paramètres → Animations ; réglé depuis Rust).
+// Désactivée : la durée devient nulle, l'élément est posé directement à sa place.
+export global Motion {
+    in-out property <bool> boot: true;      // démarrage (logo animé)
+    in-out property <bool> pages: true;     // arrivée des pages, fonds
+    in-out property <bool> menu: true;      // menu latéral
+    in-out property <bool> select: true;    // sélection : boutons, affiches, onglets
+    in-out property <bool> scroll: true;    // défilement des rangées et des listes
+    in-out property <bool> panels: true;    // panneaux et listes de choix (Paramètres, serveurs…)
+    in-out property <bool> detail: true;    // fiche et lancement de la lecture
+    in-out property <bool> player: true;    // lecteur
+    in-out property <bool> search: true;    // recherche : lettres et clavier
+    in-out property <bool> login: true;     // connexion
+    in-out property <bool> language: true;  // changement de langue
+    in-out property <bool> tour: true;      // visite guidée
+}

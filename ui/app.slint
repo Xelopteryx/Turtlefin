@@ -10,7 +10,7 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr } from "theme.slint";
+import { Theme, Prefs, Tr, Motion } from "theme.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
 import { LxItem, LangExplorer } from "langx.slint";
@@ -20,7 +20,7 @@ export { OskKeys }
 import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
 
-export { CardData, Prefs, Tr }
+export { CardData, Prefs, Tr, Motion }
 
 export { TrackData, DustLine, Str, LxItem }
 
@@ -167,7 +167,7 @@ component Field inherits Rectangle {
         background: root.lit ? #ffffff24 : #ffffff12;
         border-width: root.error != "" || root.lit ? 2px : 1px;
         border-color: root.error != "" ? #ff6b6b : root.lit ? Theme.accent2 : #ffffff2e;
-        animate background, border-color { duration: 160ms; }
+        animate background, border-color { duration: Motion.select ? 160ms : 0ms; }
 
         // Aide (champ vide)
         if root.text == "" && !(root.tv && root.editing): Text {
@@ -280,7 +280,7 @@ component CardArt inherits Rectangle {
 
     // Image arrivée après la carte : elle apparaît en fondu (déjà là à la création : tout de suite).
     property <float> img-a: root.data.has-image ? 1 : 0;
-    animate img-a { duration: 380ms; easing: ease-out; }
+    animate img-a { duration: Motion.pages ? 380ms : 0ms; easing: ease-out; }
     if root.data.has-image && !root.badges-only: Image {
         width: parent.width;
         height: parent.height;
@@ -457,7 +457,7 @@ component Card inherits Rectangle {
 
     z: root.focused ? 1 : 0;
     transform-scale: root.focused ? 1.06 : 1.0;
-    animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
     background: root.focused ? #00000080 : #00000033;
 
@@ -561,7 +561,7 @@ component SectionRow inherits Rectangle {
         Rectangle {
             x: root.target-x;
             width: root.strip-w;
-            animate x { duration: 160ms; easing: ease-out; }
+            animate x { duration: Motion.select ? 160ms : 0ms; easing: ease-out; }
 
             for card[i] in root.items: Card {
                 x: root.pad + i * (root.card-w + root.gap);
@@ -604,7 +604,7 @@ component Tab inherits Rectangle {
     // Soulignement qui s'étire depuis le centre à la sélection.
     Rectangle {
         property <float> w: root.focused ? 1 : 0;
-        animate w { duration: 220ms; easing: ease-out; }
+        animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
         visible: self.w > 0.01;
         x: (parent.width - self.width) / 2;
         y: parent.height / 2 + 16px * root.k;
@@ -721,6 +721,18 @@ component NavIcon inherits Rectangle {
         fill-rule: evenodd;
         commands: "M 10.12 4.64 L 10.25 1.14 L 13.75 1.14 L 13.88 4.64 A 7.6 7.6 0 0 1 15.88 5.46 L 18.44 3.08 L 20.92 5.56 L 18.54 8.12 A 7.6 7.6 0 0 1 19.36 10.12 L 22.86 10.25 L 22.86 13.75 L 19.36 13.88 A 7.6 7.6 0 0 1 18.54 15.88 L 20.92 18.44 L 18.44 20.92 L 15.88 18.54 A 7.6 7.6 0 0 1 13.88 19.36 L 13.75 22.86 L 10.25 22.86 L 10.12 19.36 A 7.6 7.6 0 0 1 8.12 18.54 L 5.56 20.92 L 3.08 18.44 L 5.46 15.88 A 7.6 7.6 0 0 1 4.64 13.88 L 1.14 13.75 L 1.14 10.25 L 4.64 10.12 A 7.6 7.6 0 0 1 5.46 8.12 L 3.08 5.56 L 5.56 3.08 L 8.12 5.46 A 7.6 7.6 0 0 1 10.12 4.64 Z M 15.40 12 A 3.4 3.4 0 1 0 8.60 12 A 3.4 3.4 0 1 0 15.40 12 Z";
     }
+    if root.name == "motion": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 3 8 L 8 8 M 2 12 L 9 12 M 3 16 L 8 16 M 13 5 C 18 5 21 8 21 12 C 21 16 18 19 13 19 C 15 16 15 8 13 5 Z";
+    }
     if root.name == "quit": Path {
         width: parent.width;
         height: parent.height;
@@ -803,7 +815,7 @@ component HeaderIcon inherits Rectangle {
     height: 44px * root.k;
     border-radius: self.height / 2;
     transform-scale: (root.focused || area.has-hover ? 1.12 : 1.0) * root.pop;
-    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
     border-width: root.on && !root.focused ? 2px * root.k : 0px;
     border-color: Theme.accent2;
@@ -914,7 +926,7 @@ component ActionButton inherits Rectangle {
     border-radius: 10px;
     // Sélection : petit rebond.
     transform-scale: root.focused || area.has-hover ? 1.07 : 1.0;
-    animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
 
@@ -971,11 +983,11 @@ component DetailButton inherits Rectangle {
             root.anim = false;
         }
     }
-    property <float> q: root.anim ? clamp((animation-tick() - root.t0) / 500ms, 0, 1) : 1;
+    property <float> q: root.anim && Motion.select ? clamp((animation-tick() - root.t0) / 500ms, 0, 1) : 1;
     property <float> wave: root.anim ? sin(root.q * 360deg) * (1 - root.q) : 0;
     property <float> hop: root.anim ? sin(root.q * 180deg) * (1 - 0.4 * root.q) : 0;
     property <float> lit-s: root.lit ? 1.1 : 1.0;
-    animate lit-s { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    animate lit-s { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     in property <bool> chip; // pastille compacte (saison, série, pistes)
     preferred-width: root.is-icon ? self.height : label.preferred-width + (root.chip ? 24px : 40px) * root.k;
@@ -1009,9 +1021,9 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: root.active ? #ff4d6d : #ff4d6d00;
-            animate fill { duration: 300ms; easing: ease-out; }
+            animate fill { duration: Motion.select ? 300ms : 0ms; easing: ease-out; }
             stroke: root.active ? #ff4d6d : white;
-            animate stroke { duration: 300ms; }
+            animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: 2px * root.k;
             commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
         }
@@ -1024,7 +1036,7 @@ component DetailButton inherits Rectangle {
             viewbox-height: 24;
             fill: transparent;
             stroke: root.active && !root.lit ? Theme.accent2 : white;
-            animate stroke { duration: 300ms; }
+            animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: (root.active ? 3.2px : 2.2px) * root.k;
             commands: "M 4 12.5 L 9.5 18 L 20 6.5";
         }
@@ -1038,7 +1050,7 @@ component DetailButton inherits Rectangle {
             viewbox-height: 24;
             fill: transparent;
             stroke: root.active && !root.lit ? Theme.accent2 : white;
-            animate stroke { duration: 300ms; }
+            animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: 2.2px * root.k;
             commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10";
         }
@@ -1178,7 +1190,7 @@ component DropIn inherits Rectangle {
     init => {
         self.e = 1;
     }
-    animate e { duration: 280ms; easing: ease-out; }
+    animate e { duration: Motion.pages ? 280ms : 0ms; easing: ease-out; }
 }
 
 // Barre de navigation en haut à gauche de chaque écran : menu, retour (si l'on a navigué),
@@ -1219,7 +1231,7 @@ component NavBar inherits Rectangle {
         y: root.iy + (self.e - 1) * 34px * root.k;
         width: 44px * root.k;
         height: 44px * root.k;
-        animate x { duration: 240ms; easing: ease-out; }
+        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
         HeaderIcon {
             icon: "home";
             k: root.k;
@@ -1232,7 +1244,7 @@ component NavBar inherits Rectangle {
     HeaderIcon {
         x: root.x0 + (root.n - 1) * root.step;
         y: root.iy;
-        animate x { duration: 240ms; easing: ease-out; }
+        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
         icon: "menu";
         k: root.k;
         focused: root.sel == root.n - 1;
@@ -1245,7 +1257,7 @@ component NavBar inherits Rectangle {
         y: (1 - root.enter) * -18px * root.k;
         width: root.width - self.x - 8px * root.k;
         height: root.height;
-        animate x { duration: 240ms; easing: ease-out; }
+        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
         text: root.title;
         color: root.title-color;
         font-size: 26px * root.k;
@@ -1312,7 +1324,7 @@ component HeaderRight inherits Rectangle {
             Rectangle {
                 x: 0px;
                 width: parent.width * clamp(root.dl-p, 0, 1);
-                animate width { duration: 500ms; easing: ease-out; }
+                animate width { duration: Motion.select ? 500ms : 0ms; easing: ease-out; }
                 background: @linear-gradient(130deg, Theme.accent1.transparentize(0.45) 0%, Theme.accent2.transparentize(0.45) 100%);
             }
             HorizontalLayout {
@@ -1510,7 +1522,7 @@ export component AppWindow inherits Window {
     // animation-tick() : rien n'est redessiné en continu.
     property <bool> page-anim;
     property <duration> page-t0;
-    property <float> page-lin: root.page-anim ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
+    property <float> page-lin: root.page-anim && Motion.pages ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
         // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste
@@ -1533,7 +1545,7 @@ export component AppWindow inherits Window {
     in-out property <bool> loading;
     property <bool> veil-hold;               // retour animé : la fiche s'efface avant de partir
     property <float> veil: root.loading || root.veil-hold ? 1 : 0;
-    animate veil { duration: 260ms; easing: ease-in-out; }
+    animate veil { duration: Motion.detail ? 260ms : 0ms; easing: ease-in-out; }
 
     // ---- Image partagée (« hero ») : l'image de la carte ouverte (avec ses pastilles) vole jusqu'à
     // la place de l'affiche de la page ouverte : fiche, ou page Seerr (vignette 16:9 vers une fiche :
@@ -1555,7 +1567,7 @@ export component AppWindow inherits Window {
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
     property <bool> hero-anim;
     property <duration> hero-t0;
-    property <float> hero-q: root.hero-anim ? clamp((animation-tick() - root.hero-t0) / 480ms, 0, 1) : 1;
+    property <float> hero-q: root.hero-anim && Motion.detail ? clamp((animation-tick() - root.hero-t0) / 480ms, 0, 1) : 1;
     property <float> hero-e: root.hero-q < 0.5 ? 4 * root.hero-q * root.hero-q * root.hero-q
         : 1 - (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) / 2;
     // 0 : sur la carte · 1 : sur la page.
@@ -1565,7 +1577,7 @@ export component AppWindow inherits Window {
     property <bool> fade-in;
     property <bool> fade-anim;
     property <duration> fade-t0;
-    property <float> fade-q: root.fade-anim ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
+    property <float> fade-q: root.fade-anim && Motion.detail ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
@@ -1810,7 +1822,7 @@ export component AppWindow inherits Window {
     }
     // Arrivée en cascade : décalage vertical de l'élément n° i (rangées, lignes de grille).
     pure function stagger(i: int) -> length {
-        return (1 - clamp(root.page-lin * 1.9 - i * 0.16, 0, 1)) * 70px * root.k;
+        return (1 - clamp(root.page-lin * 1.9 - min(i, 5) * 0.18, 0, 1)) * 70px * root.k;
     }
     Timer {
         interval: 20s;
@@ -1858,7 +1870,7 @@ export component AppWindow inherits Window {
     in-out property <int> d-press;           // appui sur un bouton de la fiche (animation)
     property <bool> sw-anim;
     property <duration> sw-t0;
-    property <float> sw-q: root.sw-anim ? clamp((animation-tick() - root.sw-t0) / 420ms, 0, 1) : 1;
+    property <float> sw-q: root.sw-anim && Motion.detail ? clamp((animation-tick() - root.sw-t0) / 420ms, 0, 1) : 1;
     property <float> sw-e: 1 - (1 - root.sw-q) * (1 - root.sw-q);
     property <bool> sw-title;
     property <bool> sw-sub;
@@ -1933,7 +1945,7 @@ export component AppWindow inherits Window {
     in-out property <bool> d-poster-swap;
     property <bool> pm-anim;
     property <duration> pm-t0;
-    property <float> pm: root.pm-anim ? clamp((animation-tick() - root.pm-t0) / 450ms, 0, 1) : 1;
+    property <float> pm: root.pm-anim && Motion.detail ? clamp((animation-tick() - root.pm-t0) / 450ms, 0, 1) : 1;
     property <bool> w-has-poster: root.detail.has-poster;
     changed w-has-poster => {
         if (root.detail.has-poster && root.d-poster-swap) {
@@ -1952,7 +1964,7 @@ export component AppWindow inherits Window {
     // Rangées du bas (plus de ce genre...) : elles arrivent après coup, en fondu.
     property <bool> rows-anim;
     property <duration> rows-t0;
-    property <float> rows-a: root.rows-anim ? clamp((animation-tick() - root.rows-t0) / 400ms, 0, 1) : 1;
+    property <float> rows-a: root.rows-anim && Motion.pages ? clamp((animation-tick() - root.rows-t0) / 400ms, 0, 1) : 1;
     changed detail-rows => {
         root.rows-t0 = animation-tick();
         root.rows-anim = true;
@@ -1988,9 +2000,9 @@ export component AppWindow inherits Window {
     in-out property <bool> bg-show;
     callback backdrop-for(string);
     property <float> bg-mix: root.bg-flip ? 1 : 0;
-    animate bg-mix { duration: 800ms; easing: ease-in-out; }
+    animate bg-mix { duration: Motion.pages ? 800ms : 0ms; easing: ease-in-out; }
     property <float> bg-vis: root.bg-show && root.screen != "login" ? 1 : 0;
-    animate bg-vis { duration: 600ms; easing: ease-in-out; }
+    animate bg-vis { duration: Motion.pages ? 600ms : 0ms; easing: ease-in-out; }
     // Média sélectionné (accueil, bibliothèque, fiche) : Rust attend un instant puis charge son fond.
     property <string> focus-id: root.screen == "home" && !root.h-focus && root.sel-section < root.sections.length
             && root.sel-item < root.sections[root.sel-section].items.length
@@ -2211,7 +2223,7 @@ export component AppWindow inherits Window {
     property <float> po: root.play-go ? 1 : 0;
     property <length> po-right: root.po * (root.width - root.col-x + 64px);
     property <length> po-down: root.po * root.height;
-    animate po { duration: 420ms; easing: cubic-bezier(0.55, 0, 0.35, 1); }
+    animate po { duration: Motion.detail ? 420ms : 0ms; easing: cubic-bezier(0.55, 0, 0.35, 1); }
     changed playing => {
         if (!root.playing) {
             root.play-go = false;
@@ -2542,7 +2554,7 @@ export component AppWindow inherits Window {
         // - compte choisi : sa tuile grossit, les autres s'estompent pendant la connexion.
         property <bool> in-anim;
         property <duration> in-t0;
-        property <float> in-q: self.in-anim ? clamp((animation-tick() - self.in-t0) / 900ms, 0, 1) : 1;
+        property <float> in-q: self.in-anim && Motion.login ? clamp((animation-tick() - self.in-t0) / 900ms, 0, 1) : 1;
         function play-in() {
             lg.in-t0 = animation-tick();
             lg.in-anim = true;
@@ -2556,7 +2568,7 @@ export component AppWindow inherits Window {
         }
         // Élément n° i de la cascade : 0 -> 1 avec une courbe qui ralentit.
         pure function in-e(i: float) -> float {
-            let x = clamp(lg.in-q * 2.2 - i * 0.14, 0, 1);
+            let x = clamp(lg.in-q * 2.2 - min(i, 8) * 0.15, 0, 1);
             return 1 - (1 - x) * (1 - x) * (1 - x);
         }
         // Suppression : la tuile `gone-id` s'efface (260 ms), Rust la retire, puis les tuiles qui
@@ -2565,7 +2577,7 @@ export component AppWindow inherits Window {
         property <int> shift-from: -1;
         property <bool> sh-anim;
         property <duration> sh-t0;
-        property <float> sh-q: self.sh-anim ? clamp((animation-tick() - self.sh-t0) / 320ms, 0, 1) : 1;
+        property <float> sh-q: self.sh-anim && Motion.login ? clamp((animation-tick() - self.sh-t0) / 320ms, 0, 1) : 1;
         function forget(id: string, i: int) {
             if (lg.gone-id != "") {
                 return;
@@ -2597,16 +2609,18 @@ export component AppWindow inherits Window {
         property <int> pk-focus: min(root.login-sel, lg.n - 1);
         property <length> pk-row-x: self.pk-row-w <= self.width - 80 * lg.u ? (self.width - self.pk-row-w) / 2
             : max(self.width - 40 * lg.u - self.pk-row-w, min(40 * lg.u, self.width / 2 - (self.pk-focus * self.pk-step + lg.tile / 2)));
-        animate pk-row-x { duration: 260ms; easing: ease-out; }
+        animate pk-row-x { duration: Motion.login ? 260ms : 0ms; easing: ease-out; }
         // Connexion en cours (photo au centre) : le reste de la page s'efface.
         opacity: root.fly-phase == 1 || root.fly-phase == 2 ? 0 : 1;
-        animate opacity { duration: 280ms; easing: ease-out; }
+        animate opacity { duration: Motion.login ? 280ms : 0ms; easing: ease-out; }
         // Compte choisi (connexion en cours).
         property <string> picking;
         // Seul un compte enregistré se connecte tout de suite (les autres ouvrent le formulaire).
         function pick(i: int) {
             if (root.login-tiles[i].subtitle == Tr.t(Tr.k, "Enregistré")) {
                 lg.picking = root.login-tiles[i].id;
+            }
+            if (root.login-tiles[i].subtitle == Tr.t(Tr.k, "Enregistré") && Motion.login) {
                 // Retour immédiat : la photo quitte sa tuile et va au centre de l'écran.
                 root.fly-img = root.login-tiles[i].image;
                 root.fly-has-img = root.login-tiles[i].has-image;
@@ -2635,7 +2649,7 @@ export component AppWindow inherits Window {
         }
         property <bool> form-anim;
         property <duration> form-t0;
-        property <float> form-q: self.form-anim ? clamp((animation-tick() - self.form-t0) / 420ms, 0, 1) : 1;
+        property <float> form-q: self.form-anim && Motion.login ? clamp((animation-tick() - self.form-t0) / 420ms, 0, 1) : 1;
         property <float> form-e: 1 - (1 - self.form-q) * (1 - self.form-q) * (1 - self.form-q);
         Timer {
             interval: 440ms;
@@ -2785,7 +2799,7 @@ export component AppWindow inherits Window {
 
         // En-tête : nom de l'appli et serveur (s'efface quand le clavier à l'écran prend la place).
         property <float> osk-p: root.tv-mode && root.login-mode == "form" && root.login-osk ? 1 : 0;
-        animate osk-p { duration: 280ms; easing: ease-in-out; }
+        animate osk-p { duration: Motion.search ? 280ms : 0ms; easing: ease-in-out; }
         Text {
             visible: lg.osk-p < 0.99;
             y: 40 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0)) * 40 * lg.u;
@@ -2838,10 +2852,10 @@ export component AppWindow inherits Window {
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
                 property <float> dim: self.gone ? 0 : root.login-edit && !self.removable ? 0.35 : lg.picking != "" && !self.chosen ? 0.25 : 1;
-                animate dim { duration: 240ms; easing: ease-out; }
+                animate dim { duration: Motion.login ? 240ms : 0ms; easing: ease-out; }
                 opacity: self.dim * self.e;
                 transform-scale: self.gone ? 0.3 : self.chosen ? 1.18 : (self.sel ? 1.08 : 1.0) * (0.7 + 0.3 * self.e);
-                animate transform-scale { duration: 240ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                animate transform-scale { duration: Motion.login ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 Rectangle {
                     y: 0px;
                     width: lg.tile;
@@ -3456,7 +3470,7 @@ export component AppWindow inherits Window {
                 Rectangle {
                     y: root.sections.length == 0 ? 0px
                         : min(0px, 4px * root.k - root.sections[root.sel-section].y-px * 1px);
-                    animate y { duration: 180ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
 
                     for section[si] in root.sections: SectionRow {
                         y: section.y-px * 1px + root.stagger(si);
@@ -3682,7 +3696,7 @@ export component AppWindow inherits Window {
         property <length> osk-h: root.tv-mode ? 7 * 48px * root.k + 16px * root.k : 0px;
         // Clavier à l'écran : apparaît en descendant et en fondu, les résultats glissent dessous.
         property <float> osk-p: root.tv-mode && root.s-osk ? 1 : 0;
-        animate osk-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        animate osk-p { duration: Motion.search ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         property <length> res-y: 16px * root.k + self.box-h + 16px * root.k + self.osk-p * self.osk-h;
 
         FocusScope {
@@ -3913,7 +3927,7 @@ export component AppWindow inherits Window {
             Rectangle {
                 y: root.search-sections.length == 0 ? 0px
                     : min(0px, 4px * root.k - root.search-sections[root.s-section].y-px * 1px);
-                animate y { duration: 180ms; easing: ease-out; }
+                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
 
                 for section[si] in root.search-sections: SectionRow {
                     y: section.y-px * 1px;
@@ -4358,7 +4372,7 @@ export component AppWindow inherits Window {
         Rectangle {
             y: 0px - root.d-scroll;
             height: parent.height + root.d-scroll;
-            animate y { duration: 180ms; easing: ease-out; }
+            animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
 
         // Poster (portrait)
         Rectangle {
@@ -4843,7 +4857,7 @@ export component AppWindow inherits Window {
             Rectangle {
                 // La rangée sélectionnée reste vers le milieu de l'écran.
                 y: min(0px, parent.height / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
-                animate y { duration: 180ms; easing: ease-out; }
+                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
 
                 for card[i] in root.lib-items: Card {
                     x: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
@@ -4978,7 +4992,7 @@ export component AppWindow inherits Window {
                 border-width: self.sel ? 0px : 1px;
                 border-color: #ffffff1f;
                 transform-scale: self.sel ? 1.03 : 1.0;
-                animate transform-scale { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
                 // Icône de serveur
                 Rectangle {
@@ -5086,9 +5100,9 @@ export component AppWindow inherits Window {
         // Saisie d'une adresse : deux adresses possibles pour le même serveur (principale, secours).
         // Mode TV : ↑ ↓ pour choisir, Entrée pour écrire au clavier à l'écran.
         property <float> mo-p: root.manual-open ? 1 : 0;
-        animate mo-p { duration: 220ms; easing: ease-out; }
+        animate mo-p { duration: Motion.panels ? 220ms : 0ms; easing: ease-out; }
         property <float> mosk-p: root.manual-open && root.tv-mode && root.manual-osk ? 1 : 0;
-        animate mosk-p { duration: 260ms; easing: ease-in-out; }
+        animate mosk-p { duration: Motion.search ? 260ms : 0ms; easing: ease-in-out; }
         if srv.mo-p > 0.01: Rectangle {
             y: -root.header-h;
             height: parent.height + root.header-h;
@@ -5500,7 +5514,7 @@ export component AppWindow inherits Window {
             Rectangle {
                 y: root.dl-sections.length == 0 ? 0px
                     : min(0px, 4px * root.k - root.dl-sections[root.dl-sec].y-px * 1px);
-                animate y { duration: 180ms; easing: ease-out; }
+                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
 
                 for section[si] in root.dl-sections: SectionRow {
                     y: section.y-px * 1px + root.stagger(si);
@@ -5532,8 +5546,8 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "about"];
-        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "À propos")];
+        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "motion", "about"];
+        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
         property <length> left-w: 260px * root.k;
 
         // Choix de l'avatar : catégories à gauche (s'il y en a plusieurs), grille qui défile à droite.
@@ -5578,7 +5592,7 @@ export component AppWindow inherits Window {
         // cascade, avatars en cascade à l'ouverture du choix et à chaque changement de catégorie.
         property <bool> rw-anim;
         property <duration> rw-t0;
-        property <float> rw-q: self.rw-anim ? clamp((animation-tick() - self.rw-t0) / 650ms, 0, 1) : 1;
+        property <float> rw-q: self.rw-anim && Motion.panels ? clamp((animation-tick() - self.rw-t0) / 650ms, 0, 1) : 1;
         function rows-in() {
             sets.rw-t0 = animation-tick();
             sets.rw-anim = true;
@@ -5591,12 +5605,13 @@ export component AppWindow inherits Window {
             }
         }
         pure function rw-e(i: int) -> float {
-            let x = clamp(sets.rw-q * 2.2 - i * 0.16, 0, 1);
+            // Décalage plafonné : même la 15e ligne a fini d'arriver à la fin de l'animation.
+            let x = clamp(sets.rw-q * 2.2 - min(i, 8) * 0.15, 0, 1);
             return 1 - (1 - x) * (1 - x) * (1 - x);
         }
         property <bool> ai-anim;
         property <duration> ai-t0;
-        property <float> ai-q: self.ai-anim ? clamp((animation-tick() - self.ai-t0) / 700ms, 0, 1) : 1;
+        property <float> ai-q: self.ai-anim && Motion.panels ? clamp((animation-tick() - self.ai-t0) / 700ms, 0, 1) : 1;
         function av-in() {
             sets.ai-t0 = animation-tick();
             sets.ai-anim = true;
@@ -5794,7 +5809,7 @@ export component AppWindow inherits Window {
         Rectangle {
             x: 32px * root.k;
             y: 64px * root.k + root.set-cat * 52px * root.k;
-            animate y { duration: 300ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
+            animate y { duration: Motion.scroll ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
             width: sets.left-w - 32px * root.k;
             height: 46px * root.k;
             border-radius: 10px * root.k;
@@ -5803,7 +5818,7 @@ export component AppWindow inherits Window {
                 border-radius: parent.border-radius;
                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                 opacity: !root.set-in && !root.h-focus ? 1 : 0;
-                animate opacity { duration: 200ms; }
+                animate opacity { duration: Motion.panels ? 200ms : 0ms; }
             }
         }
         for c[i] in sets.cats: Rectangle {
@@ -5893,7 +5908,7 @@ export component AppWindow inherits Window {
                 height: (parent.height - sets.pad * 2) * (sets.set-view-h / sets.set-list-h);
                 border-radius: 2px * root.k;
                 background: #ffffff40;
-                animate y { duration: 220ms; easing: ease-out; }
+                animate y { duration: Motion.scroll ? 220ms : 0ms; easing: ease-out; }
             }
 
             TouchArea {
@@ -5906,7 +5921,7 @@ export component AppWindow inherits Window {
                 }
                 set-list := VerticalLayout {
                     y: -sets.set-scroll;
-                    animate y { duration: 220ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll ? 220ms : 0ms; easing: ease-out; }
                     width: parent.width - 8px * root.k;
                     height: self.preferred-height;
                     changed height => {
@@ -5943,7 +5958,7 @@ export component AppWindow inherits Window {
                         border-width: self.sel && r.kind != "action" ? 2px : 0px;
                         border-color: Theme.accent2;
                         transform-scale: self.sel ? 1.015 : 1.0;
-                        animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                        animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
                         // Compte : avatar et nom
                         if r.kind == "profile": Rectangle {
@@ -5986,7 +6001,7 @@ export component AppWindow inherits Window {
                             y: (parent.height - self.height) / 2;
                             // Largeur animée ; le texte est calé sur le bord droit (fixe), il ne bouge pas.
                             width: val-t.preferred-width + 48px * root.k;
-                            animate width { duration: 420ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                            animate width { duration: Motion.panels ? 420ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                             height: 34px * root.k;
                             border-radius: self.height / 2;
                             background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
@@ -6040,7 +6055,7 @@ export component AppWindow inherits Window {
                                 height: 22px * root.k;
                                 border-radius: self.height / 2;
                                 background: white;
-                                animate x { duration: 220ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                                animate x { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                             }
                         }
                         row-area := TouchArea {
@@ -6071,7 +6086,7 @@ export component AppWindow inherits Window {
 
         // Liste de choix d'un réglage : panneau de verre à droite, l'option actuelle cochée.
         property <float> ch-p: root.ch-key != "" ? 1 : 0;
-        animate ch-p { duration: 280ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        animate ch-p { duration: Motion.panels ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.ch-p > 0.01 && !root.dust-snap: ch-pane := Rectangle {
             // Langue : voile léger, les blocs blancs de l'effet restent blancs.
             background: (root.ch-key == "language" || root.dust-on ? #00000026 : #00000080).transparentize(1 - sets.ch-p);
@@ -6126,7 +6141,7 @@ export component AppWindow inherits Window {
                     for t[i] in root.ch-items: Rectangle {
                         x: 10px * root.k;
                         y: (i - ch-pane.top) * ch-pane.row-h;
-                        animate y { duration: 160ms; easing: ease-out; }
+                        animate y { duration: Motion.scroll ? 160ms : 0ms; easing: ease-out; }
                         width: parent.width - 20px * root.k;
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
@@ -6173,7 +6188,7 @@ export component AppWindow inherits Window {
         // défile pour garder l'avatar choisi à l'écran. Entrée applique l'avatar (arc qui tourne,
         // puis coche verte) ; Échap revient au compte.
         property <float> av-p: root.av-open ? 1 : 0;
-        animate av-p { duration: 260ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        animate av-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.av-p > 0.01: Rectangle {
             background: Theme.bg;
             opacity: sets.av-p;
@@ -6254,7 +6269,7 @@ export component AppWindow inherits Window {
                 }
                 Rectangle {
                     y: (root.av-group - root.g-top) * (sets.g-h + 6px * root.k);
-                    animate y { duration: 300ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
+                    animate y { duration: Motion.scroll ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
                     background: #ffffff1f;
@@ -6262,12 +6277,12 @@ export component AppWindow inherits Window {
                         border-radius: parent.border-radius;
                         background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                         opacity: !root.h-focus && root.av-zone == 0 ? 1 : 0;
-                        animate opacity { duration: 200ms; }
+                        animate opacity { duration: Motion.panels ? 200ms : 0ms; }
                     }
                 }
                 for g[i] in root.av-groups: Rectangle {
                     y: (i - root.g-top) * (sets.g-h + 6px * root.k);
-                    animate y { duration: 200ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
                     background: avg-area.has-hover && i != root.av-group ? #ffffff14 : transparent;
@@ -6322,7 +6337,7 @@ export component AppWindow inherits Window {
                 Rectangle {
                     x: 14px * root.k;
                     y: 14px * root.k - root.av-top * sets.av-ch;
-                    animate y { duration: 260ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                    animate y { duration: Motion.scroll ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                     for a[i] in root.avatar-items: cell := Rectangle {
                         property <int> line: floor(i / sets.av-cols);
                         // Seules les rangées proches de l'écran sont dessinées.
@@ -6364,8 +6379,8 @@ export component AppWindow inherits Window {
                             border-width: cell.lit ? 4px * root.k : cell.done ? 3px * root.k : 0px;
                             border-color: cell.done ? #4ade80 : Theme.accent2;
                             transform-scale: cell.squash ? 0.92 : cell.lit ? 1.14 : 1.0;
-                            animate transform-scale { duration: 240ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-                            animate background { duration: 160ms; }
+                            animate transform-scale { duration: Motion.select ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            animate background { duration: Motion.select ? 160ms : 0ms; }
                             // Image en fondu à son arrivée.
                             Image {
                                 x: 6px * root.k;
@@ -6375,7 +6390,7 @@ export component AppWindow inherits Window {
                                 source: a.image;
                                 image-fit: fill;
                                 opacity: !a.has-image ? 0 : cell.busy ? 0.45 : 1.0;
-                                animate opacity { duration: 220ms; }
+                                animate opacity { duration: Motion.panels ? 220ms : 0ms; }
                             }
                             // Avatar en cours d'envoi : arc qui tourne.
                             if cell.busy: Path {
@@ -6400,7 +6415,7 @@ export component AppWindow inherits Window {
                                 border-width: 2px * root.k;
                                 border-color: Theme.bg;
                                 transform-scale: cell.done ? 1.0 : 0.0;
-                                animate transform-scale { duration: 320ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                                animate transform-scale { duration: Motion.select ? 320ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                                 Path {
                                     width: 16px * root.k;
                                     height: 16px * root.k;
@@ -6451,7 +6466,7 @@ export component AppWindow inherits Window {
                     background: #ffffff14;
                     Rectangle {
                         y: parent.height * root.av-top / sets.av-lines;
-                        animate y { duration: 260ms; easing: ease-out; }
+                        animate y { duration: Motion.scroll ? 260ms : 0ms; easing: ease-out; }
                         height: parent.height * sets.av-rows / sets.av-lines;
                         border-radius: 2px * root.k;
                         background: #ffffff66;
@@ -6463,9 +6478,9 @@ export component AppWindow inherits Window {
         // ---------------------------------------------------- Saisie d'une adresse (Réseau)
         // Mode TV : ↑ ↓ pour choisir, Entrée pour écrire au clavier à l'écran.
         property <float> ad-p: root.addr-edit > 0 ? 1 : 0;
-        animate ad-p { duration: 220ms; easing: ease-out; }
+        animate ad-p { duration: Motion.panels ? 220ms : 0ms; easing: ease-out; }
         property <float> adk-p: root.addr-edit > 0 && root.tv-mode && root.addr-osk ? 1 : 0;
-        animate adk-p { duration: 260ms; easing: ease-in-out; }
+        animate adk-p { duration: Motion.search ? 260ms : 0ms; easing: ease-in-out; }
         if sets.ad-p > 0.01: Rectangle {
             y: -root.header-h;
             height: parent.height + root.header-h;
@@ -6694,7 +6709,7 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Menu latéral
     // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
     property <float> menu-p: root.menu-open ? 1 : 0;
-    animate menu-p { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    animate menu-p { duration: Motion.menu ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Toujours construit (invisible quand il est fermé) : l'ouverture ne crée rien, pas d'à-coup.
     // Pas de « visible: false » quand il est fermé : un élément caché ne peut pas prendre le clavier
     // (il le demande à l'ouverture, avant le début de l'animation). Fermé, il est hors écran.
@@ -6727,7 +6742,7 @@ export component AppWindow inherits Window {
             property <length> top: 84px * root.k;
             // Défilement si le menu dépasse l'écran (mode TV).
             property <length> scroll: max(0px, (root.menu-sel + 1) * self.row-h - (self.height - self.top - 16px * root.k));
-            animate scroll { duration: 220ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            animate scroll { duration: Motion.menu ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
 
             TouchArea {
                 // Molette dans le menu : la sélection monte ou descend.
@@ -6800,7 +6815,7 @@ export component AppWindow inherits Window {
                 Rectangle {
                     x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - root.menu-sel * 0.045, 0, 1)) * 90px * root.k;
                     y: root.menu-sel * drawer.row-h - drawer.scroll;
-                    animate y { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    animate y { duration: Motion.menu ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
@@ -7179,7 +7194,7 @@ export component AppWindow inherits Window {
         }
     }
     property <float> slow-p: root.slow-load && root.loading ? 1 : 0;
-    animate slow-p { duration: 300ms; easing: ease-out; }
+    animate slow-p { duration: Motion.pages ? 300ms : 0ms; easing: ease-out; }
     if root.slow-p > 0.01 && !root.playing: Rectangle {
         x: (parent.width - self.width) / 2;
         y: parent.height - self.height - 40px * root.k + (1 - root.slow-p) * 20px * root.k;
@@ -7301,7 +7316,7 @@ export component AppWindow inherits Window {
     in-out property <int> tour-step: -1;
     property <int> tour-count: 11;
     property <float> tour-p: root.tour-step >= 0 ? 1 : 0;
-    animate tour-p { duration: 300ms; easing: ease-out; }
+    animate tour-p { duration: Motion.tour ? 300ms : 0ms; easing: ease-out; }
     property <int> tour-last: 0;
     property <bool> tour-act: root.tour-step >= 1 && root.tour-step <= 8;
     // Visite affichée et étape à boutons : elle garde le clavier.
@@ -7435,11 +7450,11 @@ export component AppWindow inherits Window {
         : root.tour-last == 6 ? root.menu-w : 0px;
     property <length> hh: root.tour-last == 1 ? 0px : root.tour-last == 3 || root.tour-last == 4 ? root.header-h - 8px * root.k
         : root.tour-last == 6 ? root.height - 8px * root.k : 0px;
-    animate hx, hy, hw, hh { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    animate hx, hy, hw, hh { duration: Motion.tour ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Voile : sombre pour les étapes à boutons et celles qui éclairent une zone ; léger sinon (la page
     // reste lisible pendant qu'on y navigue).
     property <color> tour-veil: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8 ? #00000040 : #000000b8;
-    animate tour-veil { duration: 300ms; }
+    animate tour-veil { duration: Motion.tour ? 300ms : 0ms; }
 
     if root.tour-p > 0.01 && !root.playing: Rectangle {
         opacity: root.tour-p;
@@ -7483,8 +7498,8 @@ export component AppWindow inherits Window {
                 : (parent.height - self.height) / 2;
             // Nouvelle étape : la bulle apparaît à sa place (fondu, léger zoom) au lieu de
             // glisser depuis celle de l'étape d'avant.
-            animate height { duration: 380ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-            property <float> fresh: root.tour-fresh ? clamp((animation-tick() - root.tour-t0) / 240ms, 0, 1) : 1;
+            animate height { duration: Motion.tour ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            property <float> fresh: root.tour-fresh && Motion.tour ? clamp((animation-tick() - root.tour-t0) / 240ms, 0, 1) : 1;
             opacity: self.fresh;
             transform-scale: 0.96 + 0.04 * self.fresh;
             border-radius: 20px * root.k;
@@ -7516,7 +7531,7 @@ export component AppWindow inherits Window {
                 border-radius: self.width / 2;
                 background: #4ade80;
                 opacity: root.tour-ok ? 1 : 0;
-                animate opacity { duration: 160ms; }
+                animate opacity { duration: Motion.tour ? 160ms : 0ms; }
                 Path {
                     width: 18px * root.k;
                     height: 18px * root.k;
@@ -7732,7 +7747,7 @@ export component AppWindow inherits Window {
                 x: 28px * root.k + i * 14px * root.k;
                 y: parent.height - (parent.buttons ? 40px : 30px) * root.k;
                 width: (i == root.tour-last ? 20px : 7px) * root.k;
-                animate width { duration: 220ms; }
+                animate width { duration: Motion.tour ? 220ms : 0ms; }
                 height: 7px * root.k;
                 border-radius: 4px * root.k;
                 background: i == root.tour-last ? Theme.accent2 : i < root.tour-last ? #ffffff80 : #ffffff30;
@@ -7823,6 +7838,8 @@ export component AppWindow inherits Window {
     in property <string> lx-hint;
     in property <[LxItem]> lx-items;
     in property <bool> lx-can-folder;
+    in property <bool> lx-can-template: true;
+    in property <string> lx-title;
     in property <int> lx-tick;
     in-out property <int> lx-sel;
     callback lx-activate(int);
@@ -7840,6 +7857,8 @@ export component AppWindow inherits Window {
         hint: root.lx-hint;
         items: root.lx-items;
         can-open-folder: root.lx-can-folder;
+        can-template: root.lx-can-template;
+        title: root.lx-title;
         tick: root.lx-tick;
         sel <=> root.lx-sel;
         activate(i) => {

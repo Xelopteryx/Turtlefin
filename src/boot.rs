@@ -183,7 +183,7 @@ async fn check(i: usize, start: &Start) -> Result<bool, String> {
 
 /// Déroulement complet (dans le runtime tokio).
 pub async fn run(app: Arc<App>, start: Start) {
-    let animate = !start.no_intro;
+    let animate = !start.no_intro && config::ui_prefs().anim.boot;
     let step = Duration::from_millis(if animate { 200 } else { 0 });
     let labels = labels();
     ui(&app, move |u| {
@@ -210,7 +210,9 @@ pub async fn run(app: Arc<App>, start: Start) {
                 u.set_boot_langs(ModelRc::new(VecModel::from(langs)));
                 u.set_boot_lang_sel(sel);
                 // Les textes du logo partent en nuage pendant le choix (dust.rs).
-                crate::dust::dissolve(u, 2);
+                if config::ui_prefs().anim.language {
+                    crate::dust::dissolve(u, 2);
+                }
                 u.set_boot_lang_open(true);
             });
             let code = wait(&app, None).await;

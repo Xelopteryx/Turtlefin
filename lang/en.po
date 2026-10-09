@@ -1446,3 +1446,146 @@ msgid "{n} fichier de langue"
 msgid_plural "{n} fichiers de langue"
 msgstr[0] "{n} language file"
 msgstr[1] "{n} language files"
+
+msgid "Animations"
+msgstr "Animations"
+
+msgid "Arrivée des pages"
+msgstr "Page arrival"
+
+msgid "Aucun preset à exporter : enregistre d'abord tes réglages comme preset."
+msgstr "No preset to export: save your settings as a preset first."
+
+msgid "Barre qui recouvre puis réécrit les textes."
+msgstr "Bar that covers then rewrites the texts."
+
+msgid "Boutons, onglets, affiches et interrupteurs qui réagissent."
+msgstr "Buttons, tabs, posters and switches that respond."
+
+msgid "Bulles et cadres de la visite."
+msgstr "Tour bubbles and frames."
+
+msgid "Changement de langue"
+msgstr "Language change"
+
+msgid "Choisis un fichier de preset (.json) dans ce dossier."
+msgstr "Pick a preset file (.json) in this folder."
+
+msgid "Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué."
+msgstr "Pick an animation preset (.json): it is added to your presets and applied."
+
+msgid "Commandes, panneaux et boutons pendant la lecture."
+msgstr "Controls, panels and buttons during playback."
+
+msgid "Dossier des presets introuvable."
+msgstr "Presets folder not found."
+
+msgid "Défilement"
+msgstr "Scrolling"
+
+msgid "Démarrage"
+msgstr "Startup"
+
+msgid "Enregistrer comme preset"
+msgstr "Save as a preset"
+
+msgid "Ensemble d'animations : intégré, ou créé ici."
+msgstr "Set of animations: built-in, or made here."
+
+msgid "Exporter les presets"
+msgstr "Export presets"
+
+msgid "Fiches et lecture"
+msgstr "Pages and playback"
+
+msgid "Garde ces réglages sous un nouveau nom."
+msgstr "Keeps these settings under a new name."
+
+msgid "Importer un preset"
+msgstr "Import a preset"
+
+msgid "Lecteur"
+msgstr "Player"
+
+msgid "Lettres tapées et clavier à l'écran."
+msgstr "Typed letters and on-screen keyboard."
+
+msgid "Listes de choix, panneaux et fenêtres qui apparaissent."
+msgstr "Choice lists, panels and windows that appear."
+
+msgid "Logo animé et vérifications au lancement."
+msgstr "Animated logo and startup checks."
+
+msgid "Légères"
+msgstr "Light"
+
+msgid "Menu latéral"
+msgstr "Side menu"
+
+msgid "Mon preset {}"
+msgstr "My preset {}"
+
+msgid "Ouverture d'une fiche et lancement de la lecture."
+msgstr "Opening a page and starting playback."
+
+msgid "Ouverture, fermeture et sélection du menu."
+msgstr "Opening, closing and selection in the menu."
+
+msgid "Pages qui glissent en arrivant, fonds en fondu."
+msgstr "Pages sliding in, backgrounds fading."
+
+msgid "Panneaux"
+msgstr "Panels"
+
+msgid "Pas un preset de Turtlefin"
+msgstr "Not a Turtlefin preset"
+
+msgid "Personnalisé"
+msgstr "Custom"
+
+msgid "Photo du compte choisi, arrivée sur l'accueil."
+msgstr "Chosen account's picture, arrival on the home screen."
+
+msgid "Preset"
+msgstr "Preset"
+
+msgid "Preset d'animations"
+msgstr "Animation preset"
+
+msgid "Preset enregistré : {}"
+msgstr "Preset saved: {}"
+
+msgid "Preset importé : {}"
+msgstr "Preset imported: {}"
+
+msgid "Preset supprimé : {}"
+msgstr "Preset deleted: {}"
+
+msgid "Rangées et listes qui défilent en douceur."
+msgstr "Rows and lists that scroll smoothly."
+
+msgid "Saisie"
+msgstr "Typing"
+
+msgid "Supprimer ce preset"
+msgstr "Delete this preset"
+
+msgid "Sélection"
+msgstr "Selection"
+
+msgid "Toutes"
+msgstr "All"
+
+msgid "Un fichier par preset, dans le dossier « {} »."
+msgstr "One file per preset, in the “{}” folder."
+
+msgid "{} animations sur {}"
+msgstr "{} animations out of {}"
+
+msgid "{} preset(s) exporté(s) dans {}"
+msgstr "{} preset(s) exported to {}"
+
+msgid "{n} preset"
+msgid_plural "{n} presets"
+msgstr[0] "{n} preset"
+msgstr[1] "{n} presets"

@@ -3,7 +3,7 @@
 // la part traduite), modèle à traduire ; choisir une langue l'applique. Au clavier : ↑ ↓ dans la
 // liste puis les boutons, ← → entre les boutons, OK ouvre / choisit, Retour remonte d'un dossier
 // (ou ferme à la racine). La souris marche aussi.
-import { Theme, Tr } from "theme.slint";
+import { Theme, Tr, Motion } from "theme.slint";
 
 export struct LxItem {
     kind: string,   // "up" · "dir" · "lang" · "template" · "other"
@@ -40,7 +40,7 @@ component LxIcon inherits Rectangle {
         stroke-line-cap: round;
         commands: "M 12 3 A 9 9 0 1 1 11.99 3 Z M 3 12 L 21 12 M 12 3 C 15 6 15 18 12 21 C 9 18 9 6 12 3";
     }
-    if root.kind == "template" || root.kind == "other": Path {
+    if root.kind == "template" || root.kind == "other" || root.kind == "preset": Path {
         width: parent.width;
         height: parent.height;
         viewbox-width: 24;
@@ -61,6 +61,8 @@ export component LangExplorer inherits Rectangle {
     in property <string> hint;
     in property <[LxItem]> items;
     in property <bool> can-open-folder;
+    in property <bool> can-template: true;
+    in property <string> title;
     in property <int> tick;          // change à chaque dossier affiché (cascade des lignes)
     in-out property <int> sel;
     callback activate(int);
@@ -68,11 +70,12 @@ export component LangExplorer inherits Rectangle {
     callback button(string);         // "template" · "folder" · "close"
 
     property <float> p: root.open ? 1 : 0;
-    animate p { duration: 300ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    animate p { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     visible: self.p > 0.01;
     // Boutons sous la liste : modèle, dossier (bureau), fermer.
     property <int> n: root.items.length;
-    property <[string]> btns: root.can-open-folder ? ["template", "folder", "close"] : ["template", "close"];
+    property <[string]> btns: root.can-template ? (root.can-open-folder ? ["template", "folder", "close"] : ["template", "close"])
+        : (root.can-open-folder ? ["folder", "close"] : ["close"]);
     property <duration> list-t0;
     changed tick => {
         root.list-t0 = animation-tick();
@@ -151,7 +154,7 @@ export component LangExplorer inherits Rectangle {
         Text {
             x: 30px * root.k;
             y: 24px * root.k;
-            text: Tr.t(Tr.k, "Ajouter une langue");
+            text: root.title;
             color: white;
             font-size: 26px * root.k;
             font-weight: 700;
@@ -200,7 +203,7 @@ export component LangExplorer inherits Rectangle {
             y: hint-t.y + hint-t.preferred-height + 14px * root.k;
             width: parent.width - 40px * root.k;
             height: parent.height - self.y - 84px * root.k;
-            content-height: root.n * panel.row-h;
+            content-height: max(self.height, root.n * panel.row-h);
             // Garde la ligne choisie visible.
             property <int> s: root.sel;
             changed s => {
@@ -224,7 +227,7 @@ export component LangExplorer inherits Rectangle {
             }
             for it[i] in root.items: row := Rectangle {
                 // Cascade à chaque dossier affiché.
-                property <float> e: clamp((animation-tick() - root.list-t0) / 1ms / 260 - i * 0.06, 0, 1);
+                property <float> e: Motion.panels ? clamp((animation-tick() - root.list-t0) / 1ms / 260 - i * 0.06, 0, 1) : 1;
                 x: (1 - self.e) * 24px * root.k;
                 y: i * panel.row-h;
                 opacity: self.e * (it.kind == "other" ? 0.55 : 1);

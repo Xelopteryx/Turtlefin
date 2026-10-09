@@ -1446,3 +1446,146 @@ msgid "{n} fichier de langue"
 msgid_plural "{n} fichiers de langue"
 msgstr[0] "{n} taalbestand"
 msgstr[1] "{n} taalbestanden"
+
+msgid "Animations"
+msgstr "Animaties"
+
+msgid "Arrivée des pages"
+msgstr "Aankomst van pagina's"
+
+msgid "Aucun preset à exporter : enregistre d'abord tes réglages comme preset."
+msgstr "Geen preset om te exporteren: sla eerst je instellingen op als preset."
+
+msgid "Barre qui recouvre puis réécrit les textes."
+msgstr "Balk die de teksten bedekt en daarna herschrijft."
+
+msgid "Boutons, onglets, affiches et interrupteurs qui réagissent."
+msgstr "Knoppen, tabbladen, posters en schakelaars die reageren."
+
+msgid "Bulles et cadres de la visite."
+msgstr "Ballonnen en kaders van de rondleiding."
+
+msgid "Changement de langue"
+msgstr "Taalwissel"
+
+msgid "Choisis un fichier de preset (.json) dans ce dossier."
+msgstr "Kies een presetbestand (.json) in deze map."
+
+msgid "Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué."
+msgstr "Kies een animatiepreset (.json): hij wordt aan je presets toegevoegd en toegepast."
+
+msgid "Commandes, panneaux et boutons pendant la lecture."
+msgstr "Bediening, panelen en knoppen tijdens het afspelen."
+
+msgid "Dossier des presets introuvable."
+msgstr "Presetmap niet gevonden."
+
+msgid "Défilement"
+msgstr "Scrollen"
+
+msgid "Démarrage"
+msgstr "Opstarten"
+
+msgid "Enregistrer comme preset"
+msgstr "Opslaan als preset"
+
+msgid "Ensemble d'animations : intégré, ou créé ici."
+msgstr "Set animaties: ingebouwd, of hier gemaakt."
+
+msgid "Exporter les presets"
+msgstr "Presets exporteren"
+
+msgid "Fiches et lecture"
+msgstr "Pagina's en afspelen"
+
+msgid "Garde ces réglages sous un nouveau nom."
+msgstr "Bewaart deze instellingen onder een nieuwe naam."
+
+msgid "Importer un preset"
+msgstr "Preset importeren"
+
+msgid "Lecteur"
+msgstr "Speler"
+
+msgid "Lettres tapées et clavier à l'écran."
+msgstr "Getypte letters en schermtoetsenbord."
+
+msgid "Listes de choix, panneaux et fenêtres qui apparaissent."
+msgstr "Keuzelijsten, panelen en vensters die verschijnen."
+
+msgid "Logo animé et vérifications au lancement."
+msgstr "Geanimeerd logo en controles bij het starten."
+
+msgid "Légères"
+msgstr "Licht"
+
+msgid "Menu latéral"
+msgstr "Zijmenu"
+
+msgid "Mon preset {}"
+msgstr "Mijn preset {}"
+
+msgid "Ouverture d'une fiche et lancement de la lecture."
+msgstr "Een pagina openen en het afspelen starten."
+
+msgid "Ouverture, fermeture et sélection du menu."
+msgstr "Openen, sluiten en selecteren in het menu."
+
+msgid "Pages qui glissent en arrivant, fonds en fondu."
+msgstr "Pagina's die binnenschuiven, achtergronden die vervagen."
+
+msgid "Panneaux"
+msgstr "Panelen"
+
+msgid "Pas un preset de Turtlefin"
+msgstr "Geen Turtlefin-preset"
+
+msgid "Personnalisé"
+msgstr "Aangepast"
+
+msgid "Photo du compte choisi, arrivée sur l'accueil."
+msgstr "Foto van het gekozen account, aankomst op het startscherm."
+
+msgid "Preset"
+msgstr "Preset"
+
+msgid "Preset d'animations"
+msgstr "Animatiepreset"
+
+msgid "Preset enregistré : {}"
+msgstr "Preset opgeslagen: {}"
+
+msgid "Preset importé : {}"
+msgstr "Preset geïmporteerd: {}"
+
+msgid "Preset supprimé : {}"
+msgstr "Preset verwijderd: {}"
+
+msgid "Rangées et listes qui défilent en douceur."
+msgstr "Rijen en lijsten die soepel scrollen."
+
+msgid "Saisie"
+msgstr "Typen"
+
+msgid "Supprimer ce preset"
+msgstr "Deze preset verwijderen"
+
+msgid "Sélection"
+msgstr "Selectie"
+
+msgid "Toutes"
+msgstr "Alle"
+
+msgid "Un fichier par preset, dans le dossier « {} »."
+msgstr "Eén bestand per preset, in de map ‘{}’."
+
+msgid "{} animations sur {}"
+msgstr "{} van {} animaties"
+
+msgid "{} preset(s) exporté(s) dans {}"
+msgstr "{} preset(s) geëxporteerd naar {}"
+
+msgid "{n} preset"
+msgid_plural "{n} presets"
+msgstr[0] "{n} preset"
+msgstr[1] "{n} presets"
