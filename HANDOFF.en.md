@@ -1,234 +1,247 @@
-# Turtlefin: project handoff (state on October 7, 2026, version 0.9.1)
+# Turtlefin: project handoff (state on October 9, 2026, version 1.0.0)
 
-[Français](HANDOFF.md) · **English**
+[Français](HANDOFF.md) · **English** · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
-For whoever takes over development (human or Claude Code). Read it fully before touching the code, then read
-[README.md](README.md) (usage, install, keys, files). The French version is the reference if they ever differ.
-Repository: https://github.com/Xelopteryx/Turtlefin · Version in `Cargo.toml`: 0.9.1.
+For whoever takes over development (a person or Claude Code). Read it entirely before touching the code, then
+read [README.md](README.md) (usage, installation, keys, files).
+Repository: https://github.com/Xelopteryx/Turtlefin · Version in `Cargo.toml`: 1.0.0.
 
 ## 1. Goal
 
-A **native Jellyfin client in Rust**, lightweight, animated and fully usable with a keyboard / remote, installable
-on any Windows or Linux computer **without building anything**: users download an installer or a package (or run
-one install command), that's all. Every package is built by the maintainer (GitHub CI or their PC), never by users.
+A **native Jellyfin client in Rust**, lightweight, animated, usable with a remote as well as with a keyboard and
+mouse, installable on any Windows or Linux computer **without compiling anything**: the user downloads an
+installer or a package (or runs an install command), that's all. Every package is built by GitHub CI (or the
+maintainer's PC), never by the user.
 
-Why: Jellyfin Desktop (Qt / QtWebEngine) leaks RAM and eventually crashes on small machines, and the web interface
-with a heavy theme drops below 30 fps on modest hardware. Standing rule: stay memory-stable and never bring back
-real-time blur or filter animations.
+Why: Jellyfin Desktop (Qt / QtWebEngine) leaks RAM and ends up crashing on small machines, and the web interface
+with a heavy theme drops below 30 fps on modest hardware. Permanent rule: stay stable in memory and never bring
+back real-time blur or filter animations.
 
 ## 2. Decisions
 
 | Topic | Decision | Reason |
 |---|---|---|
-| Language / UI | Rust + **Slint** 1.18 (100 % Slint rendering), `fluent-dark` style forced by `build.rs` | No browser; the “native” style would depend on Qt |
-| Network | `reqwest` 0.13 (rustls, system certificate store), `tokio` | `query` is an opt-in feature in 0.13 |
-| Playback | **libmpv loaded at runtime** (`libloading`, `src/mpv.rs`), OpenGL rendering into a texture shown by Slint (`src/video.rs`), Slint controls on top (`ui/player.slint`) | Built-in player, no IPC, works on Wayland. The player is recreated for each playback (bounded memory) |
+| Language / UI | Rust + **Slint** `~1.18` (100 % Slint rendering), `fluent-dark` style forced by `build.rs` | No browser; the “native” style would depend on Qt |
+| Slint feature `unstable-winit-030` | winit event filter for **F11** (`install_f11`) | The only way to get a global key; hence `~1.18` (unstable API between minor versions) |
+| Network | `reqwest` 0.13 (rustls, system certificate store), `tokio` | `query` is a feature to enable in 0.13 |
+| Playback | **libmpv loaded at runtime** (`libloading`, `src/mpv.rs`), OpenGL rendering into a texture shown by Slint (`src/video.rs`), Slint controls on top (`ui/player.slint`) | Embedded player, no IPC, works on Wayland. The player is recreated for each playback (bounded memory) |
 | Slint renderer | femtovg (OpenGL / GLES) forced unless `SLINT_BACKEND` is set | Video goes through an OpenGL texture |
 | Video texture | Physical pixels, `TopLeft` origin, GL state saved / restored around mpv; `loadfile` waits for the render context | Otherwise upside-down image or “No render context set” |
-| Decoding | `hwdec=no` on 64-bit ARM Linux, `auto-safe` elsewhere (Windows: `d3d11va-copy`) | On the ARM boards tested (v3d driver), V4L2 decoding outputs a format the renderer cannot import |
-| Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed while PipeWire held the HDMI output |
+| Decoding | `hwdec=no` on 64-bit Linux ARM, `auto-safe` elsewhere (Windows: `d3d11va-copy`) | On the tested ARM boards (v3d driver), V4L2 decoding outputs a format the renderer cannot import |
+| Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed when PipeWire holds the HDMI output |
 | Memory | mpv cache capped (100 / 25 MiB), images requested at the right size, 16 items per row | Small machines (4 GB) |
-| Languages | Texts written in French in the code (source language), gettext translations in `lang/<code>/LC_MESSAGES/turtlefin.po`, built in | See section 6 |
-| TV interface and full screen (Windows) | Borderless window covering the screen + 1 px (`src/winfull.rs`, `set_tv_window`), not true full screen; follows resolution changes (every 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` for Slint's full screen | In OpenGL full screen, AMD Software treats the app as a game: “Press ALT + R” every time it comes back to the foreground |
-| Window (Windows, desktop) | Shrunk and centred when 1280 x 720 + frame exceeds the work area | 1366 x 768 screens: the bottom went under the taskbar |
-| Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one | User request: no console unless asked |
-| Command line | Always wins over settings (startup account, TV interface) | User request |
-| Password | Never stored (token only); on the command line, prefer `TURTLEFIN_PASSWORD` | Arguments are visible to other processes |
+| Languages | French in the code (source language), runtime translation by `src/i18n.rs` from `lang/<code>.po` (built in) and the `Turtlefin Languages` folder | See section 6 |
+| Full screen (Windows) | Borderless window covering the screen + 1 px (`src/winfull.rs`, `set_tv_window`), not true full screen; follows resolution changes (every 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` for Slint's full screen | In OpenGL full screen, AMD Software treats the app as a game: “Press ALT + R” every time it comes back to the foreground |
+| TV / computer interface | `tv-mode` only changes the size (`k` = 1.4) and the input (on-screen keyboard); full screen is separate (`full_flag`, `UiPrefs::fullscreen`, F11) | User request: full screen without enlarging the interface |
+| Window (Windows, desktop) | Shrunk and centered when 1280 x 720 + frame exceeds the work area; keeps animating while moved (`winfull::keep_alive_while_moving`) | 1366 x 768 screens; Windows blocks the event loop while a window is moved |
+| Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one; external commands without a window (`paths::quiet_command`) | No console and no flashing CMD window |
+| Command line | Always overrides settings (startup account, TV interface) | User request |
+| Password | Never saved (token only); on the command line, prefer `TURTLEFIN_PASSWORD` | An argument is visible to other processes |
 
 ## 3. Code layout
 
 ```
-build.rs          built commit, Slint style, bundled translations, exe icon (winresource, Windows)
-lang/<code>.po    translations (source: the French in the code); tools/lang-check.py checks them
-ui/theme.slint    theme tokens, global Prefs
-ui/app.slint      AppWindow and every screen (boot, login, loading, home, detail, library, settings…)
-ui/boot.slint     BootLogo: startup animation (7 dots, linking, zoom), language picker
-ui/player.slint   playback screen; ui/osk.slint on-screen keyboard; ui/card.slint, ui/marquee.slint
-src/main.rs       CLI, shared App state (Arc), screens, navigation (stack + kept pages), settings
-src/boot.rs       startup sequence (checks, language, landing screen)
-src/i18n.rs       current language, Rust-side tr() / trf(), system / installer language
-src/api.rs        Jellyfin REST client (+ Jellyfin Enhanced Seerr relay, GetAvatar)
-src/config.rs     session, accounts (12 max), prefs.json (device settings), tracks, offline watched/favorites
-src/discovery.rs  server search (UDP, subnets, ARP, VPN peers)
-src/downloads.rs  downloads (Range resume, queue, offline sync)
-src/mpv.rs        libmpv binding; src/video.rs OpenGL texture; src/player.rs playback, reports, chaining
-src/syncplay.rs   watch party (WebSocket /socket)
-src/paths.rs      config / cache / data folders; portable mode (`portable` file next to the exe)
-src/update.rs     update per install kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
-packaging/        windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
-                  icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh (one command)
-.github/workflows/release.yml   build and publish on a `v*` tag
+build.rs            compiled commit, Slint style, exe icon (winresource, Windows)
+lang/<code>.po      built-in translations (source: the French in the code); tools/lang-check.py checks them
+ui/theme.slint      theme tokens, globals Tr (translation) and Motion (enabled animations)
+ui/app.slint        AppWindow and every screen (login, loading, home, detail, library, search, settings…)
+ui/boot.slint       BootLogo: startup animation (7 dots, joining, zoom), language choice
+ui/player.slint     playback screen        ui/osk.slint      on-screen keyboard
+ui/card.slint       poster card            ui/marquee.slint  scrolling text
+ui/typed.slint      animated typed text (Str, TypedText)   ui/langx.slint  explorer (languages, presets)
+ui/dust.slint       language-change bars                   ui/fonts/       Montserrat, Turtlefin Blank
+src/main.rs         CLI, shared App state (Arc), screens, navigation (stack + kept pages), settings
+src/boot.rs         startup sequence (checks, language, landing screen)
+src/i18n.rs         current language, tr() / trf() / trn(), added languages, translation template
+src/dust.rs         language-change effect (finding text lines, morphing)
+src/api.rs          Jellyfin REST client (+ Seerr relay of Jellyfin Enhanced, GetAvatar)
+src/config.rs       session, accounts (12 max), prefs.json (UiPrefs, AnimFlags, presets), tracks, offline watched/favorites
+src/discovery.rs    server discovery (UDP, subnets, ARP, VPN peers)
+src/downloads.rs    downloads (Range resume, queue, offline sync)
+src/mpv.rs          libmpv binding; src/video.rs OpenGL texture; src/player.rs playback, reports, chaining
+src/syncplay.rs     watch party (WebSocket /socket)
+src/paths.rs        config / cache / data folders; portable mode; quiet_command
+src/update.rs       update by installation kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
+src/winfull.rs      Windows: screen / work area, window animated while moved
+packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
+                    icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
+tools/              lang-check.py, make-blank-font.py
+.github/workflows/release.yml   build and publish on a `v*` tag (trial: `ci` branch)
 ```
 
 Principles:
-- Network data goes through `Send` structs, then `upgrade_in_event_loop` pushes it into Slint models. Images are
-  decoded off the UI thread, 6 downloads in parallel, applied with an id guard.
+- Network data goes through `Send` structures, then `upgrade_in_event_loop` pushes it into the Slint models.
+  Images decoded off the UI thread, 6 parallel downloads, applied with an id guard.
 - `App.gen` invalidates stale loads; `App.stack` is the navigation stack; `PAGES` keeps detail and library pages
-  so going back needs no request.
-- Keyboard navigation is hand-made (selection indices in Rust), since Slint does not handle focus across dynamic
-  cards. `refocus` gives the keyboard back to the right `FocusScope`.
-- Jellyfin 10.11: `/UserViews`, `/UserItems/Resume`, `/Shows/NextUp`, `/Items/Latest`, `/Items/{id}`,
-  `Authorization: MediaBrowser …, Token=…` header. Reports: `/Sessions/Playing`, `/Progress`, `/Stopped`.
+  for request-free returns.
+- Keyboard navigation is hand-made (selection indices in Rust and Slint), since Slint does not handle focus for
+  dynamic cards. Each screen has its `FocusScope`; `refocus` gives the keyboard back to the right place.
+- Slint `changed` handlers are deferred: do not rely on their order (two-step positions, etc.).
+- Jellyfin 10.11: `/UserViews`, `/UserItems/Resume`, `/Shows/NextUp`, `/Items/Latest`, `/Items/{id}`, header
+  `Authorization: MediaBrowser …, Token=…`. Reports: `/Sessions/Playing`, `/Progress`, `/Stopped`.
   `/Items/{id}/Download` and the WebSocket refuse `api_key`: token in the header.
 
 ## 4. Startup
 
 `main` applies the language (prefs.json, otherwise the `language` file written by the Windows installer), then
-starts `boot::run`. The `boot` screen shows 7 dots: the 6 corners of the hexagon, then the centre. Each one is a
-real check (`boot::check`):
+runs `boot::run`. The `boot` screen shows 7 dots: the 6 corners of the hexagon, then the center. Each is a real
+check (`boot::check`):
 1. **language** (asked if unknown): the chosen language's translations load (`i18n::check`);
 2. **display**: the window got an OpenGL context (`video::gl_info`, version and graphics card in the log);
-3. **video player**: a real mpv player is created, initialized and destroyed (`mpv::self_test`);
+3. **video player**: a real mpv player is created, initialized, then destroyed (`mpv::self_test`);
 4. **storage**: a file is written, read back and deleted in the config, data and cache folders;
-5. **configuration**: `session.json`, `accounts.json`, `prefs.json`, `tracks.json`, `userdata.json` are readable
-   (`config::unreadable_files`, called at the very start of `main`, before a damaged file gets rewritten);
-6. **network**: an active interface or a route to the outside (`discovery::has_network`);
-7. **server** (the centre): the main address, otherwise the backup, answers `/System/Info/Public` **and** it is
-   the same server (id compared with the session's `server_id`); “to configure” on first run.
+5. **configuration**: `session.json`, `accounts.json`, `prefs.json`, `tracks.json`, `userdata.json` readable
+   (`config::unreadable_files`, called at the very start of `main`, before a damaged file is rewritten);
+6. **network**: an active interface or a route outside (`discovery::has_network`);
+7. **server** (the center): the main address, otherwise the backup one, answers `/System/Info/Public` **and** it
+   is the same server (id compared with the session's `server_id`); orange while no server is configured.
 
-Red = failure, with a message and “Continue” (automatic after 12 s). All green: the corners link up, the spokes
-grow towards the centre and the server dot becomes the filled hexagon — exactly the logo
-(`packaging/turtlefin.svg`, same geometry) —, then the view zooms into the centre. Beware: Slint shrinks a `Path`'s
-drawing by its stroke width; the logo paths are enlarged by that much so they land on the dots.
+Red = failure, with a message and “Continue” (on its own after 12 s). All green: the corners join, the spokes go
+to the center and the server dot becomes the filled hexagon — exactly the logo (`packaging/turtlefin.svg`, same
+geometry) —, then a zoom into the center. Slint shrinks a `Path` drawing by its stroke width: the logo paths are
+enlarged by that much to land on the dots.
 
-Landing screen (`boot::route`), in order: name + password on the command line → sign in; name of a saved account →
-that account; startup account (`prefs.autostart_user` / `autostart_server`, setting Account → “Open this account
-at startup”) → `open_saved_session`; otherwise “Who's watching?” (or the server search if none is known). A
-startup account that is gone (forgotten locally or token refused by the server) leads to “Who's watching?”.
-`--no-intro` skips the animation (the checks still run).
+Landing screen (`boot::route`), in order: name + password on the command line → sign-in; a saved account's name
+→ that account (unknown name: its sign-in form); startup account (`prefs.autostart_user` / `autostart_server`)
+→ `fly_autostart` (the account's picture in the center while signing in); otherwise “Who's watching?” (or server
+discovery if none is known). A startup account that disappeared leads to “Who's watching?”. `--no-intro` (or the
+“Startup” animation turned off) skips the animation; the checks still run.
 
-## 5. State
+## 5. State at version 1.0.0
 
-Every feature listed in the README is done and was checked on screenshots (Windows PC) and on an ARM Linux machine
-plugged into a TV, with the `test` / `test2` accounts of a real server. Notable points, not obvious from the code:
-- **Shared image** (`global Hero`): a card's image flies to the detail poster and back onto the exact card
-  (`Hero.want-id`, `hero-card-ok`). Slint `changed` handlers are deferred: positions are taken in two steps.
-- **Rows** (`global Rows`): per-row scrolling, remembered by key; moving between rows picks the closest card on
-  screen.
+Every feature in the README is done and checked on screenshots (Windows PC, 1366 x 768 and 1920 x 1080 screens)
+and on a Linux ARM machine plugged into a TV, with the `test` / `test2` test accounts of a real server. Versions
+published by the CI: 0.9.0, 0.9.1; 1.0.0 is ready to be tagged (section 7).
+
+Mechanisms that are not obvious in the code:
+- **Shared image** (`global Hero`): a card's image flies to the detail page's poster and back onto the exact card
+  on return (`Hero.want-id`, `hero-card-ok`).
+- **Rows** (`global Rows`): per-row scrolling, remembered by key; moving to another row lands on the closest card
+  on screen (`row-to`, `detail-pick-down`).
 - **Offline**: `config::Flags` (userdata.json) keeps watched / favorites / positions with a “to send” flag;
-  `downloads::sync` sends them back when the server returns (the device wins).
+  `downloads::sync` sends them when the server is back (the device has the last word).
 - **Addresses**: `server_main` / `server_backup`; `watch_addresses` (20 s) switches to the backup and back.
-- **Watch party**: one WebSocket connection per session (`sp_conn`), stops on 401 / 403, growing retry delay.
-- **Avatars**: GIFs decoded once, only the selected avatar is animated; round still images cached on disk.
-  GetAvatar `SetAvatar` answers 500 → fallback `POST /UserImage`.
-- **Version 0.9.0**: Windows / Linux packages and updates through GitHub Releases. Checked locally: x64 installer
-  (installed and portable, uninstall), x86, aarch64 AppImage, arm64 `.deb` (contents). **CI has never run**
-  (nothing pushed) and Release-based updates could not be tried without a release.
-- **October 7, 2026**: startup animation, languages (French / English, ~400 strings), startup account, console
-  only with `--console`, logo = icon (exe, window, installer, Linux packages), bilingual installer passing its
-  language on, one-command install scripts, README / HANDOFF in two languages.
+- **Watch party**: one WebSocket connection per session (`sp_conn`), stops on 401 / 403, growing delay.
+- **Profile pictures**: disk cache `avatar_<id>_still|anim.bin` + round thumbnail `avatar_<id>_thumb.png`. The
+  thumbnail is shown at once, the full GIF is decoded off the UI thread (`avatar_cached_async`), then refreshed
+  from the server only if it changed (`avatar_fetch`). GIF animation: `AnimSlot` (Login, Picker, Header, Fly) and
+  one shared timer; the header avatar receives all its frames once (`avatar-frames`) and only the visible frame
+  changes. GetAvatar `SetAvatar` answers 500 → fallback `POST /UserImage`.
+- **Animated sign-in** (`fly-phase` 1 to 4): the picture moves to the center, loading bar, flies away, then the
+  home screen arrives and the header avatar pops in (`me-pop`).
+- **Language change** (`dust.rs`, `ui/dust.slint`): when the language list opens, bars cover every line of text,
+  take the width of the new words once one is chosen, then reveal them. Lines are found by comparing a snapshot
+  of the page (`take_snapshot`) with a snapshot in the `Turtlefin Blank` font (empty glyphs, same widths,
+  `tools/make-blank-font.py`). The clock (Montserrat) is excluded.
+- **Guided tour** (`tour-step` 0 to 10): each step puts the interface back in the expected state or completes if
+  the gesture is already done; `tour-ev` is called from `changed` handlers.
+- **Animations**: global `Motion` (12 switches: boot, pages, menu, select, scroll, panels, detail, player, search,
+  login, language, tour), `config::AnimFlags`, built-in presets (All, Light, None) and personal ones, exported /
+  imported as `.json` in `Turtlefin Presets`. Every animation duration is written
+  `duration: Motion.x ? 300ms : 0ms`.
+- **Input**: on the desktop, fields are `TextInput`s (hidden text, drawn by `TypedText`); in TV mode, the
+  on-screen keyboard (`Osk`). In both modes, a printable key received by the page goes to the field
+  (`typing-key`, `erase-key`, `Field.type`); in TV mode Backspace only erases while text remains. On the desktop,
+  clicking next to a field does not take the keyboard away from it (`focus-on-click: root.tv-mode`).
+- **Held keys**: Enter, Esc and Backspace do not repeat their action (`event.repeat`), except Backspace erasing
+  text.
+- **Mouse**: click everywhere; wheel on home, detail page (`d-nav`, shared with the keyboard), search, libraries,
+  downloads, settings; foreground windows swallow the wheel.
 
-- **October 7, 2026 (evening)**: playback at the screen's refresh rate (`Render::render`: mpv draws only new
-  frames, `BLOCK_FOR_TARGET_TIME=0`; before, the UI was capped at the video's rate, 26 fps); volume (button + bar,
-  `prefs.volume`), Audio / Subtitles icons, animated presses and panels; detail page moving aside when playback
-  starts (`play-go`, `po`); text fragmentation while choosing the language (`Tr.fx`, `Tr.k`, `i18n::fragment`);
-  menu and category icons (`NavIcon`); guided tour (`tour-step`, offered at startup, `--tutorial`, Settings →
-  About); orange server dot while no server is chosen.
-
-- **October 8, 2026**: language change (`dust.rs`, `ui/dust.slint`) — when the language list opens, a glowing bar
-  runs along each text line and covers it in white; on choosing, the blocks take the width of the new words and
-  the bar reveals them (on cancel, the old ones). Lines are found by capturing the page (`take_snapshot`) as is,
-  then with a font with empty glyphs and identical widths (`Turtlefin Blank`, `tools/make-blank-font.py`,
-  `dust-blank`), grouped into lines;
-  Slint does the animation (a few rectangles, nothing while choosing). Blocks under the list (`dust-layer`), list
-  hidden during captures (`dust-snap`); value pills with animated width. Replaces the fragmentation (`Tr.fx`) and a
-  first grain-cloud attempt, too costly (a whole-window image every frame). Tour redone: it shows
-  the UI (selection moving by itself, menu opened, `tour-tick`), speaks remote (arrows / OK / Back drawing),
-  highlights follow the real positions (`tabs-x`, `right-w`), Back / Skip / Next buttons (← →, OK). Home shown at once when going
-  back (no longer the previous page during the reload). Menu cogwheel redrawn. Fixed while testing everything
-  (two instances, offline...): empty menu offline, account removed from “Who's watching?” when its token is
-  refused, password field without keyboard focus (desktop), `turtlefin "Name"` not saved opening another
-  account, Back on “Who's watching?” after “Switch account”, “Remembered for the whole series” on a movie,
-  update check of an unpublished local build shown as a failure (GitHub 404 detected regardless of language).
-  Watch party checked with two clients. Added languages: a single folder, `Turtlefin Languages` (Documents, or
-  next to the executable when portable; `i18n::lang_dir`, the old `languages` folder is moved there), browsed
-  by a built-in explorer (`ui/langx.slint`, `lx_*` in main.rs); no more Downloads / Desktop scan. Sign-in: the
-  chosen account's picture goes to the centre, flies away before the home screen, then the avatar zooms in
-  (`fly-phase`). Settings → Animations: 12 switches (`Motion` global in theme.slint, `config::AnimFlags`),
-  built-in presets (All, Light, None) and custom ones, exported / imported as `.json` in `Turtlefin Presets`
-  (same explorer as languages, `lx_mode`). Mouse wheel: swallowed by front windows, selects in the menu and
-  the language list. Cascades capped (rows after the 8th stayed shifted). Profile pictures cached on disk
-  (`avatar_<id>_anim.bin` + `_thumb.png` thumbnail): thumbnail shown at once, full GIF decoded off the UI
-  thread. `TURTLEFIN_DEBUG_GAPS=1` diagnostic (with `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`): reports
-  pauses over 40 ms between two frames. F11: `install_f11`, a winit event filter (Slint's `unstable-winit-030`
-  feature, hence `~1.18` in Cargo.toml); full screen outside TV: `UiPrefs::fullscreen`, `set_full` /
-  `toggle_full`. Physical keyboard in fields, mouse and wheel everywhere, TV mode included (`typing-key`,
-  `erase-key`, `Field.type`).
-
-Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
-choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).
+Not done: Quick Connect; gamepad; license (to be chosen by the maintainer, before or after 1.0.0); XeLauncher
+bridge (the maintainer's media center launcher, low priority). Planned after 1.0.0: optimization, themes (light,
+dark, Turtlefin by default, Frutiger Aero, green, installable themes), Android TV version.
 
 ## 6. Translations
 
-- Done at runtime by `src/i18n.rs` (no longer by Slint): one catalog for Rust and the interface. Slint: global
-  `Tr` (ui/theme.slint) — `Tr.t(Tr.l, "…")`, `Tr.f(Tr.l, "… {} …", a, b)`, `Tr.p(Tr.l, "{n} serveur",
-  "{n} serveurs", n)`; `Tr.l` changes on every language switch, which re-evaluates the texts (wired in `main`).
-  Rust: `tr("…")` (`&'static str`), `trf("… {} …", &[&x])`, `trn`.
+- Done at runtime by `src/i18n.rs`: one catalog for Rust and for the interface.
+  Slint: global `Tr` (ui/theme.slint) — `Tr.t(Tr.k, "…")`, `Tr.f(Tr.k, "… {} …", a, b)`,
+  `Tr.p(Tr.k, "{n} serveur", "{n} serveurs", n)`; `Tr.k` changes at every language change, which recomputes the
+  texts. Rust: `tr("…")` (`&'static str`), `trf("… {} …", &[&x])`, `trn`.
 - The French text **is** the key: changing it means changing the `msgid` in every `lang/*.po`
-  (`tools/lang-check.py` reports missing texts and lost `{}`).
-- Built-in languages: `lang/<code>.po` + `BUILTIN` in i18n.rs (fr, en, es, de, it, pt, pl, nl). Added languages:
-  any `<code>.po` in the `languages` folder (config, or next to the exe), name read from `X-Language-Name`; a
-  file can override a built-in language. “Add a language” writes `modele.po` (**English** msgids,
-  `X-Source-Language: en` header, `#.` notes in French and in the current language; `keyed` maps those msgids
-  back to French through `lang/en.po`) and copies Turtlefin `.po` files found in Downloads / Desktop
-  (`import_languages`): no file manager needed.
+  (`tools/lang-check.py` reports missing and extra texts and lost `{}`). The 8 built-in languages (fr, en, es,
+  de, it, pt, pl, nl; `BUILTIN` in i18n.rs) are complete (~530 texts).
+- Added languages: any `<code>.po` in the `Turtlefin Languages` folder (`i18n::lang_dir`: Documents, next to the
+  exe when portable, under `TURTLEFIN_CONFIG_DIR` during tests; the old `languages` folder is moved there),
+  subfolders included; name read from `X-Language-Name`; a file can replace a built-in language. Browsed by a
+  built-in explorer (`ui/langx.slint`, the `lx_*` functions in main.rs).
+- “Create the template” writes `modele.po`: msgids in **English**, header `X-Source-Language: en`, `#.` notes in
+  French and in the current language; `keyed` maps those msgids back to French through `lang/en.po`.
 - Texts missing from a language: English. Plurals: the file's `Plural-Forms` rule, evaluated by i18n.rs.
-- Installer: `[Languages]` and `[CustomMessages]` of `turtlefin.iss` (Inno Setup languages); it writes the chosen
-  code to `language` next to the exe, picked up on first launch.
+- Installer: `[Languages]` and `[CustomMessages]` in `turtlefin.iss`; it writes the chosen code to `language` next
+  to the exe, picked up on first launch.
 - Names coming from the server (libraries, media) are not translated.
 
-## 7. Building and packaging (maintainer only)
+## 7. Building, packaging, publishing
 
 Development:
-- Windows: Rust (https://rustup.rs), Visual Studio Build Tools (C++), git; `cargo build --release`;
+- Windows: Rust (https://rustup.rs), “Visual Studio Build Tools” (C++), git; `cargo build --release`;
   `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` from
   [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) next to the exe.
-  Debug builds need `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
+  The debug build needs `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
 - Linux (Debian / Ubuntu): `sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
   libmpv-dev`, then `cargo build --release`.
+- `cargo test --release`: tests for i18n, update, etc.
 
-Publishing:
-- **Automatic**: `git tag -a v0.9.2 -m "What's new…" && git push origin v0.9.2` (the tag message becomes the release notes, shown by the built-in updater). `release.yml` builds Windows x64 / x86 and Linux
-  x86_64 / aarch64, makes installers, archives, AppImages and `.deb` packages, and publishes them in a Release.
-  File names (header of `release.yml`) are expected as-is by `update.rs` and the install scripts.
-- **Windows by hand**: `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (or
-  `x86`); needs Inno Setup 6, 7-Zip and NASM (x86). Output in `target\dist`.
-- **Linux by hand** (on a Linux machine): `TURTLEFIN_DIST=release cargo build --release`, then
+Publishing a version:
+1. Put the number in `Cargo.toml` (`version = "x.y.z"`), build once (updates `Cargo.lock`), commit.
+2. `git push origin main`, then `git tag -a vx.y.z -m "What's new, one per line"` and `git push origin vx.y.z`.
+   The tag message becomes the release notes, shown by the built-in updater.
+3. `release.yml` builds Windows x64 / x86 and Linux x86_64 / aarch64, makes installers, archives, AppImages and
+   `.deb` packages, and publishes them in a Release (follow it in the repository's Actions tab). File names
+   (header of `release.yml`) are expected as is by `update.rs` and the install scripts.
+4. Trial without publishing: `git push origin main:ci` (everything is built, nothing is published).
+
+By hand:
+- **Windows**: `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64` (or `x86`);
+  needs Inno Setup 6, 7-Zip and NASM (x86). Output in `target\dist`.
+- **Linux** (on a Linux machine): `TURTLEFIN_DIST=release cargo build --release`, then
   `sh packaging/linux/build-appimage.sh <version>` and `cargo deb --no-build`.
-- `TURTLEFIN_DIST=release` at build time, otherwise `update::kind()` assumes a build from source.
-- x86: shinchiro's 32-bit libmpv builds published since July 2026 crash at startup (OpenSSL); `build.ps1` pins the
-  June 10, 2026 one, removed by shinchiro (later ones still broken in October), is kept in Turtlefin's
-  `libmpv-i686-20260610` pre-release, used by `build.ps1` (`MPV_TAG`: another shinchiro version). aws-lc needs NASM for 32-bit builds.
+- `TURTLEFIN_DIST=release` at build time, otherwise `update::kind()` thinks it is a locally built version.
+- x86: shinchiro's 32-bit libmpv builds published since July 2026 crash on startup (OpenSSL); the June 10, 2026
+  one is kept in Turtlefin's `libmpv-i686-20260610` pre-release (do not delete it), used by `build.ps1`
+  (`MPV_TAG`: another shinchiro version). aws-lc needs NASM in 32-bit.
 - Icons: `packaging/turtlefin.svg` is the logo; `packaging/icons/make-icons.py <folder>` (Python + Pillow)
   regenerates the PNGs and the ICO.
 
+Branches: `main` (the only working branch), `ci` (CI trials). `interface-lua` and `libmpv` are old experiments,
+already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (published versions) and
+`libmpv-i686-20260610` (32-bit libmpv, see above).
+
 ## 8. Testing
 
-- `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs) without touching the real one.
-- `--open=settings|downloads`, `--play=ID@SECONDS`, `--test-video=file` (player without a server).
-- `TURTLEFIN_DEBUG_FRAMES=1` (frames > 25 ms), `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console`.
-- A `prefs.json` written by PowerShell 5 has a BOM: config reading ignores it.
-- `TURTLEFIN_DEBUG_SYNCPLAY=1`: watch-party messages received and requests sent (failures are always logged).
-  Two instances on one PC: two different `TURTLEFIN_CONFIG_DIR`, `--desktop`.
-- Automated tests on Windows: `SetForegroundWindow` is only allowed after a key press (Alt); without it,
-  simulated keys go to another window (fake “frozen keyboard”).
+- `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs, languages) without touching the real one.
+- `--open=ID|settings|downloads`, `--play=ID@SECONDS`, `--test-video=file` (player without a server).
+- `TURTLEFIN_DEBUG_FRAMES=1` (frames > 25 ms); `TURTLEFIN_DEBUG_GAPS=1` with
+  `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`: pauses over 40 ms between two frames.
+- `TURTLEFIN_DEBUG_SYNCPLAY=1`: watch party messages. Two instances on one PC: two different
+  `TURTLEFIN_CONFIG_DIR`, `--desktop`.
+- A `prefs.json` written by PowerShell 5 has a BOM: reading the config files ignores it.
+- Automated tests on Windows: `SetForegroundWindow` is only accepted after a simulated key; use F24, not Alt (Alt
+  alone puts the window in menu mode and the next click is lost). A held key is simulated with several
+  successive “key down” `keybd_event` calls (Windows marks them as repeats).
 
 ## 9. Known issues / limits
 
-1. An mpv crash brings Turtlefin down (same process).
+1. An mpv crash crashes Turtlefin (same process).
 2. Playback needs OpenGL rendering (`SLINT_BACKEND=winit-software` prevents it).
 3. **mpv 0.40 / 0.41** (fixed in mpv on January 23, 2026, commit f74adc4): one OpenGL fence per frame never
-   released; with the v3d driver each one holds a file descriptor (“MESA: error: Export failed” after ~42 s).
-   Workaround in `src/mpv.rs` (OpenGL ES only). Check: `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` must stay stable
-   during playback.
+   released; with the v3d driver each one holds a descriptor (“MESA: error: Export failed” after ~42 s).
+   Workaround in `src/mpv.rs` (OpenGL ES only). Diagnosis: `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` must
+   stay stable during playback.
 4. mpv RAM growth (~3 MB/min) with ASS subtitles: bounded to one playback (mpv recreated for each video).
-5. Token stored in clear in `session.json` / `accounts.json` (0600 on Unix).
+5. Token in plain text in `session.json` / `accounts.json` (0600 on Unix).
 6. Tearing under Xorg without a compositor (bare Openbox): use a compositor (picom `--backend egl --vsync`).
    Turtlefin holds 60 fps.
-7. Software decoding on ARM Linux: may struggle with 4K / HEVC; lead: `TURTLEFIN_HWDEC=auto-copy`.
+7. Software decoding on Linux ARM: may struggle with 4K / HEVC; lead: `TURTLEFIN_HWDEC=auto-copy`.
+8. Micro-pauses (~40 ms) measured only with rendering forced to full speed, on each frame of a header GIF and when
+   the logo joins; cause not found, invisible in normal use.
 
 ## 10. Maintainer's working preferences
 
-- Answers in French; little Linux / SSH experience: explain commands.
-- Never push to GitHub before their explicit approval.
+- Answers in French; little experience with Linux / SSH: explain the commands.
+- Never push to GitHub or publish a version without the maintainer's explicit approval; the maintainer publishes
+  the versions.
 - Test with a copy of the config (`TURTLEFIN_CONFIG_DIR`), never the real one; test accounts `test` / `test2`.
+- After each batch of changes: a test installer on the maintainer's Desktop
+  (`Turtlefin-test-<commit>-windows-x64-setup.exe`, the old one deleted).

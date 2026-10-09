@@ -2,38 +2,45 @@
 
 # Turtlefin
 
-[English](README.md) · **Français**
+[English](README.md) · **Français** · [Deutsch](README.de.md) · [Español](README.es.md) · [Italiano](README.it.md) · [Nederlands](README.nl.md) · [Polski](README.pl.md) · [Português](README.pt.md)
 
-**Client Jellyfin natif, léger et animé, pensé pour le salon.** Écrit en Rust avec Slint (interface) et libmpv
-(lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur n'importe quel ordinateur Windows ou Linux, du
-vieux portable au petit boîtier branché à la télé, et s'utilise entièrement au clavier ou à la télécommande.
+**Client Jellyfin natif, léger et animé, pensé pour le salon comme pour le bureau.** Écrit en Rust avec Slint
+(interface) et libmpv (lecture) : pas de Qt, pas de navigateur embarqué. Il tourne sur n'importe quel ordinateur
+Windows ou Linux, du vieux portable au petit boîtier branché à la télé, et s'utilise aussi bien à la télécommande
+qu'au clavier et à la souris.
 
-Version actuelle : **0.9.1** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português, Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
+Version actuelle : **1.0.0** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
+Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
 ## Ce qu'il sait faire
 
-- **Comptes** : écran « Qui regarde ? » avec avatars (GIF animés compris), jusqu'à 12 comptes enregistrés sur
-  l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans ressaisie, « Gérer les comptes »
-  pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil ; une adresse
-  principale et une adresse de secours, essayée quand la principale ne répond pas (Paramètres → Réseau).
+- **Comptes** : écran « Qui regarde ? » avec photos de profil (GIF animés compris, gardées en cache), jusqu'à
+  12 comptes enregistrés sur l'appareil (le jeton seulement, jamais le mot de passe), changement de compte sans
+  ressaisie, « Gérer les comptes » pour en retirer. Recherche des serveurs sur tous les réseaux de l'appareil ;
+  une adresse principale et une adresse de secours, essayée quand la principale ne répond pas.
 - **Démarrage** : logo animé dont les sept points sont de vraies vérifications (langue, affichage, lecteur vidéo,
-  stockage, configuration, réseau, et le serveur au centre) ; ils se relient ensuite pour former le logo, puis ouvre
-  « Qui regarde ? » — ou directement le compte choisi dans Paramètres → Compte → **Ouvrir ce compte au démarrage**.
+  stockage, configuration, réseau et, au centre, le serveur), puis « Qui regarde ? » — ou directement le compte
+  choisi avec Paramètres → Compte → **Ouvrir ce compte au démarrage**.
 - **Accueil** : Mes médias, Reprendre, À suivre, Récemment ajouté ; onglets Favoris et Demandes (Seerr).
-  Affiches avec épisodes restants, coche « vu », note ; fond d'écran tiré du média sélectionné.
-- **Fiches** : film, série, saison, épisode ; lecture, favori, vu, téléchargement, choix audio / sous-titres retenu
-  par série ; « Plus de ce genre » et suggestions Seerr ; demande des saisons manquantes d'une série.
-- **Visite guidée** : proposée au premier lancement, à revoir dans Paramètres → À propos.
-- **Lecture** (libmpv) : commandes à la télécommande, volume propre à Turtlefin, chapitres, épisodes de la saison, « Passer l'intro »,
-  épisode suivant, suggestions en fin de série ; position et « vu » renvoyés au serveur.
+  Affiches avec épisodes restants, coche « vu » et note ; fond d'écran tiré du média sélectionné.
+- **Fiches** : film, série, saison, épisode ; lecture, favori, vu, téléchargement, choix audio / sous-titres
+  retenu pour toute la série ; « Plus de ce genre » et suggestions Seerr ; demande des saisons manquantes.
+- **Lecture** (libmpv) : chapitres, épisodes de la saison, « Passer l'intro », épisode suivant, suggestions en
+  fin de série, volume propre à Turtlefin ; position et « vu » renvoyés au serveur.
 - **Watch party** (SyncPlay) : regarder la même chose en même temps sur plusieurs appareils.
-- **Hors ligne** : téléchargements présentés comme l'accueil, fiches complètes sans serveur ; les lectures,
-  « vu » et favoris faits hors ligne sont renvoyés au compte à la reconnexion.
-- **Recherche** (bibliothèque + Seerr), média au hasard, clavier à l'écran pour la télé.
-- **Paramètres** : photo de profil (avatars GetAvatar, rangés par catégorie), langue de l'interface, langues audio
-  et sous-titres, taille des sous-titres, épisode suivant automatique, intro passée automatiquement, interface TV,
-  fond d'écran, notes, heure, adresses du serveur, cache d'images, **mise à jour depuis GitHub**.
-- Transitions animées partout (affiche qui vole vers la fiche, menu qui glisse, rangées en cascade).
+- **Hors ligne** : les téléchargements remplacent l'accueil, avec des fiches complètes sans serveur ; ce qui a
+  été vu ou mis en favori hors ligne est renvoyé au compte à la reconnexion.
+- **Recherche** (bibliothèque + Seerr) et média au hasard.
+- **Télécommande, clavier et souris partout** : interface TV (grands éléments, clavier à l'écran) ou interface
+  ordinateur (fenêtre ou plein écran, F11), clic et molette sur toutes les pages, et le vrai clavier écrit
+  directement dans les champs, dans les deux modes.
+- **Paramètres** : photo de profil (avatars GetAvatar par catégorie), langue de l'interface, langues audio et
+  sous-titres, taille des sous-titres, épisode suivant et intro automatiques, interface TV, plein écran, fond
+  d'écran, notes, heure, adresses du serveur, cache d'images, **mise à jour depuis GitHub**.
+- **Animations** partout (affiche qui vole vers la fiche, menu qui glisse, rangées en cascade, connexion animée,
+  changement de langue), réglables une par une dans Paramètres → Animations, avec des presets (Toutes, Légères,
+  Aucune) et les siens, exportables et importables.
+- **Visite guidée** : proposée au premier lancement, à revoir dans Paramètres → À propos.
 
 ## Installer
 
@@ -64,7 +71,7 @@ des applications.
 | Système | Fichier | Remarques |
 |---|---|---|
 | Windows 64 bits | `Turtlefin-<version>-windows-x64-setup.exe` | Installeur : langue, dossier, et mode **installé** (menu Démarrer, désinstallation) ou **portable** |
-| Windows 64 bits, sans installer | `Turtlefin-<version>-windows-x64-portable.zip` | Décompresser où l'on veut (clé USB...) et lancer `turtlefin.exe` |
+| Windows 64 bits, sans installer | `Turtlefin-<version>-windows-x64-portable.zip` | Décompresser où l'on veut (clé USB…) et lancer `turtlefin.exe` |
 | Windows 32 bits | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | Pour les vieux PC |
 | Linux, toutes distributions (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Le rendre exécutable (`chmod +x`), puis le lancer |
 | Linux, ARM 64 bits | `Turtlefin-<version>-linux-aarch64.AppImage` | Idem |
@@ -80,7 +87,7 @@ le cache et les téléchargements dans le dossier `data` à côté du programme 
 ### Mettre à jour
 
 **Paramètres → À propos → Rechercher une mise à jour** compare la version installée à la dernière publiée,
-puis « Mettre à jour » s'occupe de tout selon la façon dont Turtlefin est installé :
+puis **Mettre à jour** s'occupe de tout selon la façon dont Turtlefin est installé :
 
 | Installation | Mise à jour |
 |---|---|
@@ -89,7 +96,7 @@ puis « Mettre à jour » s'occupe de tout selon la façon dont Turtlefin est in
 | AppImage | le nouveau fichier remplace l'ancien |
 | Paquet .deb | le paquet est installé avec `pkexec` (le mot de passe administrateur est demandé) |
 
-« Redémarrer Turtlefin » lance ensuite la nouvelle version.
+**Redémarrer Turtlefin** lance ensuite la nouvelle version.
 
 ## Plugins serveur recommandés
 
@@ -109,8 +116,8 @@ Turtlefin fonctionne avec un serveur Jellyfin simple (10.11 ou plus récent). Ce
 turtlefin                                  animation de démarrage, puis « Qui regarde ? » (ou le compte de démarrage)
 turtlefin "Nom"                            compte enregistré « Nom »
 turtlefin "Nom" --server=http://…          connexion directe (mot de passe : variable TURTLEFIN_PASSWORD=…)
-turtlefin --tv                             plein écran, grands éléments (télé)
-turtlefin --desktop                        fenêtre (prime sur le réglage « Interface TV »)
+turtlefin --tv                             interface TV : plein écran, grands éléments
+turtlefin --desktop                        interface ordinateur (prime sur le réglage « Interface TV »)
 turtlefin --no-intro                       pas d'animation de démarrage
 turtlefin --console                        fenêtre de journal (Windows)
 turtlefin --tutorial                       visite guidée à l'arrivée sur l'accueil
@@ -118,16 +125,19 @@ turtlefin --tutorial                       visite guidée à l'arrivée sur l'ac
 
 La ligne de commande l'emporte toujours sur les réglages (compte de démarrage, interface TV).
 
-## Touches (télécommande ou clavier)
+## Touches et souris
 
-- **Flèches** pour se déplacer, **Entrée** pour ouvrir / activer, **Échap** ou **Retour arrière** pour revenir.
+- **Flèches** pour se déplacer, **Entrée** pour ouvrir / activer, **Échap** ou **Retour arrière** pour revenir
+  (touche maintenue : un seul retour).
 - Accueil : **←** sur la première carte (ou Retour) ouvre le menu ; dans le menu, **→** ou Échap le referme.
-- ↑ depuis le haut d'une page : barre du haut (retour, accueil, menu, watch party, hasard, recherche, compte).
-- Lecture, commandes masquées : ← → reculer / avancer de 10 s, ↑ ↓ ou Entrée affichent les commandes,
-  ↓ depuis les boutons : épisodes de la saison. Espace : pause · `a` audio · `s` sous-titres · `f` plein écran.
-- **F11**, partout : plein écran (aussi dans Paramètres → Affichage, gardé d'un lancement à l'autre hors interface TV).
-- Souris : clic pour ouvrir, molette pour passer d'une rangée à l'autre (Maj + molette : dans la rangée) ;
-  au vrai clavier, une lettre tapée va directement dans le champ de texte (recherche, connexion, adresse).
+- **↑** depuis le haut d'une page : barre du haut (retour, accueil, menu, watch party, hasard, recherche, compte).
+- Lecture, commandes masquées : **← →** reculer / avancer de 10 s, **↑ ↓** ou Entrée affichent les commandes,
+  ↓ depuis les boutons : épisodes de la saison. **Espace** : pause · `a` audio · `s` sous-titres · `f` plein écran.
+- **F11**, partout : plein écran (aussi dans Paramètres → Affichage → **Plein écran**, gardé d'un lancement à
+  l'autre hors interface TV).
+- **Souris** : clic pour ouvrir, molette pour passer d'une rangée à l'autre (Maj + molette : dans la rangée).
+- **Texte** : une lettre tapée au clavier va directement dans le champ (recherche, connexion, adresse), même en
+  interface TV ; un clic sur le champ de recherche en interface TV ouvre le clavier à l'écran.
 
 ## Fichiers
 
@@ -135,11 +145,13 @@ La ligne de commande l'emporte toujours sur les réglages (compte de démarrage,
 |---|---|
 | dossier de config, `turtlefin/` | `session.json` (session en cours), `accounts.json` (comptes enregistrés), `prefs.json` (réglages de l'appareil), `tracks.json` (pistes par série), `userdata.json` (vu / favoris faits hors ligne) |
 | dossier de données, `turtlefin/downloads/` | téléchargements (média, affiches, fond, logo, `info.json`), `queue.json` (file en attente) |
-| dossier de cache, `turtlefin/img/` | images (vidable dans À propos) |
+| dossier de cache, `turtlefin/img/` | images et photos de profil (vidable dans À propos) |
+| **Documents** | `Turtlefin Languages` (langues ajoutées) et `Turtlefin Presets` (presets d'animations exportés) |
 
 Sous Linux : `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`.
 Sous Windows : `%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`.
-Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `cache`, `downloads`).
+Version portable : tout dans `data\` à côté de `turtlefin.exe` (`config`, `cache`, `downloads`), et les dossiers
+de langues et de presets à côté du programme.
 
 ## En cas de problème
 
@@ -168,5 +180,7 @@ Pour la partager avec tout le monde : une pull request qui ajoute le fichier à 
 
 ## Développement
 
-Voir [HANDOFF.md](HANDOFF.md) ([English](HANDOFF.en.md)) : état du projet, décisions, compilation, paquets,
-traductions, problèmes connus.
+Voir [HANDOFF.md](HANDOFF.md) (aussi en [English](HANDOFF.en.md), [Deutsch](HANDOFF.de.md),
+[Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Nederlands](HANDOFF.nl.md), [Polski](HANDOFF.pl.md),
+[Português](HANDOFF.pt.md)) : état du projet, décisions, compilation, paquets, publication, traductions,
+problèmes connus.
