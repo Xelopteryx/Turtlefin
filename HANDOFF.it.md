@@ -217,6 +217,13 @@ A mano:
 - Icone: `packaging/turtlefin.svg` è il logo; `packaging/icons/make-icons.py <cartella>` (Python + Pillow)
   rigenera i PNG e l'ICO.
 
+Aggiornamento di una copia compilata in locale (`Kind::Source`): i file modificati o non tracciati vengono messi
+da parte (`git stash -u`, recuperabili con `git stash pop`) prima di `git pull --ff-only`. Le novità compaiono in una
+finestra a sé (Impostazioni → Informazioni → Vedi le novità); `TURTLEFIN_TEST_UPDATE="Versione x|nota|nota"` simula
+un aggiornamento per provarla. Collegamenti con i colori del tema: `theme::apply_shortcuts` (.ico sui .lnk su
+Windows, icone `turtlefin` in ~/.local/share/icons su Linux), saltati durante le prove (`TURTLEFIN_CONFIG_DIR`)
+tranne con `TURTLEFIN_TEST_SHORTCUTS=1`.
+
 Rami: `main` (unico ramo di lavoro), `ci` (prove della CI). `interface-lua` e `libmpv` sono vecchi esperimenti,
 già uniti in `main`: si possono cancellare. Etichette: `v0.9.0`, `v0.9.1` (versioni pubblicate) e
 `libmpv-i686-20260610` (libmpv a 32 bit, vedi sopra).

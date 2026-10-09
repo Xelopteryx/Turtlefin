@@ -2360,6 +2360,22 @@ fn sub_size_label(v: f64) -> &'static str {
 /// Réglages de l'appareil appliqués à l'interface (global Prefs).
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
+    thread_local! { static SHORTCUTS: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
+    let t = theme::find(&p.theme, &p.themes);
+    let sig = format!("{}|{}|{}|{}|{}", p.theme, t.bg, t.accent1, t.accent2, t.logo);
+    let changed = SHORTCUTS.with(|s| {
+        let mut s = s.borrow_mut();
+        let first = s.is_empty();
+        let changed = *s != sig;
+        *s = sig;
+        // Au démarrage, rien à faire pour le thème par défaut (raccourcis d'origine).
+        changed && !(first && p.theme == "turtlefin")
+    });
+    if changed {
+        let key = p.theme.clone();
+        std::thread::spawn(move || theme::apply_shortcuts(&key, &t));
+    }
     let g = u.global::<Prefs>();
     g.set_ratings(p.show_ratings);
     g.set_marquee(p.marquee);
@@ -2582,22 +2598,30 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 s if s.starts_with("available:") => {
                     let rest = &s["available:".len()..];
                     let (label, notes) = rest.split_once('|').unwrap_or((rest, ""));
-                    let hint = if notes.is_empty() { tr("Une nouvelle version est disponible.").to_string() } else { trf("Nouveautés : {}", &[&notes.replace('|', " · ")]) };
+                    // Les nouveautés ont leur propre fenêtre (ligne « Voir les nouveautés ») : ici, le compte.
+                    let n = if notes.is_empty() { 0 } else { notes.split('|').count() as i64 };
+                    let hint = if n == 0 { tr("Une nouvelle version est disponible.").to_string() } else { i18n::trn("Une nouvelle version est disponible : {n} nouveauté.", "Une nouvelle version est disponible : {n} nouveautés.", n) };
                     (tr("Mettre à jour"), hint, label.to_string())
                 }
                 s if s.starts_with("installing:") => (tr("Mise à jour en cours"), s["installing:".len()..].to_string(), String::new()),
                 s if s.starts_with("error:") => (tr("Rechercher une mise à jour"), trf("Échec : {}", &[&&s["error:".len()..]]), String::new()),
                 _ => (tr("Rechercher une mise à jour"), trf("Compare cette version à celle publiée sur GitHub ({}).", &[&update::kind_label()]), String::new()),
             };
+            let has_notes = up.starts_with("available:") && up.contains('|') && !up.ends_with('|');
             vec![
                 row("info", "", &trf("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", &[&env!("CARGO_PKG_VERSION"), &if short.is_empty() { "version locale" } else { short }]), String::new(), "info", false),
                 row("update", label, &hint, value, "action", false),
+            ]
+            .into_iter()
+            .chain(has_notes.then(|| row("notes", tr("Voir les nouveautés"), tr("Ce que change la nouvelle version, en détail."), String::new(), "action", false)))
+            .chain([
                 row("info", "", &trf("Serveur : {}", &[&srv]), String::new(), "info", false),
                 row("info", "", &trf("Appareil : {}", &[&app.device_id]), String::new(), "info", false),
                 row("tour", tr("Visite guidée"), tr("Revoir la présentation de Turtlefin."), String::new(), "action", false),
                 row("clearcache", tr("Vider le cache d'images"), tr("Affiches, vignettes et avatars gardés sur le disque ; ils seront retéléchargés."), format!("{} Mo", size >> 20), "action", false),
                 row("quit", tr("Fermer Turtlefin"), tr("Quitte l'application."), String::new(), "action", false),
-            ]
+            ])
+            .collect()
         }
         _ => Vec::new(),
     }
@@ -2796,6 +2820,12 @@ fn update_action(app: &Arc<App>) {
         return;
     }
     set(&a, "checking".into());
+    // Essais : `TURTLEFIN_TEST_UPDATE="Version x|nouveauté 1|nouveauté 2"` simule une mise à jour
+    // disponible (fenêtre des nouveautés), sans rien installer de réel.
+    if let Ok(fake) = std::env::var("TURTLEFIN_TEST_UPDATE") {
+        set(&a, format!("available:{fake}"));
+        return;
+    }
     app.rt.spawn(async move {
         match update::check().await {
             Ok(None) => set(&a, "uptodate".into()),
@@ -3128,6 +3158,21 @@ fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
         "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
+        "notes" => {
+            let up = app.update_state.lock().unwrap().clone();
+            if let Some(rest) = up.strip_prefix("available:") {
+                let (label, notes) = rest.split_once('|').unwrap_or((rest, ""));
+                let body = notes.split('|').filter(|n| !n.trim().is_empty()).map(|n| format!("•  {}", n.trim())).collect::<Vec<_>>().join("
+
+");
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_notes_text(format!("{label}
+
+{body}").into());
+                    u.set_notes_open(true);
+                }
+            }
+        }
         "themecreate" => {
             // Thème intégré en cours : le créateur part de lui (?preset=…).
             let key = config::ui_prefs().theme;

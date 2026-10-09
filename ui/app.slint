@@ -1198,10 +1198,11 @@ component OverviewPanel inherits Rectangle {
         border-color: Theme.fg.with-alpha(0.14);
         Gloss { r: parent.border-radius; strength: 0.45; }
 
-        // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau).
+        // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau). La molette
+        // fait défiler le texte (pas la page dessous).
         TouchArea {
-            // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
+                root.scroll-by(-e.delta-y);
                 return EventResult.accept;
             }
         }
@@ -2182,6 +2183,9 @@ export component AppWindow inherits Window {
     in property <bool> has-avatar;
     in property <bool> offline;             // pas de serveur : téléchargements seulement
     in property <bool> signed-in;           // une session est ouverte (en ligne ou hors ligne)
+    // Paramètres → À propos : fenêtre des nouveautés d'une mise à jour (défile, Échap la ferme).
+    in-out property <bool> notes-open;
+    in property <string> notes-text;
 
     // Page Seerr (premier plan)
     in-out property <bool> sr-open;
@@ -6004,6 +6008,22 @@ export component AppWindow inherits Window {
                     root.cancel-open();
                     return EventResult.accept;
                 }
+                // Nouveautés d'une mise à jour : ↑ ↓ font défiler, Échap / Retour / Entrée ferment.
+                if (root.notes-open) {
+                    if (event.text == Key.DownArrow) {
+                        notes-p.scroll-by(80px);
+                    } else if (event.text == Key.UpArrow) {
+                        notes-p.scroll-by(-80px);
+                    } else if (event.text == Key.PageDown) {
+                        notes-p.scroll-by(300px);
+                    } else if (event.text == Key.PageUp) {
+                        notes-p.scroll-by(-300px);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
+                        root.notes-open = false;
+                        notes-p.reset();
+                    }
+                    return EventResult.accept;
+                }
                 // Saisie d'une adresse : la fenêtre a son propre clavier.
                 if (root.addr-edit > 0) {
                     return EventResult.reject;
@@ -6339,9 +6359,12 @@ export component AppWindow inherits Window {
                             }
                             if r.hint != "": Text {
                                 text: r.hint;
-                                color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? ((r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.85) : ((r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.6);
+                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
+                                // Trois lignes au plus : un texte trop long finit par « … » au lieu de déborder.
+                                height: min(self.preferred-height, 54px * root.k);
+                                overflow: elide;
                             }
                         }
                         // Choix : valeur actuelle dans une pastille, flèche vers la liste.
@@ -7037,6 +7060,17 @@ export component AppWindow inherits Window {
                 k: root.k;
                 max-w: parent.width - 80px * root.k;
                 text: Tr.t(Tr.k, "Vérification de l'adresse…");
+            }
+        }
+
+        // Nouveautés d'une mise à jour : fenêtre à part, qui défile (le texte peut être long).
+        notes-p := OverviewPanel {
+            visible: root.notes-open;
+            text: root.notes-text;
+            font: 17px * root.k;
+            close => {
+                root.notes-open = false;
+                notes-p.reset();
             }
         }
     }

@@ -160,7 +160,7 @@ const BASE = {
   panel: "#0b1520f5", card: "#00000033", card_focus: "#00000080", placeholder1: "#2b2142", placeholder2: "#10283a",
   scrim: "#000000", danger: "#ff6b6b", danger_text: "#ff8a8a", ok: "#4ade80", warn: "#f59e0b",
   card_border: "#00000000", glow: "#00a4db40", sheen: 0, player_bar: "#181820d9", player_ink: "#ffffff", player_orb: false,
-  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "",
+  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "", logo: "",
 };
 const PRESETS = {
   turtlefin: { ...BASE },
@@ -176,7 +176,7 @@ const PRESETS = {
     glass_border: "#ffffff73", panel: "#0d2c58eb", card: "#ffffff1a", card_focus: "#ffffff38", card_border: "#ffffff4d",
     glow: "#7fd0ffb3", sheen: 0.6, player_bar: "#08121fd9", player_ink: "#ffffff", player_orb: true, placeholder1: "#1f5aa8",
     placeholder2: "#0d2f66", scrim: "#000814", danger: "#ff6b6b", danger_text: "#ffb0b0", ok: "#7ee08a", warn: "#ffc04d",
-    veil: 1.5, radius: 8, gloss: 1.0, scenery: "harmony", header_glass: true, edge: "#ffffff73", streaks: true, boot: "aero" },
+    veil: 1.5, radius: 8, gloss: 1.0, scenery: "harmony", header_glass: true, edge: "#ffffff73", streaks: true, boot: "aero", logo: "orb" },
   vert: { ...BASE, name: "Turtlefin vert", bg: "#02140f", bg_mid: "#031b14", bg_end: "#04211a", accent1: "#1f9d5c",
     accent2: "#52c96b", glass: "#0d1f19e0", glass_border: "#ffffff21", panel: "#072019f5", placeholder1: "#173a2a",
     placeholder2: "#0f2c33", ok: "#86efac" },
@@ -200,7 +200,8 @@ const TXT = {
     g_player: "Lecteur", player_bar: "Barre du lecteur", player_ink: "Texte et icônes du lecteur", player_orb: "Bouton lecture en orbe brillante",
     edge: "Liseré des éléments brillants", streaks: "Reflets en biais sur le verre", header_glass: "Barre de verre en haut",
     scenery: "Décor du fond", sc_none: "Aucun", sc_sky: "Ciel, herbe et bulles", sc_harmony: "Harmony (Windows 7)",
-    boot: "Animation de démarrage", bt_logo: "Logo qui se relie", bt_aero: "Billes de verre (Aero)", },
+    boot: "Animation de démarrage", bt_logo: "Logo qui se relie", bt_aero: "Billes de verre (Aero)",
+    logo: "Logo (icône, démarrage)", lg_shell: "Carapace en dégradé", lg_orb: "Orbe de verre (Windows 7)", },
   en: { sub: "— create your Turtlefin theme", import: "Import…", export: "Save the .tftheme",
     howto: "To use it: save the file, put it in the “Turtlefin Themes” folder (Documents), then in Turtlefin: Settings → Display → Import a theme.",
     start: "Start: ", g_general: "General", g_bg: "Background", g_ink: "Text and icons", g_acc: "Accents", g_surf: "Surfaces",
@@ -217,7 +218,8 @@ const TXT = {
     g_player: "Player", player_bar: "Player bar", player_ink: "Player text and icons", player_orb: "Glossy orb play button",
     edge: "Rim of glossy elements", streaks: "Slanted glass reflections", header_glass: "Glass bar at the top",
     scenery: "Background scenery", sc_none: "None", sc_sky: "Sky, grass and bubbles", sc_harmony: "Harmony (Windows 7)",
-    boot: "Startup animation", bt_logo: "Joining logo", bt_aero: "Glass orbs (Aero)", },
+    boot: "Startup animation", bt_logo: "Joining logo", bt_aero: "Glass orbs (Aero)",
+    logo: "Logo (icon, startup)", lg_shell: "Gradient shell", lg_orb: "Glass orb (Windows 7)", },
 };
 let L = (navigator.language || "fr").startsWith("fr") ? "fr" : "en";
 const t = k => TXT[L][k] || k;
@@ -273,7 +275,8 @@ function build() {
     <div class="row"><label for="f-header_glass">${t("header_glass")}</label><input type="checkbox" id="f-header_glass"></div>
     <div class="row"><label for="f-player_orb">${t("player_orb")}</label><input type="checkbox" id="f-player_orb"></div>
     <div class="row"><label for="f-scenery">${t("scenery")}</label><select id="f-scenery"><option value="">${t("sc_none")}</option><option value="sky">${t("sc_sky")}</option><option value="harmony">${t("sc_harmony")}</option></select></div>
-    <div class="row"><label for="f-boot">${t("boot")}</label><select id="f-boot"><option value="">${t("bt_logo")}</option><option value="aero">${t("bt_aero")}</option></select></div></fieldset>`;
+    <div class="row"><label for="f-boot">${t("boot")}</label><select id="f-boot"><option value="">${t("bt_logo")}</option><option value="aero">${t("bt_aero")}</option></select></div>
+    <div class="row"><label for="f-logo">${t("logo")}</label><select id="f-logo"><option value="">${t("lg_shell")}</option><option value="orb">${t("lg_orb")}</option></select></div></fieldset>`;
   box.innerHTML = h;
   // Liaisons
   const $ = id => document.getElementById(id);
@@ -292,6 +295,7 @@ function build() {
   for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
   $("f-scenery").onchange = e => { theme.scenery = e.target.value; theme.bubbles = false; render(); };
   $("f-boot").onchange = e => { theme.boot = e.target.value; render(); };
+  $("f-logo").onchange = e => { theme.logo = e.target.value; render(); };
   {
     const k = "edge", sync = c => { theme[k] = fmt(c); render(); };
     $("c-" + k).oninput = e => { const c = parse(e.target.value), o = parse(theme[k]) || { a: 1 }; c.a = o.a; sync(c); };
@@ -318,6 +322,7 @@ function fill() {
   for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).checked = !!theme[k];
   $("f-scenery").value = theme.scenery || (theme.bubbles ? "sky" : "");
   $("f-boot").value = theme.boot || "";
+  $("f-logo").value = theme.logo || "";
   { const c = parse(theme.edge) || { r: 255, g: 255, b: 255, a: 0 };
     $("c-edge").value = "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); $("a-edge").value = Math.round(c.a * 100); $("x-edge").value = fmt(c); }
   render();

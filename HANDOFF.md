@@ -218,6 +218,13 @@ Publier une version :
 - Icônes : `packaging/turtlefin.svg` est le logo ; `packaging/icons/make-icons.py <dossier>` (Python + Pillow)
   régénère les PNG et l'ICO.
 
+Mise à jour d'une copie compilée sur place (`Kind::Source`) : fichiers modifiés ou non suivis mis de côté
+(`git stash -u`, récupérables avec `git stash pop`) avant `git pull --ff-only`. Les nouveautés s'affichent dans
+une fenêtre à part (Paramètres → À propos → Voir les nouveautés) ; `TURTLEFIN_TEST_UPDATE="Version x|note|note"`
+simule une mise à jour pour l'essayer. Raccourcis aux couleurs du thème : `theme::apply_shortcuts` (.ico sur les
+.lnk sous Windows, icônes `turtlefin` dans ~/.local/share/icons sous Linux), sautés pendant les essais
+(`TURTLEFIN_CONFIG_DIR`) sauf avec `TURTLEFIN_TEST_SHORTCUTS=1`.
+
 Branches : `main` (seule branche de travail), `ci` (essais de la CI). `interface-lua` et `libmpv` sont
 d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être supprimées. Étiquettes : `v0.9.0`,
 `v0.9.1` (versions publiées) et `libmpv-i686-20260610` (libmpv 32 bits, voir plus haut).

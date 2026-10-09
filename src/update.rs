@@ -150,7 +150,7 @@ async fn check_source() -> Result<Option<(String, Vec<String>)>> {
         .into_iter()
         .flatten()
         .rev()
-        .take(5)
+        .take(30)
         .filter_map(|c| c["commit"]["message"].as_str().map(|m| m.lines().next().unwrap_or("").to_string()))
         .collect();
     Ok(Some((trf("{} nouveauté(s)", &[&ahead]), titles)))
@@ -170,7 +170,7 @@ async fn check_release() -> Result<Option<(String, Vec<String>)>> {
         .lines()
         .map(|l| l.trim().trim_start_matches(['-', '*', '#', ' ']).trim().to_string())
         .filter(|l| !l.is_empty() && !l.contains("://") && !l.starts_with("Full Changelog"))
-        .take(4)
+        .take(30)
         .collect();
     Ok(Some((trf("Version {}", &[&version]), notes)))
 }
@@ -215,6 +215,19 @@ pub fn install(step: impl Fn(&str)) -> Result<()> {
 fn install_source(step: impl Fn(&str)) -> Result<()> {
     let dir = source_dir();
     step(tr("Téléchargement des nouveautés…"));
+    // Fichiers modifiés sur place (copiés à la main, Cargo.lock réécrit par une compilation…) ou
+    // ajoutés sans être suivis par git (que la nouvelle version veut créer) : git refuse alors de
+    // tirer (« abandon »). Ils sont mis de côté (git stash -u, récupérables avec `git stash pop`), puis
+    // la version publiée est tirée. Les fichiers ignorés (target/) ne sont pas touchés.
+    let dirty = crate::paths::quiet_command("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&dir)
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+    if dirty {
+        run(&dir, "git", &["-c", "user.name=Turtlefin", "-c", "user.email=turtlefin@localhost", "stash", "push", "--include-untracked", "-m", "Turtlefin : modifications locales avant mise à jour"])?;
+    }
     run(&dir, "git", &["pull", "--ff-only"])?;
     // Windows : l'exécutable en cours ne peut pas être remplacé, mais il peut être renommé.
     #[cfg(windows)]

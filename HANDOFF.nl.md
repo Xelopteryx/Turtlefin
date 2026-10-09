@@ -217,6 +217,13 @@ Met de hand:
 - Pictogrammen: `packaging/turtlefin.svg` is het logo; `packaging/icons/make-icons.py <map>` (Python + Pillow)
   maakt de PNG's en het ICO opnieuw.
 
+Bijwerken van een lokaal gecompileerde kopie (`Kind::Source`): gewijzigde of niet gevolgde bestanden worden
+opzijgezet (`git stash -u`, terug te halen met `git stash pop`) vóór `git pull --ff-only`. De nieuwigheden staan in
+een eigen venster (Instellingen → Over → Nieuwigheden bekijken); `TURTLEFIN_TEST_UPDATE="Versie x|notitie|notitie"`
+simuleert een update om het te proberen. Snelkoppelingen in de kleuren van het thema: `theme::apply_shortcuts`
+(.ico op de .lnk-bestanden op Windows, `turtlefin`-pictogrammen in ~/.local/share/icons op Linux), overgeslagen
+tijdens tests (`TURTLEFIN_CONFIG_DIR`) behalve met `TURTLEFIN_TEST_SHORTCUTS=1`.
+
 Branches: `main` (de enige werkbranch), `ci` (CI-proeven). `interface-lua` en `libmpv` zijn oude experimenten, al
 samengevoegd in `main`: ze mogen weg. Tags: `v0.9.0`, `v0.9.1` (gepubliceerde versies) en `libmpv-i686-20260610`
 (32-bit-libmpv, zie hierboven).

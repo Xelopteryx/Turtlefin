@@ -503,6 +503,8 @@ pub fn installer_language() -> Option<String> {
 /// Langue du système (« fr », « en »...), pour présélectionner le choix au premier lancement.
 pub fn system_language() -> String {
     let raw = std::env::var("LC_ALL").or_else(|_| std::env::var("LANG")).unwrap_or_default();
+    // Modifiée seulement sous Windows (langue de l'interface du système).
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut code = raw.split(['_', '.', '-']).next().unwrap_or("").to_lowercase();
     #[cfg(windows)]
     if code.is_empty() {

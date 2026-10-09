@@ -837,8 +837,6 @@ msgstr "A nova versão está pronta."
 msgid "Une nouvelle version est disponible."
 msgstr "Há uma nova versão disponível."
 
-msgid "Nouveautés : {}"
-msgstr "Novidades: {}"
 
 msgid "Mettre à jour"
 msgstr "Atualizar"
@@ -1663,3 +1661,14 @@ msgstr "Abre o Turtlefin Theme Creator no navegador: cores, pré-visualização,
 
 msgid "Impossible d'ouvrir le créateur de thèmes : {}"
 msgstr "Não é possível abrir o criador de temas: {}"
+
+msgid "Voir les nouveautés"
+msgstr "Ver as novidades"
+
+msgid "Ce que change la nouvelle version, en détail."
+msgstr "O que muda na nova versão, em pormenor."
+
+msgid "Une nouvelle version est disponible : {n} nouveauté."
+msgid_plural "Une nouvelle version est disponible : {n} nouveautés."
+msgstr[0] "Há uma nova versão disponível: {n} novidade."
+msgstr[1] "Há uma nova versão disponível: {n} novidades."

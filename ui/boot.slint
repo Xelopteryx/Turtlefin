@@ -52,7 +52,11 @@ export component BootLogo inherits Rectangle {
     property <[float]> iy: [98, 113, 143, 158, 143, 113];
     property <length> side: min(self.width, self.height) * 0.46;
     property <length> u: self.side / 256;
-    property <brush> grad: @linear-gradient(135deg, Theme.accent1.with-alpha(root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 100%);
+    // Orbe (Theme.logo-style 1) : carapace blanc nacré vers l'accent clair, posée sur une sphère de verre.
+    property <bool> orb: root.aero && Theme.logo-style == 1;
+    property <brush> grad: root.orb
+        ? @linear-gradient(135deg, rgba(255, 255, 255, root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 110%)
+        : @linear-gradient(135deg, Theme.accent1.with-alpha(root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 100%);
 
     // Horloges des phases (au temps : rien n'est redessiné en dehors).
     property <duration> t-link;
@@ -133,6 +137,28 @@ export component BootLogo inherits Rectangle {
         // Zoom dans le point central.
         transform-scale: 1 + root.zp * root.zp * 26;
 
+        // Orbe de verre derrière le logo : sphère d'accent sombre au bord, lueur en bas.
+        if root.orb && root.lp > 0.5: Rectangle {
+            x: 28 * root.u;
+            y: 28 * root.u;
+            width: 200 * root.u;
+            height: self.width;
+            border-radius: self.width / 2;
+            opacity: root.reveal;
+            background: @radial-gradient(circle, Theme.accent1 0%, Theme.accent1.mix(Theme.bg, 0.55) 70%, Theme.bg 100%);
+            border-width: 2px;
+            border-color: Theme.accent2.with-alpha(0.45);
+            drop-shadow-blur: 30 * root.u;
+            drop-shadow-color: Theme.accent2.with-alpha(0.5);
+            Rectangle {
+                x: parent.width * 0.15;
+                y: parent.height * 0.42;
+                width: parent.width * 0.7;
+                height: parent.height * 0.6;
+                border-radius: self.width / 2;
+                background: @radial-gradient(circle, Theme.accent2.with-alpha(0.65) 0%, Theme.accent2.with-alpha(0) 70%);
+            }
+        }
         // Aero : halo du logo qui s'allume, et éclair blanc au moment où les billes se rejoignent.
         if root.aero && root.lp > 0.4: Rectangle {
             property <float> w: 120 + 150 * root.reveal;
@@ -300,6 +326,16 @@ export component BootLogo inherits Rectangle {
                 font-weight: 600;
                 horizontal-alignment: center;
             }
+        }
+        // Grand reflet blanc de l'orbe, par-dessus la carapace.
+        if root.orb && root.lp > 0.5: Rectangle {
+            x: (28 + 200 * 0.13) * root.u;
+            y: (28 + 200 * 0.04) * root.u;
+            width: 200 * 0.74 * root.u;
+            height: 200 * 0.44 * root.u;
+            border-radius: self.height / 2;
+            opacity: root.reveal;
+            background: @linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.06) 100%);
         }
     }
 
