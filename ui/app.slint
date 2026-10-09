@@ -152,7 +152,9 @@ component Field inherits Rectangle {
     // reçoit quand même, et reprend le clavier.
     public function type(t: string) {
         root.text = t == Key.Backspace ? Str.head(root.text, 1) : root.text + t;
-        root.focus-input();
+        if (!root.tv) {
+            root.focus-input();
+        }
     }
 
     property <bool> lit: root.tv ? root.selected || root.editing : input.has-focus;
@@ -2435,10 +2437,16 @@ export component AppWindow inherits Window {
     }
 
     // Touches de la barre de navigation (écrans autres que l'accueil). Renvoie true si traitée.
-    // Bureau : touche qui écrit dans un champ (lettre, chiffre, espace... ou effacement), pas un raccourci.
+    // Vrai clavier : touche qui écrit dans un champ (lettre, chiffre, espace...), pas un raccourci
+    // (Ctrl, Alt). Bureau comme mode TV : le texte va au champ sans passer par le clavier à l'écran.
     function typing-key(e: KeyEvent) -> bool {
-        return !root.tv-mode && !e.modifiers.control && !e.modifiers.alt && !e.modifiers.meta
-            && (Str.printable(e.text) || e.text == Key.Backspace);
+        return !e.modifiers.control && !e.modifiers.alt && !e.modifiers.meta && Str.printable(e.text);
+    }
+    // Retour arrière qui efface dans le champ : toujours au bureau ; en mode TV seulement s'il reste
+    // du texte dans le champ choisi (`t`, vide sinon), car il sert aussi de touche Retour.
+    function erase-key(e: KeyEvent, t: string) -> bool {
+        return e.text == Key.Backspace && !e.modifiers.control && !e.modifiers.alt && !e.modifiers.meta
+            && (!root.tv-mode || t != "");
     }
     function key-edit(s: string, t: string) -> string {
         return t == Key.Backspace ? Str.head(s, 1) : s + t;
@@ -2811,8 +2819,12 @@ export component AppWindow inherits Window {
                     root.login-osk = false;
                     return EventResult.accept;
                 }
-                // Bureau : une touche tapée hors des champs va à celui qui avait le clavier.
-                if (root.typing-key(event)) {
+                // Vrai clavier : une touche tapée va au champ choisi (au bureau : celui qui avait le
+                // clavier ; en mode TV, sur un bouton : le nom d'utilisateur).
+                if (root.typing-key(event) || root.erase-key(event, root.login-field > 1 ? "" : root.login-field == 1 ? root.login-pass : root.login-user)) {
+                    if (root.login-field > 1) {
+                        root.login-field = 0;
+                    }
                     if (root.login-field == 1) {
                         root.login-pass = root.key-edit(root.login-pass, event.text);
                     } else {
@@ -3050,7 +3062,9 @@ export component AppWindow inherits Window {
                     }
                 }
             }
-            focus-on-click: root.tv-mode;
+            // Un clic sur la carte ne lui donne pas le clavier : au bureau, le champ le garde ; en
+            // mode TV, la page (qui gère la télécommande) le garde.
+            focus-on-click: false;
             // Bureau : Échap depuis un champ revient aux comptes.
             key-pressed(event) => {
                 // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
@@ -3067,7 +3081,7 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 // Bureau : une touche tapée sur la carte, hors des champs, va à celui qui avait le clavier.
-                if (root.typing-key(event)) {
+                if (!root.tv-mode && (root.typing-key(event) || root.erase-key(event, ""))) {
                     if (root.login-field == 1) {
                         pass-field.type(event.text);
                     } else {
@@ -3806,13 +3820,17 @@ export component AppWindow inherits Window {
                     root.cancel-open();
                     return EventResult.accept;
                 }
-                // Bureau : une lettre (ou un effacement) tapée hors du champ y va, au bout du texte.
-                if (root.typing-key(event)) {
+                // Vrai clavier : une lettre (ou un effacement) tapée hors du champ y va, au bout du texte ;
+                // en mode TV, sans ouvrir le clavier à l'écran (celui-ci, ouvert, la reçoit lui-même).
+                if (!(root.tv-mode && root.s-osk) && (root.typing-key(event)
+                    || root.erase-key(event, root.tv-mode && (!root.s-field || root.h-focus) ? "" : root.search-text))) {
                     root.h-focus = false;
                     root.s-field = true;
                     root.search-text = root.key-edit(root.search-text, event.text);
                     root.search-changed(root.search-text);
-                    srch.s-type();
+                    if (!root.tv-mode) {
+                        srch.s-type();
+                    }
                     return EventResult.accept;
                 }
                 if (root.nav-key(event.text)) {
@@ -4021,6 +4039,14 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                     return EventResult.reject;
+                }
+            }
+            // Mode TV : un clic sur le champ ouvre le clavier à l'écran (le vrai clavier écrit aussi).
+            if root.tv-mode: TouchArea {
+                clicked => {
+                    root.h-focus = false;
+                    root.s-field = false;
+                    root.s-osk = true;
                 }
             }
         }
@@ -5332,8 +5358,11 @@ export component AppWindow inherits Window {
                         root.close-manual();
                         return EventResult.accept;
                     }
-                    // Bureau : une touche tapée hors des champs va à celui qui avait le clavier.
-                    if (root.typing-key(event)) {
+                    // Vrai clavier : une touche tapée va au champ choisi (sur un bouton : le premier).
+                    if (root.typing-key(event) || root.erase-key(event, root.manual-field > 1 ? "" : root.manual-field == 1 ? root.manual-remote : root.manual-local)) {
+                        if (root.manual-field > 1) {
+                            root.manual-field = 0;
+                        }
                         if (root.manual-field == 1) {
                             remote-f.type(event.text);
                         } else {
@@ -6765,8 +6794,9 @@ export component AppWindow inherits Window {
                         root.addr-close();
                         return EventResult.accept;
                     }
-                    // Bureau : une touche tapée hors du champ y va quand même.
-                    if (root.typing-key(event)) {
+                    // Vrai clavier : une touche tapée va au champ, même si la sélection est sur un bouton.
+                    if (root.typing-key(event) || root.erase-key(event, root.addr-field > 0 ? "" : root.addr-text)) {
+                        root.addr-field = 0;
                         addr-f.type(event.text);
                         return EventResult.accept;
                     }
