@@ -2123,6 +2123,28 @@ export component AppWindow inherits Window {
     // Liste de choix d'un réglage (Paramètres) : clé du réglage ("" : fermée), titre, options.
     in-out property <string> ch-key;
     in property <string> ch-title;
+    // Changement du titre de la liste ouverte (langue choisie) : l'ancien titre s'en va, le nouveau arrive.
+    property <string> ch-title-prev;
+    property <string> ch-title-old;
+    property <duration> ch-title-t0;
+    property <bool> ch-title-live;
+    changed ch-title => {
+        if (root.ch-key != "" && root.ch-title-prev != "" && Motion.pages) {
+            root.ch-title-old = root.ch-title-prev;
+            root.ch-title-t0 = animation-tick();
+            root.ch-title-live = true;
+        }
+        root.ch-title-prev = root.ch-title;
+    }
+    Timer {
+        interval: 450ms;
+        running: root.ch-title-live;
+        triggered => {
+            if (animation-tick() - root.ch-title-t0 > 580ms) {
+                root.ch-title-live = false;
+            }
+        }
+    }
     in property <[TrackData]> ch-items;
     in-out property <int> ch-sel;
     callback settings-choose(string, string);
@@ -6498,16 +6520,41 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                 }
-                Text {
-                    x: 22px * root.k;
+                // Titre : quand il change (langue choisie), l'ancien monte en s'estompant et le nouveau
+                // arrive par-dessous, comme le reste de la page. Le titre reste lisible avant le choix.
+                // (État gardé hors de la liste : elle est recréée après les captures de l'effet de langue.)
+                ch-head := Rectangle {
                     y: 0px;
                     height: 62px * root.k;
-                    text: root.ch-title;
-                    font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
-                    color: Theme.fg;
-                    font-size: 18px * root.k;
-                    font-weight: 700;
-                    vertical-alignment: center;
+                    clip: true;
+                    property <string> old: root.ch-title-old;
+                    property <bool> live: root.ch-title-live;
+                    property <float> q: self.live ? clamp((animation-tick() - root.ch-title-t0) / 560ms, 0, 1) : 1;
+                    property <float> e: 1 - (1 - self.q) * (1 - self.q);
+                    if ch-head.live: Text {
+                        x: 22px * root.k;
+                        y: -ch-head.e * 26px * root.k;
+                        height: parent.height;
+                        opacity: 1 - ch-head.e;
+                        text: ch-head.old;
+                        font-family: "Montserrat";
+                        color: Theme.fg;
+                        font-size: 18px * root.k;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        x: 22px * root.k;
+                        y: (1 - ch-head.e) * 26px * root.k;
+                        height: parent.height;
+                        opacity: ch-head.e;
+                        text: root.ch-title;
+                        font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
+                        color: Theme.fg;
+                        font-size: 18px * root.k;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
                 }
                 Rectangle {
                     y: 62px * root.k;
@@ -8451,13 +8498,62 @@ export component AppWindow inherits Window {
     }
 
     // Démarrage (au-dessus de tout) : vérifications, liaison du logo, puis zoom vers la page suivante.
-    // Changement de thème : voile dans la couleur du fond, qui se lève sur le nouveau thème (Rust : switch_theme).
-    in property <float> theme-veil;
-    property <float> tv-a: root.theme-veil;
-    animate tv-a { duration: root.theme-veil > 0.5 ? 220ms : 420ms; easing: ease-in-out; }
-    if root.tv-a > 0.005: Rectangle {
-        background: @linear-gradient(180deg, Theme.bg.with-alpha(root.tv-a) 0%, Theme.bg-mid.with-alpha(root.tv-a) 55%, Theme.bg-end.with-alpha(root.tv-a) 100%);
+    // Changement de thème (Rust : switch_theme) : l'écran de l'ancien thème, photographié, est découpé
+    // en carreaux qui basculent un à un, au hasard, sur le nouveau thème déjà posé dessous.
+    in property <image> theme-snap;
+    property <bool> theme-tiles;
+    property <duration> theme-t0;
+    // Départ pris au premier tour de boucle après le changement : appliquer le thème prend un moment,
+    // et l'animation se serait jouée pendant que rien ne s'affichait.
+    property <bool> theme-armed;
+    public function theme-tiles-start() {
+        root.theme-armed = false;
+        root.theme-tiles = true;
+    }
+    Timer {
+        interval: 30ms;
+        running: root.theme-tiles && !root.theme-armed;
+        triggered => {
+            root.theme-t0 = animation-tick();
+            root.theme-armed = true;
+        }
+    }
+    Timer {
+        interval: 1000ms;
+        running: root.theme-armed;
+        triggered => {
+            root.theme-tiles = false;
+            root.theme-armed = false;
+        }
+    }
+    if root.theme-tiles: Rectangle {
         TouchArea { }
+        for i in 96: Rectangle {
+            property <int> cx: mod(i, 12);
+            property <int> cy: floor(i / 12);
+            // Ordre pseudo-aléatoire (37 et 96 premiers entre eux : chaque carreau a son tour).
+            property <float> rnd: mod(i * 37 + 11, 96) / 96;
+            property <float> q: root.theme-armed ? clamp((animation-tick() - root.theme-t0 - self.rnd * 620ms) / 300ms, 0, 1) : 0;
+            x: self.cx * parent.width / 12;
+            y: self.cy * parent.height / 8;
+            width: parent.width / 12 + 1px;
+            height: parent.height / 8 + 1px;
+            clip: true;
+            Image {
+                source: root.theme-snap;
+                image-fit: fill;
+                source-clip-x: parent.cx * root.theme-snap.width / 12;
+                source-clip-y: parent.cy * root.theme-snap.height / 8;
+                source-clip-width: root.theme-snap.width / 12;
+                source-clip-height: root.theme-snap.height / 8;
+                // Le carreau se retourne (rétrécit en tournant) et laisse voir le nouveau thème.
+                width: parent.width * (1 - parent.q);
+                height: parent.height * (1 - parent.q);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                transform-rotation: parent.q * 90deg;
+            }
+        }
     }
 
     if root.boot-on: BootLogo {
@@ -8521,6 +8617,9 @@ export component AppWindow inherits Window {
     changed ch-key => {
         if (root.dust-cloud && root.ch-key != "language") {
             root.dust-cancel();
+        }
+        if (root.ch-key == "") {
+            root.ch-title-prev = "";
         }
     }
 }

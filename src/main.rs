@@ -2358,21 +2358,17 @@ fn sub_size_label(v: f64) -> &'static str {
 }
 
 /// Réglages de l'appareil appliqués à l'interface (global Prefs).
-/// Changement de thème animé : l'écran se voile dans la couleur de l'ancien thème, le nouveau est
-/// posé dessous, puis le voile se dissipe (sans animation si « Arrivée des pages » est coupée).
+/// Changement de thème animé : l'écran de l'ancien thème est photographié, le nouveau posé dessous,
+/// puis la photo, découpée en carreaux, bascule morceau par morceau (sans animation si « Arrivée des
+/// pages » est coupée, ou si la capture échoue).
 fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
-    if !p.anim.pages {
-        apply_ui_prefs(u, &p);
-        return;
-    }
-    u.set_theme_veil(1.0);
-    let weak = u.as_weak();
-    slint::Timer::single_shot(std::time::Duration::from_millis(240), move || {
-        if let Some(u) = weak.upgrade() {
-            apply_ui_prefs(&u, &p);
-            u.set_theme_veil(0.0);
+    if p.anim.pages {
+        if let Ok(b) = u.window().take_snapshot() {
+            u.set_theme_snap(slint::Image::from_rgba8(b));
+            u.invoke_theme_tiles_start();
         }
-    });
+    }
+    apply_ui_prefs(u, &p);
 }
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
