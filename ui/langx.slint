@@ -3,7 +3,7 @@
 // la part traduite), modèle à traduire ; choisir une langue l'applique. Au clavier : ↑ ↓ dans la
 // liste puis les boutons, ← → entre les boutons, OK ouvre / choisit, Retour remonte d'un dossier
 // (ou ferme à la racine). La souris marche aussi.
-import { Theme, Tr, Motion } from "theme.slint";
+import { Theme, Tr, Motion, Gloss } from "theme.slint";
 
 export struct LxItem {
     kind: string,   // "up" · "dir" · "lang" · "template" · "other"
@@ -15,7 +15,7 @@ export struct LxItem {
 
 component LxIcon inherits Rectangle {
     in property <string> kind;
-    in property <brush> tint: white;
+    in property <brush> tint: Theme.fg;
     if root.kind == "dir" || root.kind == "up": Path {
         width: parent.width;
         height: parent.height;
@@ -84,7 +84,7 @@ export component LangExplorer inherits Rectangle {
 
     // Voile
     Rectangle {
-        background: #000000a0.transparentize(1 - root.p);
+        background: Theme.scrim.with-alpha(0.63).transparentize(1 - root.p);
         TouchArea {
             clicked => {
                 root.button("close");
@@ -103,11 +103,11 @@ export component LangExplorer inherits Rectangle {
         opacity: root.p;
         transform-scale: 0.94 + 0.06 * root.p;
         border-radius: 22px * root.k;
-        background: #0b1520f5;
+        background: Theme.panel;
         border-width: 1px;
         border-color: Theme.glass-border;
         drop-shadow-blur: 40px * root.k;
-        drop-shadow-color: #00000080;
+        drop-shadow-color: Theme.scrim.with-alpha(0.5);
         TouchArea {
             // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
@@ -155,7 +155,7 @@ export component LangExplorer inherits Rectangle {
             x: 30px * root.k;
             y: 24px * root.k;
             text: root.title;
-            color: white;
+            color: Theme.fg;
             font-size: 26px * root.k;
             font-weight: 700;
         }
@@ -166,7 +166,7 @@ export component LangExplorer inherits Rectangle {
             width: parent.width - 60px * root.k;
             height: 30px * root.k;
             border-radius: 8px * root.k;
-            background: #ffffff0f;
+            background: Theme.fg.with-alpha(0.06);
             LxIcon {
                 x: 10px * root.k;
                 y: (parent.height - self.height) / 2;
@@ -180,7 +180,7 @@ export component LangExplorer inherits Rectangle {
                 width: parent.width - 44px * root.k;
                 height: parent.height;
                 text: root.place;
-                color: #ffffffcc;
+                color: Theme.fg.with-alpha(0.8);
                 font-size: 13px * root.k;
                 vertical-alignment: center;
                 overflow: elide;
@@ -236,21 +236,22 @@ export component LangExplorer inherits Rectangle {
                 border-radius: 12px * root.k;
                 property <bool> on: i == root.sel;
                 background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                    : area.has-hover ? #ffffff1a : #ffffff0a;
+                    : area.has-hover ? Theme.fg.with-alpha(0.1) : Theme.fg.with-alpha(0.04);
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 LxIcon {
                     x: 16px * root.k;
                     y: (parent.height - self.height) / 2;
                     width: 24px * root.k;
                     height: 24px * root.k;
                     kind: it.kind;
-                    tint: row.on ? white : it.kind == "lang" ? Theme.accent2 : #ffffffb0;
+                    tint: row.on ? Theme.on-accent : it.kind == "lang" ? Theme.accent2 : Theme.fg.with-alpha(0.69);
                 }
                 Text {
                     x: 54px * root.k;
                     y: 9px * root.k;
                     width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
                     text: it.name;
-                    color: white;
+                    color: row.on ? Theme.on-accent : Theme.fg;
                     font-size: 16px * root.k;
                     font-weight: 600;
                     overflow: elide;
@@ -260,7 +261,7 @@ export component LangExplorer inherits Rectangle {
                     y: 31px * root.k;
                     width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
                     text: it.detail;
-                    color: row.on ? #ffffffd9 : Theme.muted;
+                    color: row.on ? Theme.on-accent.with-alpha(0.85) : Theme.muted;
                     font-size: 12px * root.k;
                     overflow: elide;
                 }
@@ -274,7 +275,7 @@ export component LangExplorer inherits Rectangle {
                         y: 18px * root.k;
                         height: 5px * root.k;
                         border-radius: 3px * root.k;
-                        background: row.on ? #ffffff40 : #ffffff1f;
+                        background: row.on ? Theme.on-accent.with-alpha(0.25) : Theme.fg.with-alpha(0.12);
                     }
                     Rectangle {
                         x: 0px;
@@ -282,13 +283,13 @@ export component LangExplorer inherits Rectangle {
                         width: parent.width * it.done * row.e;
                         height: 5px * root.k;
                         border-radius: 3px * root.k;
-                        background: row.on ? white : Theme.accent2;
+                        background: row.on ? Theme.on-accent : Theme.accent2;
                     }
                     Text {
                         width: parent.width;
                         height: 14px * root.k;
                         text: it.current ? Tr.t(Tr.k, "Langue actuelle") : round(it.done * 100) + " %";
-                        color: row.on ? white : #ffffffb0;
+                        color: row.on ? Theme.on-accent : Theme.fg.with-alpha(0.69);
                         font-size: 12px * root.k;
                         font-weight: 600;
                         horizontal-alignment: right;
@@ -314,10 +315,11 @@ export component LangExplorer inherits Rectangle {
                 width: bt.preferred-width + 34px * root.k;
                 border-radius: 10px * root.k;
                 background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                    : ba.has-hover ? #ffffff26 : #ffffff12;
+                    : ba.has-hover ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 bt := Text {
                     text: b == "template" ? Tr.t(Tr.k, "Créer le modèle") : b == "folder" ? Tr.t(Tr.k, "Ouvrir le dossier") : Tr.t(Tr.k, "Fermer");
-                    color: white;
+                    color: parent.on ? Theme.on-accent : Theme.fg;
                     font-size: 15px * root.k;
                     font-weight: parent.on ? 700 : 500;
                     horizontal-alignment: center;

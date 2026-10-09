@@ -15,6 +15,7 @@ mod mpv;
 mod paths;
 mod player;
 mod syncplay;
+mod theme;
 mod update;
 mod video;
 
@@ -2358,6 +2359,7 @@ fn sub_size_label(v: f64) -> &'static str {
 
 /// Réglages de l'appareil appliqués à l'interface (global Prefs).
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
+    theme::apply(u, &theme::find(&p.theme, &p.themes));
     let g = u.global::<Prefs>();
     g.set_ratings(p.show_ratings);
     g.set_marquee(p.marquee);
@@ -2516,12 +2518,20 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
+            row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
+            row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
+            row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
-        ],
+        ]
+        .into_iter()
+        .chain(prefs.theme.starts_with("custom:").then(|| {
+            row("themedel", tr("Supprimer ce thème"), prefs.theme.trim_start_matches("custom:"), String::new(), "action", false)
+        }))
+        .collect(),
         4 => {
             let saved = config::load();
             let current = app.client().map(|c| c.server).unwrap_or_default();
@@ -2629,6 +2639,12 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             let cur = anim_preset_key(&p).unwrap_or_default();
             Some((tr("Preset d'animations").into(), list, cur))
         }
+        "theme" => {
+            let p = config::ui_prefs();
+            let mut list: Vec<(String, String)> = theme::builtin().into_iter().map(|(k, t)| (k.to_string(), tr_theme(&t.name))).collect();
+            list.extend(p.themes.iter().map(|t| (format!("custom:{}", t.name), t.name.clone())));
+            Some((tr("Thème").into(), list, p.theme.clone()))
+        }
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
@@ -2698,6 +2714,16 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
                 p.anim_preset = k.to_string();
             }
         });
+        return;
+    }
+    if key == "theme" {
+        let mut p = config::ui_prefs();
+        p.theme = value.to_string();
+        config::save_ui_prefs(&p);
+        if let Some(u) = app.ui().upgrade() {
+            apply_ui_prefs(&u, &p);
+        }
+        refresh_settings(app);
         return;
     }
     if key == "subsize" {
@@ -3099,7 +3125,32 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" | "theme" => open_choice(app, key),
+        "themeimport" => lx_open_mode(app, "theme"),
+        "themeexport" => {
+            let p = config::ui_prefs();
+            let t = theme::find(&p.theme, &p.themes);
+            let msg = match theme::export(&t) {
+                Ok(path) => trf("Thème exporté : {}", &[&path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()]),
+                Err(e) => trf("Impossible d'exporter le thème : {}", &[&e]),
+            };
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(msg.into());
+            }
+        }
+        "themedel" => {
+            let mut p = config::ui_prefs();
+            if let Some(name) = p.theme.strip_prefix("custom:").map(str::to_string) {
+                p.themes.retain(|t| t.name != name);
+                p.theme = "turtlefin".into();
+                config::save_ui_prefs(&p);
+                if let Some(u) = app.ui().upgrade() {
+                    apply_ui_prefs(&u, &p);
+                    u.set_toast(trf("Thème supprimé : {}", &[&name]).into());
+                }
+                refresh_settings(app);
+            }
+        }
         k if k.starts_with("anim:") => {
             let k = k["anim:".len()..].to_string();
             set_anim(app, move |p| {
@@ -3428,7 +3479,11 @@ fn lx_open(app: &Arc<App>) {
 
 /// Dossier racine de l'explorateur selon son usage (langues ou presets d'animations).
 fn lx_root(app: &Arc<App>) -> Option<std::path::PathBuf> {
-    if *app.lx_mode.lock().unwrap() == "preset" { presets_dir() } else { i18n::lang_dir() }
+    match *app.lx_mode.lock().unwrap() {
+        "preset" => presets_dir(),
+        "theme" => theme::dir(),
+        _ => i18n::lang_dir(),
+    }
 }
 
 fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
@@ -3448,7 +3503,9 @@ fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
 /// Affiche un dossier ; `select` : élément à choisir (sinon le premier).
 fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::Path>) {
     let Some(root) = lx_root(app) else { return };
-    let presets = *app.lx_mode.lock().unwrap() == "preset";
+    let mode = *app.lx_mode.lock().unwrap();
+    let presets = mode == "preset";
+    let themes = mode == "theme";
     let cur = i18n::current();
     let mut items: Vec<LxItem> = Vec::new();
     let mut paths: Vec<(std::path::PathBuf, &'static str)> = Vec::new();
@@ -3458,9 +3515,13 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
             paths.push((parent.to_path_buf(), "up"));
         }
     }
-    let entries = if presets { browse_presets(&dir) } else { i18n::browse(&dir) };
+    let entries = if presets { browse_presets(&dir) } else if themes { browse_themes(&dir) } else { i18n::browse(&dir) };
     for e in entries {
         let detail = match e.kind {
+            "dir" if themes => {
+                let n: i64 = e.code.parse().unwrap_or(0);
+                i18n::trn("{n} thème", "{n} thèmes", n)
+            }
             "dir" if presets => {
                 let n: i64 = e.code.parse().unwrap_or(0);
                 i18n::trn("{n} preset", "{n} presets", n)
@@ -3472,7 +3533,9 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
             "lang" => format!("{}.po", e.code),
             "template" => tr("Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)").to_string(),
             "preset" => trf("{} animations sur {}", &[&e.code, &config::AnimFlags::KEYS.len()]),
+            "theme" => e.code.clone(),
             _ if presets => tr("Pas un preset de Turtlefin").to_string(),
+            _ if themes => tr("Pas un thème de Turtlefin").to_string(),
             _ => tr("Pas une traduction de Turtlefin").to_string(),
         };
         items.push(LxItem { kind: e.kind.into(), name: e.name.into(), detail: detail.into(), done: e.done, current: e.kind == "lang" && e.code == cur });
@@ -3491,6 +3554,8 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
     };
     let hint = if presets {
         tr("Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué.").to_string()
+    } else if themes {
+        tr("Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué.").to_string()
     } else if dir == root {
         tr("Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici.").to_string()
     } else {
@@ -3504,8 +3569,8 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         u.set_lx_place(place.into());
         u.set_lx_hint(hint.into());
         u.set_lx_can_folder(!u.get_tv_mode());
-        u.set_lx_title(if presets { tr("Importer un preset") } else { tr("Ajouter une langue") }.into());
-        u.set_lx_can_template(!presets);
+        u.set_lx_title(if presets { tr("Importer un preset") } else if themes { tr("Importer un thème") } else { tr("Ajouter une langue") }.into());
+        u.set_lx_can_template(!presets && !themes);
         u.set_lx_tick(u.get_lx_tick() + 1);
     }
 }
@@ -3539,6 +3604,20 @@ fn lx_activate(app: &Arc<App>, i: usize) {
                 });
                 u.set_lx_open(false);
                 u.set_toast(trf("Preset importé : {}", &[&name]).into());
+            }
+        }
+        "theme" => {
+            if let Some(t) = theme::load(&path) {
+                let name = t.name.clone();
+                let mut p = config::ui_prefs();
+                p.themes.retain(|x| x.name != t.name);
+                p.theme = format!("custom:{}", t.name);
+                p.themes.push(t);
+                config::save_ui_prefs(&p);
+                apply_ui_prefs(&u, &p);
+                refresh_settings(app);
+                u.set_lx_open(false);
+                u.set_toast(trf("Thème importé : {}", &[&name]).into());
             }
         }
         "template" => u.set_toast(tr("C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici.").into()),
@@ -3581,6 +3660,50 @@ fn lx_button(app: &Arc<App>, b: &str) {
         }
         _ => u.set_lx_open(false),
     }
+}
+
+/// Contenu d'un dossier de thèmes : sous-dossiers, puis fichiers .tftheme (thème valide ou non).
+fn browse_themes(dir: &std::path::Path) -> Vec<i18n::Entry> {
+    let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    entries.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+    let is_theme = |p: &std::path::Path| p.extension().is_some_and(|x| x.eq_ignore_ascii_case(theme::EXT));
+    let mut dirs = Vec::new();
+    let mut files = Vec::new();
+    for p in entries {
+        let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if fname.starts_with('.') {
+            continue;
+        }
+        if p.is_dir() {
+            let n = std::fs::read_dir(&p).into_iter().flatten().flatten().filter(|e| is_theme(&e.path())).count();
+            dirs.push(i18n::Entry { path: p, kind: "dir", name: fname, code: n.to_string(), done: 0.0 });
+        } else if is_theme(&p) || p.extension().is_some_and(|x| x == "json") {
+            match theme::load(&p) {
+                Some(t) => {
+                    let kind = if t.dark { tr("Thème sombre") } else { tr("Thème clair") };
+                    files.push(i18n::Entry { path: p, kind: "theme", name: t.name, code: format!("{kind} · {fname}"), done: 0.0 });
+                }
+                None => files.push(i18n::Entry { path: p, kind: "other", name: fname, code: String::new(), done: 0.0 }),
+            }
+        }
+    }
+    dirs.extend(files);
+    dirs
+}
+
+/// Nom affiché d'un thème intégré (traduit) ; les thèmes importés gardent le leur.
+fn tr_theme(name: &str) -> String {
+    match name {
+        "Sombre" => tr("Sombre").to_string(),
+        "Clair" => tr("Clair").to_string(),
+        "Turtlefin vert" => tr("Turtlefin vert").to_string(),
+        n => n.to_string(),
+    }
+}
+
+/// Thème en cours, pour la ligne des réglages.
+fn theme_label(p: &config::UiPrefs) -> String {
+    tr_theme(&theme::find(&p.theme, &p.themes).name)
 }
 
 /// Contenu d'un dossier de presets : sous-dossiers, puis fichiers .json (preset valide ou non).

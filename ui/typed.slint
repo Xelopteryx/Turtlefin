@@ -29,7 +29,7 @@ component Typed inherits Rectangle {
     transform-scale: 1.6 - 0.6 * (1 - (1 - root.p) * (1 - root.p));
     t := Text {
         text: root.ch;
-        color: white;
+        color: Theme.fg;
         font-size: root.font-size;
         vertical-alignment: center;
     }
@@ -66,7 +66,7 @@ component Ghost inherits Rectangle {
     visible: root.p < 1;
     g := Text {
         text: root.ch;
-        color: white;
+        color: Theme.fg;
         font-size: root.font-size;
         vertical-alignment: center;
     }
@@ -168,7 +168,7 @@ export component TypedText inherits Rectangle {
         x: 0px;
         height: parent.height;
         text: Str.head(root.text, 4);
-        color: white;
+        color: Theme.fg;
         font-size: root.font-size;
         vertical-alignment: center;
     }

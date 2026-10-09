@@ -7,7 +7,7 @@
 // l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis on zoome dans le centre
 // vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
-import { Theme, Tr } from "theme.slint";
+import { Theme, Tr, Gloss } from "theme.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
 
@@ -99,7 +99,7 @@ export component BootLogo inherits Rectangle {
             : s == 4 ? #f59e0b
             : s == 3 ? #ef4444
             : s == 1 ? Theme.accent2.transparentize(0.6 - 0.5 * root.pulse)
-            : #ffffff2e;
+            : Theme.fg.with-alpha(0.18);
     }
     pure function dot-size(s: int) -> float {
         return s == 1 || s == 3 ? 26 : s == 0 ? 18 : 22;
@@ -200,7 +200,7 @@ export component BootLogo inherits Rectangle {
                 text: root.labels[i];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc).transparentize(root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -227,7 +227,7 @@ export component BootLogo inherits Rectangle {
                 text: root.labels[6];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? #fca5a5 : parent.s == 0 ? #ffffff59 : #ffffffcc).transparentize(root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -245,7 +245,7 @@ export component BootLogo inherits Rectangle {
         alignment: start;
         Text {
             text: root.fail != "" ? root.fail : root.text;
-            color: (root.fail != "" ? #fca5a5 : Theme.muted).transparentize(root.edge-p);
+            color: (root.fail != "" ? Theme.danger-text : Theme.muted).transparentize(root.edge-p);
             font-size: 16px * root.k;
             horizontal-alignment: center;
             wrap: word-wrap;
@@ -257,9 +257,10 @@ export component BootLogo inherits Rectangle {
                 height: 40px * root.k;
                 border-radius: 10px * root.k;
                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 hint := Text {
                     text: root.fail-hint;
-                    color: white;
+                    color: Theme.on-accent;
                     font-size: 15px * root.k;
                     font-weight: 600;
                     horizontal-alignment: center;
@@ -290,7 +291,7 @@ export component BootLogo inherits Rectangle {
         k: root.k;
     }
     if root.lang-p > 0.01 && !root.snap: Rectangle {
-        background: #000000a6.transparentize(1 - root.lang-p);
+        background: Theme.scrim.with-alpha(0.65).transparentize(1 - root.lang-p);
         TouchArea {
             // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
@@ -318,7 +319,7 @@ export component BootLogo inherits Rectangle {
                 width: parent.width;
                 text: root.lang-title;
                 font-family: "Montserrat"; // lisible pendant l'effet de langue
-                color: white;
+                color: Theme.fg;
                 font-size: 18px * root.k;
                 font-weight: 700;
                 horizontal-alignment: center;
@@ -334,11 +335,12 @@ export component BootLogo inherits Rectangle {
                     width: parent.width - 32px * root.k;
                     height: 48px * root.k;
                     border-radius: 12px * root.k;
-                    background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff12;
+                    background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.07);
+                    Gloss { r: parent.border-radius; strength: 0.8; }
                     Text {
                         text: l.label;
                         font-family: "Montserrat"; // lisible pendant l'effet de langue
-                        color: white;
+                        color: i == root.lang-sel || la.has-hover ? Theme.on-accent : Theme.fg;
                         font-size: 17px * root.k;
                         font-weight: 600;
                         horizontal-alignment: center;

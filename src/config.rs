@@ -333,6 +333,9 @@ pub struct UiPrefs {
     /// Presets d'animations créés par l'utilisateur, et preset en cours (nom ; vide : réglages à la main).
     pub anim_presets: Vec<AnimPreset>,
     pub anim_preset: String,
+    /// Thème : clé intégrée (« turtlefin », « aero »…) ou « custom:<nom> » ; thèmes importés.
+    pub theme: String,
+    pub themes: Vec<crate::theme::ThemeDef>,
 }
 
 /// Animations activées (voir `Motion` dans theme.slint).
@@ -443,6 +446,8 @@ impl Default for UiPrefs {
             anim: AnimFlags::default(),
             anim_presets: Vec::new(),
             anim_preset: String::new(),
+            theme: "turtlefin".into(),
+            themes: Vec::new(),
         }
     }
 }

@@ -1,14 +1,63 @@
-// Jetons de thème (équivalents de tes variables CSS --accent1-light / --accent2-light).
+// Jetons de thème, posés par Rust (thèmes intégrés ou fichier .tftheme, voir src/theme.rs). Valeurs
+// par défaut : le thème Turtlefin. Les surfaces translucides s'écrivent `Theme.fg.with-alpha(…)` :
+// blanc translucide sur un thème sombre, encre translucide sur un thème clair.
 export global Theme {
-    out property <color> bg: #010e18; // .backgroundContainer de JellySkin
-    out property <color> accent1: #a95bc2;
-    out property <color> accent2: #00a4db;
-    out property <color> text: #ffffffe6;
-    out property <color> muted: #ffffff99;
-    out property <length> radius: 10px;
-    // Verre sombre de Style.css : rgba(24, 24, 28) + contour blanc translucide (sans flou).
-    out property <color> glass: #181820d9;
-    out property <color> glass-border: #ffffff24;
+    // Fond de la fenêtre : dégradé vertical à trois arrêts (identiques : fond uni).
+    in-out property <color> bg: #010e18;
+    in-out property <color> bg-mid: #010e18;
+    in-out property <color> bg-end: #010e18;
+    // Encre : textes, icônes, traits, et base des surfaces translucides.
+    in-out property <color> fg: #ffffff;
+    in-out property <color> text: #ffffffe6;
+    in-out property <color> muted: #ffffff99;
+    in-out property <color> accent1: #a95bc2;
+    in-out property <color> accent2: #00a4db;
+    // Textes et icônes posés sur le dégradé d'accent (bouton choisi…).
+    in-out property <color> on-accent: #ffffff;
+    // Verre (panneaux, bulles) : rgba(24, 24, 28) + contour translucide, sans flou.
+    in-out property <color> glass: #181820d9;
+    in-out property <color> glass-border: #ffffff24;
+    // Panneaux pleins au premier plan (menu, fenêtres, bulle de la visite).
+    in-out property <color> panel: #0b1520f5;
+    // Corps des cartes sous l'affiche (normal / choisie).
+    in-out property <color> card: #00000033;
+    in-out property <color> card-focus: #00000080;
+    // Affiche absente : dégradé de remplacement.
+    in-out property <color> ph1: #2b2142;
+    in-out property <color> ph2: #10283a;
+    // Voile derrière les fenêtres au premier plan.
+    in-out property <color> scrim: #000000;
+    in-out property <color> danger: #ff6b6b;
+    in-out property <color> danger-text: #ff8a8a;
+    in-out property <color> ok: #4ade80;
+    in-out property <color> warn: #f59e0b;
+    // Voile sur l'image de fond du média sélectionné : 1 normal, plus : image plus effacée.
+    in-out property <float> veil: 1.0;
+    in-out property <length> radius: 10px;
+    // Reflet brillant en haut des boutons et des panneaux (0 : aucun ; Frutiger Aero : ~1).
+    in-out property <float> gloss: 0;
+    // Décor du fond : bulles et voiles de lumière (Frutiger Aero).
+    in-out property <bool> bubbles: false;
+    // Thème sombre (sinon clair).
+    in-out property <bool> dark: true;
+}
+
+// Reflet brillant d'un bouton ou d'un panneau (thèmes à `Theme.gloss` > 0) : moitié haute plus
+// claire, comme du plastique mouillé ou du verre. À poser en premier enfant, pleine largeur.
+export component Gloss inherits Rectangle {
+    in property <length> r: 10px;
+    in property <float> strength: 1.0;
+    visible: Theme.gloss > 0;
+    Rectangle {
+        y: 0px;
+        height: root.height * 0.52;
+        border-top-left-radius: root.r;
+        border-top-right-radius: root.r;
+        border-bottom-left-radius: root.r * 0.4;
+        border-bottom-right-radius: root.r * 0.4;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.62 * Theme.gloss * root.strength) 0%,
+            rgba(255, 255, 255, 0.12 * Theme.gloss * root.strength) 100%);
+    }
 }
 
 // Réglages d'affichage de l'appareil (Paramètres > Affichage), posés par Rust.

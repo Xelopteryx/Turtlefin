@@ -1595,3 +1595,62 @@ msgid "{n} preset"
 msgid_plural "{n} presets"
 msgstr[0] "{n} preset"
 msgstr[1] "{n} presets"
+
+msgid "Thème"
+msgstr "Tema"
+
+msgid "Couleurs et style de l'interface."
+msgstr "Colores y estilo de la interfaz."
+
+msgid "Importer un thème"
+msgstr "Importar un tema"
+
+msgid "Choisis un fichier de thème (.tftheme) dans le dossier « {} »."
+msgstr "Elige un archivo de tema (.tftheme) en la carpeta «{}»."
+
+msgid "Exporter le thème"
+msgstr "Exportar el tema"
+
+msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."
+msgstr "Escribe el tema actual en esta carpeta: una plantilla para crear el tuyo."
+
+msgid "Supprimer ce thème"
+msgstr "Eliminar este tema"
+
+msgid "Thème exporté : {}"
+msgstr "Tema exportado: {}"
+
+msgid "Impossible d'exporter le thème : {}"
+msgstr "No se puede exportar el tema: {}"
+
+msgid "Thème supprimé : {}"
+msgstr "Tema eliminado: {}"
+
+msgid "Pas un thème de Turtlefin"
+msgstr "No es un tema de Turtlefin"
+
+msgid "Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué."
+msgstr "Elige un tema (.tftheme): se añade a tus temas y se aplica."
+
+msgid "Thème importé : {}"
+msgstr "Tema importado: {}"
+
+msgid "Thème sombre"
+msgstr "Tema oscuro"
+
+msgid "Thème clair"
+msgstr "Tema claro"
+
+msgid "Sombre"
+msgstr "Oscuro"
+
+msgid "Clair"
+msgstr "Claro"
+
+msgid "Turtlefin vert"
+msgstr "Turtlefin verde"
+
+msgid "{n} thème"
+msgid_plural "{n} thèmes"
+msgstr[0] "{n} tema"
+msgstr[1] "{n} temas"

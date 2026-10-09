@@ -10,7 +10,8 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss } from "theme.slint";
+import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
 import { LxItem, LangExplorer } from "langx.slint";
@@ -20,7 +21,7 @@ export { OskKeys }
 import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
 
-export { CardData, Prefs, Tr, Motion }
+export { CardData, Prefs, Tr, Motion, Theme }
 
 export { TrackData, DustLine, Str, LxItem }
 
@@ -166,7 +167,7 @@ component Field inherits Rectangle {
         width: parent.width - 8px * root.k;
         height: 22px * root.k;
         text: root.label;
-        color: root.error != "" ? #ff8a8a : root.lit ? white : Theme.muted;
+        color: root.error != "" ? Theme.danger-text : root.lit ? Theme.fg : Theme.muted;
         font-size: 13px * root.k;
         font-weight: 600;
         vertical-alignment: center;
@@ -175,9 +176,9 @@ component Field inherits Rectangle {
         y: 22px * root.k;
         height: 52px * root.k;
         border-radius: 12px * root.k;
-        background: root.lit ? #ffffff24 : #ffffff12;
+        background: root.lit ? Theme.fg.with-alpha(0.14) : Theme.fg.with-alpha(0.07);
         border-width: root.error != "" || root.lit ? 2px : 1px;
-        border-color: root.error != "" ? #ff6b6b : root.lit ? Theme.accent2 : #ffffff2e;
+        border-color: root.error != "" ? Theme.danger : root.lit ? Theme.accent2 : Theme.fg.with-alpha(0.18);
         animate background, border-color { duration: Motion.select ? 160ms : 0ms; }
 
         // Aide (champ vide)
@@ -186,7 +187,7 @@ component Field inherits Rectangle {
             width: parent.width - 36px * root.k;
             height: parent.height;
             text: root.hint;
-            color: #ffffff59;
+            color: Theme.fg.with-alpha(0.35);
             font-size: 17px * root.k;
             vertical-alignment: center;
             overflow: elide;
@@ -196,7 +197,7 @@ component Field inherits Rectangle {
             width: parent.width - 36px * root.k;
             height: parent.height;
             text: root.shown + (root.editing ? "│" : "");
-            color: white;
+            color: Theme.fg;
             font-size: 18px * root.k;
             vertical-alignment: center;
             overflow: elide;
@@ -209,7 +210,7 @@ component Field inherits Rectangle {
             enabled: !root.tv;
             text <=> root.text;
             input-type: root.password ? InputType.password : InputType.text;
-            color: white;
+            color: Theme.fg;
             font-size: 18px * root.k;
             vertical-alignment: center;
             single-line: true;
@@ -235,7 +236,7 @@ component Field inherits Rectangle {
         width: parent.width - 8px * root.k;
         height: 22px * root.k;
         text: root.error;
-        color: #ff8a8a;
+        color: Theme.danger-text;
         font-size: 13px * root.k;
         vertical-alignment: center;
     }
@@ -250,15 +251,15 @@ component Bubble inherits Rectangle {
     width: min(root.max-w, msg.preferred-width + 44px * root.k);
     height: msg.preferred-height + 22px * root.k;
     border-radius: 14px * root.k;
-    background: root.error ? #3a1418f2 : #0b1620f2;
+    background: root.error ? #3a1418f2 : Theme.panel;
     border-width: 1px;
-    border-color: root.error ? #ff6b6b80 : Theme.glass-border;
+    border-color: root.error ? Theme.danger.with-alpha(0.5) : Theme.glass-border;
     msg := Text {
         x: 22px * root.k;
         width: parent.width - 44px * root.k;
         height: parent.height;
         text: root.text;
-        color: root.error ? #ffd0d0 : Theme.text;
+        color: root.error ? Theme.danger-text : Theme.text;
         font-size: 15px * root.k;
         wrap: word-wrap;
         horizontal-alignment: center;
@@ -475,7 +476,7 @@ component Card inherits Rectangle {
     transform-scale: root.focused ? 1.06 : 1.0;
     animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
-    background: root.focused ? #00000080 : #00000033;
+    background: root.focused ? Theme.card-focus : Theme.card;
 
     CardArt {
         y: 0px;
@@ -555,7 +556,7 @@ component SectionRow inherits Rectangle {
         y: root.title-h / 2 - 1px;
         width: 22px * root.k;
         height: 2px;
-        background: white;
+        background: Theme.fg;
     }
 
     Text {
@@ -563,7 +564,7 @@ component SectionRow inherits Rectangle {
         y: 0px;
         height: root.title-h;
         text: root.title;
-        color: white;
+        color: Theme.fg;
         font-size: 22px * root.k;
         font-weight: 500;
         vertical-alignment: center;
@@ -610,7 +611,7 @@ component Tab inherits Rectangle {
         width: parent.width;
         height: parent.height;
         text: root.text;
-        color: (root.active || root.focused || area.has-hover) ? white : #ffffffa6;
+        color: (root.active || root.focused || area.has-hover) ? Theme.fg : Theme.fg.with-alpha(0.65);
         font-size: 18px * root.k;
         font-weight: root.active ? 700 : 600;
         horizontal-alignment: center;
@@ -642,7 +643,7 @@ component Tab inherits Rectangle {
 // lit pas. Grille 24 x 24, tracées (aucune police d'icônes).
 component NavIcon inherits Rectangle {
     in property <string> name;
-    in property <color> tint: white;
+    in property <color> tint: Theme.fg;
     if root.name == "home": Path {
         width: parent.width;
         height: parent.height;
@@ -835,6 +836,11 @@ component HeaderIcon inherits Rectangle {
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
     border-width: root.on && !root.focused ? 2px * root.k : 0px;
     border-color: Theme.accent2;
+    property <color> ink: root.focused || area.has-hover ? Theme.on-accent : Theme.fg;
+    Gloss {
+        r: parent.border-radius;
+        visible: Theme.gloss > 0 && (root.focused || area.has-hover);
+    }
 
     if root.icon == "search": Path {
         x: (parent.width - self.width) / 2;
@@ -844,7 +850,7 @@ component HeaderIcon inherits Rectangle {
         viewbox-width: 24;
         viewbox-height: 24;
         fill: transparent;
-        stroke: white;
+        stroke: root.ink;
         stroke-width: 2.4px * root.k;
         commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
     }
@@ -857,7 +863,7 @@ component HeaderIcon inherits Rectangle {
         viewbox-width: 24;
         viewbox-height: 24;
         fill: transparent;
-        stroke: white;
+        stroke: root.ink;
         stroke-width: 2.4px * root.k;
         commands: "M 4 6.5 L 20 6.5 M 4 12 L 20 12 M 4 17.5 L 20 17.5";
     }
@@ -869,7 +875,7 @@ component HeaderIcon inherits Rectangle {
         height: 24px * root.k;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.ink;
         commands: "M 13.5 4 L 15.5 6 L 9.5 12 L 15.5 18 L 13.5 20 L 5.5 12 Z";
     }
 
@@ -880,7 +886,7 @@ component HeaderIcon inherits Rectangle {
         height: 24px * root.k;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.ink;
         commands: "M 12 3 L 21.5 11.5 L 19 11.5 L 19 20.5 L 14.5 20.5 L 14.5 15 L 9.5 15 L 9.5 20.5 L 5 20.5 L 5 11.5 L 2.5 11.5 Z";
     }
 
@@ -891,7 +897,7 @@ component HeaderIcon inherits Rectangle {
         height: 24px * root.k;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.ink;
         commands: "M 8 4 A 3.5 3.5 0 1 1 7.99 4 Z M 1 19 C 1 14.5 4 12.5 8 12.5 C 12 12.5 15 14.5 15 19 Z M 17 5.5 A 3 3 0 1 1 16.99 5.5 Z M 16.2 12.6 C 20 12.4 23 14.2 23 18 L 16.6 18 C 16.6 15.8 16.5 14 16.2 12.6 Z";
     }
 
@@ -902,14 +908,14 @@ component HeaderIcon inherits Rectangle {
         height: 22px * root.k;
         border-radius: 5px * root.k;
         border-width: 2.2px * root.k;
-        border-color: white;
+        border-color: root.ink;
         for p in [[0.28, 0.28], [0.72, 0.28], [0.5, 0.5], [0.28, 0.72], [0.72, 0.72]]: Rectangle {
             x: parent.width * p[0] - 2px * root.k;
             y: parent.height * p[1] - 2px * root.k;
             width: 4px * root.k;
             height: 4px * root.k;
             border-radius: 2px * root.k;
-            background: white;
+            background: root.ink;
         }
     }
 
@@ -920,7 +926,7 @@ component HeaderIcon inherits Rectangle {
         height: 24px * root.k;
         viewbox-width: 24;
         viewbox-height: 24;
-        fill: white;
+        fill: root.ink;
         commands: "M 12 3 A 4.5 4.5 0 1 1 11.99 3 Z M 3.5 21.5 C 3.5 16.5 7.5 14 12 14 C 16.5 14 20.5 16.5 20.5 21.5 Z";
     }
 
@@ -944,11 +950,14 @@ component ActionButton inherits Rectangle {
     transform-scale: root.focused || area.has-hover ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-        : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
+        : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
+    Gloss {
+        r: parent.border-radius;
+    }
 
     label := Text {
         text: root.text;
-        color: white;
+        color: root.focused || area.has-hover ? Theme.on-accent : Theme.fg;
         font-size: root.font;
         font-weight: 600;
         horizontal-alignment: center;
@@ -1016,7 +1025,11 @@ component DetailButton inherits Rectangle {
         border-radius: root.chip || root.icon == "label" ? self.height / 2 : 10px;
         transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
         background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-            : @linear-gradient(130deg, #ffffff1f 0%, #ffffff1f 100%);
+            : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
+        property <color> ink: root.lit ? Theme.on-accent : Theme.fg;
+        Gloss {
+            r: parent.border-radius;
+        }
 
         if root.icon == "play": Path {
             x: (parent.width - self.width) / 2;
@@ -1025,7 +1038,7 @@ component DetailButton inherits Rectangle {
             height: 22px * root.k;
             viewbox-width: 24;
             viewbox-height: 24;
-            fill: white;
+            fill: face.ink;
             commands: "M 7 4 L 20 12 L 7 20 Z";
         }
         // Favori : le cœur se remplit en fondu pendant qu'il saute.
@@ -1038,7 +1051,7 @@ component DetailButton inherits Rectangle {
             viewbox-height: 24;
             fill: root.active ? #ff4d6d : #ff4d6d00;
             animate fill { duration: Motion.select ? 300ms : 0ms; easing: ease-out; }
-            stroke: root.active ? #ff4d6d : white;
+            stroke: root.active ? #ff4d6d : face.ink;
             animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: 2px * root.k;
             commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
@@ -1051,7 +1064,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active && !root.lit ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : face.ink;
             animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: (root.active ? 3.2px : 2.2px) * root.k;
             commands: "M 4 12.5 L 9.5 18 L 20 6.5";
@@ -1065,7 +1078,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active && !root.lit ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : face.ink;
             animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: 2.2px * root.k;
             commands: "M 12 3.5 L 12 15 M 6.5 10 L 12 15.5 L 17.5 10";
@@ -1078,7 +1091,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: root.active && !root.lit ? Theme.accent2 : white;
+            stroke: root.active && !root.lit ? Theme.accent2 : face.ink;
             stroke-width: 2.2px * root.k;
             commands: "M 4.5 20 L 19.5 20";
         }
@@ -1092,7 +1105,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: white;
+            stroke: face.ink;
             stroke-width: 2px * root.k;
             commands: "M 4 6.5 L 20 6.5 M 9.5 6.5 L 9.5 4 L 14.5 4 L 14.5 6.5";
         }
@@ -1104,7 +1117,7 @@ component DetailButton inherits Rectangle {
             viewbox-width: 24;
             viewbox-height: 24;
             fill: transparent;
-            stroke: white;
+            stroke: face.ink;
             stroke-width: 2px * root.k;
             commands: "M 6 6.5 L 7 20 L 17 20 L 18 6.5 M 10 10.5 L 10 16.5 M 14 10.5 L 14 16.5";
         }
@@ -1113,7 +1126,7 @@ component DetailButton inherits Rectangle {
             width: parent.width;
             height: parent.height;
             text: root.is-icon ? "" : root.text;
-            color: white;
+            color: face.ink;
             font-size: (root.chip ? 13px : root.icon == "label" ? 15px : 16px) * root.k;
             font-weight: 600;
             horizontal-alignment: center;
@@ -1143,7 +1156,7 @@ component OverviewPanel inherits Rectangle {
         root.scroll = 0px;
     }
 
-    background: #000000b8;
+    background: Theme.scrim.with-alpha(0.72);
 
     TouchArea {
         clicked => {
@@ -1157,9 +1170,10 @@ component OverviewPanel inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         border-radius: 16px;
-        background: #181820f5;
+        background: Theme.panel;
         border-width: 1px;
-        border-color: #ffffff24;
+        border-color: Theme.fg.with-alpha(0.14);
+        Gloss { r: parent.border-radius; strength: 0.45; }
 
         // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau).
         TouchArea {
@@ -1335,9 +1349,9 @@ component HeaderRight inherits Rectangle {
         if root.dl-text != "": Rectangle {
             width: dl-label.preferred-width + 52px * root.k;
             border-radius: self.height / 2;
-            background: #ffffff14;
+            background: Theme.fg.with-alpha(0.08);
             border-width: 1px;
-            border-color: root.dl-paused ? #f59e0b : #ffffff2e;
+            border-color: root.dl-paused ? Theme.warn : Theme.fg.with-alpha(0.18);
             clip: true;
             // Jauge : le fond se remplit avec l'avancement.
             Rectangle {
@@ -1357,13 +1371,13 @@ component HeaderRight inherits Rectangle {
                     viewbox-width: 16;
                     viewbox-height: 16;
                     fill: transparent;
-                    stroke: root.dl-paused ? #fbbf24 : white;
+                    stroke: root.dl-paused ? Theme.warn : Theme.fg;
                     stroke-width: 2px * root.k;
                     commands: "M 8 2 L 8 11 M 4 7 L 8 11 L 12 7 M 3 14 L 13 14";
                 }
                 dl-label := Text {
                     text: root.dl-text;
-                    color: root.dl-paused ? #fde68a : white;
+                    color: root.dl-paused ? Theme.warn : Theme.fg;
                     font-size: 14px * root.k;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -1424,7 +1438,7 @@ component HeaderRight inherits Rectangle {
                 background: @linear-gradient(110deg, Theme.accent1 0%, Theme.accent2 100%);
                 cnt-t := Text {
                     text: root.party-count;
-                    color: white;
+                    color: Theme.on-accent;
                     font-size: 11px * root.k;
                     font-weight: 700;
                     horizontal-alignment: center;
@@ -1501,7 +1515,7 @@ export component AppWindow inherits Window {
     // Interface TV sous Windows : fenêtre sans bordure sur tout l'écran (voir set_tv_window).
     in property <bool> frameless;
     no-frame: root.frameless;
-    background: Theme.bg;
+    background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
     // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
     default-font-family: root.dust-blank ? "Turtlefin Blank" : "Montserrat";
     preferred-width: 1280px;
@@ -2548,8 +2562,13 @@ export component AppWindow inherits Window {
         }
         // Plus sombre vers le bas, là où sont les rangées.
         Rectangle {
-            background: @linear-gradient(180deg, #010e1840 0%, #010e18b0 60%, #010e18e0 100%);
+            background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.25 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.69 * Theme.veil)) 60%, Theme.bg-end.with-alpha(min(1, 0.88 * Theme.veil)) 100%);
         }
+    }
+
+    // Décor du thème (Frutiger Aero : ciel, bulles), sur l'image de fond et sous les pages.
+    if Theme.bubbles && !root.playing: AeroSky {
+        k: root.k;
     }
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
@@ -2903,7 +2922,7 @@ export component AppWindow inherits Window {
                 opacity: lg.in-e(1);
                 width: parent.width;
                 text: root.login-edit ? Tr.t(Tr.k, "Choisis un compte à retirer de cet appareil") : Tr.t(Tr.k, "Qui regarde ?");
-                color: white;
+                color: Theme.fg;
                 font-size: 30 * lg.u;
                 font-weight: 700;
                 horizontal-alignment: center;
@@ -2930,7 +2949,7 @@ export component AppWindow inherits Window {
                     width: lg.tile;
                     height: lg.tile;
                     border-radius: self.width / 2;
-                    background: t.id == "other" ? #ffffff14 : @linear-gradient(130deg, #3b2a55 0%, #12304a 100%);
+                    background: t.id == "other" ? Theme.fg.with-alpha(0.08) : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
                     border-width: parent.sel ? 5 * lg.u : 0px;
                     border-color: Theme.accent2;
                     if t.has-image: Image {
@@ -2943,7 +2962,7 @@ export component AppWindow inherits Window {
                     }
                     if !t.has-image: Text {
                         text: t.id == "other" ? "+" : t.rating;
-                        color: white;
+                        color: Theme.fg;
                         font-size: (t.id == "other" ? 64 : 40) * lg.u;
                         font-weight: 700;
                         horizontal-alignment: center;
@@ -2955,7 +2974,7 @@ export component AppWindow inherits Window {
                     y: lg.tile + 12 * lg.u;
                     width: parent.width;
                     text: t.title;
-                    text-color: white;
+                    text-color: Theme.fg;
                     font-size: 18 * lg.u;
                     font-weight: 600;
                     horizontal-alignment: center;
@@ -3103,6 +3122,7 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; }
                 drop-shadow-blur: 0px;
             }
 
@@ -3113,7 +3133,7 @@ export component AppWindow inherits Window {
 
                 Text {
                     text: root.login-title;
-                    color: white;
+                    color: Theme.fg;
                     font-size: 24 * lg.u;
                     font-weight: 700;
                 }
@@ -3280,7 +3300,7 @@ export component AppWindow inherits Window {
             width: 220px * root.k;
             height: 4px * root.k;
             border-radius: self.height / 2;
-            background: #ffffff1a;
+            background: Theme.fg.with-alpha(0.1);
             // Segment qui traverse la piste sans jamais en sortir (bords coupés à la piste).
             property <length> seg: 80px * root.k;
             property <length> head: (mod(animation-tick() / 1ms, 1400) / 1400) * (self.width + self.seg);
@@ -3310,7 +3330,7 @@ export component AppWindow inherits Window {
                 can-back: false;
                 show-home: false;
                 title: "Turtlefin";
-                title-color: root.offline ? #4ade80 : Theme.accent2;
+                title-color: root.offline ? Theme.ok : Theme.accent2;
                 sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
                 activate(i) => {
                     root.nav-activate(i);
@@ -3663,7 +3683,7 @@ export component AppWindow inherits Window {
             if root.sp-active: Rectangle {
                 height: party-card.preferred-height;
                 border-radius: 16px * root.k;
-                background: #ffffff12;
+                background: Theme.fg.with-alpha(0.07);
                 border-width: 1px;
                 border-color: Theme.glass-border;
                 party-card := VerticalLayout {
@@ -3677,11 +3697,11 @@ export component AppWindow inherits Window {
                             width: 10px * root.k;
                             height: self.width;
                             border-radius: self.width / 2;
-                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? #4ade80 : root.sp-state == Tr.t(Tr.k, "En pause") ? #f59e0b : Theme.accent2;
+                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? Theme.ok : root.sp-state == Tr.t(Tr.k, "En pause") ? Theme.warn : Theme.accent2;
                         }
                         Text {
                             text: root.sp-state;
-                            color: white;
+                            color: Theme.fg;
                             font-size: 16px * root.k;
                             font-weight: 700;
                             vertical-alignment: center;
@@ -3707,7 +3727,7 @@ export component AppWindow inherits Window {
                         for who[wi] in root.sp-list: Rectangle {
                             width: who-t.preferred-width + 44px * root.k;
                             border-radius: self.height / 2;
-                            background: #ffffff1a;
+                            background: Theme.fg.with-alpha(0.1);
                             Rectangle {
                                 x: 4px * root.k;
                                 y: 4px * root.k;
@@ -3715,9 +3735,10 @@ export component AppWindow inherits Window {
                                 height: self.width;
                                 border-radius: self.width / 2;
                                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                                Gloss { r: parent.border-radius; strength: 0.8; }
                                 Text {
                                     text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
-                                    color: white;
+                                    color: Theme.on-accent;
                                     font-size: 12px * root.k;
                                     font-weight: 700;
                                     horizontal-alignment: center;
@@ -3727,7 +3748,7 @@ export component AppWindow inherits Window {
                             who-t := Text {
                                 x: parent.height + 2px * root.k;
                                 text: who;
-                                color: white;
+                                color: Theme.fg;
                                 font-size: 14px * root.k;
                                 vertical-alignment: center;
                             }
@@ -3744,12 +3765,13 @@ export component AppWindow inherits Window {
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
-                background: (!root.h-focus && i == root.sp-sel) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
+                background: (!root.h-focus && i == root.sp-sel) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : ((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 Text {
                     x: 20px * root.k;
                     height: parent.height;
                     text: g.label;
-                    color: white;
+                    color: ((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : Theme.fg);
                     font-size: 16px * root.k;
                     vertical-alignment: center;
                 }
@@ -3967,9 +3989,9 @@ export component AppWindow inherits Window {
             width: parent.width - 64px * root.k;
             height: parent.box-h;
             border-radius: self.height / 2;
-            background: #ffffff14;
+            background: Theme.fg.with-alpha(0.08);
             border-width: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? 2px : 1px;
-            border-color: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? Theme.accent2 : #ffffff33;
+            border-color: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? Theme.accent2 : Theme.fg.with-alpha(0.2);
             clip: true;
 
             Path {
@@ -3980,7 +4002,7 @@ export component AppWindow inherits Window {
                 viewbox-width: 24;
                 viewbox-height: 24;
                 fill: transparent;
-                stroke: #ffffffb3;
+                stroke: Theme.fg.with-alpha(0.7);
                 stroke-width: 2.4px * root.k;
                 commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
             }
@@ -4597,7 +4619,7 @@ export component AppWindow inherits Window {
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
             visible: !root.hero-covers || root.hero-seerr || root.hero-big;
-            background: root.detail.has-poster || root.d-poster-swap ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+            background: root.detail.has-poster || root.d-poster-swap ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
 
             // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu.
             if root.d-poster-swap: Image {
@@ -4738,7 +4760,7 @@ export component AppWindow inherits Window {
             width: root.info-w;
             height: 80px * root.k;
             border-radius: 14px;
-            background: !root.h-focus && root.d-zone == 1 ? #ffffff3d : #ffffff21;
+            background: !root.h-focus && root.d-zone == 1 ? Theme.fg.with-alpha(0.24) : Theme.fg.with-alpha(0.13);
             border-width: !root.h-focus && root.d-zone == 1 ? 2px : 0px;
             border-color: Theme.accent2;
 
@@ -4783,7 +4805,7 @@ export component AppWindow inherits Window {
                 y: 24px * root.k;
                 height: root.next-w * 0.5625;
                 border-radius: Theme.radius;
-                background: root.detail.has-next-image ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+                background: root.detail.has-next-image ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
 
                 // Image déjà recadrée et arrondie (voir Card).
                 if root.detail.has-next-image: Image {
@@ -4875,7 +4897,7 @@ export component AppWindow inherits Window {
 
         // Choix des pistes (au premier plan)
         if root.tp-kind != "": Rectangle {
-            background: #000000a6;
+            background: Theme.scrim.with-alpha(0.65);
             TouchArea {
                 clicked => {
                     root.tp-kind = "";
@@ -4891,6 +4913,7 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; }
                 TouchArea {
                     // La molette ne fait pas défiler la page dessous.
                     scroll-event(e) => {
@@ -4920,20 +4943,21 @@ export component AppWindow inherits Window {
                     border-radius: 10px * root.k;
                     background: (i == root.tp-sel || tp-area.has-hover)
                         ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && (i == root.tp-sel || tp-area.has-hover); }
                     if t.current: Rectangle {
                         x: 14px * root.k;
                         y: (parent.height - self.height) / 2;
                         width: 9px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: white;
+                        background: (i == root.tp-sel || tp-area.has-hover ? Theme.on-accent : Theme.fg);
                     }
                     Text {
                         x: 34px * root.k;
                         width: parent.width - 44px * root.k;
                         height: parent.height;
                         text: t.label;
-                        color: white;
+                        color: (i == root.tp-sel || tp-area.has-hover ? Theme.on-accent : Theme.fg);
                         font-size: 15px * root.k;
                         vertical-alignment: center;
                         overflow: elide;
@@ -5203,9 +5227,10 @@ export component AppWindow inherits Window {
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                    : (srv-area.has-hover ? #ffffff26 : #ffffff12);
+                    : (srv-area.has-hover ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 border-width: self.sel ? 0px : 1px;
-                border-color: #ffffff1f;
+                border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
                 transform-scale: self.sel ? 1.03 : 1.0;
                 animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
@@ -5216,7 +5241,7 @@ export component AppWindow inherits Window {
                     width: 52px * root.k;
                     height: self.width;
                     border-radius: self.width / 2;
-                    background: parent.sel ? #ffffff33 : #ffffff14;
+                    background: parent.sel ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.2) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
                     Path {
                         width: 26px * root.k;
                         height: 26px * root.k;
@@ -5225,7 +5250,7 @@ export component AppWindow inherits Window {
                         viewbox-width: 24;
                         viewbox-height: 24;
                         fill: transparent;
-                        stroke: white;
+                        stroke: (srv-card.sel ? Theme.on-accent : Theme.fg);
                         stroke-width: 2px * root.k;
                         commands: "M 4 4 L 20 4 L 20 10 L 4 10 Z M 4 14 L 20 14 L 20 20 L 4 20 Z M 7 7 L 8.5 7 M 7 17 L 8.5 17";
                     }
@@ -5240,7 +5265,7 @@ export component AppWindow inherits Window {
                         alignment: start;
                         Text {
                             text: s.name;
-                            color: white;
+                            color: (srv-card.sel ? Theme.on-accent : Theme.fg);
                             font-size: 20px * root.k;
                             font-weight: 700;
                             vertical-alignment: center;
@@ -5248,10 +5273,10 @@ export component AppWindow inherits Window {
                         if s.version != "": Rectangle {
                             width: ver.preferred-width + 16px * root.k;
                             border-radius: self.height / 2;
-                            background: #ffffff26;
+                            background: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15);
                             ver := Text {
                                 text: "Jellyfin " + s.version;
-                                color: #ffffffd9;
+                                color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
                                 font-size: 11px * root.k;
                                 font-weight: 600;
                                 horizontal-alignment: center;
@@ -5274,7 +5299,7 @@ export component AppWindow inherits Window {
                     }
                     Text {
                         text: Tr.f(Tr.k, "Principale : {}      Secours : {}", s.main != "" ? s.main : "—", s.backup != "" ? s.backup : "—");
-                        color: #ffffffcc;
+                        color: Theme.fg.with-alpha(0.8);
                         font-size: 13px * root.k;
                         overflow: elide;
                     }
@@ -5321,7 +5346,7 @@ export component AppWindow inherits Window {
         if srv.mo-p > 0.01: Rectangle {
             y: -root.header-h;
             height: parent.height + root.header-h;
-            background: #000000b3.transparentize(1 - srv.mo-p);
+            background: Theme.scrim.with-alpha(0.7).transparentize(1 - srv.mo-p);
 
             TouchArea {
                 // La molette ne fait pas défiler la page dessous.
@@ -5416,6 +5441,7 @@ export component AppWindow inherits Window {
                     background: Theme.glass;
                     border-width: 1px;
                     border-color: Theme.glass-border;
+                    Gloss { r: parent.border-radius; strength: 0.45; }
                 }
                 VerticalLayout {
                     padding: 26px * root.k;
@@ -5424,7 +5450,7 @@ export component AppWindow inherits Window {
 
                     Text {
                         text: Tr.t(Tr.k, "Adresse du serveur");
-                        color: white;
+                        color: Theme.fg;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
@@ -5556,7 +5582,7 @@ export component AppWindow inherits Window {
 
         // http et https répondent tous deux : l'utilisateur choisit.
         if root.choice-a != "": Rectangle {
-            background: #000000c0;
+            background: Theme.scrim.with-alpha(0.75);
 
             TouchArea {
                 // La molette ne fait pas défiler la page dessous.
@@ -5572,6 +5598,7 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; }
 
                 property <int> pick: 0;
 
@@ -6077,10 +6104,11 @@ export component AppWindow inherits Window {
             width: sets.left-w - 32px * root.k;
             height: 46px * root.k;
             border-radius: 10px * root.k;
-            background: #ffffff1f;
+            background: Theme.fg.with-alpha(0.12);
             Rectangle {
                 border-radius: parent.border-radius;
                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                Gloss { r: parent.border-radius; strength: 0.8; }
                 opacity: !root.set-in && !root.h-focus ? 1 : 0;
                 animate opacity { duration: Motion.panels ? 200ms : 0ms; }
             }
@@ -6091,19 +6119,20 @@ export component AppWindow inherits Window {
             width: sets.left-w - 32px * root.k;
             height: 46px * root.k;
             border-radius: 10px * root.k;
-            background: cat-area.has-hover && i != root.set-cat ? #ffffff14 : transparent;
+            background: cat-area.has-hover && i != root.set-cat ? ((i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : (i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
             NavIcon {
                 x: 14px * root.k;
                 y: (parent.height - self.height) / 2;
                 width: 22px * root.k;
                 height: 22px * root.k;
                 name: sets.cat-icons[i];
+                tint: i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg;
             }
             Text {
                 x: 46px * root.k;
                 height: parent.height;
                 text: c;
-                color: white;
+                color: (i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg);
                 font-size: 17px * root.k;
                 font-weight: i == root.set-cat ? 700 : 500;
                 vertical-alignment: center;
@@ -6171,7 +6200,7 @@ export component AppWindow inherits Window {
                 width: 4px * root.k;
                 height: (parent.height - sets.pad * 2) * (sets.set-view-h / sets.set-list-h);
                 border-radius: 2px * root.k;
-                background: #ffffff40;
+                background: Theme.fg.with-alpha(0.25);
                 animate y { duration: Motion.scroll ? 220ms : 0ms; easing: ease-out; }
             }
 
@@ -6216,9 +6245,9 @@ export component AppWindow inherits Window {
                         property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
                         property <bool> still: r.kind == "info" || r.kind == "profile";
                         background: r.kind == "info" ? transparent
-                            : r.kind == "profile" ? #ffffff0d
+                            : r.kind == "profile" ? Theme.fg.with-alpha(0.05)
                             : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                            : self.sel ? #ffffff2e : row-area.has-hover ? #ffffff1f : #ffffff12;
+                            : self.sel ? Theme.fg.with-alpha(0.18) : row-area.has-hover ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
                         border-width: self.sel && r.kind != "action" ? 2px : 0px;
                         border-color: Theme.accent2;
                         transform-scale: self.sel ? 1.015 : 1.0;
@@ -6231,7 +6260,7 @@ export component AppWindow inherits Window {
                             width: 72px * root.k;
                             height: self.width;
                             border-radius: self.width / 2;
-                            background: #ffffff1f;
+                            background: Theme.fg.with-alpha(0.12);
                             if root.has-avatar && root.avatar-frames.length == 0: Image {
                                 width: parent.width;
                                 height: parent.height;
@@ -6255,14 +6284,14 @@ export component AppWindow inherits Window {
                             spacing: 3px * root.k;
                             if r.label != "": Text {
                                 text: r.label;
-                                color: white;
+                                color: (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg);
                                 font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                                 overflow: elide;
                             }
                             if r.hint != "": Text {
                                 text: r.hint;
-                                color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? #ffffffd9 : #ffffff99;
+                                color: set-row.still ? Theme.muted : r.kind == "action" && set-row.sel ? ((r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.85) : ((r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.6);
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
                             }
@@ -6276,14 +6305,15 @@ export component AppWindow inherits Window {
                             animate width { duration: Motion.panels ? 420ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                             height: 34px * root.k;
                             border-radius: self.height / 2;
-                            background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff1f;
+                            background: parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.12);
+                            Gloss { r: parent.border-radius; strength: 0.8; }
                             clip: true;
                             val-t := Text {
                                 x: parent.width - self.width - 32px * root.k;
                                 width: self.preferred-width;
                                 height: parent.height;
                                 text: r.value;
-                                color: white;
+                                color: (set-row.sel ? Theme.on-accent : Theme.fg);
                                 font-size: 15px * root.k;
                                 font-weight: 600;
                                 vertical-alignment: center;
@@ -6296,7 +6326,7 @@ export component AppWindow inherits Window {
                                 viewbox-width: 12;
                                 viewbox-height: 12;
                                 fill: transparent;
-                                stroke: white;
+                                stroke: (set-row.sel ? Theme.on-accent : Theme.fg);
                                 stroke-width: 2px * root.k;
                                 commands: "M 2 4 L 6 8 L 10 4";
                             }
@@ -6307,7 +6337,7 @@ export component AppWindow inherits Window {
                             width: 240px * root.k;
                             height: parent.height;
                             text: r.value;
-                            color: #ffffffd9;
+                            color: ((set-row.sel || row-area.has-hover ? Theme.on-accent : (set-row.sel || row-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
                             font-size: 15px * root.k;
                             font-weight: 600;
                             horizontal-alignment: right;
@@ -6320,13 +6350,14 @@ export component AppWindow inherits Window {
                             width: 56px * root.k;
                             height: 30px * root.k;
                             border-radius: self.height / 2;
-                            background: r.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff33;
+                            background: r.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.2);
+                            Gloss { r: parent.border-radius; strength: 0.8; }
                             Rectangle {
                                 x: r.on ? parent.width - self.width - 4px * root.k : 4px * root.k;
                                 width: 22px * root.k;
                                 height: 22px * root.k;
                                 border-radius: self.height / 2;
-                                background: white;
+                                background: Theme.on-accent;
                                 animate x { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                             }
                         }
@@ -6361,7 +6392,7 @@ export component AppWindow inherits Window {
         animate ch-p { duration: Motion.panels ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.ch-p > 0.01 && !root.dust-snap: ch-pane := Rectangle {
             // Langue : voile léger, les blocs blancs de l'effet restent blancs.
-            background: (root.ch-key == "language" || root.dust-on ? #00000026 : #00000080).transparentize(1 - sets.ch-p);
+            background: (root.ch-key == "language" || root.dust-on ? Theme.scrim.with-alpha(0.15) : Theme.scrim.with-alpha(0.5)).transparentize(1 - sets.ch-p);
             TouchArea {
                 clicked => {
                     root.ch-key = "";
@@ -6389,6 +6420,7 @@ export component AppWindow inherits Window {
                 background: Theme.glass;
                 border-width: 1px;
                 border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; }
                 TouchArea {
                     // La molette ne fait pas défiler la page dessous.
                     scroll-event(e) => {
@@ -6401,7 +6433,7 @@ export component AppWindow inherits Window {
                     height: 62px * root.k;
                     text: root.ch-title;
                     font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
-                    color: white;
+                    color: Theme.fg;
                     font-size: 18px * root.k;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -6418,13 +6450,14 @@ export component AppWindow inherits Window {
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
                         background: i == root.ch-sel || ch-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && (i == root.ch-sel || ch-area.has-hover); }
                         Text {
                             x: 16px * root.k;
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
                             font-family: "Montserrat";
-                            color: white;
+                            color: (i == root.ch-sel || ch-area.has-hover ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
@@ -6438,7 +6471,7 @@ export component AppWindow inherits Window {
                             viewbox-width: 16;
                             viewbox-height: 16;
                             fill: transparent;
-                            stroke: i == root.ch-sel ? white : Theme.accent2;
+                            stroke: i == root.ch-sel ? Theme.on-accent : Theme.accent2;
                             stroke-width: 2.4px * root.k;
                             commands: "M 2.5 8.5 L 6.5 12.5 L 13.5 3.5";
                         }
@@ -6509,7 +6542,7 @@ export component AppWindow inherits Window {
                 width: 56px * root.k;
                 height: self.width;
                 border-radius: self.width / 2;
-                background: #ffffff1f;
+                background: Theme.fg.with-alpha(0.12);
                 border-width: 2px * root.k;
                 border-color: Theme.accent2;
                 if root.has-avatar && root.avatar-frames.length == 0: Image {
@@ -6554,10 +6587,11 @@ export component AppWindow inherits Window {
                     animate y { duration: Motion.scroll ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
-                    background: #ffffff1f;
+                    background: Theme.fg.with-alpha(0.12);
                     Rectangle {
                         border-radius: parent.border-radius;
                         background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                        Gloss { r: parent.border-radius; strength: 0.8; }
                         opacity: !root.h-focus && root.av-zone == 0 ? 1 : 0;
                         animate opacity { duration: Motion.panels ? 200ms : 0ms; }
                     }
@@ -6567,13 +6601,13 @@ export component AppWindow inherits Window {
                     animate y { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
-                    background: avg-area.has-hover && i != root.av-group ? #ffffff14 : transparent;
+                    background: avg-area.has-hover && i != root.av-group ? ((i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
                     Text {
                         x: 16px * root.k;
                         width: parent.width - 70px * root.k;
                         height: parent.height;
                         text: g.title;
-                        color: white;
+                        color: (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg);
                         font-size: 16px * root.k;
                         font-weight: i == root.av-group ? 700 : 500;
                         vertical-alignment: center;
@@ -6584,7 +6618,7 @@ export component AppWindow inherits Window {
                         width: 46px * root.k;
                         height: parent.height;
                         text: g.count;
-                        color: #ffffffb3;
+                        color: ((i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg))).with-alpha(0.7);
                         font-size: 13px * root.k;
                         horizontal-alignment: right;
                         vertical-alignment: center;
@@ -6657,9 +6691,9 @@ export component AppWindow inherits Window {
                             width: sets.av;
                             height: sets.av;
                             border-radius: self.width / 2;
-                            background: cell.lit ? #ffffff26 : #ffffff12;
+                            background: cell.lit ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
                             border-width: cell.lit ? 4px * root.k : cell.done ? 3px * root.k : 0px;
-                            border-color: cell.done ? #4ade80 : Theme.accent2;
+                            border-color: cell.done ? Theme.ok : Theme.accent2;
                             transform-scale: cell.squash ? 0.92 : cell.lit ? 1.14 : 1.0;
                             animate transform-scale { duration: Motion.select ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                             animate background { duration: Motion.select ? 160ms : 0ms; }
@@ -6681,7 +6715,7 @@ export component AppWindow inherits Window {
                                 viewbox-width: 100;
                                 viewbox-height: 100;
                                 fill: transparent;
-                                stroke: white;
+                                stroke: Theme.fg;
                                 stroke-width: 4px * root.k;
                                 commands: "M 50 6 A 44 44 0 0 1 94 50";
                                 transform-rotation: mod(animation-tick() / 1ms, 900) / 900 * 360deg;
@@ -6717,7 +6751,7 @@ export component AppWindow inherits Window {
                             y: sets.av + 16px * root.k;
                             width: parent.width - 8px * root.k;
                             text: a.title;
-                            text-color: cell.lit ? white : Theme.muted;
+                            text-color: cell.lit ? Theme.fg : Theme.muted;
                             font-size: 13px * root.k;
                             horizontal-alignment: center;
                             active: cell.sel;
@@ -6745,13 +6779,13 @@ export component AppWindow inherits Window {
                     width: 4px * root.k;
                     height: parent.height;
                     border-radius: 2px * root.k;
-                    background: #ffffff14;
+                    background: Theme.fg.with-alpha(0.08);
                     Rectangle {
                         y: parent.height * root.av-top / sets.av-lines;
                         animate y { duration: Motion.scroll ? 260ms : 0ms; easing: ease-out; }
                         height: parent.height * sets.av-rows / sets.av-lines;
                         border-radius: 2px * root.k;
-                        background: #ffffff66;
+                        background: Theme.fg.with-alpha(0.4);
                     }
                 }
             }
@@ -6766,7 +6800,7 @@ export component AppWindow inherits Window {
         if sets.ad-p > 0.01: Rectangle {
             y: -root.header-h;
             height: parent.height + root.header-h;
-            background: #000000b3.transparentize(1 - sets.ad-p);
+            background: Theme.scrim.with-alpha(0.7).transparentize(1 - sets.ad-p);
             TouchArea {
                 // La molette ne fait pas défiler la page dessous.
                 scroll-event(e) => {
@@ -6850,6 +6884,7 @@ export component AppWindow inherits Window {
                     background: Theme.glass;
                     border-width: 1px;
                     border-color: Theme.glass-border;
+                    Gloss { r: parent.border-radius; strength: 0.45; }
                 }
                 VerticalLayout {
                     padding: 26px * root.k;
@@ -6858,7 +6893,7 @@ export component AppWindow inherits Window {
 
                     Text {
                         text: root.addr-edit == 1 ? Tr.t(Tr.k, "Adresse principale") : Tr.t(Tr.k, "Adresse de secours");
-                        color: white;
+                        color: Theme.fg;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
@@ -6970,7 +7005,7 @@ export component AppWindow inherits Window {
         can-back: root.back-ok;
         show-home: true;
         enter: root.page-e;
-        title-color: root.offline ? #4ade80 : Theme.text;
+        title-color: root.offline ? Theme.ok : Theme.text;
         title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
             : root.screen == "party" ? Tr.t(Tr.k, "Watch party") : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
@@ -7010,7 +7045,7 @@ export component AppWindow inherits Window {
     // (il le demande à l'ouverture, avant le début de l'animation). Fermé, il est hors écran.
     Rectangle {
         visible: !root.playing;
-        background: #000000a6.transparentize(1 - root.menu-p);
+        background: Theme.scrim.with-alpha(0.65).transparentize(1 - root.menu-p);
 
         TouchArea {
             enabled: root.menu-open;
@@ -7029,9 +7064,10 @@ export component AppWindow inherits Window {
             x: -(1 - root.menu-p) * (self.width + 8px);
             width: 340px * root.k;
             height: parent.height;
-            background: #0b1520f5;
+            background: Theme.panel;
             border-width: 1px;
             border-color: Theme.glass-border;
+            Gloss { r: parent.border-radius; strength: 0.45; }
 
             property <length> row-h: 40px * root.k;
             property <length> top: 84px * root.k;
@@ -7115,6 +7151,7 @@ export component AppWindow inherits Window {
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
                     background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    Gloss { r: parent.border-radius; strength: 0.8; }
                 }
 
                 for e[i] in root.menu-entries: Rectangle {
@@ -7124,14 +7161,14 @@ export component AppWindow inherits Window {
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
-                    background: !e.header && i != root.menu-sel && row.has-hover ? #ffffff1a : transparent;
+                    background: !e.header && i != root.menu-sel && row.has-hover ? Theme.fg.with-alpha(0.1) : transparent;
 
                     if e.header && i > 0: Rectangle {
                         x: 4px * root.k;
                         y: 6px * root.k;
                         width: parent.width - 8px * root.k;
                         height: 1px;
-                        background: #ffffff38;
+                        background: Theme.fg.with-alpha(0.22);
                     }
 
                     if !e.header: NavIcon {
@@ -7140,13 +7177,13 @@ export component AppWindow inherits Window {
                         width: 20px * root.k;
                         height: 20px * root.k;
                         name: root.menu-icon(e.action);
-                        tint: i == root.menu-sel ? white : #ffffffcc;
+                        tint: i == root.menu-sel ? Theme.on-accent : Theme.fg.with-alpha(0.8);
                     }
                     Marquee {
                         x: (e.header ? 14px : 48px) * root.k;
                         width: parent.width - (e.header ? 28px : 62px) * root.k;
                         text: e.header ? e.label.to-uppercase() : e.label;
-                        text-color: e.header ? Theme.muted : white;
+                        text-color: e.header ? Theme.muted : i == root.menu-sel ? Theme.on-accent : Theme.fg;
                         font-size: (e.header ? 12px : 17px) * root.k;
                         font-weight: e.header ? 700 : (i == root.menu-sel ? 600 : 500);
                         vertical-alignment: e.header ? TextVerticalAlignment.bottom : TextVerticalAlignment.center;
@@ -7162,7 +7199,7 @@ export component AppWindow inherits Window {
                         width: 4px * root.k;
                         height: parent.height * 0.6;
                         border-radius: self.width / 2;
-                        background: i == root.menu-sel ? white : Theme.accent2;
+                        background: i == root.menu-sel ? Theme.on-accent : Theme.accent2;
                     }
                     if !e.header && e.action == root.here: Rectangle {
                         x: parent.width - self.width - 14px * root.k;
@@ -7170,7 +7207,7 @@ export component AppWindow inherits Window {
                         width: 8px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: i == root.menu-sel ? white : Theme.accent2;
+                        background: i == root.menu-sel ? Theme.on-accent : Theme.accent2;
                     }
 
                     row := TouchArea {
@@ -7190,7 +7227,7 @@ export component AppWindow inherits Window {
     // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible.
     if root.sr-open && !root.playing: srp := Rectangle {
         transform-scale: 0.96 + 0.04 * root.page-e;
-        background: #0b1220;
+        background: Theme.bg-end;
 
         property <length> u: min(self.height / 720px, self.width / 1280px) * 1px; // unité : 1 px sur un écran 1280x720
         property <length> pad: 40 * self.u;
@@ -7245,7 +7282,7 @@ export component AppWindow inherits Window {
             image-fit: cover;
         }
         Rectangle {
-            background: @linear-gradient(180deg, #0b122066 0%, #0b1220d9 55%, #0b1220 100%);
+            background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(0.4) 0%, Theme.bg-end.with-alpha(0.85) 55%, Theme.bg-end 100%);
         }
 
         if root.sr.loading: Text {
@@ -7265,7 +7302,7 @@ export component AppWindow inherits Window {
                 height: srp.poster-h;
                 border-radius: 12 * srp.u;
                 visible: !root.hero-covers || !root.hero-seerr;
-                background: root.sr.has-poster ? transparent : #ffffff14;
+                background: root.sr.has-poster ? transparent : Theme.fg.with-alpha(0.08);
                 if root.sr.has-poster: Image {
                     width: parent.width;
                     height: parent.height;
@@ -7285,7 +7322,7 @@ export component AppWindow inherits Window {
 
                 Marquee {
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                    text-color: white;
+                    text-color: Theme.fg;
                     font-size: 38 * srp.u;
                     font-weight: 700;
                     active: true;
@@ -7295,7 +7332,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
                         + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
-                    color: #ffffffd0;
+                    color: Theme.fg.with-alpha(0.82);
                     font-size: 18 * srp.u;
                     overflow: elide;
                 }
@@ -7306,11 +7343,11 @@ export component AppWindow inherits Window {
                     height: 30 * srp.u;
                     for f in root.sr.facts: Rectangle {
                         border-radius: self.height / 2;
-                        background: #ffffff1a;
+                        background: Theme.fg.with-alpha(0.1);
                         width: fact-t.preferred-width + 24 * srp.u;
                         fact-t := Text {
                             text: f.label + " : " + f.value;
-                            color: #ffffffe0;
+                            color: Theme.fg.with-alpha(0.88);
                             font-size: 13 * srp.u;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -7353,7 +7390,7 @@ export component AppWindow inherits Window {
                 width: parent.width - 2 * srp.pad;
                 height: 100 * srp.u;
                 text: root.sr.overview;
-                color: #ffffffd9;
+                color: Theme.fg.with-alpha(0.85);
                 font-size: 17 * srp.u;
                 wrap: word-wrap;
                 overflow: elide;
@@ -7375,7 +7412,7 @@ export component AppWindow inherits Window {
                         width: 84 * srp.u;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: #ffffff1a;
+                        background: Theme.fg.with-alpha(0.1);
                         clip: false;
                         if c.has-image: Image {
                             width: parent.width;
@@ -7388,7 +7425,7 @@ export component AppWindow inherits Window {
                         y: 92 * srp.u;
                         width: parent.width;
                         text: c.title;
-                        color: white;
+                        color: Theme.fg;
                         font-size: 12 * srp.u;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -7500,6 +7537,7 @@ export component AppWindow inherits Window {
         background: Theme.glass;
         border-width: 1px;
         border-color: Theme.glass-border;
+        Gloss { r: parent.border-radius; strength: 0.45; }
         Path {
             x: 18px * root.k;
             y: (parent.height - self.height) / 2;
@@ -7585,9 +7623,10 @@ export component AppWindow inherits Window {
         width: min(parent.width - 64px * root.k, toast-text.preferred-width + 40px * root.k);
         height: toast-text.preferred-height + 20px * root.k;
         border-radius: 12px * root.k;
-        background: #0b1620f2;
+        background: Theme.panel;
         border-width: 1px;
         border-color: Theme.glass-border;
+        Gloss { r: parent.border-radius; strength: 0.45; }
         toast-text := Text {
             x: 20px * root.k;
             width: parent.width - 40px * root.k;
@@ -7770,7 +7809,7 @@ export component AppWindow inherits Window {
     animate hx, hy, hw, hh { duration: Motion.tour ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Voile : sombre pour les étapes à boutons et celles qui éclairent une zone ; léger sinon (la page
     // reste lisible pendant qu'on y navigue).
-    property <color> tour-veil: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8 ? #00000040 : #000000b8;
+    property <color> tour-veil: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8 ? Theme.scrim.with-alpha(0.25) : Theme.scrim.with-alpha(0.72);
     animate tour-veil { duration: Motion.tour ? 300ms : 0ms; }
 
     if root.tour-p > 0.01 && !root.playing: Rectangle {
@@ -7820,9 +7859,10 @@ export component AppWindow inherits Window {
             opacity: self.fresh;
             transform-scale: 0.96 + 0.04 * self.fresh;
             border-radius: 20px * root.k;
-            background: #0b1520f2;
+            background: Theme.panel;
             border-width: root.tour-ok ? 2px * root.k : 1px;
-            border-color: root.tour-ok ? #4ade80 : Theme.glass-border;
+            border-color: root.tour-ok ? Theme.ok : Theme.glass-border;
+            Gloss { r: parent.border-radius; strength: 0.45; }
 
             Text {
                 x: 28px * root.k;
@@ -7834,7 +7874,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Dans le menu") : root.tour-last == 7 ? Tr.t(Tr.k, "Ouvrir un média")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Revenir") : root.tour-last == 9 ? Tr.t(Tr.k, "Pendant la lecture")
                     : Tr.t(Tr.k, "C'est parti !");
-                color: white;
+                color: Theme.fg;
                 font-size: 24px * root.k;
                 font-weight: 700;
                 wrap: word-wrap;
@@ -7878,7 +7918,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil.")
                     : root.tour-last == 9 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture.")
                     : Tr.t(Tr.k, "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos.");
-                color: #ffffffd9;
+                color: Theme.fg.with-alpha(0.85);
                 font-size: 17px * root.k;
             }
 
@@ -7898,9 +7938,9 @@ export component AppWindow inherits Window {
                     width: parent.d;
                     height: parent.d;
                     border-radius: self.width / 2;
-                    background: #ffffff12;
+                    background: Theme.fg.with-alpha(0.07);
                     border-width: 1px;
-                    border-color: #ffffff26;
+                    border-color: Theme.fg.with-alpha(0.15);
                     property <int> lit: parent.lit;
                     for a[i] in ["↑", "→", "↓", "←"]: Text {
                         property <length> r: pad.width / 2 - 17px * root.k;
@@ -7909,7 +7949,7 @@ export component AppWindow inherits Window {
                         width: 24px * root.k;
                         height: 28px * root.k;
                         text: a;
-                        color: pad.lit == i ? Theme.accent2 : #ffffffb0;
+                        color: pad.lit == i ? Theme.accent2 : Theme.fg.with-alpha(0.69);
                         font-size: (pad.lit == i ? 24px : 20px) * root.k;
                         font-weight: 700;
                         horizontal-alignment: center;
@@ -7921,8 +7961,9 @@ export component AppWindow inherits Window {
                         width: 46px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: pad.lit == 4 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
-                        Text { text: "OK"; color: white; font-size: 15px * root.k; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                        background: pad.lit == 4 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.15);
+                        Gloss { r: parent.border-radius; strength: 0.8; }
+                        Text { text: "OK"; color: pad.lit == 4 ? Theme.on-accent : Theme.fg; font-size: 15px * root.k; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
                     }
                 }
                 Rectangle {
@@ -7931,7 +7972,8 @@ export component AppWindow inherits Window {
                     width: 52px * root.k;
                     height: self.width;
                     border-radius: self.width / 2;
-                    background: parent.lit == 5 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
+                    background: parent.lit == 5 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.15);
+                    Gloss { r: parent.border-radius; strength: 0.8; }
                     Path {
                         x: (parent.width - self.width) / 2;
                         y: (parent.height - self.height) / 2;
@@ -7940,7 +7982,7 @@ export component AppWindow inherits Window {
                         viewbox-width: 24;
                         viewbox-height: 24;
                         fill: transparent;
-                        stroke: white;
+                        stroke: Theme.fg;
                         stroke-width: 2.4px * root.k;
                         stroke-line-cap: round;
                         stroke-line-join: round;
@@ -7952,7 +7994,7 @@ export component AppWindow inherits Window {
                     y: parent.d + 4px * root.k;
                     width: 160px * root.k;
                     text: Tr.t(Tr.k, "Flèches et OK");
-                    color: #ffffffa0;
+                    color: Theme.fg.with-alpha(0.63);
                     font-size: 13px * root.k;
                     horizontal-alignment: center;
                 }
@@ -7961,7 +8003,7 @@ export component AppWindow inherits Window {
                     y: parent.d / 2 + 30px * root.k;
                     width: 120px * root.k;
                     text: Tr.t(Tr.k, "Retour");
-                    color: #ffffffa0;
+                    color: Theme.fg.with-alpha(0.63);
                     font-size: 13px * root.k;
                     horizontal-alignment: center;
                 }
@@ -7970,7 +8012,7 @@ export component AppWindow inherits Window {
                     width: parent.width;
                     wrap: word-wrap;
                     text: Tr.t(Tr.k, "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi.");
-                    color: #ffffff80;
+                    color: Theme.fg.with-alpha(0.5);
                     font-size: 13px * root.k;
                     horizontal-alignment: center;
                 }
@@ -7998,7 +8040,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: it.text;
                         wrap: word-wrap;
-                        color: parent.on ? white : #ffffffa8;
+                        color: parent.on ? Theme.fg : Theme.fg.with-alpha(0.66);
                         font-size: 15px * root.k;
                         vertical-alignment: center;
                     }
@@ -8012,7 +8054,7 @@ export component AppWindow inherits Window {
                 width: parent.width - 56px * root.k;
                 height: 150px * root.k;
                 border-radius: 12px * root.k;
-                background: #000000;
+                background: Theme.scrim;
                 clip: true;
                 property <float> t: mod(animation-tick() / 1ms, 2400) / 2400;
                 property <float> up: self.t < 0.4 ? 0 : self.t < 0.6 ? (self.t - 0.4) / 0.2 : self.t < 0.9 ? 1 : 1 - (self.t - 0.9) / 0.1;
@@ -8022,7 +8064,7 @@ export component AppWindow inherits Window {
                     width: parent.width - 28px * root.k;
                     height: 66px * root.k;
                     border-radius: 10px * root.k;
-                    background: #ffffff1a;
+                    background: Theme.fg.with-alpha(0.1);
                     Rectangle {
                         x: 14px * root.k;
                         y: 14px * root.k;
@@ -8037,7 +8079,8 @@ export component AppWindow inherits Window {
                         width: 24px * root.k;
                         height: 24px * root.k;
                         border-radius: 12px * root.k;
-                        background: i == 2 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff26;
+                        background: i == 2 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.15);
+                        Gloss { r: parent.border-radius; strength: 0.8; }
                     }
                 }
                 for e[i] in 4: Rectangle {
@@ -8046,7 +8089,7 @@ export component AppWindow inherits Window {
                     width: (parent.width - 28px * root.k) / 4 - 10px * root.k;
                     height: 40px * root.k;
                     border-radius: 6px * root.k;
-                    background: i == 1 ? Theme.accent2 : #ffffff33;
+                    background: i == 1 ? Theme.accent2 : Theme.fg.with-alpha(0.2);
                 }
                 Text {
                     x: parent.width - 60px * root.k;
@@ -8067,7 +8110,7 @@ export component AppWindow inherits Window {
                 animate width { duration: Motion.tour ? 220ms : 0ms; }
                 height: 7px * root.k;
                 border-radius: 4px * root.k;
-                background: i == root.tour-last ? Theme.accent2 : i < root.tour-last ? #ffffff80 : #ffffff30;
+                background: i == root.tour-last ? Theme.accent2 : i < root.tour-last ? Theme.fg.with-alpha(0.5) : Theme.fg.with-alpha(0.19);
             }
             // Étapes où l'on navigue : comment quitter.
             if root.tour-act: Text {
@@ -8075,7 +8118,7 @@ export component AppWindow inherits Window {
                 y: parent.height - 38px * root.k;
                 height: 24px * root.k;
                 text: root.tour-esc ? Tr.t(Tr.k, "Retour : quitter la visite") : "";
-                color: #ffffff80;
+                color: Theme.fg.with-alpha(0.5);
                 font-size: 13px * root.k;
                 vertical-alignment: center;
             }
@@ -8092,12 +8135,13 @@ export component AppWindow inherits Window {
                     width: self.shown ? b-t.preferred-width + 34px * root.k : 0px;
                     border-radius: 10px * root.k;
                     background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : b-a.has-hover ? #ffffff26 : #ffffff12;
+                        : b-a.has-hover ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
+                    Gloss { r: parent.border-radius; strength: 0.8; }
                     b-t := Text {
                         text: b == 0 ? Tr.t(Tr.k, "Retour") : b == 1 ? Tr.t(Tr.k, "Passer la visite")
                             : root.tour-last == 0 ? Tr.t(Tr.k, "Commencer")
                             : root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
-                        color: parent.on ? white : #ffffffcc;
+                        color: parent.on ? Theme.on-accent : Theme.fg.with-alpha(0.8);
                         font-size: 15px * root.k;
                         font-weight: parent.on ? 700 : 400;
                         horizontal-alignment: center;
@@ -8286,7 +8330,7 @@ export component AppWindow inherits Window {
             height: self.width;
             opacity: root.fly-phase == 3 ? 1 - clamp((parent.v - 0.25) / 0.75, 0, 1) : 1;
             border-radius: self.width / 2;
-            background: @linear-gradient(130deg, #3b2a55 0%, #12304a 100%);
+            background: @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
             clip: true;
             if root.fly-has-img: Image {
                 width: parent.width;
@@ -8296,7 +8340,7 @@ export component AppWindow inherits Window {
             }
             if !root.fly-has-img: Text {
                 text: root.fly-letter;
-                color: white;
+                color: Theme.fg;
                 font-size: parent.height * 0.4;
                 font-weight: 700;
                 horizontal-alignment: center;
@@ -8310,7 +8354,7 @@ export component AppWindow inherits Window {
             width: 160px * root.k;
             height: 4px * root.k;
             border-radius: self.height / 2;
-            background: #ffffff1a;
+            background: Theme.fg.with-alpha(0.1);
             clip: true;
             property <length> seg: 60px * root.k;
             property <length> head: (mod(animation-tick() / 1ms, 1300) / 1300) * (self.width + self.seg);

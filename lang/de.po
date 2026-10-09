@@ -1595,3 +1595,62 @@ msgid "{n} preset"
 msgid_plural "{n} presets"
 msgstr[0] "{n} Preset"
 msgstr[1] "{n} Presets"
+
+msgid "Thème"
+msgstr "Design"
+
+msgid "Couleurs et style de l'interface."
+msgstr "Farben und Stil der Oberfläche."
+
+msgid "Importer un thème"
+msgstr "Design importieren"
+
+msgid "Choisis un fichier de thème (.tftheme) dans le dossier « {} »."
+msgstr "Wähle eine Design-Datei (.tftheme) im Ordner „{}“."
+
+msgid "Exporter le thème"
+msgstr "Design exportieren"
+
+msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."
+msgstr "Schreibt das aktuelle Design in diesen Ordner: eine Vorlage für dein eigenes."
+
+msgid "Supprimer ce thème"
+msgstr "Dieses Design löschen"
+
+msgid "Thème exporté : {}"
+msgstr "Design exportiert: {}"
+
+msgid "Impossible d'exporter le thème : {}"
+msgstr "Design kann nicht exportiert werden: {}"
+
+msgid "Thème supprimé : {}"
+msgstr "Design gelöscht: {}"
+
+msgid "Pas un thème de Turtlefin"
+msgstr "Kein Turtlefin-Design"
+
+msgid "Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué."
+msgstr "Wähle ein Design (.tftheme): es wird zu deinen Designs hinzugefügt und angewendet."
+
+msgid "Thème importé : {}"
+msgstr "Design importiert: {}"
+
+msgid "Thème sombre"
+msgstr "Dunkles Design"
+
+msgid "Thème clair"
+msgstr "Helles Design"
+
+msgid "Sombre"
+msgstr "Dunkel"
+
+msgid "Clair"
+msgstr "Hell"
+
+msgid "Turtlefin vert"
+msgstr "Turtlefin Grün"
+
+msgid "{n} thème"
+msgid_plural "{n} thèmes"
+msgstr[0] "{n} Design"
+msgstr[1] "{n} Designs"

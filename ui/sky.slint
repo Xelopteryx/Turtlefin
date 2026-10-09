@@ -1,0 +1,121 @@
+// Décor du fond pour les thèmes à `Theme.bubbles` (Frutiger Aero) : halo de soleil, voiles de
+// lumière (aurore), colline d'herbe, bulles de savon. Tout est fixe (aucune animation continue :
+// rien à redessiner tant que rien ne bouge), dessiné par-dessus l'image de fond et sous les pages.
+import { Theme } from "theme.slint";
+
+// Une bulle : corps presque transparent au bord plus clair, reflet en haut à gauche, petit éclat
+// en bas à droite.
+component Bubble inherits Rectangle {
+    in property <float> a: 1.0; // opacité générale
+    border-radius: self.width / 2;
+    height: self.width;
+    opacity: root.a;
+    background: @radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.06) 55%,
+        rgba(200, 240, 255, 0.28) 85%, rgba(255, 255, 255, 0.55) 100%);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.55);
+    // Reflet principal (fenêtre de lumière)
+    Rectangle {
+        x: parent.width * 0.16;
+        y: parent.height * 0.1;
+        width: parent.width * 0.42;
+        height: parent.height * 0.26;
+        border-radius: self.height / 2;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.05) 100%);
+    }
+    // Éclat opposé
+    Rectangle {
+        x: parent.width * 0.62;
+        y: parent.height * 0.7;
+        width: parent.width * 0.14;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 100%);
+    }
+}
+
+export component AeroSky inherits Rectangle {
+    in property <float> k: 1.0;
+    property <length> u: min(self.width, self.height * 1.6) / 100;
+
+    // Halo du soleil (en haut à droite)
+    Rectangle {
+        x: parent.width * 0.62;
+        y: -parent.height * 0.35;
+        width: parent.width * 0.6;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 240, 0.22) 30%, rgba(255, 255, 255, 0) 70%);
+    }
+
+    // Voiles de lumière : longues courbes claires qui traversent le ciel.
+    Path {
+        width: 1000px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 600;
+        fill: @linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.32) 45%, rgba(190, 255, 220, 0.18) 75%, rgba(255, 255, 255, 0) 100%);
+        commands: "M -50 330 C 200 220 420 300 620 230 C 800 170 900 120 1050 60 L 1050 110 C 900 170 790 230 620 290 C 420 360 210 280 -50 400 Z";
+    }
+    Path {
+        width: 1000px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 600;
+        fill: @linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(160, 230, 255, 0.28) 50%, rgba(255, 255, 255, 0) 100%);
+        commands: "M -50 430 C 240 350 470 420 700 360 C 850 320 950 290 1050 250 L 1050 275 C 950 315 850 350 700 395 C 470 455 240 395 -50 470 Z";
+    }
+
+    // Colline d'herbe, douce, en bas.
+    Rectangle {
+        y: parent.height * 0.72;
+        height: parent.height * 0.28;
+    Path {
+        width: 1000px;
+        height: 200px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 200;
+        fill: @linear-gradient(180deg, rgba(160, 235, 110, 0.55) 0%, rgba(70, 175, 60, 0.75) 100%);
+        commands: "M 0 120 C 180 40 380 30 560 80 C 720 125 860 70 1000 40 L 1000 200 L 0 200 Z";
+    }
+    Path {
+        width: 1000px;
+        height: 200px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 200;
+        fill: @linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
+        commands: "M 0 120 C 180 40 380 30 560 80 C 720 125 860 70 1000 40 L 1000 52 C 860 82 720 137 560 92 C 380 42 180 52 0 132 Z";
+    }
+
+    }
+
+    // Bulles (tailles et places fixes, plutôt sur les bords pour ne pas gêner les affiches).
+    Bubble { x: parent.width * 0.04; y: parent.height * 0.62; width: 9 * root.u; }
+    Bubble { x: parent.width * 0.11; y: parent.height * 0.5; width: 4 * root.u; a: 0.8; }
+    Bubble { x: parent.width * 0.02; y: parent.height * 0.36; width: 3 * root.u; a: 0.7; }
+    Bubble { x: parent.width * 0.16; y: parent.height * 0.7; width: 2.2 * root.u; a: 0.7; }
+    Bubble { x: parent.width * 0.87; y: parent.height * 0.55; width: 11 * root.u; }
+    Bubble { x: parent.width * 0.82; y: parent.height * 0.42; width: 3.6 * root.u; a: 0.85; }
+    Bubble { x: parent.width * 0.94; y: parent.height * 0.3; width: 5 * root.u; a: 0.8; }
+    Bubble { x: parent.width * 0.78; y: parent.height * 0.76; width: 2.6 * root.u; a: 0.7; }
+    Bubble { x: parent.width * 0.47; y: parent.height * 0.82; width: 3.2 * root.u; a: 0.6; }
+    Bubble { x: parent.width * 0.58; y: parent.height * 0.12; width: 2.4 * root.u; a: 0.6; }
+    Bubble { x: parent.width * 0.33; y: parent.height * 0.18; width: 1.8 * root.u; a: 0.55; }
+    Bubble { x: parent.width * 0.69; y: parent.height * 0.9; width: 5.5 * root.u; a: 0.75; }
+}

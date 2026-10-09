@@ -4,7 +4,7 @@
 // Retour arrière : effacer.
 // Le clavier ne modifie jamais `text` lui-même : il propose le nouveau texte par `edited`.
 
-import { Theme, Tr } from "theme.slint";
+import { Theme, Tr, Gloss } from "theme.slint";
 
 // Vrai clavier branché (mode TV) : un caractère imprimable est écrit tel quel (Rust décide).
 export global OskKeys {
@@ -137,16 +137,18 @@ export component Osk inherits Rectangle {
             border-radius: 10px * root.k;
             property <bool> lit: (root.active && ri == root.r && ci == root.c) || ka.has-hover;
             background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                : key == "OK" ? #ffffff38 : (key == "⇧" && root.shift) ? #ffffff4d
-                : key.character-count > 1 || key == "⇧" || key == "⌫" ? #ffffff24 : #ffffff14;
+                : key == "OK" ? Theme.fg.with-alpha(0.22) : (key == "⇧" && root.shift) ? Theme.fg.with-alpha(0.3)
+                : key.character-count > 1 || key == "⇧" || key == "⌫" ? Theme.fg.with-alpha(0.14) : Theme.fg.with-alpha(0.08);
+            Gloss { r: parent.border-radius; strength: 0.8; }
+            property <color> lit-ink: self.lit ? Theme.on-accent : Theme.fg;
 
             if key == "⇧": Path {
                 width: 20px * root.k;
                 height: 20px * root.k;
                 viewbox-width: 20;
                 viewbox-height: 20;
-                fill: root.shift ? white : transparent;
-                stroke: white;
+                fill: root.shift ? parent.lit-ink : transparent;
+                stroke: parent.lit-ink;
                 stroke-width: 2px * root.k;
                 commands: "M 10 2 L 18 11 L 13.5 11 L 13.5 18 L 6.5 18 L 6.5 11 L 2 11 Z";
             }
@@ -156,14 +158,14 @@ export component Osk inherits Rectangle {
                 viewbox-width: 26;
                 viewbox-height: 20;
                 fill: transparent;
-                stroke: white;
+                stroke: parent.lit-ink;
                 stroke-width: 2px * root.k;
                 commands: "M 8 2 L 24 2 L 24 18 L 8 18 L 1 10 Z M 12 6 L 19 14 M 19 6 L 12 14";
             }
             if key != "⇧" && key != "⌫": Text {
                 text: key == "␣" ? Tr.t(Tr.k, "espace") : key == "OK" ? root.ok-label
                     : key.character-count == 1 && root.shift ? key.to-uppercase() : key;
-                color: white;
+                color: parent.lit-ink;
                 font-size: (key.character-count > 1 ? 16px : 22px) * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;

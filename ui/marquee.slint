@@ -1,4 +1,4 @@
-import { Prefs } from "theme.slint";
+import { Prefs, Theme } from "theme.slint";
 
 // Texte d'une ligne : coupé avec « … » au repos ; quand `active` (carte sélectionnée) et trop long,
 // il défile en aller-retour, avec une pause à chaque bout. Seul l'élément sélectionné s'anime :
@@ -6,7 +6,7 @@ import { Prefs } from "theme.slint";
 export component Marquee inherits Rectangle {
     in property <string> text;
     in property <bool> active;
-    in property <brush> text-color: white;
+    in property <brush> text-color: Theme.fg;
     in property <length> font-size: 15px;
     in property <int> font-weight: 500;
     in property <TextHorizontalAlignment> horizontal-alignment: center;
