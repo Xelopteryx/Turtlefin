@@ -43,16 +43,20 @@ component Ghost inherits Rectangle {
     in property <int> serial;
     in property <length> font-size;
     in property <float> k: 1.0;
-    // Animée seulement pendant son passage (pas de rafraîchissement continu ensuite).
+    // Animée seulement pendant son passage (pas de rafraîchissement continu ensuite). La place peut
+    // resservir avant la fin (effacement rapide) : l'arrêt se règle sur la dernière lettre reçue, pas
+    // sur la première (sinon la nouvelle lettre disparaissait d'un coup, en plein glissement).
     property <bool> live;
     changed serial => {
         self.live = true;
     }
     Timer {
-        interval: 300ms;
+        interval: 50ms;
         running: root.live;
         triggered => {
-            root.live = false;
+            if (animation-tick() - root.t0 > 280ms) {
+                root.live = false;
+            }
         }
     }
     property <float> p: root.live && Motion.search ? clamp((animation-tick() - root.t0) / 260ms, 0, 1) : 1;

@@ -29,7 +29,7 @@ real-time blur or filter animations.
 | Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed while PipeWire held the HDMI output |
 | Memory | mpv cache capped (100 / 25 MiB), images requested at the right size, 16 items per row | Small machines (4 GB) |
 | Languages | Texts written in French in the code (source language), gettext translations in `lang/<code>/LC_MESSAGES/turtlefin.po`, built in | See section 6 |
-| TV interface (Windows) | Borderless window covering the screen + 1 px (`src/winfull.rs`, `set_tv_window`), not true full screen; follows resolution changes (every 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` for Slint's full screen | In OpenGL full screen, AMD Software treats the app as a game: “Press ALT + R” every time it comes back to the foreground |
+| TV interface and full screen (Windows) | Borderless window covering the screen + 1 px (`src/winfull.rs`, `set_tv_window`), not true full screen; follows resolution changes (every 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` for Slint's full screen | In OpenGL full screen, AMD Software treats the app as a game: “Press ALT + R” every time it comes back to the foreground |
 | Window (Windows, desktop) | Shrunk and centred when 1280 x 720 + frame exceeds the work area | 1366 x 768 screens: the bottom went under the taskbar |
 | Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one | User request: no console unless asked |
 | Command line | Always wins over settings (startup account, TV interface) | User request |
@@ -150,7 +150,10 @@ plugged into a TV, with the `test` / `test2` accounts of a real server. Notable 
   the language list. Cascades capped (rows after the 8th stayed shifted). Profile pictures cached on disk
   (`avatar_<id>_anim.bin` + `_thumb.png` thumbnail): thumbnail shown at once, full GIF decoded off the UI
   thread. `TURTLEFIN_DEBUG_GAPS=1` diagnostic (with `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`): reports
-  pauses over 40 ms between two frames.
+  pauses over 40 ms between two frames. F11: `install_f11`, a winit event filter (Slint's `unstable-winit-030`
+  feature, hence `~1.18` in Cargo.toml); full screen outside TV: `UiPrefs::fullscreen`, `set_full` /
+  `toggle_full`. Physical keyboard in fields, mouse and wheel everywhere, TV mode included (`typing-key`,
+  `erase-key`, `Field.type`).
 
 Not done: Quick Connect; gamepad; optional blurred background with transparent logos; licence (maintainer's
 choice); XeLauncher bridge (the maintainer's media-center launcher, low priority).

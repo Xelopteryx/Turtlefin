@@ -770,6 +770,12 @@ msgstr "Przewijaj zbyt długie nazwy"
 msgid "Sur l'élément sélectionné seulement."
 msgstr "Tylko na wybranym elemencie."
 
+msgid "Plein écran"
+msgstr "Pełny ekran"
+
+msgid "La fenêtre couvre tout l'écran. F11 bascule aussi, partout."
+msgstr "Okno zajmuje cały ekran. F11 też to przełącza, wszędzie."
+
 msgid "Afficher l'heure"
 msgstr "Pokazuj godzinę"
 

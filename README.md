@@ -124,6 +124,9 @@ Command-line options always win over settings (startup account, TV interface).
 - ↑ from the top of a page: top bar (back, home, menu, watch party, random, search, account).
 - Playback, controls hidden: ← → rewind / forward 10 s, ↑ ↓ or Enter show the controls,
   ↓ from the buttons: season episodes. Space: pause · `a` audio · `s` subtitles · `f` full screen.
+- **F11**, anywhere: full screen (also in Settings → Display, kept between launches outside the TV interface).
+- Mouse: click to open, wheel to move from row to row (Shift + wheel: within the row);
+  on a physical keyboard, a typed letter goes straight into the text field (search, sign-in, address).
 
 ## Files
 

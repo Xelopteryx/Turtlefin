@@ -311,6 +311,8 @@ pub struct UiPrefs {
     pub sub_scale: f64,
     /// Interface TV (grands éléments, plein écran) ; les options --tv / --desktop priment.
     pub tv: bool,
+    /// Plein écran hors interface TV (Paramètres → Affichage, F11).
+    pub fullscreen: bool,
     pub show_ratings: bool,
     pub marquee: bool,
     pub show_clock: bool,
@@ -428,6 +430,7 @@ impl Default for UiPrefs {
             auto_skip_intro: false,
             sub_scale: 1.0,
             tv: false,
+            fullscreen: false,
             show_ratings: true,
             marquee: true,
             show_clock: true,

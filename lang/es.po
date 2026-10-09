@@ -768,6 +768,12 @@ msgstr "Desplazar los nombres demasiado largos"
 msgid "Sur l'élément sélectionné seulement."
 msgstr "Solo en el elemento seleccionado."
 
+msgid "Plein écran"
+msgstr "Pantalla completa"
+
+msgid "La fenêtre couvre tout l'écran. F11 bascule aussi, partout."
+msgstr "La ventana ocupa toda la pantalla. F11 también la alterna, en cualquier lugar."
+
 msgid "Afficher l'heure"
 msgstr "Mostrar la hora"
 

@@ -768,6 +768,12 @@ msgstr "Deslizar os nomes demasiado longos"
 msgid "Sur l'élément sélectionné seulement."
 msgstr "Só no elemento selecionado."
 
+msgid "Plein écran"
+msgstr "Ecrã inteiro"
+
+msgid "La fenêtre couvre tout l'écran. F11 bascule aussi, partout."
+msgstr "A janela ocupa o ecrã inteiro. F11 também alterna, em qualquer lado."
+
 msgid "Afficher l'heure"
 msgstr "Mostrar a hora"
 

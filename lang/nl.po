@@ -768,6 +768,12 @@ msgstr "Te lange namen laten scrollen"
 msgid "Sur l'élément sélectionné seulement."
 msgstr "Alleen op het geselecteerde item."
 
+msgid "Plein écran"
+msgstr "Volledig scherm"
+
+msgid "La fenêtre couvre tout l'écran. F11 bascule aussi, partout."
+msgstr "Het venster vult het hele scherm. F11 schakelt het ook om, overal."
+
 msgid "Afficher l'heure"
 msgstr "Tijd tonen"
 

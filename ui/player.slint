@@ -607,8 +607,8 @@ export component PlayerView inherits Rectangle {
         }
 
         key-pressed(event) => {
-            // Touche maintenue : Entrée ne répète pas l'action (ouvrir, lancer la lecture...).
-            if (event.repeat && event.text == Key.Return) {
+            // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
+            if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                 return EventResult.accept;
             }
             if (event.text == Key.F11 || event.text == "f") {

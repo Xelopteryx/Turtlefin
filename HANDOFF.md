@@ -30,7 +30,7 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
 | Mémoire | Cache mpv plafonné (100 / 25 MiB), images demandées à la bonne taille, 16 éléments par rangée | Petites machines (4 Go) |
 | Langues | Textes écrits en français dans le code (langue source), traductions gettext dans `lang/<code>/LC_MESSAGES/turtlefin.po`, intégrées à la compilation | Voir section 6 |
-| Interface TV (Windows) | Fenêtre sans bordure qui couvre l'écran + 1 px (`src/winfull.rs`, `set_tv_window`), pas le vrai plein écran ; suit les changements de définition (toutes les 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` pour le plein écran de Slint | En plein écran OpenGL, AMD Software prend l'appli pour un jeu : « Appuyez sur ALT + R » à chaque retour au premier plan |
+| Interface TV et plein écran (Windows) | Fenêtre sans bordure qui couvre l'écran + 1 px (`src/winfull.rs`, `set_tv_window`), pas le vrai plein écran ; suit les changements de définition (toutes les 3 s). `TURTLEFIN_TRUE_FULLSCREEN=1` pour le plein écran de Slint | En plein écran OpenGL, AMD Software prend l'appli pour un jeu : « Appuyez sur ALT + R » à chaque retour au premier plan |
 | Fenêtre (Windows, bureau) | Réduite et centrée si 1280 x 720 + cadre dépasse la zone de travail | Écrans 1366 x 768 : le bas passait sous la barre des tâches |
 | Fenêtre console (Windows) | Sous-système « windows » en release ; `--console` en rattache / ouvre une | Demande de l'utilisateur : pas de console sans option |
 | Ligne de commande | Prime toujours sur les réglages (compte de démarrage, interface TV) | Demande de l'utilisateur |
@@ -154,6 +154,9 @@ Points notables, non évidents dans le code :
   Photos de profil en cache disque (`avatar_<id>_anim.bin` + vignette `_thumb.png`) : vignette posée tout de
   suite, GIF complet décodé hors du fil de l'interface. Diagnostic `TURTLEFIN_DEBUG_GAPS=1` (avec
   `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`) : signale les pauses de plus de 40 ms entre deux images.
+  F11 : `install_f11`, filtre d'événements winit (fonction `unstable-winit-030` de Slint, d'où `~1.18` dans
+  Cargo.toml) ; plein écran hors TV : `UiPrefs::fullscreen`, `set_full` / `toggle_full`. Vrai clavier dans
+  les champs, souris et molette partout, y compris en mode TV (`typing-key`, `erase-key`, `Field.type`).
 
 Pas fait : Quick Connect ; manette ; fond flouté en option avec logos transparents ; licence (à choisir par le
 mainteneur) ; passerelle XeLauncher (lanceur du média center du mainteneur, pas prioritaire).

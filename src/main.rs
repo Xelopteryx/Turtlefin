@@ -97,6 +97,8 @@ struct App {
     device_id: String,
     /// Mode TV (cartes plus grandes : sert au calcul des coins arrondis des images). Réglable.
     tv_flag: AtomicBool,
+    /// Fenêtre en plein écran (interface TV, réglage « Plein écran » ou F11).
+    full_flag: AtomicBool,
     /// Onglet de l'accueil affiché : "home", "favorites" ou "requests".
     tab: Mutex<String>,
     /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
@@ -2513,6 +2515,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
             row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
+            row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
@@ -3185,10 +3188,11 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             app.tv_flag.store(on, Ordering::Relaxed);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tv_mode(on);
-                set_tv_window(&u, on);
             }
+            set_full(app, on || config::ui_prefs().fullscreen);
             refresh_settings(app);
         }
+        "fullscreen" => toggle_full(app),
         "tour" => {
             go_home(app);
             start_tour(app, 1200);
@@ -4476,6 +4480,49 @@ fn set_tv_window(ui: &AppWindow, on: bool) {
     ui.window().set_fullscreen(on);
 }
 
+/// Fenêtre en plein écran ou non (rien si elle l'est déjà).
+fn set_full(app: &Arc<App>, on: bool) {
+    if app.full_flag.swap(on, Ordering::Relaxed) == on {
+        return;
+    }
+    if let Some(u) = app.ui().upgrade() {
+        set_tv_window(&u, on);
+    }
+}
+
+/// F11 ou réglage « Plein écran » : bascule. Hors interface TV, le choix est gardé pour les
+/// prochains lancements ; en interface TV, il ne vaut que jusqu'à la fermeture.
+fn toggle_full(app: &Arc<App>) {
+    let on = !app.full_flag.load(Ordering::Relaxed);
+    if !app.tv() {
+        let mut p = config::ui_prefs();
+        p.fullscreen = on;
+        config::save_ui_prefs(&p);
+    }
+    set_full(app, on);
+    refresh_settings(app);
+}
+
+/// F11, sur toutes les pages (la touche est prise avant l'interface, qui ne la voit pas).
+fn install_f11(app: &Arc<App>) {
+    use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
+    let Some(u) = app.ui().upgrade() else { return };
+    let app = app.clone();
+    u.window().on_winit_window_event(move |_, ev| {
+        if let winit::event::WindowEvent::KeyboardInput { event, .. } = ev {
+            if event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::F11) {
+                if event.state == winit::event::ElementState::Pressed && !event.repeat {
+                    // Hors de l'événement en cours : la fenêtre change de taille.
+                    let app = app.clone();
+                    slint::Timer::single_shot(std::time::Duration::ZERO, move || toggle_full(&app));
+                }
+                return EventResult::PreventDefault;
+            }
+        }
+        EventResult::Propagate
+    });
+}
+
 /// Fenêtre (pas l'interface TV) sur un petit écran : 1280 x 720 plus le cadre dépasse la zone de
 /// travail d'un écran 1366 x 768 (bas caché sous la barre des tâches). On la réduit et la centre.
 #[cfg(windows)]
@@ -4643,7 +4690,7 @@ fn main() -> anyhow::Result<()> {
     }
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
-    if tv {
+    if tv || prefs.fullscreen {
         set_tv_window(&ui, true);
     } else {
         #[cfg(windows)]
@@ -4659,6 +4706,7 @@ fn main() -> anyhow::Result<()> {
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
         tv_flag: AtomicBool::new(tv),
+        full_flag: AtomicBool::new(tv || prefs.fullscreen),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
         library: Mutex::new(None),
@@ -4819,6 +4867,11 @@ fn main() -> anyhow::Result<()> {
         let mut s = t.trim_start_matches('\u{8}').to_string();
         s.pop();
         s.into()
+    });
+
+    ui.on_toggle_full({
+        let app = app.clone();
+        move || toggle_full(&app)
     });
 
     ui.on_random_pick({
@@ -5240,6 +5293,11 @@ fn main() -> anyhow::Result<()> {
         rt.spawn(async move { play_flow(a, None, Some(url)).await });
     }
 
+    // F11 : posé une fois la fenêtre créée (au lancement de la boucle d'événements).
+    {
+        let app = app.clone();
+        slint::Timer::single_shot(std::time::Duration::from_millis(300), move || install_f11(&app));
+    }
     // Windows : l'interface reste animée pendant qu'on déplace ou redimensionne la fenêtre (voir
     // winfull::keep_alive_while_moving) ; posé une fois la fenêtre affichée.
     #[cfg(windows)]

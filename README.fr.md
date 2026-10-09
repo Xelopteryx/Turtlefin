@@ -125,6 +125,9 @@ La ligne de commande l'emporte toujours sur les réglages (compte de démarrage,
 - ↑ depuis le haut d'une page : barre du haut (retour, accueil, menu, watch party, hasard, recherche, compte).
 - Lecture, commandes masquées : ← → reculer / avancer de 10 s, ↑ ↓ ou Entrée affichent les commandes,
   ↓ depuis les boutons : épisodes de la saison. Espace : pause · `a` audio · `s` sous-titres · `f` plein écran.
+- **F11**, partout : plein écran (aussi dans Paramètres → Affichage, gardé d'un lancement à l'autre hors interface TV).
+- Souris : clic pour ouvrir, molette pour passer d'une rangée à l'autre (Maj + molette : dans la rangée) ;
+  au vrai clavier, une lettre tapée va directement dans le champ de texte (recherche, connexion, adresse).
 
 ## Fichiers
 

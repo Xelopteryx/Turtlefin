@@ -7,7 +7,7 @@ repository = "https://github.com/Xelopteryx/Turtlefin"
 authors = ["Xelopteryx"]
 
 [dependencies]
-slint = "1"
+slint = { version = "~1.18", features = ["unstable-winit-030"] }
 # Lecture : libmpv chargée à l'exécution, rendu OpenGL de la vidéo dans la fenêtre Slint.
 libloading = "0.8"
 glow = "0.17"

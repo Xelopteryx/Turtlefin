@@ -768,6 +768,12 @@ msgstr "Scroll names that are too long"
 msgid "Sur l'élément sélectionné seulement."
 msgstr "On the selected item only."
 
+msgid "Plein écran"
+msgstr "Full screen"
+
+msgid "La fenêtre couvre tout l'écran. F11 bascule aussi, partout."
+msgstr "The window covers the whole screen. F11 also toggles it, anywhere."
+
 msgid "Afficher l'heure"
 msgstr "Show the time"
 
