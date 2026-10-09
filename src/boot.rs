@@ -353,6 +353,8 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
         s.server_id = acc.server_id;
         config::save(&s);
         u.set_screen("loading".into());
+        // La photo du compte au centre plutôt que l'écran de chargement.
+        crate::fly_autostart(app, s.server.clone(), s.user_id.clone(), s.user_name.clone());
         let a = app.clone();
         app.rt.spawn(async move { crate::open_saved_session(a, s).await });
         return;

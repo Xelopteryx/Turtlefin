@@ -7913,6 +7913,13 @@ export component AppWindow inherits Window {
         root.fly-phase = phase;
         root.fly-t0 = animation-tick();
     }
+    // Connexion automatique : la photo apparaît directement au centre (pas de tuile d'où partir).
+    public function fly-wait() {
+        root.fly-ss = root.fly-cs;
+        root.fly-sx = root.fly-cx;
+        root.fly-sy = root.fly-cy;
+        root.fly-start(2);
+    }
     Timer {
         interval: 480ms;
         running: root.fly-phase == 1;

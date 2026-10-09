@@ -487,6 +487,8 @@ enum AnimSlot {
     Picker(usize),
     /// Avatar du compte (en-tête, paramètres).
     Header,
+    /// Photo du compte pendant la connexion (au centre de l'écran, voir fly-phase).
+    Fly,
 }
 
 struct Anim {
@@ -523,7 +525,56 @@ fn anim_set(u: &AppWindow, slot: AnimSlot, key: &str, img: slint::Image) -> bool
             u.set_has_avatar(true);
             true
         }
+        AnimSlot::Fly => {
+            u.set_fly_img(img);
+            u.set_fly_has_img(true);
+            true
+        }
     }
+}
+
+/// Photo du compte qui se connecte : ses images animées (celles de sa tuile, ou chargées pour la
+/// connexion automatique) continuent pendant l'animation de connexion.
+fn fly_frames_from_tile(key: &str) {
+    let frames = ANIMS.with_borrow(|list| {
+        list.iter().find(|a| matches!(a.slot, AnimSlot::Login(_)) && a.key == key).map(|a| (a.frames.clone(), a.idx))
+    });
+    let Some((frames, idx)) = frames else { return };
+    stop_anims(|s| s == AnimSlot::Fly);
+    let ms = frames[idx].1;
+    let due = std::time::Instant::now() + std::time::Duration::from_millis(ms as u64);
+    ANIMS.with_borrow_mut(|a| a.push(Anim { slot: AnimSlot::Fly, key: String::new(), frames, idx, due }));
+    // La minuterie tourne déjà : la tuile était animée.
+}
+
+/// Connexion automatique : la photo du compte au centre (initiale d'abord, puis son avatar,
+/// animé s'il l'est) pendant l'ouverture de la session.
+fn fly_autostart(app: &Arc<App>, server: String, uid: String, name: String) {
+    if !config::ui_prefs().anim.login {
+        return;
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_fly_has_img(false);
+        u.set_fly_letter(name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default().into());
+        u.invoke_fly_wait();
+    }
+    let ui = app.ui();
+    app.rt.spawn(async move {
+        let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
+        let Ok(r) = reqwest::Client::new().get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await else { return };
+        if !r.status().is_success() {
+            return;
+        }
+        let Ok(bytes) = r.bytes().await else { return };
+        let Some(frames) = tokio::task::spawn_blocking(move || decode_frames(&bytes, Shape { w: 200, h: 200, radius: 0.5, top_only: false })).await.ok().flatten() else {
+            return;
+        };
+        let _ = ui.upgrade_in_event_loop(move |u| {
+            if u.get_fly_phase() > 0 {
+                show_frames(&u, AnimSlot::Fly, "", frames);
+            }
+        });
+    });
 }
 
 /// Affiche une image (fixe ou animée) à sa place, en remplaçant l'animation qui s'y trouvait.
@@ -555,6 +606,7 @@ fn show_frames(u: &AppWindow, slot: AnimSlot, key: &str, frames: Frames) {
                         AnimSlot::Login(_) => screen == "login",
                         AnimSlot::Picker(_) => screen == "settings" && u.get_av_open(),
                         AnimSlot::Header => screen != "login",
+                        AnimSlot::Fly => u.get_fly_phase() > 0,
                     };
                     if !shown || now < a.due {
                         return true;
@@ -849,6 +901,10 @@ fn login_opened(app: &Arc<App>) {
 /// Tuile choisie : compte enregistré (connexion directe), compte du serveur ou autre compte.
 fn login_pick(app: &Arc<App>, action: String) {
     let Some(u) = app.ui().upgrade() else { return };
+    // Photo qui s'envole : animée comme sur sa tuile.
+    if u.get_fly_phase() > 0 {
+        fly_frames_from_tile(&action);
+    }
     u.set_error_text("".into());
     u.set_login_pass("".into());
     if action == "other" {
