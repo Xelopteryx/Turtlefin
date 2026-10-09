@@ -8,6 +8,7 @@
 // vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
 import { Theme, Tr, Gloss } from "theme.slint";
+import { AeroSky } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
 
@@ -36,6 +37,11 @@ export component BootLogo inherits Rectangle {
     callback finished();                   // fin du zoom
 
     background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
+    if Theme.bubbles: AeroSky { k: root.k; }
+
+    // Style « Aero » (Theme.boot-style 1) : les points sont des billes de verre lumineuses ; à la
+    // liaison, elles tourbillonnent jusqu'au centre, un éclair blanc jaillit et le logo apparaît.
+    property <bool> aero: Theme.boot-style == 1;
 
     // Géométrie commune avec l'icône (packaging/turtlefin.svg, packaging/icons/make-icons.py) :
     // repère 256, centre (128, 128) ; hexagone de rayon 68 (trait 14), hexagone central plein de
@@ -46,7 +52,7 @@ export component BootLogo inherits Rectangle {
     property <[float]> iy: [98, 113, 143, 158, 143, 113];
     property <length> side: min(self.width, self.height) * 0.46;
     property <length> u: self.side / 256;
-    property <brush> grad: @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
+    property <brush> grad: @linear-gradient(135deg, Theme.accent1.with-alpha(root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 100%);
 
     // Horloges des phases (au temps : rien n'est redessiné en dehors).
     property <duration> t-link;
@@ -61,13 +67,17 @@ export component BootLogo inherits Rectangle {
             zoom-timer.running = true;
         }
     }
-    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / 900ms, 0, 1) : 1;
+    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / (root.aero ? 1500ms : 900ms), 0, 1) : 1;
+    // Aero : tourbillon (0 -> 1), éclair (monte puis retombe), apparition du logo.
+    property <float> swirl: root.ease-io(clamp(root.lp / 0.6, 0, 1));
+    property <float> flash: sin(clamp((root.lp - 0.48) / 0.4, 0, 1) * 180deg);
+    property <float> reveal: root.aero ? root.ease(clamp((root.lp - 0.58) / 0.42, 0, 1)) : 1;
     property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 750ms, 0, 1);
     // Liaison : contour (première moitié), puis rayons et hexagone central (seconde moitié).
-    property <float> edge-p: root.ease(clamp(root.lp * 2, 0, 1));
-    property <float> spoke-p: root.ease(clamp(root.lp * 2 - 1, 0, 1));
+    property <float> edge-p: root.aero ? (root.lp >= 0.58 ? 1 : 0) : root.ease(clamp(root.lp * 2, 0, 1));
+    property <float> spoke-p: root.aero ? (root.lp >= 0.58 ? 1 : 0) : root.ease(clamp(root.lp * 2 - 1, 0, 1));
     link-timer := Timer {
-        interval: 1100ms;
+        interval: root.aero ? 1650ms : 1100ms;
         running: false;
         triggered => {
             self.running = false;
@@ -87,6 +97,13 @@ export component BootLogo inherits Rectangle {
 
     pure function ease(t: float) -> float {
         return 1 - (1 - t) * (1 - t) * (1 - t);
+    }
+    pure function ease-io(t: float) -> float {
+        return t < 0.5 ? 4 * t * t * t : 1 - (2 - 2 * t) * (2 - 2 * t) * (2 - 2 * t) / 2;
+    }
+    // Couleur d'une bille (Aero) : vert, orange, rouge, bleu d'attente, gris.
+    pure function orb-color(s: int) -> color {
+        return s == 2 ? #3fd46a : s == 4 ? #ffb02e : s == 3 ? #ff4d4d : s == 1 ? Theme.accent2 : #9fb8d8;
     }
     // Couleur du dégradé du logo à un endroit du repère (pour que les points s'y fondent).
     pure function logo-color(x: float, y: float) -> color {
@@ -115,6 +132,26 @@ export component BootLogo inherits Rectangle {
         height: root.side;
         // Zoom dans le point central.
         transform-scale: 1 + root.zp * root.zp * 26;
+
+        // Aero : halo du logo qui s'allume, et éclair blanc au moment où les billes se rejoignent.
+        if root.aero && root.lp > 0.4: Rectangle {
+            property <float> w: 120 + 150 * root.reveal;
+            x: (128 - self.w / 2) * root.u;
+            y: (128 - self.w / 2) * root.u;
+            width: self.w * root.u;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: @radial-gradient(circle, Theme.accent2.with-alpha(0.55 * root.reveal) 0%, Theme.accent2.with-alpha(0.18 * root.reveal) 40%, Theme.accent2.with-alpha(0) 70%);
+        }
+        if root.aero && root.flash > 0.01: Rectangle {
+            property <float> w: 30 + 330 * root.flash;
+            x: (128 - self.w / 2) * root.u;
+            y: (128 - self.w / 2) * root.u;
+            width: self.w * root.u;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: @radial-gradient(circle, rgba(255, 255, 255, 0.95 * root.flash) 0%, rgba(200, 240, 255, 0.5 * root.flash) 25%, rgba(200, 240, 255, 0) 70%);
+        }
 
         // Contour : chaque arête part de son sommet vers le suivant, toutes en même temps.
         for i in 6: Path {
@@ -180,16 +217,35 @@ export component BootLogo inherits Rectangle {
         // trait : il devient l'angle arrondi du contour.
         for i in 6: Rectangle {
             property <int> s: root.state[i];
-            property <float> base: root.dot-size(self.s);
+            property <float> base: root.dot-size(self.s) * (root.aero ? 1.25 : 1);
             animate base { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-            property <length> d: (self.base + (14 - self.base) * root.edge-p) * root.u;
-            x: root.px[i] * root.u - self.d / 2;
-            y: root.py[i] * root.u - self.d / 2;
+            // Aero : la bille tourne autour du centre en s'en rapprochant (rayon 68 -> 0).
+            property <angle> ang: (-90 + 60 * i) * 1deg + root.swirl * 420deg;
+            property <float> rad: 68 * (1 - root.swirl);
+            property <float> cx: root.aero ? 128 + self.rad * cos(self.ang) : root.px[i];
+            property <float> cy: root.aero ? 128 + self.rad * sin(self.ang) : root.py[i];
+            property <length> d: (root.aero ? self.base * (1 - 0.35 * root.swirl) : self.base + (14 - self.base) * root.edge-p) * root.u;
+            x: self.cx * root.u - self.d / 2;
+            y: self.cy * root.u - self.d / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            background: root.dot-color(self.s, root.px[i], root.py[i]);
+            visible: !root.aero || root.lp < 0.62;
+            background: root.aero
+                ? @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%)
+                : root.dot-color(self.s, root.px[i], root.py[i]);
             animate background { duration: 300ms; }
+            drop-shadow-blur: root.aero ? self.d * 0.9 : 0px;
+            drop-shadow-color: root.aero ? root.orb-color(self.s).with-alpha(0.85) : transparent;
+            // Reflet de la bille.
+            if root.aero: Rectangle {
+                x: parent.width * 0.2;
+                y: parent.height * 0.1;
+                width: parent.width * 0.6;
+                height: parent.height * 0.42;
+                border-radius: self.height / 2;
+                background: @linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.05) 100%);
+            }
             // Libellé, à l'extérieur de l'hexagone.
             Text {
                 property <float> ox: (root.px[i] - 128) * 0.55;
@@ -200,7 +256,7 @@ export component BootLogo inherits Rectangle {
                 text: root.labels[i];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -218,8 +274,20 @@ export component BootLogo inherits Rectangle {
             height: self.d;
             border-radius: self.d / 2;
             // Fondu par la couleur (voir les libellés).
-            background: root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
+            background: root.aero
+                ? (root.lp >= 0.6 ? transparent : @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%))
+                : root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
             animate background { duration: 300ms; }
+            drop-shadow-blur: root.aero && root.lp < 0.6 ? self.d * 0.9 : 0px;
+            drop-shadow-color: root.orb-color(self.s).with-alpha(0.85);
+            if root.aero && root.lp < 0.6: Rectangle {
+                x: parent.width * 0.2;
+                y: parent.height * 0.1;
+                width: parent.width * 0.6;
+                height: parent.height * 0.42;
+                border-radius: self.height / 2;
+                background: @linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.05) 100%);
+            }
             Text {
                 x: (parent.width - self.width) / 2;
                 y: parent.height + 6px * root.k;
@@ -227,7 +295,7 @@ export component BootLogo inherits Rectangle {
                 text: root.labels[6];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -245,7 +313,7 @@ export component BootLogo inherits Rectangle {
         alignment: start;
         Text {
             text: root.fail != "" ? root.fail : root.text;
-            color: (root.fail != "" ? Theme.danger-text : Theme.muted).transparentize(root.edge-p);
+            color: (root.fail != "" ? Theme.danger-text : Theme.muted).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
             font-size: 16px * root.k;
             horizontal-alignment: center;
             wrap: word-wrap;

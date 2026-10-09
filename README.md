@@ -162,8 +162,8 @@ language and preset folders next to the program.
 
 ## Themes
 
-Settings → Display → **Theme**: Turtlefin (default), Dark, Light, Frutiger Aero (sky, grass, bubbles, glossy gel
-buttons), Turtlefin green — or a theme of your own.
+Settings → Display → **Theme**: Turtlefin (default), Dark, Light, Frutiger Aero (in the spirit of Windows 7:
+“Harmony” background, bluish glass, glossy gel buttons, orb player, glass-orb startup), Turtlefin green — or a theme of your own.
 
 - **Create a theme** opens the *Turtlefin Theme Creator* in the browser: every color, the corner radius, the glossy
   highlight, the sky and bubbles, with a live preview; it saves a `.tftheme` file.

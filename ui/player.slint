@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion } from "theme.slint";
+import { Theme, Tr, Motion, Gloss } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -23,7 +23,7 @@ export struct TrackData {
 // Icônes tracées (24 x 24) : aucune police d'icônes à installer.
 component Icon inherits Rectangle {
     in property <string> name;
-    in property <color> tint: white;
+    in property <color> tint: Theme.player-ink;
 
     if root.name == "play": Path {
         width: parent.width;
@@ -142,6 +142,9 @@ component PlayerButton inherits Rectangle {
     in property <bool> enabled: true;
     in property <length> size: 48px;
     in property <length> font: 16px;
+    // Bouton principal (lecture / pause) : orbe brillante pleine d'accent si le thème le veut.
+    in property <bool> main;
+    property <bool> orb: root.main && Theme.player-orb;
     // Incrémenté à chaque activation (clavier ou souris) : le bouton s'enfonce puis rebondit.
     in property <int> press;
     callback clicked();
@@ -165,10 +168,11 @@ component PlayerButton inherits Rectangle {
     }
     // Bouton inactif estompé par la couleur, pas par « opacity » : une opacité partielle sur un
     // élément qui a des enfants le fait dessiner hors écran à chaque image.
-    property <color> ink: root.enabled ? white : #ffffff59;
+    property <color> ink: !root.enabled ? Theme.player-ink.with-alpha(0.35)
+        : root.lit || root.orb ? Theme.on-accent : Theme.player-ink;
 
-    width: root.text == "" ? root.size : label.preferred-width + root.size;
-    height: root.size;
+    width: root.text == "" ? root.size * (root.orb ? 1.3 : 1) : label.preferred-width + root.size;
+    height: root.size * (root.orb ? 1.3 : 1);
     property <float> lit-s: root.lit ? 1.12 : 1.0;
     animate lit-s { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
@@ -178,9 +182,21 @@ component PlayerButton inherits Rectangle {
     height: parent.height;
     border-radius: self.height / 2;
     transform-scale: root.lit-s + root.push;
-    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #ffffff14;
-    border-width: root.lit ? 0px : 1px;
-    border-color: #ffffff40;
+    background: root.lit || root.orb ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.player-ink.with-alpha(0.08);
+    border-width: root.lit && !root.orb ? 0px : 1px;
+    border-color: root.orb ? Theme.player-ink.with-alpha(0.55) : Theme.player-ink.with-alpha(0.25);
+    drop-shadow-blur: root.orb && root.lit ? 16px : 0px;
+    drop-shadow-color: Theme.accent2.with-alpha(0.8);
+    Gloss { r: parent.border-radius; }
+    // Orbe : éclat lumineux en bas, comme une bille de verre éclairée par-dessous.
+    if root.orb: Rectangle {
+        x: parent.width * 0.2;
+        y: parent.height * 0.55;
+        width: parent.width * 0.6;
+        height: parent.height * 0.4;
+        border-radius: self.height / 2;
+        background: @radial-gradient(circle, rgba(170, 230, 255, 0.55) 0%, rgba(170, 230, 255, 0) 100%);
+    }
 
     if root.icon != "": Icon {
         width: root.size * 0.5;
@@ -232,7 +248,7 @@ component EpisodeCard inherits Rectangle {
         y: 0px;
         border-top-left-radius: 10px;
         border-top-right-radius: 10px;
-        background: root.data.has-image ? transparent : #ffffff14;
+        background: root.data.has-image ? transparent : Theme.player-ink.with-alpha(0.08);
         if root.data.has-image: Image {
             width: parent.width;
             height: parent.height;
@@ -247,7 +263,7 @@ component EpisodeCard inherits Rectangle {
         height: 18px * root.k;
         text: root.data.title;
         active: root.focused;
-        text-color: white;
+        text-color: Theme.player-ink;
         font-size: 13px * root.k;
         font-weight: 600;
         horizontal-alignment: TextHorizontalAlignment.left;
@@ -257,7 +273,7 @@ component EpisodeCard inherits Rectangle {
         y: root.width * 0.5625 + 26px * root.k;
         width: parent.width - 16px * root.k;
         text: root.current ? Tr.t(Tr.k, "En cours") : root.data.subtitle;
-        color: root.current ? Theme.accent2 : Theme.muted;
+        color: root.current ? Theme.accent2 : Theme.player-ink.with-alpha(0.62);
         font-size: 11px * root.k;
         overflow: elide;
     }
@@ -278,7 +294,7 @@ component PickCard inherits Rectangle {
     transform-scale: root.focused ? 1.08 : 1.0;
     animate transform-scale { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: 10px;
-    background: root.focused ? #ffffff26 : #ffffff0f;
+    background: root.focused ? Theme.player-ink.with-alpha(0.15) : Theme.player-ink.with-alpha(0.06);
     border-width: root.focused ? 3px : 0px;
     border-color: Theme.accent2;
 
@@ -287,7 +303,7 @@ component PickCard inherits Rectangle {
         height: root.width * 1.5;
         border-top-left-radius: 10px;
         border-top-right-radius: 10px;
-        background: root.data.has-image ? transparent : #ffffff14;
+        background: root.data.has-image ? transparent : Theme.player-ink.with-alpha(0.08);
         if root.data.has-image: Image {
             width: parent.width;
             height: parent.height;
@@ -300,7 +316,7 @@ component PickCard inherits Rectangle {
         y: root.width * 1.5 + 8px * root.k;
         width: parent.width - 16px * root.k;
         text: root.data.title;
-        color: white;
+        color: Theme.player-ink;
         font-size: 14px * root.k;
         font-weight: 600;
         horizontal-alignment: center;
@@ -311,7 +327,7 @@ component PickCard inherits Rectangle {
         y: root.width * 1.5 + 30px * root.k;
         width: parent.width - 16px * root.k;
         text: root.data.subtitle;
-        color: Theme.muted;
+        color: Theme.player-ink.with-alpha(0.62);
         font-size: 12px * root.k;
         horizontal-alignment: center;
         overflow: elide;
@@ -524,7 +540,7 @@ export component PlayerView inherits Rectangle {
 
     if !root.ready: Text {
         text: Tr.t(Tr.k, "Chargement…");
-        color: Theme.muted;
+        color: Theme.player-ink.with-alpha(0.62);
         font-size: 22px * root.k;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -540,7 +556,7 @@ export component PlayerView inherits Rectangle {
         border-radius: self.height / 2;
         background: #000000b3;
         border-width: 1px;
-        border-color: root.lost ? #f59e0b : #ffffff33;
+        border-color: root.lost ? #f59e0b : Theme.player-ink.with-alpha(0.2);
         Path {
             x: 18px * root.k;
             y: (parent.height - self.height) / 2;
@@ -549,7 +565,7 @@ export component PlayerView inherits Rectangle {
             viewbox-width: 100;
             viewbox-height: 100;
             fill: transparent;
-            stroke: root.lost ? #fbbf24 : white;
+            stroke: root.lost ? #fbbf24 : Theme.player-ink;
             stroke-width: 3px * root.k;
             commands: "M 50 8 A 42 42 0 0 1 92 50";
             transform-rotation: mod(animation-tick() / 1ms, 900) / 900 * 360deg;
@@ -558,7 +574,7 @@ export component PlayerView inherits Rectangle {
             x: 58px * root.k;
             height: parent.height;
             text: root.lost ? Tr.t(Tr.k, "Connexion au serveur perdue · reprise automatique dès son retour") : Tr.t(Tr.k, "Mise en mémoire…");
-            color: white;
+            color: Theme.player-ink;
             font-size: 16px * root.k;
             font-weight: 600;
             vertical-alignment: center;
@@ -820,7 +836,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - self.x - root.m;
             height: 30px * root.k;
             text: root.title;
-            color: Theme.text;
+            color: Theme.player-ink.with-alpha(0.92);
             font-size: 22px * root.k;
             font-weight: 700;
             vertical-alignment: center;
@@ -847,7 +863,8 @@ export component PlayerView inherits Rectangle {
             height: 160px * root.k;
             y: parent.height - self.height - root.m - root.ep-p * root.ep-h;
             border-radius: 16px;
-            background: Theme.glass;
+            background: Theme.player-bar;
+            Gloss { r: parent.border-radius; strength: 0.4; }
             border-width: 1px;
             border-color: Theme.glass-border;
 
@@ -864,7 +881,7 @@ export component PlayerView inherits Rectangle {
                 y: 12px * root.k;
                 height: 24px * root.k;
                 text: root.pos-text;
-                color: Theme.text;
+                color: Theme.player-ink.with-alpha(0.92);
                 font-size: 16px * root.k;
                 vertical-alignment: center;
             }
@@ -875,7 +892,7 @@ export component PlayerView inherits Rectangle {
                 width: 160px * root.k;
                 height: 24px * root.k;
                 text: root.dur-text;
-                color: Theme.muted;
+                color: Theme.player-ink.with-alpha(0.62);
                 font-size: 16px * root.k;
                 horizontal-alignment: right;
                 vertical-alignment: center;
@@ -895,7 +912,7 @@ export component PlayerView inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     height: bar.th;
                     border-radius: self.height / 2;
-                    background: #ffffff33;
+                    background: Theme.player-ink.with-alpha(0.2);
                 }
 
                 Rectangle {
@@ -922,7 +939,7 @@ export component PlayerView inherits Rectangle {
                     x: parent.width * bar.shown - self.width / 2;
                     y: (parent.height - self.height) / 2;
                     border-radius: self.width / 2;
-                    background: white;
+                    background: Theme.on-accent;
                     border-width: root.zone == 1 ? 3px : 0px;
                     border-color: Theme.accent2;
                 }
@@ -984,6 +1001,7 @@ export component PlayerView inherits Rectangle {
                 PlayerButton {
                     size: 52px * root.k;
                     icon: root.paused ? "play" : "pause";
+                    main: true;
                     focused: root.zone == 2 && root.btn == 2;
                     press: root.press-btn == 2 ? root.press-n : 0;
                     clicked => {
@@ -1061,7 +1079,7 @@ export component PlayerView inherits Rectangle {
                 width: parent.width;
                 height: 24px * root.k;
                 text: root.end-text;
-                color: Theme.muted;
+                color: Theme.player-ink.with-alpha(0.62);
                 font-size: 14px * root.k;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -1077,7 +1095,8 @@ export component PlayerView inherits Rectangle {
             y: panel.y - self.height - 16px * root.k + (1 - root.menu-p) * 24px * root.k;
             opacity: root.menu-p;
             border-radius: 16px;
-            background: Theme.glass;
+            background: Theme.player-bar;
+            Gloss { r: parent.border-radius; strength: 0.4; }
             border-width: 1px;
             border-color: Theme.glass-border;
 
@@ -1093,7 +1112,7 @@ export component PlayerView inherits Rectangle {
                 y: 16px * root.k;
                 height: 32px * root.k;
                 text: root.menu-last == "audio" ? Tr.t(Tr.k, "Piste audio") : Tr.t(Tr.k, "Sous-titres");
-                color: Theme.text;
+                color: Theme.player-ink.with-alpha(0.92);
                 font-size: 22px * root.k;
                 font-weight: 700;
                 vertical-alignment: center;
@@ -1104,7 +1123,7 @@ export component PlayerView inherits Rectangle {
                 y: 60px * root.k;
                 height: 42px * root.k;
                 text: Tr.t(Tr.k, "Aucune piste");
-                color: Theme.muted;
+                color: Theme.player-ink.with-alpha(0.62);
                 font-size: 17px * root.k;
                 vertical-alignment: center;
             }
@@ -1124,14 +1143,14 @@ export component PlayerView inherits Rectangle {
                     width: 10px * root.k;
                     height: self.width;
                     border-radius: self.width / 2;
-                    background: white;
+                    background: (i == root.menu-sel || row.has-hover) ? Theme.on-accent : Theme.player-ink;
                 }
 
                 Text {
                     x: 36px * root.k;
                     width: parent.width - 48px * root.k;
                     text: t.label;
-                    color: white;
+                    color: (i == root.menu-sel || row.has-hover) ? Theme.on-accent : Theme.player-ink;
                     font-size: 17px * root.k;
                     font-weight: i == root.menu-sel ? 700 : 400;
                     vertical-alignment: center;
@@ -1158,7 +1177,8 @@ export component PlayerView inherits Rectangle {
         height: 22px * root.k;
         border-top-left-radius: 10px * root.k;
         border-top-right-radius: 10px * root.k;
-        background: Theme.glass;
+        background: Theme.player-bar;
+            Gloss { r: parent.border-radius; strength: 0.4; }
         Path {
             x: 14px * root.k;
             y: (parent.height - self.height) / 2;
@@ -1175,7 +1195,7 @@ export component PlayerView inherits Rectangle {
             x: 34px * root.k;
             height: parent.height;
             text: Tr.t(Tr.k, "Épisodes");
-            color: #ffffffcc;
+            color: Theme.player-ink.with-alpha(0.8);
             font-size: 13px * root.k;
             font-weight: 600;
             vertical-alignment: center;
@@ -1198,7 +1218,8 @@ export component PlayerView inherits Rectangle {
         y: parent.height - root.m - 160px * root.k - self.height - 16px * root.k + (1 - root.vol-p) * 24px * root.k;
         opacity: root.vol-p;
         border-radius: 16px;
-        background: Theme.glass;
+        background: Theme.player-bar;
+            Gloss { r: parent.border-radius; strength: 0.4; }
         border-width: 1px;
         border-color: Theme.glass-border;
 
@@ -1225,7 +1246,7 @@ export component PlayerView inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 height: 8px * root.k;
                 border-radius: self.height / 2;
-                background: #ffffff33;
+                background: Theme.player-ink.with-alpha(0.2);
             }
             Rectangle {
                 x: 0px;
@@ -1243,7 +1264,7 @@ export component PlayerView inherits Rectangle {
                 animate x { duration: Motion.player ? 120ms : 0ms; easing: ease-out; }
                 y: (parent.height - self.height) / 2;
                 border-radius: self.width / 2;
-                background: white;
+                background: Theme.player-ink;
                 border-width: 3px;
                 border-color: Theme.accent2;
             }
@@ -1266,7 +1287,7 @@ export component PlayerView inherits Rectangle {
             width: 60px * root.k;
             height: parent.height;
             text: root.volume + " %";
-            color: white;
+            color: Theme.player-ink;
             font-size: 17px * root.k;
             font-weight: 600;
             horizontal-alignment: right;
@@ -1336,7 +1357,8 @@ export component PlayerView inherits Rectangle {
         width: 340px * root.k;
         height: 340px * 0.5625 * root.k + 150px * root.k;
         border-radius: 14px;
-        background: Theme.glass;
+        background: Theme.player-bar;
+            Gloss { r: parent.border-radius; strength: 0.4; }
         border-width: 1px;
         border-color: Theme.glass-border;
 
@@ -1354,7 +1376,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - 28px * root.k;
             height: self.width * 0.5625;
             border-radius: 10px;
-            background: root.has-up-image ? transparent : #ffffff14;
+            background: root.has-up-image ? transparent : Theme.player-ink.with-alpha(0.08);
 
             if root.has-up-image: Image {
                 width: parent.width;
@@ -1368,7 +1390,7 @@ export component PlayerView inherits Rectangle {
             y: 34px * root.k + (parent.width - 28px * root.k) * 0.5625 + 6px * root.k;
             width: parent.width - 28px * root.k;
             text: root.up-sub;
-            color: Theme.text;
+            color: Theme.player-ink.with-alpha(0.92);
             font-size: 14px * root.k;
             font-weight: 600;
             overflow: elide;
@@ -1450,7 +1472,7 @@ export component PlayerView inherits Rectangle {
             x: 32px * root.k;
             y: 32px * root.k + 225px * root.k + 10px * root.k;
             text: Tr.t(Tr.k, "Regarder la fin");
-            color: root.up-sel == 0 ? white : Theme.muted;
+            color: root.up-sel == 0 ? Theme.player-ink : Theme.player-ink.with-alpha(0.62);
             font-size: 15px * root.k;
             font-weight: 600;
         }
@@ -1460,7 +1482,7 @@ export component PlayerView inherits Rectangle {
             height: 50px * root.k;
             width: parent.width;
             text: root.up-mode == "pick" ? Tr.t(Tr.k, "À voir ensuite") : Tr.t(Tr.k, "C'est fini ! À voir ensuite");
-            color: Theme.text;
+            color: Theme.player-ink.with-alpha(0.92);
             font-size: 26px * root.k;
             font-weight: 700;
             horizontal-alignment: center;
@@ -1520,7 +1542,7 @@ export component PlayerView inherits Rectangle {
         background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
         party-txt := Text {
             text: Tr.f(Tr.k, "Watch party · {}", root.party, "");
-            color: white;
+            color: Theme.on-accent;
             font-size: 14px * root.k;
             font-weight: 600;
             horizontal-alignment: center;

@@ -40,6 +40,14 @@ pub struct ThemeDef {
     pub panel: String,
     pub card: String,
     pub card_focus: String,
+    /// Contour des cartes, lueur de l'élément choisi, reflet en diagonale des affiches (0 à 1).
+    pub card_border: String,
+    pub glow: String,
+    pub sheen: f32,
+    /// Lecteur : barre de commandes, encre, bouton lecture en orbe.
+    pub player_bar: String,
+    pub player_ink: String,
+    pub player_orb: bool,
     pub placeholder1: String,
     pub placeholder2: String,
     pub scrim: String,
@@ -53,8 +61,18 @@ pub struct ThemeDef {
     pub radius: f32,
     /// Reflet brillant (0 à 1,5).
     pub gloss: f32,
-    /// Décor de bulles et de ciel.
+    /// Décor de bulles et de ciel (ancien nom du décor « sky »).
     pub bubbles: bool,
+    /// Décor : « » aucun, « sky » ciel, herbe et bulles, « harmony » gerbe de lumière (Windows 7).
+    pub scenery: String,
+    /// Barre de verre derrière l'en-tête.
+    pub header_glass: bool,
+    /// Liseré intérieur des éléments brillants (« #rrggbbaa », transparent : aucun).
+    pub edge: String,
+    /// Reflets en biais sur les grands panneaux.
+    pub streaks: bool,
+    /// Animation de démarrage : « » logo qui se relie, « aero » billes de verre qui tourbillonnent.
+    pub boot: String,
 }
 
 impl Default for ThemeDef {
@@ -87,6 +105,12 @@ pub fn turtlefin() -> ThemeDef {
         panel: s("#0b1520f5"),
         card: s("#00000033"),
         card_focus: s("#00000080"),
+        card_border: s("#00000000"),
+        glow: s("#00a4db40"),
+        sheen: 0.0,
+        player_bar: s("#181820d9"),
+        player_ink: s("#ffffff"),
+        player_orb: false,
         placeholder1: s("#2b2142"),
         placeholder2: s("#10283a"),
         scrim: s("#000000"),
@@ -98,6 +122,11 @@ pub fn turtlefin() -> ThemeDef {
         radius: 10.0,
         gloss: 0.0,
         bubbles: false,
+        scenery: String::new(),
+        header_glass: false,
+        edge: s("#00000000"),
+        streaks: false,
+        boot: String::new(),
     }
 }
 
@@ -154,37 +183,48 @@ fn clair() -> ThemeDef {
     }
 }
 
-/// Frutiger Aero : ciel lumineux qui descend vers l'herbe, verre clair et brillant, boutons en
-/// gel bleu, bulles. Encre bleu nuit sur le verre.
+/// Frutiger Aero, façon Windows 7 : fond « Harmony » (gerbe de lumière sur bleu profond), verre
+/// bleuté à liseré clair et reflets en biais, sélection bleu-cyan brillante, barre de verre en haut,
+/// lecteur à orbe, démarrage en billes de verre qui tourbillonnent.
 fn aero() -> ThemeDef {
     ThemeDef {
         name: s("Frutiger Aero"),
-        dark: false,
-        bg: s("#4fb8ee"),
-        bg_mid: s("#c9efff"),
-        bg_end: s("#a6e58a"),
-        fg: s("#0b2f52"),
-        text: s("#0b2f52f2"),
-        muted: s("#0b2f52b0"),
-        accent1: s("#0a5fc0"),
-        accent2: s("#0a8bd3"),
+        dark: true,
+        bg: s("#062a63"),
+        bg_mid: s("#0b4fa8"),
+        bg_end: s("#05214f"),
+        fg: s("#ffffff"),
+        text: s("#ffffffeb"),
+        muted: s("#d8e8ffb3"),
+        accent1: s("#2a7fd8"),
+        accent2: s("#6cc6ff"),
         on_accent: s("#ffffff"),
-        glass: s("#ffffff94"),
-        glass_border: s("#ffffffe6"),
-        panel: s("#effaffee"),
-        card: s("#ffffff80"),
-        card_focus: s("#ffffffd9"),
-        placeholder1: s("#9fd8f5"),
-        placeholder2: s("#bfeeb1"),
-        scrim: s("#06345a"),
-        danger: s("#e0313f"),
-        danger_text: s("#b4162a"),
-        ok: s("#23a047"),
-        warn: s("#de8600"),
-        veil: 2.0,
-        radius: 14.0,
+        glass: s("#7fb2e84d"),
+        glass_border: s("#ffffff73"),
+        panel: s("#0d2c58eb"),
+        card: s("#ffffff1a"),
+        card_focus: s("#ffffff38"),
+        card_border: s("#ffffff4d"),
+        glow: s("#7fd0ffb3"),
+        sheen: 0.6,
+        player_bar: s("#08121fd9"),
+        player_ink: s("#ffffff"),
+        player_orb: true,
+        placeholder1: s("#1f5aa8"),
+        placeholder2: s("#0d2f66"),
+        scrim: s("#000814"),
+        danger: s("#ff6b6b"),
+        danger_text: s("#ffb0b0"),
+        ok: s("#7ee08a"),
+        warn: s("#ffc04d"),
+        veil: 1.5,
+        radius: 8.0,
         gloss: 1.0,
-        bubbles: true,
+        scenery: s("harmony"),
+        header_glass: true,
+        edge: s("#ffffff73"),
+        streaks: true,
+        boot: s("aero"),
         ..turtlefin()
     }
 }
@@ -264,6 +304,12 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_panel(c(&t.panel, &d.panel));
     th.set_card(c(&t.card, &d.card));
     th.set_card_focus(c(&t.card_focus, &d.card_focus));
+    th.set_card_border(c(&t.card_border, &d.card_border));
+    th.set_glow(c(&t.glow, &d.glow));
+    th.set_sheen(t.sheen.clamp(0.0, 1.0));
+    th.set_player_bar(c(&t.player_bar, &d.player_bar));
+    th.set_player_ink(c(&t.player_ink, &d.player_ink));
+    th.set_player_orb(t.player_orb);
     th.set_ph1(c(&t.placeholder1, &d.placeholder1));
     th.set_ph2(c(&t.placeholder2, &d.placeholder2));
     th.set_scrim(c(&t.scrim, &d.scrim));
@@ -274,7 +320,19 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_veil(if t.veil > 0.0 { t.veil.clamp(0.2, 3.0) } else { 1.0 });
     th.set_radius(if t.radius > 0.0 { t.radius.clamp(0.0, 30.0) } else { 10.0 });
     th.set_gloss(t.gloss.clamp(0.0, 1.5));
-    th.set_bubbles(t.bubbles);
+    let scenery = match t.scenery.as_str() {
+        "sky" => 1,
+        "harmony" => 2,
+        _ if t.bubbles => 1,
+        _ => 0,
+    };
+    th.set_bubbles(scenery > 0);
+    th.set_scenery(scenery);
+    th.set_header_glass(t.header_glass);
+    th.set_edge(c(&t.edge, &d.edge));
+    th.set_streaks(t.streaks);
+    th.set_boot_style(if t.boot == "aero" { 1 } else { 0 });
+    window_icon(u, t);
 }
 
 /// Turtlefin Theme Creator (tools/theme-creator.html), intégré au programme : déposé dans le
@@ -287,6 +345,100 @@ pub fn write_creator() -> std::io::Result<std::path::PathBuf> {
     let path = d.join(CREATOR_FILE);
     std::fs::write(&path, CREATOR)?;
     Ok(path)
+}
+
+/// Logo de Turtlefin aux couleurs d'un thème (même dessin que packaging/turtlefin.svg) : carré
+/// arrondi du fond du thème, carapace en dégradé d'accent, reflet brillant pour les thèmes à reflet.
+/// Sert d'icône à la fenêtre (barre des tâches).
+pub fn icon(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
+    let d = turtlefin();
+    let col = |x: &str, f: &str| parse(x).or_else(|| parse(f)).unwrap_or_default();
+    let (bg1, bg2) = (col(&t.bg, &d.bg), parse(&t.bg_end).unwrap_or_else(|| col(&t.bg, &d.bg)));
+    let (a1, a2) = (col(&t.accent1, &d.accent1), col(&t.accent2, &d.accent2));
+    let lerp = |a: Color, b: Color, f: f32| {
+        let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * f).round().clamp(0.0, 255.0);
+        [m(a.red(), b.red()), m(a.green(), b.green()), m(a.blue(), b.blue())]
+    };
+    // Géométrie du logo (repère 256), agrandie x1,4 autour du centre.
+    let outer = [(128.0, 60.0), (187.0, 94.0), (187.0, 162.0), (128.0, 196.0), (69.0, 162.0), (69.0, 94.0)];
+    let inner = [(128.0, 98.0), (154.0, 113.0), (154.0, 143.0), (128.0, 158.0), (102.0, 143.0), (102.0, 113.0)];
+    fn seg(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let h = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+        ((p.0 - a.0 - dx * h).powi(2) + (p.1 - a.1 - dy * h).powi(2)).sqrt()
+    }
+    fn inside(p: (f32, f32), poly: &[(f32, f32)]) -> bool {
+        let mut c = false;
+        let mut j = poly.len() - 1;
+        for i in 0..poly.len() {
+            let (a, b) = (poly[i], poly[j]);
+            if (a.1 > p.1) != (b.1 > p.1) && p.0 < (b.0 - a.0) * (p.1 - a.1) / (b.1 - a.1) + a.0 {
+                c = !c;
+            }
+            j = i;
+        }
+        c
+    }
+    let px = 256.0 / n as f32; // taille d'un pixel dans le repère 256
+    let cov = |dist: f32| (0.5 - dist / px).clamp(0.0, 1.0);
+    let gloss = t.gloss.clamp(0.0, 1.5);
+    let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
+    for (i, p) in buf.make_mut_slice().iter_mut().enumerate() {
+        let (x, y) = ((i as u32 % n) as f32 + 0.5, (i as u32 / n) as f32 + 0.5);
+        let (sx, sy) = (x * px, y * px);
+        // Carré arrondi (rayon 56).
+        let (qx, qy) = ((sx - 128.0).abs() - 72.0, (sy - 128.0).abs() - 72.0);
+        let rd = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 56.0;
+        let bga = cov(rd);
+        let mut c = lerp(bg1, bg2, sy / 256.0);
+        // Logo
+        let l = (128.0 + (sx - 128.0) / 1.4, 128.0 + (sy - 128.0) / 1.4);
+        let mut dist = f32::MAX;
+        for k in 0..6 {
+            dist = dist.min(seg(l, outer[k], outer[(k + 1) % 6]) - 7.0);
+            dist = dist.min(seg(l, outer[k], inner[k]) - 4.0);
+        }
+        if inside(l, &inner) {
+            dist = dist.min(-1.0);
+        } else {
+            for k in 0..6 {
+                dist = dist.min(seg(l, inner[k], inner[(k + 1) % 6]));
+            }
+        }
+        let la = cov(dist * 1.4);
+        let g = lerp(a1, a2, (((l.0 - 53.0) + (l.1 - 53.0)) / 300.0).clamp(0.0, 1.0));
+        for ch in 0..3 {
+            c[ch] = c[ch] * (1.0 - la) + g[ch] * la;
+        }
+        // Reflet : moitié haute plus claire.
+        if gloss > 0.0 && sy < 128.0 {
+            let w = 0.28 * gloss * (1.0 - sy / 128.0 * 0.6);
+            for ch in 0..3 {
+                c[ch] = c[ch] * (1.0 - w) + 255.0 * w;
+            }
+        }
+        *p = slint::Rgba8Pixel { r: c[0] as u8, g: c[1] as u8, b: c[2] as u8, a: (bga * 255.0) as u8 };
+    }
+    buf
+}
+
+/// Icône de la fenêtre (et de la barre des tâches sous Windows) aux couleurs du thème. Posée
+/// directement sur la fenêtre : Slint ne transmet pas une icône dessinée en mémoire (elle n'a pas de
+/// clé de cache). Sans fenêtre encore créée, rien ne se passe : main la repose une fois la fenêtre là.
+pub fn window_icon(u: &AppWindow, t: &ThemeDef) {
+    use slint::winit_030::{winit, WinitWindowAccessor};
+    let make = |n: u32| {
+        let b = icon(t, n);
+        winit::window::Icon::from_rgba(b.as_bytes().to_vec(), n, n).ok()
+    };
+    u.window().with_winit_window(|w| {
+        w.set_window_icon(make(64));
+        #[cfg(windows)]
+        {
+            use winit::platform::windows::WindowExtWindows;
+            w.set_taskbar_icon(make(256));
+        }
+    });
 }
 
 /// Dossier des thèmes personnels (à côté de celui des langues), créé au besoin.
@@ -310,6 +462,17 @@ pub fn export(t: &ThemeDef) -> std::io::Result<std::path::PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    /// `TURTLEFIN_ICON_DUMP=<dossier>` : écrit le logo de chaque thème intégré en PNG (vérification).
+    #[test]
+    fn icon_dump() {
+        let Some(dir) = std::env::var_os("TURTLEFIN_ICON_DUMP") else { return };
+        for (k, t) in super::builtin() {
+            let b = super::icon(&t, 128);
+            let img = image::RgbaImage::from_raw(b.width(), b.height(), b.as_bytes().to_vec()).unwrap();
+            img.save(std::path::Path::new(&dir).join(format!("icon_{k}.png"))).unwrap();
+        }
+    }
+
     #[test]
     fn colors() {
         let c = super::parse("#0a6fd1").unwrap();

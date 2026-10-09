@@ -165,8 +165,8 @@ idiomas e de presets ao lado do programa.
 
 ## Temas
 
-Definições → Ecrã → **Tema**: Turtlefin (por omissão), Escuro, Claro, Frutiger Aero (céu, relva, bolhas, botões de
-gel brilhantes), Turtlefin verde — ou um tema teu.
+Definições → Ecrã → **Tema**: Turtlefin (por omissão), Escuro, Claro, Frutiger Aero (ao estilo do Windows 7:
+fundo «Harmony», vidro azulado, botões de gel brilhantes, leitor com orbe, arranque com esferas de vidro), Turtlefin verde — ou um tema teu.
 
 - **Criar um tema** abre o *Turtlefin Theme Creator* no navegador: cada cor, o arredondamento, o brilho, o céu e as
   bolhas, com pré-visualização em direto; guarda um ficheiro `.tftheme`.

@@ -67,6 +67,25 @@
         background: radial-gradient(circle, rgba(255,255,255,.02), rgba(255,255,255,.06) 55%, rgba(200,240,255,.28) 85%, rgba(255,255,255,.55)); }
   #pv .bubble::before { content: ""; position: absolute; left: 16%; top: 10%; width: 42%; height: 26%; border-radius: 50%;
         background: linear-gradient(rgba(255,255,255,.85), rgba(255,255,255,.05)); }
+  #pv .harm { position: absolute; inset: 0; display: none; pointer-events: none;
+        background: radial-gradient(55% 45% at 50% 42%, rgba(79,180,255,.42), rgba(79,180,255,.12) 40%, transparent 70%),
+        radial-gradient(10% 9% at 50% 43%, rgba(255,255,255,.38), transparent 70%),
+        linear-gradient(160deg, transparent 20%, rgba(190,235,255,.18) 45%, transparent 60%),
+        linear-gradient(20deg, transparent 30%, rgba(120,210,255,.14) 55%, transparent 70%); }
+  #pv.harmony .harm { display: block; }
+  #pv.hglass .hdr { background: linear-gradient(rgba(255,255,255,.2), rgba(255,255,255,.07) 49%, rgba(0,12,34,.3) 50%, rgba(0,12,34,.42));
+        border-top: 1px solid rgba(255,255,255,.3); border-bottom: 1px solid rgba(255,255,255,.28); }
+  #pv .card { border: 1px solid var(--t-cborder); position: relative; }
+  #pv .card.on { box-shadow: 0 0 22px var(--t-glow); }
+  #pv .poster { position: relative; }
+  #pv .poster::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+        background: linear-gradient(125deg, rgba(255,255,255,calc(.42 * var(--t-sheen))) 0%, rgba(255,255,255,calc(.14 * var(--t-sheen))) 38%, transparent 39%); }
+  #pv .gloss { box-shadow: inset 0 0 0 1px var(--t-edge); }
+  #pv .player { margin: 14px 22px 0; border-radius: 16px; background: var(--t-pbar); padding: 10px 14px; display: flex; gap: 12px;
+        align-items: center; justify-content: center; position: relative; overflow: hidden; color: var(--t-pink); }
+  #pv .pbtn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1px solid; position: relative; overflow: hidden;
+        border-color: color-mix(in srgb, var(--t-pink) 30%, transparent); background: color-mix(in srgb, var(--t-pink) 8%, transparent); font-size: 13px; }
+  #pv.orb .pbtn.main { width: 50px; height: 50px; background: var(--t-grad); color: var(--t-onacc); box-shadow: 0 0 16px var(--t-accent2); }
   #pv .content { position: relative; z-index: 1; padding: 0 0 20px; }
   #pv .hdr { display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 22px; }
   #pv .brand { font-weight: 800; font-size: 22px; color: var(--t-accent2); margin-right: auto; }
@@ -140,7 +159,8 @@ const BASE = {
   accent1: "#a95bc2", accent2: "#00a4db", on_accent: "#ffffff", glass: "#181820d9", glass_border: "#ffffff24",
   panel: "#0b1520f5", card: "#00000033", card_focus: "#00000080", placeholder1: "#2b2142", placeholder2: "#10283a",
   scrim: "#000000", danger: "#ff6b6b", danger_text: "#ff8a8a", ok: "#4ade80", warn: "#f59e0b",
-  veil: 1.0, radius: 10, gloss: 0, bubbles: false,
+  card_border: "#00000000", glow: "#00a4db40", sheen: 0, player_bar: "#181820d9", player_ink: "#ffffff", player_orb: false,
+  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "",
 };
 const PRESETS = {
   turtlefin: { ...BASE },
@@ -151,11 +171,12 @@ const PRESETS = {
     text: "#0f1a2ae8", muted: "#0f1a2a99", accent1: "#8b3fd1", accent2: "#0284c7", glass: "#ffffffe0", glass_border: "#0f1a2a1f",
     panel: "#fbfcfef7", card: "#ffffffa6", card_focus: "#ffffff", placeholder1: "#ddd3ee", placeholder2: "#cde1ee",
     scrim: "#0f1a2a", danger: "#dc2626", danger_text: "#b91c1c", ok: "#16a34a", warn: "#d97706", veil: 1.6 },
-  aero: { ...BASE, name: "Frutiger Aero", dark: false, bg: "#4fb8ee", bg_mid: "#c9efff", bg_end: "#a6e58a", fg: "#0b2f52",
-    text: "#0b2f52f2", muted: "#0b2f52b0", accent1: "#0a5fc0", accent2: "#0a8bd3", on_accent: "#ffffff", glass: "#ffffff94",
-    glass_border: "#ffffffe6", panel: "#effaffee", card: "#ffffff80", card_focus: "#ffffffd9", placeholder1: "#9fd8f5",
-    placeholder2: "#bfeeb1", scrim: "#06345a", danger: "#e0313f", danger_text: "#b4162a", ok: "#23a047", warn: "#de8600",
-    veil: 2.0, radius: 14, gloss: 1.0, bubbles: true },
+  aero: { ...BASE, name: "Frutiger Aero", dark: true, bg: "#062a63", bg_mid: "#0b4fa8", bg_end: "#05214f", fg: "#ffffff",
+    text: "#ffffffeb", muted: "#d8e8ffb3", accent1: "#2a7fd8", accent2: "#6cc6ff", on_accent: "#ffffff", glass: "#7fb2e84d",
+    glass_border: "#ffffff73", panel: "#0d2c58eb", card: "#ffffff1a", card_focus: "#ffffff38", card_border: "#ffffff4d",
+    glow: "#7fd0ffb3", sheen: 0.6, player_bar: "#08121fd9", player_ink: "#ffffff", player_orb: true, placeholder1: "#1f5aa8",
+    placeholder2: "#0d2f66", scrim: "#000814", danger: "#ff6b6b", danger_text: "#ffb0b0", ok: "#7ee08a", warn: "#ffc04d",
+    veil: 1.5, radius: 8, gloss: 1.0, scenery: "harmony", header_glass: true, edge: "#ffffff73", streaks: true, boot: "aero" },
   vert: { ...BASE, name: "Turtlefin vert", bg: "#02140f", bg_mid: "#031b14", bg_end: "#04211a", accent1: "#1f9d5c",
     accent2: "#52c96b", glass: "#0d1f19e0", glass_border: "#ffffff21", panel: "#072019f5", placeholder1: "#173a2a",
     placeholder2: "#0f2c33", ok: "#86efac" },
@@ -174,7 +195,12 @@ const TXT = {
     scrim: "Voile des fenêtres", danger: "Erreur", danger_text: "Texte d'erreur", ok: "Réussite", warn: "Attention",
     veil: "Voile sur l'image du média", radius: "Arrondi", gloss: "Reflet brillant", bubbles: "Ciel et bulles (Frutiger Aero)",
     veil_h: "Plus fort : l'image de fond du média s'efface davantage.", gloss_h: "Moitié haute plus claire des boutons et panneaux.",
-    bad: "Ce fichier n'est pas un thème de Turtlefin.", },
+    bad: "Ce fichier n'est pas un thème de Turtlefin.",
+    g_cards: "Cartes et affiches", card_border: "Contour des cartes", glow: "Lueur de l'élément choisi", sheen: "Reflet sur les affiches",
+    g_player: "Lecteur", player_bar: "Barre du lecteur", player_ink: "Texte et icônes du lecteur", player_orb: "Bouton lecture en orbe brillante",
+    edge: "Liseré des éléments brillants", streaks: "Reflets en biais sur le verre", header_glass: "Barre de verre en haut",
+    scenery: "Décor du fond", sc_none: "Aucun", sc_sky: "Ciel, herbe et bulles", sc_harmony: "Harmony (Windows 7)",
+    boot: "Animation de démarrage", bt_logo: "Logo qui se relie", bt_aero: "Billes de verre (Aero)", },
   en: { sub: "— create your Turtlefin theme", import: "Import…", export: "Save the .tftheme",
     howto: "To use it: save the file, put it in the “Turtlefin Themes” folder (Documents), then in Turtlefin: Settings → Display → Import a theme.",
     start: "Start: ", g_general: "General", g_bg: "Background", g_ink: "Text and icons", g_acc: "Accents", g_surf: "Surfaces",
@@ -186,7 +212,12 @@ const TXT = {
     scrim: "Window backdrop", danger: "Error", danger_text: "Error text", ok: "Success", warn: "Warning",
     veil: "Veil over the media image", radius: "Corner radius", gloss: "Glossy highlight", bubbles: "Sky and bubbles (Frutiger Aero)",
     veil_h: "Stronger: the media background image fades more.", gloss_h: "Lighter top half on buttons and panels.",
-    bad: "This file is not a Turtlefin theme.", },
+    bad: "This file is not a Turtlefin theme.",
+    g_cards: "Cards and posters", card_border: "Card outline", glow: "Glow of the selected item", sheen: "Sheen on posters",
+    g_player: "Player", player_bar: "Player bar", player_ink: "Player text and icons", player_orb: "Glossy orb play button",
+    edge: "Rim of glossy elements", streaks: "Slanted glass reflections", header_glass: "Glass bar at the top",
+    scenery: "Background scenery", sc_none: "None", sc_sky: "Sky, grass and bubbles", sc_harmony: "Harmony (Windows 7)",
+    boot: "Startup animation", bt_logo: "Joining logo", bt_aero: "Glass orbs (Aero)", },
 };
 let L = (navigator.language || "fr").startsWith("fr") ? "fr" : "en";
 const t = k => TXT[L][k] || k;
@@ -210,6 +241,8 @@ const GROUPS = [
   ["g_acc", ["accent1", "accent2", "on_accent"]],
   ["g_surf", ["glass", "glass_border", "panel", "card", "card_focus", "placeholder1", "placeholder2", "scrim"]],
   ["g_state", ["danger", "danger_text", "ok", "warn"]],
+  ["g_cards", ["card_border", "glow"]],
+  ["g_player", ["player_bar", "player_ink"]],
 ];
 let theme = { ...PRESETS.turtlefin };
 
@@ -234,7 +267,13 @@ function build() {
     <div class="row wide"><label for="f-veil">${t("veil")}</label><span class="col"><input type="range" id="f-veil" min="20" max="300"><b id="v-veil"></b></span><small>${t("veil_h")}</small></div>
     <div class="row wide"><label for="f-radius">${t("radius")}</label><span class="col"><input type="range" id="f-radius" min="0" max="30"><b id="v-radius"></b></span></div>
     <div class="row wide"><label for="f-gloss">${t("gloss")}</label><span class="col"><input type="range" id="f-gloss" min="0" max="150"><b id="v-gloss"></b></span><small>${t("gloss_h")}</small></div>
-    <div class="row"><label for="f-bubbles">${t("bubbles")}</label><input type="checkbox" id="f-bubbles"></div></fieldset>`;
+    <div class="row wide"><label for="f-sheen">${t("sheen")}</label><span class="col"><input type="range" id="f-sheen" min="0" max="100"><b id="v-sheen"></b></span></div>
+    <div class="row"><label for="c-edge">${t("edge")}</label><span class="col"><input type="color" id="c-edge"><input type="range" id="a-edge" min="0" max="100"><input type="text" id="x-edge" spellcheck="false"></span></div>
+    <div class="row"><label for="f-streaks">${t("streaks")}</label><input type="checkbox" id="f-streaks"></div>
+    <div class="row"><label for="f-header_glass">${t("header_glass")}</label><input type="checkbox" id="f-header_glass"></div>
+    <div class="row"><label for="f-player_orb">${t("player_orb")}</label><input type="checkbox" id="f-player_orb"></div>
+    <div class="row"><label for="f-scenery">${t("scenery")}</label><select id="f-scenery"><option value="">${t("sc_none")}</option><option value="sky">${t("sc_sky")}</option><option value="harmony">${t("sc_harmony")}</option></select></div>
+    <div class="row"><label for="f-boot">${t("boot")}</label><select id="f-boot"><option value="">${t("bt_logo")}</option><option value="aero">${t("bt_aero")}</option></select></div></fieldset>`;
   box.innerHTML = h;
   // Liaisons
   const $ = id => document.getElementById(id);
@@ -249,7 +288,16 @@ function build() {
   $("f-veil").oninput = e => { theme.veil = e.target.value / 100; render(); };
   $("f-radius").oninput = e => { theme.radius = +e.target.value; render(); };
   $("f-gloss").oninput = e => { theme.gloss = e.target.value / 100; render(); };
-  $("f-bubbles").onchange = e => { theme.bubbles = e.target.checked; render(); };
+  $("f-sheen").oninput = e => { theme.sheen = e.target.value / 100; render(); };
+  for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
+  $("f-scenery").onchange = e => { theme.scenery = e.target.value; theme.bubbles = false; render(); };
+  $("f-boot").onchange = e => { theme.boot = e.target.value; render(); };
+  {
+    const k = "edge", sync = c => { theme[k] = fmt(c); render(); };
+    $("c-" + k).oninput = e => { const c = parse(e.target.value), o = parse(theme[k]) || { a: 1 }; c.a = o.a; sync(c); };
+    $("a-" + k).oninput = e => { const c = parse(theme[k]) || parse("#fff"); c.a = e.target.value / 100; sync(c); };
+    $("x-" + k).onchange = e => { const c = parse(e.target.value); if (c) sync(c); else fill(); };
+  }
   fill();
 }
 
@@ -266,7 +314,12 @@ function fill() {
   $("f-veil").value = Math.round((theme.veil || 1) * 100);
   $("f-radius").value = theme.radius ?? 10;
   $("f-gloss").value = Math.round((theme.gloss || 0) * 100);
-  $("f-bubbles").checked = !!theme.bubbles;
+  $("f-sheen").value = Math.round((theme.sheen || 0) * 100);
+  for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).checked = !!theme[k];
+  $("f-scenery").value = theme.scenery || (theme.bubbles ? "sky" : "");
+  $("f-boot").value = theme.boot || "";
+  { const c = parse(theme.edge) || { r: 255, g: 255, b: 255, a: 0 };
+    $("c-edge").value = "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); $("a-edge").value = Math.round(c.a * 100); $("x-edge").value = fmt(c); }
   render();
 }
 
@@ -294,12 +347,19 @@ function render() {
   S("card", rgba(T("card"))); S("cardf", rgba(T("card_focus")));
   S("ph1", rgba(T("placeholder1"))); S("ph2", rgba(T("placeholder2")));
   S("r", (theme.radius ?? 10) + "px"); S("g1", (.62 * g).toFixed(3)); S("g2", (.12 * g).toFixed(3));
-  pv.classList.toggle("bubbles", !!theme.bubbles);
+  const scen = theme.scenery || (theme.bubbles ? "sky" : "");
+  pv.classList.toggle("bubbles", scen === "sky");
+  pv.classList.toggle("harmony", scen === "harmony");
+  pv.classList.toggle("hglass", !!theme.header_glass);
+  S("cborder", rgba(T("card_border"))); S("glow", rgba(T("glow"))); S("sheen", (theme.sheen || 0).toFixed(2));
+  S("edge", g > 0 ? rgba(parse(theme.edge) || { r: 0, g: 0, b: 0, a: 0 }) : "transparent");
+  S("pbar", rgba(T("player_bar"))); S("pink", rgba(T("player_ink")));
+  pv.classList.toggle("orb", !!theme.player_orb);
   const gloss = g > 0 ? '<i class="gloss"></i>' : "";
   const card = (title, sub, on) => `<div class="card${on ? " on" : ""}"><div class="poster">${title}</div><div class="t">${title}<small>${sub}</small></div></div>`;
   const bub = [[4, 62, 9], [11, 50, 4], [87, 55, 11], [82, 40, 3.6], [94, 28, 5], [47, 84, 3.2], [58, 12, 2.4], [69, 90, 5.5]]
     .map(([x, y, w]) => `<i class="bubble" style="left:${x}%;top:${y}%;width:${w}%"></i>`).join("");
-  pv.innerHTML = `<div class="backdrop"></div><div class="veil"></div>
+  pv.innerHTML = `<div class="backdrop"></div><div class="veil"></div><div class="harm"></div>
     <div class="sky"><div class="sun"></div>
       <svg viewBox="0 0 1000 600" preserveAspectRatio="none">
         <defs><linearGradient id="sw" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
@@ -324,6 +384,8 @@ function render() {
             <span class="chip" style="background:${rgba(T("danger"))};color:#fff">×</span>
             <span class="chip" style="color:${rgba(T("danger_text"))}">${L === "fr" ? "Mot de passe incorrect" : "Wrong password"}</span></div>
           <div class="toast">${L === "fr" ? "Thème importé : " : "Theme imported: "}${(theme.name || "").replace(/</g, "&lt;")}</div>
+          <div class="player">${g > 0 ? '<i class="gloss" style="opacity:.4"></i>' : ""}<span class="pbtn"><span class="lbl">⏮</span></span><span class="pbtn"><span class="lbl">⏪</span></span>
+            <span class="pbtn main">${gloss}<span class="lbl">❚❚</span></span><span class="pbtn"><span class="lbl">⏩</span></span><span class="pbtn"><span class="lbl">⏭</span></span></div>
         </div>
         <div class="panel">${g > 0 ? '<i class="gloss" style="opacity:.45"></i>' : ""}
           <div class="srow sel"><div><b>${L === "fr" ? "Thème" : "Theme"}</b><span>${L === "fr" ? "Couleurs et style de l'interface." : "Colors and style of the interface."}</span></div><span class="pill">${gloss}<span class="lbl">${(theme.name || "").replace(/</g, "&lt;")}</span></span></div>

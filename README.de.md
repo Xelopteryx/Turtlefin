@@ -164,8 +164,8 @@ Preset-Ordner neben dem Programm.
 
 ## Designs
 
-Einstellungen → Anzeige → **Design**: Turtlefin (Standard), Dunkel, Hell, Frutiger Aero (Himmel, Gras, Blasen,
-glänzende Gel-Schaltflächen), Turtlefin Grün — oder ein eigenes Design.
+Einstellungen → Anzeige → **Design**: Turtlefin (Standard), Dunkel, Hell, Frutiger Aero (im Geist von Windows 7:
+Hintergrund „Harmony“, bläuliches Glas, glänzende Gel-Schaltflächen, Player mit Kugel, Start mit Glaskugeln), Turtlefin Grün — oder ein eigenes Design.
 
 - **Design erstellen** öffnet den *Turtlefin Theme Creator* im Browser: jede Farbe, die Rundung, der Glanz, Himmel
   und Blasen, mit Live-Vorschau; er speichert eine `.tftheme`-Datei.

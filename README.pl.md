@@ -163,8 +163,8 @@ presetów obok programu.
 
 ## Motywy
 
-Ustawienia → Wyświetlanie → **Motyw**: Turtlefin (domyślny), Ciemny, Jasny, Frutiger Aero (niebo, trawa, bańki,
-błyszczące żelowe przyciski), Turtlefin zielony — albo własny motyw.
+Ustawienia → Wyświetlanie → **Motyw**: Turtlefin (domyślny), Ciemny, Jasny, Frutiger Aero (w duchu Windows 7:
+tło „Harmony”, niebieskawe szkło, błyszczące żelowe przyciski, odtwarzacz z kulą, start ze szklanymi kulami), Turtlefin zielony — albo własny motyw.
 
 - **Utwórz motyw** otwiera *Turtlefin Theme Creator* w przeglądarce: każdy kolor, zaokrąglenie, połysk, niebo i
   bańki, z podglądem na żywo; zapisuje plik `.tftheme`.

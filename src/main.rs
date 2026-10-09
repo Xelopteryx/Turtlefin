@@ -5451,7 +5451,14 @@ fn main() -> anyhow::Result<()> {
     // F11 : posé une fois la fenêtre créée (au lancement de la boucle d'événements).
     {
         let app = app.clone();
-        slint::Timer::single_shot(std::time::Duration::from_millis(300), move || install_f11(&app));
+        slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
+            install_f11(&app);
+            // Icône du thème : la fenêtre existe maintenant.
+            if let Some(u) = app.ui().upgrade() {
+                let p = config::ui_prefs();
+                theme::window_icon(&u, &theme::find(&p.theme, &p.themes));
+            }
+        });
     }
     // Windows : l'interface reste animée pendant qu'on déplace ou redimensionne la fenêtre (voir
     // winfull::keep_alive_while_moving) ; posé une fois la fenêtre affichée.

@@ -64,7 +64,7 @@ src/paths.rs        Ordner für Konfiguration / Cache / Daten; portabler Modus; 
 src/update.rs       Update je nach Installation (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: Bildschirm / Arbeitsbereich, Fenster beim Verschieben animiert
 src/theme.rs        eingebaute Designs, .tftheme-Dateien (ThemeDef), Anwendung auf das Global Theme
-ui/sky.slint        Kulisse von Frutiger Aero (Himmel, Hügel, Blasen), statisch
+ui/sky.slint        Kulissen (Himmel und Blasen · „Harmony“ von Windows 7), statisch, zwischengespeichert
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (Logo), install.ps1 / install.sh
 tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)

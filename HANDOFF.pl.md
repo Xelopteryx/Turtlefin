@@ -64,7 +64,7 @@ src/paths.rs        foldery konfiguracji / pamięci podręcznej / danych; tryb p
 src/update.rs       aktualizacja zależnie od instalacji (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: ekran / obszar roboczy, okno animowane podczas przesuwania
 src/theme.rs        wbudowane motywy, pliki .tftheme (ThemeDef), nakładanie na globalny Theme
-ui/sky.slint        sceneria Frutiger Aero (niebo, wzgórze, bańki), statyczna
+ui/sky.slint        scenerie (niebo i bańki · „Harmony” z Windows 7), statyczne, w pamięci podręcznej
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
 tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)

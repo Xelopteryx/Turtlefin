@@ -64,7 +64,7 @@ src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_c
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant un déplacement
 src/theme.rs        thèmes intégrés, fichiers .tftheme (ThemeDef), application au global Theme
-ui/sky.slint        décor du Frutiger Aero (ciel, colline, bulles), statique
+ui/sky.slint        décors (ciel et bulles · « Harmony » de Windows 7), statiques, gardés en cache
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
 tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
@@ -154,6 +154,10 @@ Mécanismes non évidents dans le code :
   ne s'affichent que si `Theme.gloss` / `Theme.bubbles`. Thèmes importés gardés dans prefs.json (`theme`,
   `themes`) ; le créateur (`tools/theme-creator.html`) est intégré au programme (`theme::CREATOR`) et déposé dans
   « Turtlefin Themes » par « Créer un thème ». Ses thèmes de départ doivent rester identiques à ceux de theme.rs.
+  Jetons de style au-delà des couleurs : `card-border`, `glow`, `sheen` (cartes), `player-bar`, `player-ink`,
+  `player-orb` (lecteur), `scenery`, `header-glass`, `edge`, `streaks`, `boot-style` (démarrage en billes, Aero).
+  L'icône de la fenêtre est dessinée en Rust aux couleurs du thème (`theme::icon`) et posée par winit
+  (`theme::window_icon`) : Slint ne transmet pas une icône sans clé de cache.
 - **Souris** : clic partout ; molette sur l'accueil, la fiche (`d-nav`, partagé avec le clavier), la recherche,
   les bibliothèques, les téléchargements, les paramètres ; les fenêtres au premier plan absorbent la molette.
 

@@ -163,8 +163,8 @@ de langues et de presets à côté du programme.
 
 ## Thèmes
 
-Paramètres → Affichage → **Thème** : Turtlefin (par défaut), Sombre, Clair, Frutiger Aero (ciel, herbe, bulles,
-boutons en gel brillant), Turtlefin vert — ou un thème à soi.
+Paramètres → Affichage → **Thème** : Turtlefin (par défaut), Sombre, Clair, Frutiger Aero (dans l'esprit de
+Windows 7 : fond « Harmony », verre bleuté, boutons en gel brillant, lecteur à orbe, démarrage en billes de verre), Turtlefin vert — ou un thème à soi.
 
 - **Créer un thème** ouvre le *Turtlefin Theme Creator* dans le navigateur : chaque couleur, l'arrondi, le reflet
   brillant, le ciel et les bulles, avec un aperçu en direct ; il enregistre un fichier `.tftheme`.

@@ -4,7 +4,7 @@
 // Retour arrière : effacer.
 // Le clavier ne modifie jamais `text` lui-même : il propose le nouveau texte par `edited`.
 
-import { Theme, Tr, Gloss } from "theme.slint";
+import { Theme, Tr, Gloss, Motion } from "theme.slint";
 
 // Vrai clavier branché (mode TV) : un caractère imprimable est écrit tel quel (Rust décide).
 export global OskKeys {
@@ -54,8 +54,28 @@ export component Osk inherits Rectangle {
     property <length> gap: 8px * root.k;
     property <length> kh: 48px * root.k;
 
+    // Touche enfoncée (télécommande, clic ou vrai clavier) : elle s'enfonce un instant à l'écran.
+    property <string> press-key;
+    property <bool> press-on;
+    property <duration> press-t;
+    function flash(k: string) {
+        root.press-key = k;
+        root.press-t = animation-tick();
+        root.press-on = true;
+    }
+    Timer {
+        interval: 40ms;
+        running: root.press-on;
+        triggered => {
+            if (animation-tick() - root.press-t > 220ms) {
+                root.press-on = false;
+            }
+        }
+    }
+
     function press() {
         let key = root.keys[root.r][root.c];
+        root.flash(key);
         if (key == "⇧") {
             root.shift = !root.shift;
         } else if (key == "⌫") {
@@ -91,6 +111,7 @@ export component Osk inherits Rectangle {
         }
         if (t == Key.Return && root.typed) {
             root.typed = false;
+            root.flash("OK");
             root.done();
             return true;
         }
@@ -113,9 +134,11 @@ export component Osk inherits Rectangle {
         } else if (t == Key.Return) {
             root.press();
         } else if (t == Key.Backspace) {
+            root.flash("⌫");
             root.edited(root.erase(root.text));
         } else if (OskKeys.printable(t)) {
-            // Vrai clavier : le caractère tapé va directement dans le champ.
+            // Vrai clavier : le caractère tapé va directement dans le champ (sa touche s'enfonce).
+            root.flash(t == " " ? "␣" : t.to-lowercase());
             root.edited(root.text + t);
             root.typed = true;
         } else {
@@ -136,6 +159,9 @@ export component Osk inherits Rectangle {
             horizontal-stretch: key == "␣" ? 4 : key.character-count > 1 ? 1.6 : 1;
             border-radius: 10px * root.k;
             property <bool> lit: (root.active && ri == root.r && ci == root.c) || ka.has-hover;
+            property <bool> down: root.press-on && key == root.press-key;
+            transform-scale: self.down ? 0.86 : 1.0;
+            animate transform-scale { duration: Motion.search ? (self.down ? 50ms : 180ms) : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
             background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                 : key == "OK" ? Theme.fg.with-alpha(0.22) : (key == "⇧" && root.shift) ? Theme.fg.with-alpha(0.3)
                 : key.character-count > 1 || key == "⇧" || key == "⌫" ? Theme.fg.with-alpha(0.14) : Theme.fg.with-alpha(0.08);
@@ -170,6 +196,12 @@ export component Osk inherits Rectangle {
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+            // Éclair de l'appui
+            Rectangle {
+                border-radius: parent.border-radius;
+                background: rgba(255, 255, 255, parent.down ? 0.4 : 0);
+                animate background { duration: Motion.search ? 160ms : 0ms; }
             }
             ka := TouchArea {
                 clicked => {

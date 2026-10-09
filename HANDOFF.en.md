@@ -64,7 +64,7 @@ src/paths.rs        config / cache / data folders; portable mode; quiet_command
 src/update.rs       update by installation kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: screen / work area, window animated while moved
 src/theme.rs        built-in themes, .tftheme files (ThemeDef), applied to the Theme global
-ui/sky.slint        Frutiger Aero scenery (sky, hill, bubbles), static
+ui/sky.slint        scenery (sky and bubbles · Windows 7 “Harmony”), static, render-cached
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
 tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
@@ -153,6 +153,10 @@ Mechanisms that are not obvious in the code:
   `Theme.gloss` / `Theme.bubbles` are set. Imported themes are kept in prefs.json (`theme`, `themes`); the creator
   (`tools/theme-creator.html`) is embedded in the program (`theme::CREATOR`) and dropped into “Turtlefin Themes” by
   “Create a theme”. Its starting themes must stay identical to those in theme.rs.
+  Style tokens beyond colors: `card-border`, `glow`, `sheen` (cards), `player-bar`, `player-ink`, `player-orb`
+  (player), `scenery`, `header-glass`, `edge`, `streaks`, `boot-style` (glass-orb startup, Aero). The window icon is
+  drawn in Rust in the theme's colors (`theme::icon`) and set through winit (`theme::window_icon`): Slint does not
+  pass on an icon without a cache key.
 - **Mouse**: click everywhere; wheel on home, detail page (`d-nav`, shared with the keyboard), search, libraries,
   downloads, settings; foreground windows swallow the wheel.
 

@@ -22,6 +22,15 @@ export global Theme {
     // Corps des cartes sous l'affiche (normal / choisie).
     in-out property <color> card: #00000033;
     in-out property <color> card-focus: #00000080;
+    // Contour des cartes, lueur autour de l'élément choisi (transparent : aucune), reflet en
+    // diagonale sur les affiches (0 : aucun).
+    in-out property <color> card-border: transparent;
+    in-out property <color> glow: transparent;
+    in-out property <float> sheen: 0;
+    // Lecteur : barre de commandes, encre (texte, icônes) et bouton lecture en orbe brillante.
+    in-out property <color> player-bar: #181820d9;
+    in-out property <color> player-ink: #ffffff;
+    in-out property <bool> player-orb: false;
     // Affiche absente : dégradé de remplacement.
     in-out property <color> ph1: #2b2142;
     in-out property <color> ph2: #10283a;
@@ -36,8 +45,18 @@ export global Theme {
     in-out property <length> radius: 10px;
     // Reflet brillant en haut des boutons et des panneaux (0 : aucun ; Frutiger Aero : ~1).
     in-out property <float> gloss: 0;
-    // Décor du fond : bulles et voiles de lumière (Frutiger Aero).
+    // Décor du fond : 0 aucun · 1 ciel, herbe et bulles · 2 « Harmony » (Windows 7 : gerbe de
+    // lumière sur bleu profond). `bubbles` : ancien nom du décor 1.
     in-out property <bool> bubbles: false;
+    in-out property <int> scenery: 0;
+    // Barre de verre derrière l'en-tête (comme la barre des tâches de Windows 7).
+    in-out property <bool> header-glass: false;
+    // Liseré intérieur des éléments brillants et des panneaux (transparent : aucun).
+    in-out property <color> edge: transparent;
+    // Reflets en biais sur les grands panneaux de verre.
+    in-out property <bool> streaks: false;
+    // Animation de démarrage : 0 logo qui se relie · 1 billes de verre qui tourbillonnent (Aero).
+    in-out property <int> boot-style: 0;
     // Thème sombre (sinon clair).
     in-out property <bool> dark: true;
 }
@@ -48,6 +67,18 @@ export component Gloss inherits Rectangle {
     in property <length> r: 10px;
     in property <float> strength: 1.0;
     visible: Theme.gloss > 0;
+    clip: true;
+    border-radius: root.r;
+    // Liseré intérieur clair (verre de Windows 7).
+    border-width: 1px;
+    border-color: Theme.edge;
+    // Reflets en biais, seulement sur les grandes surfaces.
+    if Theme.streaks && root.height > 90px: Rectangle {
+        background: @linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 30%,
+            rgba(255, 255, 255, 0.09) 31%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0) 43%,
+            rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.07) 53%, rgba(255, 255, 255, 0.03) 58%, rgba(255, 255, 255, 0) 59%,
+            rgba(255, 255, 255, 0) 100%);
+    }
     Rectangle {
         y: 0px;
         height: root.height * 0.52;

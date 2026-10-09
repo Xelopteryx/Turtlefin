@@ -64,7 +64,7 @@ src/paths.rs        mappen voor configuratie / cache / gegevens; draagbare modus
 src/update.rs       bijwerken volgens de installatie (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: scherm / werkgebied, venster geanimeerd tijdens het verplaatsen
 src/theme.rs        ingebouwde thema's, .tftheme-bestanden (ThemeDef), toegepast op het global Theme
-ui/sky.slint        decor van Frutiger Aero (lucht, heuvel, bellen), statisch
+ui/sky.slint        decors (lucht en bellen · „Harmony” van Windows 7), statisch, in de cache
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
 tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)

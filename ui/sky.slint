@@ -34,11 +34,8 @@ component Bubble inherits Rectangle {
     }
 }
 
-export component AeroSky inherits Rectangle {
-    in property <float> k: 1.0;
-    // Décor fixe : dessiné une fois dans une image gardée par le moteur de rendu, puis recopié tel
-    // quel à chaque image (bulles, dégradés et courbes coûtent sinon à chaque rafraîchissement).
-    cache-rendering-hint: true;
+// Ciel lumineux, colline d'herbe et bulles (décor 1).
+component SkyScene inherits Rectangle {
     property <length> u: min(self.width, self.height * 1.6) / 100;
 
     // Halo du soleil (en haut à droite)
@@ -121,4 +118,83 @@ export component AeroSky inherits Rectangle {
     Bubble { x: parent.width * 0.58; y: parent.height * 0.12; width: 2.4 * root.u; a: 0.6; }
     Bubble { x: parent.width * 0.33; y: parent.height * 0.18; width: 1.8 * root.u; a: 0.55; }
     Bubble { x: parent.width * 0.69; y: parent.height * 0.9; width: 5.5 * root.u; a: 0.75; }
+}
+
+// Éclat de lumière doux (rond, flou) : cœur coloré qui s'efface vers le bord.
+component Glow inherits Rectangle {
+    in property <color> c: #ffffff;
+    in property <float> a: 0.5;
+    height: self.width;
+    border-radius: self.width / 2;
+    background: @radial-gradient(circle, root.c.with-alpha(root.a) 0%, root.c.with-alpha(root.a * 0.35) 35%, root.c.with-alpha(0) 70%);
+}
+
+// « Harmony » (décor 2), dans l'esprit du fond d'écran de Windows 7 : bleu profond, gerbe de lumière
+// cyan et blanche, rubans de lumière en éventail, petites lueurs de couleur au cœur.
+component HarmonyScene inherits Rectangle {
+    property <length> u: min(self.width, self.height * 1.6) / 100;
+    // Halo général, un peu à gauche du centre.
+    Glow { x: parent.width * 0.5 - self.width / 2; y: parent.height * 0.42 - self.height / 2; width: parent.width * 1.1; c: #4fb4ff; a: 0.42; }
+    // Rubans de lumière : courbes claires qui partent du cœur vers les bords.
+    Path {
+        width: 1000px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 600;
+        fill: @linear-gradient(160deg, rgba(255, 255, 255, 0) 0%, rgba(190, 235, 255, 0.30) 45%, rgba(255, 255, 255, 0) 100%);
+        commands: "M 500 250 C 380 150 220 60 -40 20 L -40 80 C 200 110 360 190 500 262 Z M 500 250 C 650 170 820 110 1040 90 L 1040 130 C 830 150 660 200 500 262 Z";
+    }
+    Path {
+        width: 1000px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 600;
+        fill: @linear-gradient(20deg, rgba(255, 255, 255, 0) 0%, rgba(120, 210, 255, 0.24) 50%, rgba(255, 255, 255, 0) 100%);
+        commands: "M 500 260 C 360 330 180 430 -40 470 L -40 540 C 200 480 380 370 500 272 Z M 500 260 C 640 340 820 420 1040 440 L 1040 500 C 810 470 630 380 500 272 Z";
+    }
+    Path {
+        width: 1000px;
+        height: 600px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        transform-scale-x: parent.width / self.width;
+        transform-scale-y: parent.height / self.height;
+        viewbox-width: 1000;
+        viewbox-height: 600;
+        fill: @linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(220, 245, 255, 0.20) 50%, rgba(255, 255, 255, 0) 100%);
+        commands: "M -40 300 C 200 270 380 250 500 256 C 640 262 820 250 1040 230 L 1040 250 C 820 272 640 280 500 270 C 380 262 200 290 -40 330 Z";
+    }
+    // Cœur : lueurs de couleur (rouge, vert, bleu, jaune) puis blanc éclatant.
+    Glow { x: parent.width * 0.47 - self.width / 2; y: parent.height * 0.40 - self.height / 2; width: 16 * root.u; c: #ff5a3c; a: 0.3; }
+    Glow { x: parent.width * 0.53 - self.width / 2; y: parent.height * 0.40 - self.height / 2; width: 16 * root.u; c: #7ed957; a: 0.3; }
+    Glow { x: parent.width * 0.47 - self.width / 2; y: parent.height * 0.47 - self.height / 2; width: 16 * root.u; c: #2f9bff; a: 0.34; }
+    Glow { x: parent.width * 0.53 - self.width / 2; y: parent.height * 0.47 - self.height / 2; width: 16 * root.u; c: #ffd23c; a: 0.3; }
+    Glow { x: parent.width * 0.5 - self.width / 2; y: parent.height * 0.435 - self.height / 2; width: 20 * root.u; c: #ffffff; a: 0.38; }
+    // Reflets ronds, flous, comme une lumière dans la vitre.
+    Glow { x: parent.width * 0.16; y: parent.height * 0.18; width: 7 * root.u; c: #bfe6ff; a: 0.18; }
+    Glow { x: parent.width * 0.78; y: parent.height * 0.66; width: 10 * root.u; c: #bfe6ff; a: 0.14; }
+    Glow { x: parent.width * 0.86; y: parent.height * 0.14; width: 5 * root.u; c: #ffffff; a: 0.16; }
+    Glow { x: parent.width * 0.08; y: parent.height * 0.72; width: 9 * root.u; c: #8fd0ff; a: 0.12; }
+    // Assombrissement des bords, pour que les pages restent lisibles.
+    Rectangle {
+        background: @linear-gradient(180deg, rgba(2, 16, 40, 0.35) 0%, rgba(2, 16, 40, 0) 30%, rgba(2, 16, 40, 0) 65%, rgba(2, 16, 40, 0.5) 100%);
+    }
+}
+
+// Décor du thème, sur l'image de fond du média et sous les pages.
+export component AeroSky inherits Rectangle {
+    in property <float> k: 1.0;
+    // Décor fixe : dessiné une fois dans une image gardée par le moteur de rendu, puis recopié tel
+    // quel à chaque image (bulles, dégradés et courbes coûtent sinon à chaque rafraîchissement).
+    cache-rendering-hint: true;
+    if Theme.scenery == 1: SkyScene { }
+    if Theme.scenery == 2: HarmonyScene { }
 }

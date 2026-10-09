@@ -444,6 +444,19 @@ component CardArt inherits Rectangle {
 // Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
 // intégrés à l'image au décodage), titre et sous-titre centrés dessous. Sélection : encadré plus
 // sombre et carte légèrement agrandie (simple mise à l'échelle, sans image intermédiaire).
+// Reflet de verre en diagonale sur une affiche : clair en haut à gauche, coupé net en biais.
+component Sheen inherits Rectangle {
+    in property <length> r: 10px;
+    y: 0px;
+    border-top-left-radius: root.r;
+    border-top-right-radius: root.r;
+    clip: true;
+    Rectangle {
+        background: @linear-gradient(125deg, rgba(255, 255, 255, 0.42 * Theme.sheen) 0%, rgba(255, 255, 255, 0.14 * Theme.sheen) 38%,
+            rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
+    }
+}
+
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
@@ -477,6 +490,11 @@ component Card inherits Rectangle {
     animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
     background: root.focused ? Theme.card-focus : Theme.card;
+    // Contour et lueur de la carte choisie, selon le thème (transparents par défaut).
+    border-width: 1px;
+    border-color: Theme.card-border;
+    drop-shadow-blur: root.focused ? 22px * root.k : 0px;
+    drop-shadow-color: Theme.glow;
 
     CardArt {
         y: 0px;
@@ -485,6 +503,11 @@ component Card inherits Rectangle {
         k: root.k;
         // Pendant qu'elle vole (ouverture / retour), l'image partagée remplace celle-ci.
         visible: Hero.hide-id == "" || root.data.id != Hero.hide-id;
+    }
+    // Reflet en diagonale sur l'affiche, comme sur du verre (thèmes à `Theme.sheen`).
+    if Theme.sheen > 0 && (Hero.hide-id == "" || root.data.id != Hero.hide-id): Sheen {
+        height: root.img-h;
+        r: Theme.radius;
     }
 
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
@@ -1511,6 +1534,7 @@ export struct DlInfo {
 
 export component AppWindow inherits Window {
     title: "Turtlefin";
+    // Icône de départ ; ensuite celle du thème, posée directement sur la fenêtre (theme::window_icon).
     icon: @image-url("../packaging/icons/turtlefin-64.png");
     // Interface TV sous Windows : fenêtre sans bordure sur tout l'écran (voir set_tv_window).
     in property <bool> frameless;
@@ -1793,7 +1817,9 @@ export component AppWindow inherits Window {
     // Retour : depuis la page ouverte par une carte, l'image reste en place pendant que la page
     // s'efface, puis repart vers la carte.
     function hero-return() {
-        root.hero-from-id = root.screen == "detail" ? root.detail.id : "";
+        // Fiche quittée : l'image attend qu'elle soit partie. Page Seerr fermée au-dessus d'une fiche :
+        // la fiche reste, l'image repart tout de suite vers sa carte (sinon elle restait figée).
+        root.hero-from-id = root.screen == "detail" && !root.sr-open ? root.detail.id : "";
         Hero.want-id = root.hero-data.id;
         root.hero-dest = false;
         root.hero-flying = false;
@@ -2569,6 +2595,17 @@ export component AppWindow inherits Window {
     // Décor du thème (Frutiger Aero : ciel, bulles), sur l'image de fond et sous les pages.
     if Theme.bubbles && !root.playing: AeroSky {
         k: root.k;
+    }
+    // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
+    // Windows 7) : moitié haute claire, moitié basse plus sombre, liserés clairs.
+    if Theme.header-glass && !root.playing && root.signed-in && root.screen != "login" && root.screen != "loading": Rectangle {
+        y: 0px;
+        height: root.header-h;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
+            rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
+        Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
+        Rectangle { y: parent.height - 2px; height: 1px; background: rgba(0, 0, 0, 0.35); }
+        Rectangle { y: parent.height - 1px; height: 1px; background: rgba(255, 255, 255, 0.28); }
     }
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
@@ -4635,6 +4672,17 @@ export component AppWindow inherits Window {
                 opacity: root.d-poster-swap ? root.pm : 1;
                 source: root.detail.poster;
                 image-fit: fill;
+            }
+            // Reflet de verre et contour, selon le thème.
+            if Theme.sheen > 0: Sheen {
+                r: Theme.radius;
+                border-bottom-left-radius: Theme.radius;
+                border-bottom-right-radius: Theme.radius;
+            }
+            Rectangle {
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: Theme.card-border;
             }
         }
 

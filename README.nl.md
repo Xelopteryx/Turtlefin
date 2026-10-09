@@ -167,8 +167,8 @@ en presets naast het programma.
 
 ## Thema's
 
-Instellingen → Weergave → **Thema**: Turtlefin (standaard), Donker, Licht, Frutiger Aero (lucht, gras, bellen,
-glanzende gelknoppen), Turtlefin groen — of een eigen thema.
+Instellingen → Weergave → **Thema**: Turtlefin (standaard), Donker, Licht, Frutiger Aero (in de geest van Windows 7:
+achtergrond „Harmony”, blauwig glas, glanzende gelknoppen, speler met bol, opstarten met glazen bollen), Turtlefin groen — of een eigen thema.
 
 - **Thema maken** opent de *Turtlefin Theme Creator* in de browser: elke kleur, de afronding, de glans, de lucht en
   de bellen, met een live voorbeeld; hij bewaart een `.tftheme`-bestand.
