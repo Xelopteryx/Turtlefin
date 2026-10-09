@@ -7337,7 +7337,8 @@ export component AppWindow inherits Window {
     property <bool> tour-ok;
     function tour-press(b: int) {
         if (b == 0) {
-            root.tour-step = root.tour-last == 9 ? 0 : max(0, root.tour-last - 1);
+            // Depuis la lecture : retour à « Ouvrir un média » (l'étape « Revenir » se saute sur l'accueil).
+            root.tour-step = root.tour-last == 9 ? 7 : max(0, root.tour-last - 1);
         } else if (b == 1) {
             root.tour-step = -1;
         } else {
@@ -7430,6 +7431,27 @@ export component AppWindow inherits Window {
             if ((root.tour-step == 1 && root.tour-cards < 2) || (root.tour-step == 2 && root.sections.length < 2)
                     || (root.tour-step == 7 && root.sections.length == 0) || (root.tour-step == 8 && root.screen == "home")) {
                 root.tour-step += 1;
+            } else {
+                // Pendant la coche verte (0,65 s), les touches agissent toujours : l'étape trouve
+                // peut-être l'interface déjà changée. Elle la remet dans l'état attendu, ou se valide
+                // toute seule si son geste est déjà fait.
+                if (root.tour-step == 4 && !root.h-focus) {
+                    root.h-focus = true;
+                    root.h-sel = root.nav-n;
+                } else if (root.tour-step == 6 && !root.menu-open) {
+                    root.open-menu();
+                } else if (root.tour-step == 7 && root.menu-open) {
+                    root.close-menu();
+                }
+                if ((root.tour-step == 3 && root.h-focus) || (root.tour-step == 5 && root.menu-open)
+                        || (root.tour-step == 7 && root.screen != "home")) {
+                    root.tour-done();
+                }
+                if (root.tour-step == 1 || root.tour-step == 2) {
+                    // Rangées : menu fermé, sélection dans les affiches.
+                    root.menu-open = false;
+                    root.h-focus = false;
+                }
             }
         } else {
             root.refocus += 1;
