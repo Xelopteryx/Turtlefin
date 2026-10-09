@@ -1779,9 +1779,10 @@ fn party_action(app: &Arc<App>, action: String) {
 fn open_search(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
         u.set_h_focus(false);
-        // Clavier à l'écran fermé : la sélection est sur le champ, OK l'ouvre (mode TV).
+        // Clavier à l'écran fermé : la sélection est sur le champ, OK l'ouvre (mode TV) ; au bureau,
+        // le champ a le clavier.
         u.set_s_osk(false);
-        u.set_s_field(u.get_tv_mode());
+        u.set_s_field(true);
         u.set_screen("search".into());
     }
 }
@@ -3979,7 +3980,7 @@ fn go_back(app: &Arc<App>) {
                     if let Some(u) = app.ui().upgrade() {
                         u.set_h_focus(false);
                         u.set_s_osk(false);
-                        u.set_s_field(u.get_search_sections().row_count() == 0 && u.get_tv_mode());
+                        u.set_s_field(u.get_search_sections().row_count() == 0);
                         u.set_screen("search".into());
                     }
                 }
@@ -4604,6 +4605,9 @@ fn main() -> anyhow::Result<()> {
             c.as_str().into()
         });
         st.on_at(|s, k| s.chars().rev().nth(k.max(0) as usize).map(|c| c.to_string()).unwrap_or_default().into());
+        // Texte d'une touche qui s'écrit (pas une flèche, Échap, Entrée... : codes de contrôle ou
+        // de la zone privée d'Unicode, où Slint range ses touches spéciales).
+        st.on_printable(|s| !s.is_empty() && s.chars().all(|c| !c.is_control() && !('\u{E000}'..='\u{F8FF}').contains(&c)));
         let t = ui.global::<Tr>();
         // Le premier argument (Tr.l) ne sert qu'à faire recalculer les textes au changement de langue.
         t.on_t(|_, s| i18n::tr_str(&s).into());

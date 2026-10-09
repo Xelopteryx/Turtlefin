@@ -11,6 +11,8 @@ export global Str {
     pure callback head(string, int) -> string;
     // Caractère `k` en partant de la fin (0 : le dernier) ; "" s'il n'y en a pas.
     pure callback at(string, int) -> string;
+    // Vrai pour le texte d'une touche qui s'écrit (lettre, chiffre, espace...), faux pour les autres.
+    pure callback printable(string) -> bool;
 }
 
 // Une des dernières lettres tapées : apparaît en grossissant (chacune garde son animation, même
