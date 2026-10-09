@@ -796,12 +796,13 @@ component HeaderIcon inherits Rectangle {
     in property <bool> focused;
     in property <bool> on; // état actif (watch party en cours) : anneau d'accent
     in property <float> k: 1.0;
+    in property <float> pop: 1.0; // apparition (avatar après la connexion), multiplie l'échelle
     callback clicked();
 
     width: 44px * root.k;
     height: 44px * root.k;
     border-radius: self.height / 2;
-    transform-scale: root.focused || area.has-hover ? 1.12 : 1.0;
+    transform-scale: (root.focused || area.has-hover ? 1.12 : 1.0) * root.pop;
     animate transform-scale { duration: 200ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
     border-width: root.on && !root.focused ? 2px * root.k : 0px;
@@ -1286,10 +1287,8 @@ component HeaderRight inherits Rectangle {
 
     // Largeur occupée par les icônes (marge droite comprise) : cadre de la visite guidée.
     out property <length> used-w: hr-lay.preferred-width;
-    // Photo du compte : position à l'écran (arrivée de l'envol à la connexion) ; masquée pendant.
-    out property <length> me-x: me.absolute-position.x;
-    out property <length> me-y: me.absolute-position.y;
-    in property <bool> hide-me;
+    // Photo du compte : apparition élastique après la connexion (0 -> 1).
+    in property <float> me-pop: 1;
     hr-lay := HorizontalLayout {
         alignment: end;
         spacing: 12px * root.k;
@@ -1417,8 +1416,8 @@ component HeaderRight inherits Rectangle {
             icon: root.has-avatar ? "" : "profile";
             k: root.k;
             focused: root.sel == 3;
-            // Connexion : la photo du compte arrive en volant (voir fly-phase), elle prend sa place.
-            opacity: root.hide-me ? 0 : 1;
+            // Connexion : la photo apparaît en zoomant (élastique) après le départ de celle du compte.
+            pop: root.me-pop;
             clicked => {
                 root.activate(3);
             }
@@ -3159,7 +3158,7 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Chargement
     // Démarrage (ou juste après la connexion) : nom de l'appli et barre animée.
-    if root.screen == "loading" && !root.playing: Rectangle {
+    if root.screen == "loading" && !root.playing && root.fly-phase == 0: Rectangle {
         Text {
             y: parent.height / 2 - 60px * root.k;
             width: parent.width;
@@ -3278,20 +3277,12 @@ export component AppWindow inherits Window {
                 dl-text: root.dl-pill;
                 dl-p: root.dl-p;
                 dl-paused: root.dl-paused;
-                hide-me: root.fly-phase == 3;
+                me-pop: root.me-pop;
                 init => {
                     root.right-w = self.used-w;
-                    root.me-x = self.me-x;
-                    root.me-y = self.me-y;
                 }
                 changed used-w => {
                     root.right-w = self.used-w;
-                }
-                changed me-x => {
-                    root.me-x = self.me-x;
-                }
-                changed me-y => {
-                    root.me-y = self.me-y;
                 }
                 activate(i) => {
                     root.right-activate(i);
@@ -7781,11 +7772,12 @@ export component AppWindow inherits Window {
         }
     }
 
-    // ------------------------------------------------------------ Connexion : la photo s'envole
-    // 1 : la photo du compte choisi quitte sa tuile pour le centre (élastique), la page s'efface ;
-    // 2 : elle y attend la connexion, un anneau tourne autour ;
-    // 3 : l'accueil arrive, elle part vers le bas à gauche puis remonte en arc jusqu'à l'avatar en
-    //     haut à droite en rétrécissant, et s'y pose avec un rebond ;
+    // ------------------------------------------------------------ Connexion : la photo du compte
+    // 1 : la photo du compte choisi quitte sa tuile pour le centre (élastique), le reste s'efface ;
+    // 2 : elle y attend la connexion, une barre de chargement en dessous ;
+    // 3 : connecté : elle part au loin (léger élan puis dézoom), sur un fond qui cache l'accueil ;
+    // 4 : le fond s'efface, l'accueil arrive et l'avatar en haut à droite apparaît en zoomant
+    //     (élastique) ;
     // 0 : rien (échec de la connexion : la page « Qui regarde ? » revient).
     in-out property <int> fly-phase;
     in-out property <image> fly-img;
@@ -7795,8 +7787,6 @@ export component AppWindow inherits Window {
     in-out property <length> fly-sy;
     in-out property <length> fly-ss;
     property <duration> fly-t0;
-    in-out property <length> me-x: root.width - 120px * root.k;
-    in-out property <length> me-y: 14px * root.k;
     function fly-start(phase: int) {
         root.fly-phase = phase;
         root.fly-t0 = animation-tick();
@@ -7809,8 +7799,16 @@ export component AppWindow inherits Window {
         }
     }
     Timer {
-        interval: 1250ms;
+        interval: 460ms;
         running: root.fly-phase == 3;
+        triggered => {
+            root.fly-start(4);
+            root.page-enter();
+        }
+    }
+    Timer {
+        interval: 760ms;
+        running: root.fly-phase == 4;
         triggered => {
             root.fly-phase = 0;
         }
@@ -7828,62 +7826,36 @@ export component AppWindow inherits Window {
             root.fly-phase = 0;
         }
     }
+    // Avatar en haut à droite : apparition élastique (phase 4), caché avant.
+    property <float> fly-pq: root.fly-phase == 4 ? clamp((animation-tick() - root.fly-t0) / 700ms, 0, 1) : 1;
+    out property <float> me-pop: root.fly-phase == 3 ? 0
+        : root.fly-pq >= 1 ? 1 : 1 - pow(2, -9 * root.fly-pq) * cos(root.fly-pq * 440deg);
     property <length> fly-cs: 190px * root.k;
     property <length> fly-cx: (root.width - self.fly-cs) / 2;
     property <length> fly-cy: (root.height - self.fly-cs) / 2 - 20px * root.k;
-    property <length> fly-ts: 36px * root.k;
-    property <length> fly-tx: root.me-x + 4px * root.k;
-    property <length> fly-ty: root.me-y + 4px * root.k;
     if root.fly-phase > 0: Rectangle {
-        property <float> t: root.fly-phase == 2 ? 1 : (animation-tick() - root.fly-t0) / 1ms;
+        property <float> t: (animation-tick() - root.fly-t0) / 1ms;
+        // Fond : cache l'écran de chargement puis l'accueil jusqu'à la fin du départ de la photo.
+        Rectangle {
+            background: Theme.bg;
+            opacity: root.fly-phase < 4 ? 1 : 1 - clamp(parent.t / 300, 0, 1);
+            TouchArea { }
+        }
         // Phase 1 : vers le centre (élastique).
         property <float> a: root.fly-phase == 1 ? clamp(self.t / 460, 0, 1) : 1;
         property <float> ae: 1 - pow(2, -9 * self.a) * cos(self.a * 330deg * 1.35);
-        // Phase 3 : le long d'une courbe (départ vers le bas à gauche), puis rebond à l'arrivée.
-        property <float> b: root.fly-phase == 3 ? clamp(self.t / 900, 0, 1) : 0;
-        property <float> be: self.b < 0.5 ? 2 * self.b * self.b : 1 - pow(-2 * self.b + 2, 2) / 2;
-        property <float> land: root.fly-phase == 3 ? clamp((self.t - 900) / 320, 0, 1) : 0;
-        property <float> bounce: self.land <= 0 ? 0 : sin(self.land * 540deg) * (1 - self.land) * 0.35;
-        // Courbe (Bézier cubique) : plonge vers le bas à gauche, remonte par la gauche, puis file
-        // vers le haut à droite.
-        property <length> p1x: root.width * 0.08;
-        property <length> p1y: root.height * 1.05;
-        property <length> p2x: root.width * 0.02;
-        property <length> p2y: root.height * -0.05;
-        property <float> u: 1 - self.be;
-        property <float> w0: self.u * self.u * self.u;
-        property <float> w1: 3 * self.u * self.u * self.be;
-        property <float> w2: 3 * self.u * self.be * self.be;
-        property <float> w3: self.be * self.be * self.be;
-        property <length> s: root.fly-phase == 3 ? (root.fly-cs + (root.fly-ts - root.fly-cs) * self.be) * (1 + self.bounce)
-            : root.fly-ss + (root.fly-cs - root.fly-ss) * self.ae;
-        property <length> cx: root.fly-phase == 3
-            ? self.w0 * (root.fly-cx + root.fly-cs / 2) + self.w1 * self.p1x + self.w2 * self.p2x + self.w3 * (root.fly-tx + root.fly-ts / 2)
-            : (root.fly-sx + root.fly-ss / 2) + ((root.fly-cx + root.fly-cs / 2) - (root.fly-sx + root.fly-ss / 2)) * self.ae;
-        property <length> cy: root.fly-phase == 3
-            ? self.w0 * (root.fly-cy + root.fly-cs / 2) + self.w1 * self.p1y + self.w2 * self.p2y + self.w3 * (root.fly-ty + root.fly-ts / 2)
-            : (root.fly-sy + root.fly-ss / 2) + ((root.fly-cy + root.fly-cs / 2) - (root.fly-sy + root.fly-ss / 2)) * self.ae;
-        x: self.cx - self.s / 2;
-        y: self.cy - self.s / 2;
-        width: self.s;
-        height: self.s;
-        // Anneau qui tourne pendant la connexion.
-        if root.fly-phase == 2: Path {
-            x: -14px * root.k;
-            y: -14px * root.k;
-            width: parent.width + 28px * root.k;
-            height: parent.height + 28px * root.k;
-            viewbox-width: 100;
-            viewbox-height: 100;
-            fill: transparent;
-            stroke: Theme.accent2;
-            stroke-width: 4px * root.k;
-            stroke-line-cap: round;
-            property <angle> r: mod(animation-tick() / 1ms, 1100) / 1100 * 360deg;
-            commands: "M " + (50 + 48 * cos(self.r)) + " " + (50 + 48 * sin(self.r)) + " A 48 48 0 0 1 "
-                + (50 + 48 * cos(self.r + 110deg)) + " " + (50 + 48 * sin(self.r + 110deg));
-        }
-        Rectangle {
+        // Phase 3 : petit élan, puis la photo part au loin (rétrécit et s'efface).
+        property <float> v: root.fly-phase == 3 ? clamp(self.t / 440, 0, 1) : root.fly-phase == 4 ? 1 : 0;
+        property <float> vs: self.v < 0.25 ? 1 + 0.12 * self.v / 0.25 : 1.12 * (1 - pow((self.v - 0.25) / 0.75, 2));
+        property <length> s: (root.fly-ss + (root.fly-cs - root.fly-ss) * self.ae) * (root.fly-phase >= 3 ? self.vs : 1);
+        property <length> cx: (root.fly-sx + root.fly-ss / 2) + ((root.fly-cx + root.fly-cs / 2) - (root.fly-sx + root.fly-ss / 2)) * self.ae;
+        property <length> cy: (root.fly-sy + root.fly-ss / 2) + ((root.fly-cy + root.fly-cs / 2) - (root.fly-sy + root.fly-ss / 2)) * self.ae;
+        if root.fly-phase < 4: Rectangle {
+            x: parent.cx - parent.s / 2;
+            y: parent.cy - parent.s / 2;
+            width: max(0px, parent.s);
+            height: self.width;
+            opacity: root.fly-phase == 3 ? 1 - clamp((parent.v - 0.25) / 0.75, 0, 1) : 1;
             border-radius: self.width / 2;
             background: @linear-gradient(130deg, #3b2a55 0%, #12304a 100%);
             clip: true;
@@ -7900,6 +7872,25 @@ export component AppWindow inherits Window {
                 font-weight: 700;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+        }
+        // Connexion en cours : barre de chargement sous la photo.
+        if root.fly-phase == 2: Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: root.fly-cy + root.fly-cs + 28px * root.k;
+            width: 160px * root.k;
+            height: 4px * root.k;
+            border-radius: self.height / 2;
+            background: #ffffff1a;
+            clip: true;
+            property <length> seg: 60px * root.k;
+            property <length> head: (mod(animation-tick() / 1ms, 1300) / 1300) * (self.width + self.seg);
+            Rectangle {
+                x: max(0px, parent.head - parent.seg);
+                width: min(parent.width, parent.head) - self.x;
+                height: parent.height;
+                border-radius: self.height / 2;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
             }
         }
     }
