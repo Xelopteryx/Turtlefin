@@ -12,7 +12,7 @@ teclado e rato.
 > **Projeto totalmente «vibecodado»**: todo o código, textos e traduções foram escritos por uma IA (Claude,
 > da Anthropic), guiada e testada por um humano que não o programou ele próprio.
 
-Versão atual: **1.0.0** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
+Versão atual: **1.1.0** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
 Nederlands — e qualquer idioma que acrescentes tu mesmo (ver [Traduzir o Turtlefin](#traduzir-o-turtlefin)).
 
 ## O que faz

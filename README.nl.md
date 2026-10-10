@@ -12,7 +12,7 @@ als met toetsenbord en muis.
 > **Volledig gevibecodeerd project**: alle code, teksten en vertalingen zijn geschreven door een AI (Claude,
 > van Anthropic), begeleid en getest door een mens die het niet zelf heeft geprogrammeerd.
 
-Huidige versie: **1.0.0** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
+Huidige versie: **1.1.0** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
 Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertalen](#turtlefin-vertalen)).
 
 ## Wat hij kan

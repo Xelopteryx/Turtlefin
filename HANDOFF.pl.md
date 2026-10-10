@@ -1,10 +1,10 @@
-# Turtlefin: przekazanie projektu (stan na 9 października 2026, wersja 1.0.0)
+# Turtlefin: przekazanie projektu (stan na 9 października 2026, wersja 1.1.0)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · **Polski** · [Português](HANDOFF.pt.md)
 
 Dla osoby, która przejmuje rozwój (człowieka lub Claude Code). Przeczytaj całość przed dotknięciem kodu, a potem
 [README.pl.md](README.pl.md) (użytkowanie, instalacja, klawisze, pliki).
-Repozytorium: https://github.com/Xelopteryx/Turtlefin · Wersja w `Cargo.toml`: 1.0.0.
+Repozytorium: https://github.com/Xelopteryx/Turtlefin · Wersja w `Cargo.toml`: 1.1.0.
 
 ## 1. Cel
 

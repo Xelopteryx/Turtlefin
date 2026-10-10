@@ -12,7 +12,7 @@ telecomando come con tastiera e mouse.
 > **Progetto interamente «vibecodato»**: tutto il codice, i testi e le traduzioni sono stati scritti da un'IA
 > (Claude, di Anthropic), guidata e provata da un umano che non l'ha programmato di persona.
 
-Versione attuale: **1.0.0** · Lingue dell'interfaccia: Italiano, English, Français, Español, Deutsch, Português,
+Versione attuale: **1.1.0** · Lingue dell'interfaccia: Italiano, English, Français, Español, Deutsch, Português,
 Polski, Nederlands — e qualsiasi lingua aggiunta da te (vedi [Tradurre Turtlefin](#tradurre-turtlefin)).
 
 ## Cosa sa fare

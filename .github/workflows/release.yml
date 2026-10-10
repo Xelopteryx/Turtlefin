@@ -111,11 +111,14 @@ jobs:
           fetch-depth: 0
       # Notes de version = message de l'étiquette annotée (git tag -a v1.2.3 -m "…"), affiché par la
       # mise à jour intégrée (4 premières lignes).
+      # Titre de la Release : première ligne du message (« Turtlefin 1.1.0 — Interface Update »).
       - name: Notes de version
+        id: notes
         run: |
           git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
           git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > notes.md
           cat notes.md
+          echo "title=$(head -n 1 notes.md)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -124,4 +127,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          name: ${{ steps.notes.outputs.title }}
           body_path: notes.md

@@ -12,7 +12,7 @@ keyboard and mouse.
 > **Fully vibecoded project**: all the code, texts and translations were written by an AI (Claude, by
 > Anthropic), guided and tested by a human who did not write any of the code.
 
-Current version: **1.0.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
+Current version: **1.1.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
 ## What it does

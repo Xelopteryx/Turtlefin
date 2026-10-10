@@ -12,7 +12,7 @@ Fernbedienung genauso gut bedienen wie mit Tastatur und Maus.
 > **Vollständig per Vibecoding entstanden**: Code, Texte und Übersetzungen wurden komplett von einer KI
 > (Claude von Anthropic) geschrieben, angeleitet und getestet von einem Menschen, der nicht selbst programmiert hat.
 
-Aktuelle Version: **1.0.0** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
+Aktuelle Version: **1.1.0** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
 Polski, Nederlands — und jede selbst hinzugefügte Sprache (siehe [Turtlefin übersetzen](#turtlefin-übersetzen)).
 
 ## Was er kann

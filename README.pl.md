@@ -12,7 +12,7 @@ go pilotem, jak klawiaturą i myszą.
 > **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja
 > (Claude od Anthropic), prowadzona i testowana przez człowieka, który sam go nie programował.
 
-Aktualna wersja: **1.0.0** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
+Aktualna wersja: **1.1.0** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
 Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
 
 ## Co potrafi

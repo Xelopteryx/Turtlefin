@@ -12,7 +12,7 @@ de bien con un mando a distancia que con teclado y ratón.
 > **Proyecto totalmente «vibecodeado»**: todo el código, los textos y las traducciones los escribió una IA
 > (Claude, de Anthropic), guiada y probada por un humano que no lo programó él mismo.
 
-Versión actual: **1.0.0** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
+Versión actual: **1.1.0** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
 Polski, Nederlands — y cualquier idioma que añadas tú mismo (ver [Traducir Turtlefin](#traducir-turtlefin)).
 
 ## Qué hace
