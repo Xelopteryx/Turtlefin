@@ -10,7 +10,7 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion, Gloss, Sheen } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
@@ -21,7 +21,7 @@ export { OskKeys }
 import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
 
-export { CardData, Prefs, Tr, Motion, Theme }
+export { CardData, Prefs, Tr, Motion, Theme, Nav }
 
 export { TrackData, DustLine, Str, LxItem }
 
@@ -159,6 +159,7 @@ component Field inherits Rectangle {
     }
 
     property <bool> lit: root.tv ? root.selected || root.editing : input.has-focus;
+    property <length> cur-x: -1px;
     height: 22px * root.k + 52px * root.k + 22px * root.k;
 
     Text {
@@ -181,26 +182,18 @@ component Field inherits Rectangle {
         border-color: root.error != "" ? Theme.danger : root.lit ? Theme.accent2 : Theme.fg.with-alpha(0.18);
         animate background, border-color { duration: Motion.select ? 160ms : 0ms; }
 
-        // Aide (champ vide)
-        if root.text == "" && !(root.tv && root.editing): Text {
+        // Texte tapé comme dans la recherche (lettres animées, curseur qui clignote, aide en fondu) :
+        // clavier à l'écran en mode TV, champ classique au bureau (texte et curseur masqués, dessinés ici).
+        TypedText {
             x: 18px * root.k;
             width: parent.width - 36px * root.k;
             height: parent.height;
-            text: root.hint;
-            color: Theme.fg.with-alpha(0.35);
-            font-size: 17px * root.k;
-            vertical-alignment: center;
-            overflow: elide;
-        }
-        if root.tv: Text {
-            x: 18px * root.k;
-            width: parent.width - 36px * root.k;
-            height: parent.height;
-            text: root.shown + (root.editing ? "│" : "");
-            color: Theme.fg;
+            text: root.tv ? root.shown : root.password ? root.shown : root.text;
+            placeholder: root.hint;
+            cursor: root.tv ? root.editing : input.has-focus;
+            cursor-x: root.tv || root.password ? -1px : root.cur-x;
             font-size: 18px * root.k;
-            vertical-alignment: center;
-            overflow: elide;
+            k: root.k;
         }
         input := TextInput {
             x: 18px * root.k;
@@ -210,11 +203,15 @@ component Field inherits Rectangle {
             enabled: !root.tv;
             text <=> root.text;
             input-type: root.password ? InputType.password : InputType.text;
-            color: Theme.fg;
+            color: transparent;
+            text-cursor-width: 0px;
             font-size: 18px * root.k;
             vertical-alignment: center;
             single-line: true;
-            selection-background-color: Theme.accent1;
+            selection-background-color: Theme.accent1.with-alpha(0.4);
+            cursor-position-changed(pos) => {
+                root.cur-x = pos.x;
+            }
             accepted => {
                 root.accepted();
             }
@@ -447,6 +444,8 @@ component CardArt inherits Rectangle {
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
+    // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav).
+    property <bool> lit: root.focused && Nav.kb;
     in property <float> ratio: 1.5;
     in property <float> k: 1.0;
     callback clicked();
@@ -472,15 +471,15 @@ component Card inherits Rectangle {
         }
     }
 
-    z: root.focused ? 1 : 0;
-    transform-scale: root.focused ? 1.06 : 1.0;
+    z: root.lit ? 1 : 0;
+    transform-scale: root.lit ? 1.06 : 1.0;
     animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
-    background: root.focused ? Theme.card-focus : Theme.card;
+    background: root.lit ? Theme.card-focus : Theme.card;
     // Contour et lueur de la carte choisie, selon le thème (transparents par défaut).
     border-width: 1px;
     border-color: Theme.card-border;
-    drop-shadow-blur: root.focused ? 22px * root.k : 0px;
+    drop-shadow-blur: root.lit ? 22px * root.k : 0px;
     drop-shadow-color: Theme.glow;
 
     CardArt {
@@ -495,7 +494,7 @@ component Card inherits Rectangle {
     if Theme.sheen > 0 && (Hero.hide-id == "" || root.data.id != Hero.hide-id): Sheen {
         height: root.img-h;
         r: Theme.radius;
-        on: root.focused;
+        on: root.lit;
     }
 
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
@@ -956,14 +955,24 @@ component ActionButton inherits Rectangle {
     callback clicked();
 
     preferred-width: label.preferred-width + 40px;
-    border-radius: 10px;
+    // Thèmes brillants (Frutiger Aero) : bulle de verre teintée d'accent, en relief (contour clair,
+    // ombre colorée, reflet), plutôt qu'un bouton plat.
+    property <bool> bubble: Theme.gloss > 0;
+    border-radius: root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond.
     transform-scale: root.focused || area.has-hover ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.45) 0%, Theme.accent1.with-alpha(0.55) 100%)
         : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
+    border-width: root.bubble ? 1px : 0px;
+    border-color: rgba(255, 255, 255, 0.55);
+    drop-shadow-blur: root.bubble ? 14px : 0px;
+    drop-shadow-offset-y: root.bubble ? 3px : 0px;
+    drop-shadow-color: Theme.accent2.with-alpha(0.45);
     Gloss {
         r: parent.border-radius;
+        strength: root.bubble ? 1.3 : 1.0;
     }
 
     label := Text {
@@ -3002,7 +3011,12 @@ export component AppWindow inherits Window {
             opacity: lg.in-e(0);
             width: parent.width;
             text: "Turtlefin";
-            color: Theme.dark ? Theme.accent2 : Theme.accent1;
+            // Thèmes brillants : lettres de verre (dégradé clair vers l'accent, liseré foncé) ;
+            // sinon la couleur d'accent, comme ailleurs.
+            color: Theme.gloss > 0 ? @linear-gradient(180deg, #ffffff 0%, Theme.accent2.brighter(0.5) 50%, Theme.accent2 51%, Theme.accent2.darker(0.15) 100%)
+                : Theme.dark ? Theme.accent2 : Theme.accent1;
+            stroke: Theme.gloss > 0 ? Theme.accent1.darker(0.4) : transparent;
+            stroke-width: Theme.gloss > 0 ? 1.5 * lg.u : 0px;
             font-size: 44 * lg.u;
             font-weight: 800;
             horizontal-alignment: center;
@@ -3043,7 +3057,7 @@ export component AppWindow inherits Window {
                 height: lg.tile + 70 * lg.u;
                 property <float> e: lg.in-e(1.5 + i);
                 property <bool> removable: t.subtitle == Tr.t(Tr.k, "Enregistré");
-                property <bool> sel: (i == root.login-sel) || tile-area.has-hover;
+                property <bool> sel: (i == root.login-sel && Nav.kb) || tile-area.has-hover;
                 property <bool> gone: t.id == lg.gone-id;
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
@@ -3058,8 +3072,11 @@ export component AppWindow inherits Window {
                     height: lg.tile;
                     border-radius: self.width / 2;
                     background: t.id == "other" ? Theme.fg.with-alpha(0.08) : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
-                    border-width: parent.sel ? 5 * lg.u : 0px;
-                    border-color: Theme.accent2;
+                    // Contour et lueur du thème (comme les cartes), accent quand la tuile est choisie.
+                    border-width: parent.sel ? 5 * lg.u : 2 * lg.u;
+                    border-color: parent.sel ? Theme.accent2 : Theme.card-border;
+                    drop-shadow-blur: parent.sel ? 26 * lg.u : 0px;
+                    drop-shadow-color: Theme.glow;
                     if t.has-image: Image {
                         x: 6 * lg.u;
                         y: 6 * lg.u;
@@ -3067,6 +3084,15 @@ export component AppWindow inherits Window {
                         height: parent.height - 12 * lg.u;
                         source: t.image;
                         image-fit: fill;
+                    }
+                    // Thèmes brillants : reflet de bulle en haut de la photo.
+                    if Theme.gloss > 0: Rectangle {
+                        x: parent.width * 0.16;
+                        y: parent.height * 0.05;
+                        width: parent.width * 0.68;
+                        height: parent.height * 0.42;
+                        border-radius: self.height / 2;
+                        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.55 * Theme.gloss) 0%, rgba(255, 255, 255, 0) 100%);
                     }
                     if !t.has-image: Text {
                         text: t.id == "other" ? "+" : t.rating;
@@ -3086,7 +3112,7 @@ export component AppWindow inherits Window {
                     font-size: 18 * lg.u;
                     font-weight: 600;
                     horizontal-alignment: center;
-                    active: i == root.login-sel;
+                    active: i == root.login-sel && Nav.kb;
                     height: self.preferred-height;
                 }
                 Text {
@@ -3143,7 +3169,7 @@ export component AppWindow inherits Window {
                 if !root.login-edit: ActionButton {
                     text: Tr.t(Tr.k, "Changer de serveur");
                     font: 16 * lg.u;
-                    focused: root.login-sel == lg.n;
+                    focused: root.login-sel == lg.n && Nav.kb;
                     clicked => {
                         root.menu-action("server");
                     }
@@ -3151,7 +3177,7 @@ export component AppWindow inherits Window {
                 if lg.saved-count > 0 || root.login-edit: ActionButton {
                     text: root.login-edit ? Tr.t(Tr.k, "Terminé") : Tr.t(Tr.k, "Gérer les comptes");
                     font: 16 * lg.u;
-                    focused: root.login-edit ? root.login-sel >= lg.n : root.login-sel == lg.n + 1;
+                    focused: (root.login-edit ? root.login-sel >= lg.n : root.login-sel == lg.n + 1) && Nav.kb;
                     clicked => {
                         root.login-edit = !root.login-edit;
                         root.login-sel = 0;
@@ -3171,8 +3197,11 @@ export component AppWindow inherits Window {
         // ---- Ajouter un compte : carte de verre centrée (intitulés au-dessus des champs).
         // Mode TV : choisir un champ (↑ ↓) puis Entrée ouvre le clavier à l'écran sous la carte.
         property <length> card-w: min(self.width - 80 * self.u, 520 * self.u);
-        property <length> card-h: 390 * self.u;
-        property <length> card-y: (1 - self.osk-p) * max(150 * self.u, (self.height - self.card-h) / 2 + 40 * self.u)
+        // Clavier à l'écran ouvert : seul le champ en cours reste sur la carte (plus petite), pour que
+        // le clavier tienne en entier dessous, même sur un petit écran.
+        property <bool> one: root.tv-mode && root.login-osk;
+        property <length> card-h: (1 - self.osk-p) * 390 * self.u + self.osk-p * 200 * self.u;
+        property <length> card-y: (1 - self.osk-p) * max(150 * self.u, (self.height - 390 * self.u) / 2 + 40 * self.u)
             + self.osk-p * 24 * self.u;
 
         if root.login-mode == "form": form-card := FocusScope {
@@ -3248,6 +3277,8 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.tv-mode ? Tr.t(Tr.k, "Choisis un champ puis appuie sur Entrée pour écrire.")
                         : Tr.t(Tr.k, "Le mot de passe peut rester vide si le compte n'en a pas.");
+                    visible: !lg.one;
+                    height: lg.one ? 0px : self.preferred-height;
                     color: Theme.muted;
                     font-size: 13 * lg.u;
                 }
@@ -3256,6 +3287,8 @@ export component AppWindow inherits Window {
                 }
                 user-field := Field {
                     k: lg.u / 1px;
+                    visible: !lg.one || root.login-field == 0;
+                    height: self.visible ? 96 * lg.u : 0px;
                     label: Tr.t(Tr.k, "Nom d'utilisateur");
                     hint: Tr.t(Tr.k, "ex. Heisenberg");
                     text <=> root.login-user;
@@ -3288,6 +3321,8 @@ export component AppWindow inherits Window {
                 }
                 pass-field := Field {
                     k: lg.u / 1px;
+                    visible: !lg.one || root.login-field == 1;
+                    height: self.visible ? 96 * lg.u : 0px;
                     label: Tr.t(Tr.k, "Mot de passe");
                     hint: Tr.t(Tr.k, "Mot de passe");
                     text <=> root.login-pass;
@@ -3319,7 +3354,8 @@ export component AppWindow inherits Window {
                     }
                 }
                 HorizontalLayout {
-                    height: 46 * lg.u;
+                    visible: !lg.one;
+                    height: lg.one ? 0px : 46 * lg.u;
                     spacing: 14 * lg.u;
                     alignment: end;
                     ActionButton {
@@ -5362,7 +5398,7 @@ export component AppWindow inherits Window {
 
             for s[i] in root.servers: srv-card := Rectangle {
                 height: 92px * root.k;
-                property <bool> sel: !root.h-focus && i == root.srv-sel;
+                property <bool> sel: !root.h-focus && i == root.srv-sel && Nav.kb;
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
@@ -5460,7 +5496,7 @@ export component AppWindow inherits Window {
                 ActionButton {
                     text: root.srv-searching ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Rechercher à nouveau");
                     font: 16px * root.k;
-                    focused: !root.h-focus && root.srv-sel == root.servers.length;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length && Nav.kb;
                     clicked => {
                         root.servers-search();
                     }
@@ -5468,7 +5504,7 @@ export component AppWindow inherits Window {
                 ActionButton {
                     text: Tr.t(Tr.k, "Saisir une adresse");
                     font: 16px * root.k;
-                    focused: !root.h-focus && root.srv-sel == root.servers.length + 1;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length + 1 && Nav.kb;
                     clicked => {
                         root.open-manual();
                     }
@@ -5482,7 +5518,7 @@ export component AppWindow inherits Window {
         animate mo-p { duration: Motion.panels ? 220ms : 0ms; easing: ease-out; }
         property <float> mosk-p: root.manual-open && root.tv-mode && root.manual-osk ? 1 : 0;
         animate mosk-p { duration: Motion.search ? 260ms : 0ms; easing: ease-in-out; }
-        if srv.mo-p > 0.01: Rectangle {
+        if srv.mo-p > 0.01: mbox := Rectangle {
             y: -root.header-h;
             height: parent.height + root.header-h;
             background: Theme.scrim.with-alpha(0.7).transparentize(1 - srv.mo-p);
@@ -5495,7 +5531,10 @@ export component AppWindow inherits Window {
             }
 
             property <length> dw: min(self.width - 64px * root.k, 600px * root.k);
-            property <length> dh: 384px * root.k;
+            // Clavier à l'écran ouvert : seul le champ en cours reste (fenêtre plus petite), pour que le
+            // clavier tienne en entier dessous, même sur un petit écran.
+            property <bool> one: root.tv-mode && root.manual-osk;
+            property <length> dh: (1 - srv.mosk-p) * 384px * root.k + srv.mosk-p * 186px * root.k;
             mdlg := FocusScope {
                 x: (parent.width - parent.dw) / 2;
                 y: (1 - srv.mosk-p) * (parent.height - parent.dh) / 2 + srv.mosk-p * 20px * root.k
@@ -5595,6 +5634,8 @@ export component AppWindow inherits Window {
                     }
                     Text {
                         text: Tr.t(Tr.k, "Sans « http:// » ni « https:// », les deux sont essayés.");
+                        visible: !mbox.one;
+                        height: mbox.one ? 0px : self.preferred-height;
                         color: Theme.muted;
                         font-size: 13px * root.k;
                     }
@@ -5603,6 +5644,8 @@ export component AppWindow inherits Window {
                     }
                     local-f := Field {
                         k: root.k;
+                        visible: !mbox.one || root.manual-field == 0;
+                        height: self.visible ? 96px * root.k : 0px;
                         label: Tr.t(Tr.k, "Adresse principale");
                         hint: "192.168.1.32:8097";
                         text <=> root.manual-local;
@@ -5629,6 +5672,8 @@ export component AppWindow inherits Window {
                     }
                     remote-f := Field {
                         k: root.k;
+                        visible: !mbox.one || root.manual-field == 1;
+                        height: self.visible ? 96px * root.k : 0px;
                         label: Tr.t(Tr.k, "Adresse de secours · facultative, si la principale ne répond pas");
                         hint: "10.8.0.5:8096";
                         text <=> root.manual-remote;
@@ -5650,7 +5695,8 @@ export component AppWindow inherits Window {
                     HorizontalLayout {
                         alignment: end;
                         spacing: 14px * root.k;
-                        height: 44px * root.k;
+                        visible: !mbox.one;
+                        height: mbox.one ? 0px : 44px * root.k;
 
                         ActionButton {
                             text: Tr.t(Tr.k, "Annuler");

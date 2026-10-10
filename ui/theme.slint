@@ -153,3 +153,9 @@ export component Sheen inherits Rectangle {
             rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
     }
 }
+
+// Sélection au clavier visible : toujours en interface TV ; au bureau, seulement après une touche de
+// navigation (la souris la cache : le survol suffit). Posé par Rust (install_f11).
+export global Nav {
+    in-out property <bool> kb: true;
+}

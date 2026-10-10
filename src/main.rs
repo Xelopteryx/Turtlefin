@@ -3323,8 +3323,17 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             app.tv_flag.store(on, Ordering::Relaxed);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tv_mode(on);
+                u.global::<Nav>().set_kb(on);
             }
-            set_full(app, on || config::ui_prefs().fullscreen);
+            // Interface TV retirée : la fenêtre reste comme elle est (plein écran compris), et ce choix
+            // devient le réglage « Plein écran » (avant, elle repartait sur l'ancien réglage).
+            let full = on || app.full_flag.load(Ordering::Relaxed);
+            if !on {
+                let mut p = config::ui_prefs();
+                p.fullscreen = full;
+                config::save_ui_prefs(&p);
+            }
+            set_full(app, full);
             refresh_settings(app);
         }
         "fullscreen" => toggle_full(app),
@@ -4729,7 +4738,27 @@ fn install_f11(app: &Arc<App>) {
     use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
     let Some(u) = app.ui().upgrade() else { return };
     let app = app.clone();
+    let weak = u.as_weak();
     u.window().on_winit_window_event(move |_, ev| {
+        // Sélection au clavier (hors interface TV) : montrée après une touche de navigation, cachée
+        // dès que la souris bouge (à la souris, seul le survol met en avant).
+        if !app.tv() {
+            use winit::keyboard::{Key, NamedKey};
+            let kb = match ev {
+                winit::event::WindowEvent::CursorMoved { .. } => Some(false),
+                winit::event::WindowEvent::KeyboardInput { event, .. } if event.state == winit::event::ElementState::Pressed => match &event.logical_key {
+                    Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::Tab) => Some(true),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let (Some(kb), Some(u)) = (kb, weak.upgrade()) {
+                let nav = u.global::<Nav>();
+                if nav.get_kb() != kb {
+                    nav.set_kb(kb);
+                }
+            }
+        }
         if let winit::event::WindowEvent::KeyboardInput { event, .. } = ev {
             if event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::F11) {
                 if event.state == winit::event::ElementState::Pressed && !event.repeat {
@@ -4911,6 +4940,7 @@ fn main() -> anyhow::Result<()> {
     }
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
+    ui.global::<Nav>().set_kb(tv);
     if tv || prefs.fullscreen {
         set_tv_window(&ui, true);
     } else {
