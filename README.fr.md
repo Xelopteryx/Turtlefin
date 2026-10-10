@@ -9,6 +9,9 @@
 Windows ou Linux, du vieux portable au petit boîtier branché à la télé, et s'utilise aussi bien à la télécommande
 qu'au clavier et à la souris.
 
+> **Projet entièrement vibecodé** : tout le code, les textes et les traductions ont été écrits par une IA
+> (Claude, d'Anthropic), guidée et testée par un humain qui ne l'a pas programmé lui-même.
+
 Version actuelle : **1.0.0** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
@@ -196,3 +199,8 @@ Voir [HANDOFF.md](HANDOFF.md) (aussi en [English](HANDOFF.en.md), [Deutsch](HAND
 [Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Nederlands](HANDOFF.nl.md), [Polski](HANDOFF.pl.md),
 [Português](HANDOFF.pt.md)) : état du projet, décisions, compilation, paquets, publication, traductions,
 problèmes connus.
+
+## Licence
+
+Turtlefin est publié sous licence [GNU GPL v3](LICENSE) (ou version ultérieure) : chacun peut l'utiliser, l'étudier,
+le modifier et le redistribuer, à condition de garder la même licence et de partager le code de ses modifications.

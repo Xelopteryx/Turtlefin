@@ -349,11 +349,11 @@ fn round_corners(img: &mut image::RgbaImage, r: f32, top_only: bool) {
 
 /// Fond d'écran : image réduite, floutée et assombrie une seule fois au décodage.
 fn decode_backdrop(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
-    let img = image::load_from_memory(bytes).ok()?.resize_to_fill(480, 270, image::imageops::FilterType::Triangle);
-    let mut img = image::imageops::blur(&img.to_rgba8(), 6.0);
+    let img = image::load_from_memory(bytes).ok()?.resize_to_fill(960, 540, image::imageops::FilterType::Triangle);
+    let mut img = image::imageops::blur(&img.to_rgba8(), 3.0);
     for p in img.pixels_mut() {
         for c in 0..3 {
-            p[c] = (p[c] as f32 * 0.45) as u8;
+            p[c] = (p[c] as f32 * 0.62) as u8;
         }
     }
     let (w, h) = img.dimensions();
@@ -432,6 +432,9 @@ fn set_backdrop(app: &Arc<App>, id: String) {
         let Ok(item) = client.item(&id).await else { return };
         let Some(bytes) = client.backdrop(&item).await else { return };
         if !same_backdrop(&a, &bytes) {
+            // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
+            // pouvait rester cachée, après un changement de compte par exemple).
+            let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
             return;
         }
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
@@ -1106,6 +1109,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
     if let Some(u) = app.ui().upgrade() {
         u.set_signed_in(false);
     }
+    app.bg_hash.store(0, Ordering::SeqCst);
     app.bg_id.lock().unwrap().clear();
     *app.tab.lock().unwrap() = "home".to_string();
     app.stack.lock().unwrap().clear();
@@ -6258,6 +6262,9 @@ fn set_local_backdrop(app: &Arc<App>, key: String, path: std::path::PathBuf) {
     app.rt.spawn(async move {
         let Ok(bytes) = std::fs::read(&path) else { return };
         if !same_backdrop(&a, &bytes) {
+            // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
+            // pouvait rester cachée, après un changement de compte par exemple).
+            let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
             return;
         }
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };

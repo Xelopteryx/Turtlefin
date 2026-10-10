@@ -10,7 +10,7 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion, Gloss } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss, Sheen } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
@@ -444,28 +444,6 @@ component CardArt inherits Rectangle {
 // Carte au style JellySkin : encadré translucide, image en haut (coins supérieurs arrondis
 // intégrés à l'image au décodage), titre et sous-titre centrés dessous. Sélection : encadré plus
 // sombre et carte légèrement agrandie (simple mise à l'échelle, sans image intermédiaire).
-// Reflet de verre en diagonale sur une affiche : clair en haut à gauche, coupé net en biais.
-// Carte sélectionnée (`on`) : le reflet s'étend, comme la lumière qui glisse sur le verre quand on
-// l'incline, puis revient à sa place quand la carte n'est plus sélectionnée.
-component Sheen inherits Rectangle {
-    in property <length> r: 10px;
-    in property <bool> on;
-    y: 0px;
-    border-top-left-radius: root.r;
-    border-top-right-radius: root.r;
-    clip: true;
-    property <float> f: root.on ? 1.9 : 1;
-    animate f { duration: Motion.select ? 420ms : 0ms; easing: cubic-bezier(0.25, 0.8, 0.3, 1); }
-    Rectangle {
-        x: 0px;
-        y: 0px;
-        width: root.width * root.f;
-        height: root.height * root.f;
-        background: @linear-gradient(125deg, rgba(255, 255, 255, 0.42 * Theme.sheen) 0%, rgba(255, 255, 255, 0.14 * Theme.sheen) 38%,
-            rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
-    }
-}
-
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
@@ -1626,7 +1604,17 @@ export component AppWindow inherits Window {
     // partagée), puis se lève sur la nouvelle.
     in-out property <bool> loading;
     property <bool> veil-hold;               // retour animé : la fiche s'efface avant de partir
-    property <float> veil: root.loading || root.veil-hold ? 1 : 0;
+    property <float> veil: root.loading || root.veil-hold || root.kid-veil ? 1 : 0;
+    // Saison ouverte depuis sa fiche : voile jusqu'à ce que l'affiche soit posée et la fiche là
+    // (au plus 4 s, si quelque chose tourne mal).
+    property <bool> kid-veil;
+    Timer {
+        interval: 4s;
+        running: root.kid-veil;
+        triggered => {
+            root.kid-veil = false;
+        }
+    }
     animate veil { duration: Motion.detail ? 260ms : 0ms; easing: ease-in-out; }
 
     // ---- Image partagée (« hero ») : l'image de la carte ouverte (avec ses pastilles) vole jusqu'à
@@ -1683,6 +1671,9 @@ export component AppWindow inherits Window {
         : root.screen == "detail" ? root.detail.id == root.hero-id
         : root.screen != "home" && root.screen != "loading");
     changed hero-ready => {
+        if (root.hero-ready) {
+            root.kid-veil = false;
+        }
         if (root.hero-ready && root.hero-big && !root.hero-faded) {
             root.fade-in = false;
             root.fade-t0 = animation-tick();
@@ -1748,12 +1739,15 @@ export component AppWindow inherits Window {
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
-        // Fiche : rangées du bas (autre média) oui, enfants (épisodes, saisons) non : là, la fiche change
-        // en douceur, sans image qui vole.
+        // Fiche : rangées du bas (autre média), et saisons : l'affiche vole jusqu'à sa place. Saison : la
+        // fiche s'efface autour d'elle (kid-veil), puis la nouvelle arrive en douceur (detail-swap).
+        // Épisodes (vignettes) : la fiche change en douceur, sans image qui vole.
+        let kid = root.screen == "detail" && root.d-zone == 2 && !root.detail.children-landscape;
         if (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
-                || (root.screen == "detail" && root.d-zone >= 4)) {
+                || (root.screen == "detail" && root.d-zone >= 4) || kid) {
             root.hero-pending = id;
             Hero.tick += 1;
+            root.kid-veil = kid && Motion.detail;
         }
         root.open-item(id);
     }
@@ -2400,6 +2394,7 @@ export component AppWindow inherits Window {
     // Ouverture d'une fiche échouée : on reste sur la page affichée, l'image partagée revient à sa carte.
     public function open-failed() {
         root.loading = false;
+        root.kid-veil = false;
         root.hero-pending = "";
         if (root.hero-id != "") {
             root.hero-return();
@@ -2627,7 +2622,7 @@ export component AppWindow inherits Window {
     property <bool> show-next: root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
-    if root.bg-vis > 0.001 && !root.playing: Rectangle {
+    if root.bg-vis > 0.001 && !root.playing: bgr := Rectangle {
         transform-scale: 1 + 0.12 * root.po;
         Image {
             width: parent.width;
@@ -2643,9 +2638,28 @@ export component AppWindow inherits Window {
             image-fit: cover;
             opacity: root.bg-mix * root.bg-vis;
         }
-        // Plus sombre vers le bas, là où sont les rangées.
+        // Plus sombre vers le bas, là où sont les rangées. Fiche : l'image reste bien visible jusqu'au
+        // bas de l'affiche (d-fade), puis s'assombrit (le voile suit le défilement de la fiche).
+        property <length> d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
+        property <bool> on-detail: root.screen == "detail";
+        property <float> d-v: bgr.on-detail ? 1 : 0;
+        animate d-v { duration: Motion.pages ? 500ms : 0ms; easing: ease-in-out; }
         Rectangle {
+            opacity: 1 - bgr.d-v;
             background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.25 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.69 * Theme.veil)) 60%, Theme.bg-end.with-alpha(min(1, 0.88 * Theme.veil)) 100%);
+        }
+        if bgr.d-v > 0: Rectangle {
+            opacity: bgr.d-v;
+            Rectangle {
+                y: 0px;
+                height: max(1px, bgr.d-fade);
+                background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.3 * Theme.veil)) 0%, Theme.bg.with-alpha(min(0.35, 0.08 * Theme.veil)) 30%, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 100%);
+            }
+            Rectangle {
+                y: max(1px, bgr.d-fade);
+                height: parent.height - self.y + 1px;
+                background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.75 * Theme.veil)) 35%, Theme.bg-end.with-alpha(min(1, 0.92 * Theme.veil)) 100%);
+            }
         }
     }
 
@@ -4895,7 +4909,7 @@ export component AppWindow inherits Window {
             y: 24px;
             opacity: root.sw-next ? root.sw-e : 1;
             width: root.next-w;
-            height: 214px * root.k;
+            height: 228px * root.k;
 
             Text {
                 height: 20px * root.k;
@@ -4906,6 +4920,18 @@ export component AppWindow inherits Window {
                 vertical-alignment: center;
             }
 
+            // Corps de carte aux couleurs du thème (comme les cartes des rangées) : fond, contour, lueur.
+            property <bool> nsel: !root.h-focus && root.d-zone == 3;
+            Rectangle {
+                y: 24px * root.k;
+                height: parent.height - self.y;
+                border-radius: Theme.radius;
+                background: parent.nsel ? Theme.card-focus : Theme.card;
+                border-width: 1px;
+                border-color: Theme.card-border;
+                drop-shadow-blur: parent.nsel ? 22px * root.k : 0px;
+                drop-shadow-color: Theme.glow;
+            }
             Rectangle {
                 y: 24px * root.k;
                 height: root.next-w * 0.5625;
@@ -4920,6 +4946,10 @@ export component AppWindow inherits Window {
                     image-fit: fill;
                 }
 
+                if Theme.sheen > 0: Sheen {
+                    r: Theme.radius;
+                    on: !root.h-focus && root.d-zone == 3;
+                }
                 Rectangle {
                     width: parent.width;
                     height: parent.height;
@@ -4930,6 +4960,8 @@ export component AppWindow inherits Window {
             }
 
             Marquee {
+                x: 10px * root.k;
+                width: parent.width - 20px * root.k;
                 y: 24px * root.k + root.next-w * 0.5625 + 6px;
                 height: 22px * root.k;
                 text: root.detail.next-title;
@@ -4941,6 +4973,8 @@ export component AppWindow inherits Window {
             }
 
             Marquee {
+                x: 10px * root.k;
+                width: parent.width - 20px * root.k;
                 y: 24px * root.k + root.next-w * 0.5625 + 6px + 22px * root.k;
                 height: 18px * root.k;
                 text: root.detail.next-subtitle;

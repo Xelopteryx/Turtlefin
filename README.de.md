@@ -9,6 +9,9 @@ in Rust mit Slint (Oberfläche) und libmpv (Wiedergabe): kein Qt, kein eingebett
 Windows- oder Linux-Rechner, vom alten Laptop bis zur kleinen Box am Fernseher, und lässt sich mit der
 Fernbedienung genauso gut bedienen wie mit Tastatur und Maus.
 
+> **Vollständig per Vibecoding entstanden**: Code, Texte und Übersetzungen wurden komplett von einer KI
+> (Claude von Anthropic) geschrieben, angeleitet und getestet von einem Menschen, der nicht selbst programmiert hat.
+
 Aktuelle Version: **1.0.0** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
 Polski, Nederlands — und jede selbst hinzugefügte Sprache (siehe [Turtlefin übersetzen](#turtlefin-übersetzen)).
 
@@ -199,3 +202,8 @@ Siehe [HANDOFF.de.md](HANDOFF.de.md) (auch auf [Français](HANDOFF.md), [English
 [Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Nederlands](HANDOFF.nl.md), [Polski](HANDOFF.pl.md),
 [Português](HANDOFF.pt.md)): Projektstand, Entscheidungen, Kompilieren, Pakete, Veröffentlichung,
 Übersetzungen, bekannte Probleme.
+
+## Lizenz
+
+Turtlefin steht unter der [GNU GPL v3](LICENSE) (oder einer späteren Version): Jeder darf es nutzen, untersuchen,
+ändern und weitergeben, solange die Lizenz gleich bleibt und der Quellcode der Änderungen geteilt wird.

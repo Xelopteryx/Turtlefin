@@ -9,6 +9,9 @@ met Slint (interface) en libmpv (afspelen): geen Qt, geen ingebouwde browser. Hi
 Linux-computer, van een oude laptop tot een klein kastje aan de tv, en werkt even goed met een afstandsbediening
 als met toetsenbord en muis.
 
+> **Volledig gevibecodeerd project**: alle code, teksten en vertalingen zijn geschreven door een AI (Claude,
+> van Anthropic), begeleid en getest door een mens die het niet zelf heeft geprogrammeerd.
+
 Huidige versie: **1.0.0** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
 Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertalen](#turtlefin-vertalen)).
 
@@ -199,3 +202,8 @@ Zie [HANDOFF.nl.md](HANDOFF.nl.md) (ook in het [Français](HANDOFF.md), [English
 [Deutsch](HANDOFF.de.md), [Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Polski](HANDOFF.pl.md),
 [Português](HANDOFF.pt.md)): stand van het project, beslissingen, compileren, pakketten, publiceren,
 vertalingen, bekende problemen.
+
+## Licentie
+
+Turtlefin valt onder de [GNU GPL v3](LICENSE) (of een latere versie): iedereen mag het gebruiken, bestuderen,
+aanpassen en verspreiden, zolang de licentie dezelfde blijft en de broncode van de wijzigingen gedeeld wordt.

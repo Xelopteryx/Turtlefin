@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion, Gloss } from "theme.slint";
+import { Theme, Tr, Motion, Gloss, Sheen } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -153,8 +153,11 @@ component PlayerButton inherits Rectangle {
     property <duration> t0;
     property <bool> anim;
     changed press => {
-        self.t0 = animation-tick();
-        self.anim = true;
+        // 0 : un autre bouton vient d'être activé (ce bouton perd son compteur), rien à animer.
+        if (root.press > 0) {
+            self.t0 = animation-tick();
+            self.anim = true;
+        }
     }
     property <float> q: self.anim && Motion.player ? clamp((animation-tick() - self.t0) / 380ms, 0, 1) : 1;
     // 0 -> enfoncé (0,82) -> léger dépassement -> repos.
@@ -238,23 +241,38 @@ component EpisodeCard inherits Rectangle {
     z: root.focused ? 1 : 0;
     transform-scale: root.focused ? 1.06 : 1.0;
     animate transform-scale { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-    border-radius: 10px;
-    background: root.focused ? #000000cc : #00000099;
-    border-width: root.current ? 2px : 0px;
-    border-color: Theme.accent2;
+    // Aux couleurs du thème, comme les cartes des pages : fond de la barre du lecteur, contour,
+    // lueur et reflet de verre du thème.
+    border-radius: Theme.radius;
+    background: Theme.player-bar;
+    border-width: root.current ? 2px : 1px;
+    border-color: root.current ? Theme.accent2 : Theme.card-border;
+    drop-shadow-blur: root.focused ? 18px * root.k : 0px;
+    drop-shadow-color: Theme.glow;
+    // Carte choisie : un peu plus claire.
+    Rectangle {
+        border-radius: Theme.radius;
+        background: root.focused ? Theme.player-ink.with-alpha(0.12) : transparent;
+    }
 
     Rectangle {
         height: root.width * 0.5625;
         y: 0px;
-        border-top-left-radius: 10px;
-        border-top-right-radius: 10px;
-        background: root.data.has-image ? transparent : Theme.player-ink.with-alpha(0.08);
+        border-top-left-radius: Theme.radius;
+        border-top-right-radius: Theme.radius;
+        clip: true;
+        background: root.data.has-image ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
         if root.data.has-image: Image {
             width: parent.width;
             height: parent.height;
             source: root.data.image;
             image-fit: fill;
         }
+    }
+    if Theme.sheen > 0: Sheen {
+        height: root.width * 0.5625;
+        r: Theme.radius;
+        on: root.focused;
     }
     Marquee {
         x: 8px * root.k;

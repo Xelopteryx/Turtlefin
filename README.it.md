@@ -9,6 +9,9 @@ con Slint (interfaccia) e libmpv (riproduzione): niente Qt, niente browser integ
 computer Windows o Linux, dal vecchio portatile al piccolo box collegato alla TV, e si usa altrettanto bene con il
 telecomando come con tastiera e mouse.
 
+> **Progetto interamente «vibecodato»**: tutto il codice, i testi e le traduzioni sono stati scritti da un'IA
+> (Claude, di Anthropic), guidata e provata da un umano che non l'ha programmato di persona.
+
 Versione attuale: **1.0.0** · Lingue dell'interfaccia: Italiano, English, Français, Español, Deutsch, Português,
 Polski, Nederlands — e qualsiasi lingua aggiunta da te (vedi [Tradurre Turtlefin](#tradurre-turtlefin)).
 
@@ -197,3 +200,8 @@ Vedi [HANDOFF.it.md](HANDOFF.it.md) (anche in [Français](HANDOFF.md), [English]
 [Deutsch](HANDOFF.de.md), [Español](HANDOFF.es.md), [Nederlands](HANDOFF.nl.md), [Polski](HANDOFF.pl.md),
 [Português](HANDOFF.pt.md)): stato del progetto, decisioni, compilazione, pacchetti, pubblicazione, traduzioni,
 problemi noti.
+
+## Licenza
+
+Turtlefin è distribuito con licenza [GNU GPL v3](LICENSE) (o successiva): chiunque può usarlo, studiarlo,
+modificarlo e ridistribuirlo, purché mantenga la stessa licenza e condivida il codice delle proprie modifiche.

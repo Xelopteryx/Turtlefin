@@ -131,3 +131,25 @@ export global Motion {
     in-out property <bool> language: true;  // changement de langue
     in-out property <bool> tour: true;      // visite guidée
 }
+
+// Reflet de verre en diagonale sur une affiche : clair en haut à gauche, coupé net en biais.
+// Carte sélectionnée (`on`) : le reflet s'étend, comme la lumière qui glisse sur le verre quand on
+// l'incline, puis revient à sa place quand la carte n'est plus sélectionnée.
+export component Sheen inherits Rectangle {
+    in property <length> r: 10px;
+    in property <bool> on;
+    y: 0px;
+    border-top-left-radius: root.r;
+    border-top-right-radius: root.r;
+    clip: true;
+    property <float> f: root.on ? 1.9 : 1;
+    animate f { duration: Motion.select ? 420ms : 0ms; easing: cubic-bezier(0.25, 0.8, 0.3, 1); }
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width * root.f;
+        height: root.height * root.f;
+        background: @linear-gradient(125deg, rgba(255, 255, 255, 0.42 * Theme.sheen) 0%, rgba(255, 255, 255, 0.14 * Theme.sheen) 38%,
+            rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
+    }
+}

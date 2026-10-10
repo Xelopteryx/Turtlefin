@@ -9,6 +9,9 @@ Rust with Slint (interface) and libmpv (playback): no Qt, no embedded browser. I
 computer, from an old laptop to a small box plugged into the TV, and works just as well with a remote as with a
 keyboard and mouse.
 
+> **Fully vibecoded project**: all the code, texts and translations were written by an AI (Claude, by
+> Anthropic), guided and tested by a human who did not write any of the code.
+
 Current version: **1.0.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
@@ -194,3 +197,8 @@ See [HANDOFF.en.md](HANDOFF.en.md) (also in [Français](HANDOFF.md), [Deutsch](H
 [Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Nederlands](HANDOFF.nl.md), [Polski](HANDOFF.pl.md),
 [Português](HANDOFF.pt.md)): project state, decisions, building, packages, publishing, translations, known
 issues.
+
+## License
+
+Turtlefin is released under the [GNU GPL v3](LICENSE) (or any later version): anyone may use, study, modify
+and redistribute it, as long as they keep the same license and share the source code of their changes.
