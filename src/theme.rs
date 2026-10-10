@@ -354,8 +354,35 @@ pub fn write_creator() -> std::io::Result<std::path::PathBuf> {
 
 /// Logo de Turtlefin aux couleurs d'un thème (même dessin que packaging/turtlefin.svg) : carré
 /// arrondi du fond du thème, carapace en dégradé d'accent, reflet brillant pour les thèmes à reflet.
-/// Sert d'icône à la fenêtre (barre des tâches).
+/// Sert d'icône à la fenêtre (barre des tâches). Dessiné 4x plus grand puis réduit (moyenne de
+/// 16 points par pixel) : les traits fins (liserés de l'orbe) ne crénèlent pas en petite taille.
 pub fn icon(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
+    const S: u32 = 4;
+    let big = icon_raw(t, n * S);
+    let src = big.as_slice();
+    let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
+    for (i, p) in buf.make_mut_slice().iter_mut().enumerate() {
+        let (x, y) = (i as u32 % n, i as u32 / n);
+        // Moyenne en couleurs prémultipliées (le bord transparent ne fonce pas).
+        let mut acc = [0f32; 4];
+        for dy in 0..S {
+            for dx in 0..S {
+                let q = src[((y * S + dy) * n * S + x * S + dx) as usize];
+                let a = q.a as f32 / 255.0;
+                acc[0] += q.r as f32 * a;
+                acc[1] += q.g as f32 * a;
+                acc[2] += q.b as f32 * a;
+                acc[3] += a;
+            }
+        }
+        let a = acc[3] / (S * S) as f32;
+        let c = |v: f32| if acc[3] > 0.0 { (v / acc[3]).round().clamp(0.0, 255.0) as u8 } else { 0 };
+        *p = slint::Rgba8Pixel { r: c(acc[0]), g: c(acc[1]), b: c(acc[2]), a: (a * 255.0).round() as u8 };
+    }
+    buf
+}
+
+fn icon_raw(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     let d = turtlefin();
     let col = |x: &str, f: &str| parse(x).or_else(|| parse(f)).unwrap_or_default();
     let (bg1, bg2) = (col(&t.bg, &d.bg), parse(&t.bg_end).unwrap_or_else(|| col(&t.bg, &d.bg)));
@@ -525,7 +552,7 @@ pub fn window_icon(u: &AppWindow, t: &ThemeDef) {
 #[cfg_attr(not(windows), allow(dead_code))]
 fn ico_bytes(t: &ThemeDef) -> Vec<u8> {
     use image::ImageEncoder;
-    let sizes = [16u32, 24, 32, 48, 64, 128, 256];
+    let sizes = [16u32, 20, 24, 32, 40, 48, 64, 96, 128, 256];
     let pngs: Vec<Vec<u8>> = sizes
         .iter()
         .map(|&n| {

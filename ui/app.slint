@@ -445,13 +445,22 @@ component CardArt inherits Rectangle {
 // intégrés à l'image au décodage), titre et sous-titre centrés dessous. Sélection : encadré plus
 // sombre et carte légèrement agrandie (simple mise à l'échelle, sans image intermédiaire).
 // Reflet de verre en diagonale sur une affiche : clair en haut à gauche, coupé net en biais.
+// Carte sélectionnée (`on`) : le reflet s'étend, comme la lumière qui glisse sur le verre quand on
+// l'incline, puis revient à sa place quand la carte n'est plus sélectionnée.
 component Sheen inherits Rectangle {
     in property <length> r: 10px;
+    in property <bool> on;
     y: 0px;
     border-top-left-radius: root.r;
     border-top-right-radius: root.r;
     clip: true;
+    property <float> f: root.on ? 1.9 : 1;
+    animate f { duration: Motion.select ? 420ms : 0ms; easing: cubic-bezier(0.25, 0.8, 0.3, 1); }
     Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width * root.f;
+        height: root.height * root.f;
         background: @linear-gradient(125deg, rgba(255, 255, 255, 0.42 * Theme.sheen) 0%, rgba(255, 255, 255, 0.14 * Theme.sheen) 38%,
             rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
     }
@@ -508,6 +517,7 @@ component Card inherits Rectangle {
     if Theme.sheen > 0 && (Hero.hide-id == "" || root.data.id != Hero.hide-id): Sheen {
         height: root.img-h;
         r: Theme.radius;
+        on: root.focused;
     }
 
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
@@ -1601,11 +1611,15 @@ export component AppWindow inherits Window {
         root.page-t0 = animation-tick();
         root.page-anim = true;
     }
+    // Relancée pendant qu'elle tourne, l'animation repart de zéro : on s'arrête sur le dernier départ
+    // (une minuterie de la durée totale, elle, ne repart pas et coupait l'animation en route).
     Timer {
-        interval: 540ms;
+        interval: 100ms;
         running: root.page-anim;
         triggered => {
-            root.page-anim = false;
+            if (animation-tick() - root.page-t0 > 540ms) {
+                root.page-anim = false;
+            }
         }
     }
     // Chargement d'une page : un voile couleur de fond recouvre la page qui part (sauf l'image
@@ -1856,8 +1870,23 @@ export component AppWindow inherits Window {
         if (root.hero-id != "" && root.hero-seerr) {
             root.hero-return();
         }
+        // La page s'efface (et recule un peu) au lieu de disparaître d'un coup ; l'affiche repart
+        // vers sa carte par-dessus.
+        if (Motion.pages) {
+            root.sr-out-t0 = animation-tick();
+            root.sr-out = true;
+        }
         root.sr-open = false;
         root.refocus += 1;
+    }
+    property <bool> sr-out;
+    property <duration> sr-out-t0;
+    Timer {
+        interval: 320ms;
+        running: root.sr-out;
+        triggered => {
+            root.sr-out = false;
+        }
     }
     // Changement de page sans image partagée (maison, retour, menu, Échap) : la page s'efface dans
     // le fond (voile), l'action a lieu, puis la nouvelle page arrive (page-enter, rangées en cascade).
@@ -2039,11 +2068,15 @@ export component AppWindow inherits Window {
         root.rows-t0 = animation-tick();
         root.rows-anim = true;
     }
+    // Relancée pendant qu'elle tourne, l'animation repart de zéro : on s'arrête sur le dernier départ
+    // (une minuterie de la durée totale, elle, ne repart pas et coupait l'animation en route).
     Timer {
-        interval: 420ms;
+        interval: 100ms;
         running: root.rows-anim;
         triggered => {
-            root.rows-anim = false;
+            if (animation-tick() - root.rows-t0 > 420ms) {
+                root.rows-anim = false;
+            }
         }
     }
     changed login-user => {
@@ -2123,24 +2156,22 @@ export component AppWindow inherits Window {
     // Liste de choix d'un réglage (Paramètres) : clé du réglage ("" : fermée), titre, options.
     in-out property <string> ch-key;
     in property <string> ch-title;
-    // Changement du titre de la liste ouverte (langue choisie) : l'ancien titre s'en va, le nouveau arrive.
-    property <string> ch-title-prev;
+    // Titre de la liste des langues au choix d'une langue (Rust : choose_setting) : comme les
+    // autres textes, une barre le recouvre de blanc, le bloc prend la largeur du nouveau titre, puis
+    // la barre le dévoile. Rien avant le choix (le titre reste lisible), ni à l'annulation.
     property <string> ch-title-old;
     property <duration> ch-title-t0;
     property <bool> ch-title-live;
-    changed ch-title => {
-        if (root.ch-key != "" && root.ch-title-prev != "" && Motion.pages) {
-            root.ch-title-old = root.ch-title-prev;
-            root.ch-title-t0 = animation-tick();
-            root.ch-title-live = true;
-        }
-        root.ch-title-prev = root.ch-title;
+    public function ch-title-cover() {
+        root.ch-title-old = root.ch-title;
+        root.ch-title-t0 = animation-tick();
+        root.ch-title-live = true;
     }
     Timer {
-        interval: 450ms;
+        interval: 500ms;
         running: root.ch-title-live;
         triggered => {
-            if (animation-tick() - root.ch-title-t0 > 580ms) {
+            if (animation-tick() - root.ch-title-t0 > 900ms) {
                 root.ch-title-live = false;
             }
         }
@@ -5962,11 +5993,15 @@ export component AppWindow inherits Window {
             sets.rw-t0 = animation-tick();
             sets.rw-anim = true;
         }
+        // Relancée pendant qu'elle tourne, l'animation repart de zéro : on s'arrête sur le dernier départ
+        // (une minuterie de la durée totale, elle, ne repart pas et coupait l'animation en route).
         Timer {
-            interval: 680ms;
+            interval: 100ms;
             running: sets.rw-anim;
             triggered => {
-                sets.rw-anim = false;
+                if (animation-tick() - sets.rw-t0 > 680ms) {
+                    sets.rw-anim = false;
+                }
             }
         }
         pure function rw-e(i: int) -> float {
@@ -5981,11 +6016,15 @@ export component AppWindow inherits Window {
             sets.ai-t0 = animation-tick();
             sets.ai-anim = true;
         }
+        // Relancée pendant qu'elle tourne, l'animation repart de zéro : on s'arrête sur le dernier départ
+        // (une minuterie de la durée totale, elle, ne repart pas et coupait l'animation en route).
         Timer {
-            interval: 720ms;
+            interval: 100ms;
             running: sets.ai-anim;
             triggered => {
-                sets.ai-anim = false;
+                if (animation-tick() - sets.ai-t0 > 720ms) {
+                    sets.ai-anim = false;
+                }
             }
         }
         // Rangée n° r à l'écran (0 = la première visible).
@@ -6520,40 +6559,57 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                 }
-                // Titre : quand il change (langue choisie), l'ancien monte en s'estompant et le nouveau
-                // arrive par-dessous, comme le reste de la page. Le titre reste lisible avant le choix.
-                // (État gardé hors de la liste : elle est recréée après les captures de l'effet de langue.)
+                // Titre (barre blanche au choix d'une langue, voir ch-title-cover). État gardé hors de
+                // la liste : elle est recréée après les captures de l'effet de langue.
                 ch-head := Rectangle {
                     y: 0px;
                     height: 62px * root.k;
-                    clip: true;
-                    property <string> old: root.ch-title-old;
                     property <bool> live: root.ch-title-live;
-                    property <float> q: self.live ? clamp((animation-tick() - root.ch-title-t0) / 560ms, 0, 1) : 1;
-                    property <float> e: 1 - (1 - self.q) * (1 - self.q);
-                    if ch-head.live: Text {
-                        x: 22px * root.k;
-                        y: -ch-head.e * 26px * root.k;
-                        height: parent.height;
-                        opacity: 1 - ch-head.e;
-                        text: ch-head.old;
-                        font-family: "Montserrat";
-                        color: Theme.fg;
-                        font-size: 18px * root.k;
-                        font-weight: 700;
-                        vertical-alignment: center;
-                    }
+                    property <duration> now: self.live ? animation-tick() - root.ch-title-t0 : 2s;
+                    // Recouvrir (0-300 ms), changer de largeur (300-450), dévoiler (450-870).
+                    property <float> p1: clamp(self.now / 300ms, 0, 1);
+                    property <float> m: clamp((self.now - 300ms) / 150ms, 0, 1);
+                    property <float> p5: clamp((self.now - 450ms) / 420ms, 0, 1);
+                    property <float> e1: self.p1 * self.p1 * (3 - 2 * self.p1);
+                    property <float> e5: self.p5 * self.p5 * (3 - 2 * self.p5);
+                    property <float> me: 1 - (1 - self.m) * (1 - self.m) * (1 - self.m);
+                    property <length> bx: 22px * root.k;
+                    property <length> bw: old-t.preferred-width + (new-t.preferred-width - old-t.preferred-width) * self.me;
+                    property <length> left: self.bx + self.bw * self.e5;
+                    property <length> right: self.p1 < 1 ? self.bx + self.bw * self.e1 : self.bx + self.bw;
+                    property <length> pad: 4px * root.k;
+                    property <length> th: 22px * root.k;
+                    // Mesures seulement (invisibles).
+                    old-t := Text { visible: false; text: root.ch-title-old; font-family: "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
+                    new-t := Text { visible: false; text: root.ch-title; font-family: "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
                     Text {
-                        x: 22px * root.k;
-                        y: (1 - ch-head.e) * 26px * root.k;
+                        x: ch-head.bx;
                         height: parent.height;
-                        opacity: ch-head.e;
-                        text: root.ch-title;
+                        // L'ancien titre tant qu'il n'est pas recouvert.
+                        text: ch-head.live && ch-head.p1 < 1 ? root.ch-title-old : root.ch-title;
                         font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
                         color: Theme.fg;
                         font-size: 18px * root.k;
                         font-weight: 700;
                         vertical-alignment: center;
+                    }
+                    if ch-head.live && ch-head.right > ch-head.left: Rectangle {
+                        x: ch-head.left - ch-head.pad;
+                        y: (parent.height - ch-head.th) / 2 - ch-head.pad;
+                        width: ch-head.right - ch-head.left + 2 * ch-head.pad;
+                        height: ch-head.th + 2 * ch-head.pad;
+                        border-radius: 4px * root.k;
+                        background: white;
+                    }
+                    if ch-head.live && ((ch-head.p1 > 0 && ch-head.p1 < 1) || (ch-head.p5 > 0 && ch-head.p5 < 1)): Rectangle {
+                        x: (ch-head.p1 < 1 ? ch-head.right : ch-head.left) - 2px * root.k;
+                        y: (parent.height - ch-head.th) / 2 - 7px * root.k;
+                        width: 4px * root.k;
+                        height: ch-head.th + 14px * root.k;
+                        border-radius: 2px * root.k;
+                        background: Theme.accent2;
+                        drop-shadow-blur: 10px * root.k;
+                        drop-shadow-color: Theme.accent2;
                     }
                 }
                 Rectangle {
@@ -7354,8 +7410,12 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Page Seerr (premier plan)
     // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible.
-    if root.sr-open && !root.playing: srp := Rectangle {
-        transform-scale: 0.96 + 0.04 * root.page-e;
+    if (root.sr-open || root.sr-out) && !root.playing: srp := Rectangle {
+        // Fermeture (sr-out) : fondu et léger recul.
+        property <float> out-q: root.sr-out && !root.sr-open ? clamp((animation-tick() - root.sr-out-t0) / 280ms, 0, 1) : 0;
+        property <float> out-e: 1 - (1 - self.out-q) * (1 - self.out-q);
+        opacity: 1 - self.out-e;
+        transform-scale: 0.96 + 0.04 * root.page-e - 0.05 * self.out-e;
         background: Theme.bg-end;
 
         property <length> u: min(self.height / 720px, self.width / 1280px) * 1px; // unité : 1 px sur un écran 1280x720
@@ -7377,6 +7437,10 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Page en train de s'effacer : plus d'action.
+                if (!root.sr-open) {
+                    return EventResult.accept;
+                }
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                 if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                     return EventResult.accept;
@@ -8617,9 +8681,6 @@ export component AppWindow inherits Window {
     changed ch-key => {
         if (root.dust-cloud && root.ch-key != "language") {
             root.dust-cancel();
-        }
-        if (root.ch-key == "") {
-            root.ch-title-prev = "";
         }
     }
 }

@@ -2736,6 +2736,10 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
             open_choice(&a, "language");
             language_changed(&a);
         });
+        // Le titre de la liste passe aussi sous la barre (seulement au choix, pendant l'effet).
+        if u.get_dust_cloud() {
+            u.invoke_ch_title_cover();
+        }
         dust::reform(&u, Some((value.to_string(), apply)), |u| u.set_ch_key("".into()));
         return;
     }
