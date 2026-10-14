@@ -987,7 +987,7 @@ fn login_opened(app: &Arc<App>) {
                 serde_json::Value::Null
             } else {
                 match http.get(format!("{server}/Users/Public")).timeout(std::time::Duration::from_secs(8)).send().await {
-                    Ok(r) => r.json().await.unwrap_or_default(),
+                    Ok(r) => api::body_limited(r, 8 << 20).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default(),
                     Err(_) => serde_json::Value::Null,
                 }
             };
@@ -3110,7 +3110,7 @@ fn avatar_want(app: &Arc<App>, n: i32) {
             let buf = match path.as_ref().and_then(|p| std::fs::read(p).ok()) {
                 Some(png) => tokio::task::spawn_blocking(move || decode(&png, None)).await.ok()??,
                 None => {
-                    let bytes = c.get_bytes(&format!("/GetAvatar/Image/{id}")).await.ok()?;
+                    let bytes = c.get_bytes(&format!("/GetAvatar/Image/{}", api::seg(&id))).await.ok()?;
                     tokio::task::spawn_blocking(move || {
                         let buf = decode(&bytes, Some(Shape { w: AV_PX, h: AV_PX, radius: 0.5, top_only: false }))?;
                         if let Some(p) = path {
@@ -3161,7 +3161,7 @@ fn avatar_focus(app: &Arc<App>, i: i32) {
             return;
         }
         // Fichier d'origine (souvent plus d'un Mo) : pas gardé sur le disque, seule l'image fixe l'est.
-        let Ok(bytes) = client.get_bytes(&format!("/GetAvatar/Image/{id}")).await else { return };
+        let Ok(bytes) = client.get_bytes(&format!("/GetAvatar/Image/{}", api::seg(&id))).await else { return };
         if !bytes.starts_with(b"GIF8") {
             return;
         }

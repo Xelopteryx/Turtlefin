@@ -85,6 +85,12 @@ fn new_player() -> Result<Arc<Mpv>> {
     m.set_option("input-default-bindings", "no");
     m.set_option("osc", "no");
     m.set_option("ytdl", "no");
+    // Scripts intégrés de mpv (console, statistiques, profils automatiques) : inutiles ici (pas de
+    // raccourcis de mpv) ; non chargés, ils ne coûtent ni mémoire ni code exposé.
+    m.set_option("load-stats-overlay", "no");
+    m.set_option("load-console", "no");
+    m.set_option("load-auto-profiles", "no");
+    m.set_option("load-scripts", "no");
     // Linux ARM : rendu simplifié (mise à l'échelle bilinéaire...) pour ménager le GPU.
     if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         m.set_option("profile", "fast");

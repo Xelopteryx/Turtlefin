@@ -886,7 +886,7 @@ impl Client {
             Ok(i) => Ok(i),
             Err(e) if e.downcast_ref::<Unauthorized>().is_some() => Err(e),
             // Ancienne route, au cas où.
-            Err(_) => self.get(&format!("/Users/{}/Items/{id}", self.user_id), &[]).await,
+            Err(_) => self.get(&format!("/Users/{}/Items/{id}", seg(&self.user_id)), &[]).await,
         }
     }
 
@@ -910,14 +910,14 @@ impl Client {
 
     /// Configuration du compte (préférences de lecture...).
     pub async fn user_config(&self) -> Result<serde_json::Value> {
-        let v: serde_json::Value = self.get(&format!("/Users/{}", self.user_id), &[]).await?;
+        let v: serde_json::Value = self.get(&format!("/Users/{}", seg(&self.user_id)), &[]).await?;
         Ok(v["Configuration"].clone())
     }
 
     pub async fn set_user_config(&self, cfg: &serde_json::Value) -> Result<()> {
         let resp = self
             .http
-            .post(format!("{}/Users/{}/Configuration", self.server, self.user_id))
+            .post(format!("{}/Users/{}/Configuration", self.server, seg(&self.user_id)))
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .json(cfg)
             .send()
@@ -981,7 +981,7 @@ impl Client {
     pub async fn user_avatar(&self, original: bool) -> Option<Vec<u8>> {
         let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         let size = if original { "" } else { "maxWidth=200&" };
-        self.get_bytes(&format!("/Users/{}/Images/Primary?{size}t={t}", self.user_id)).await.ok()
+        self.get_bytes(&format!("/Users/{}/Images/Primary?{size}t={t}", seg(&self.user_id))).await.ok()
     }
 
     /// Plugin GetAvatar : avatars proposés (id, nom, catégorie ; catégorie vide = ajouté à la main
@@ -1019,7 +1019,7 @@ impl Client {
         let body = base64::engine::general_purpose::STANDARD.encode(&bytes);
         let resp = self
             .http
-            .post(format!("{}/UserImage?userId={}", self.server, self.user_id))
+            .post(format!("{}/UserImage?userId={}", self.server, seg(&self.user_id)))
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .header("Content-Type", ct)
             .body(body)
@@ -1170,7 +1170,7 @@ impl Client {
     pub async fn segments(&self, id: &str) -> (Option<(f64, f64)>, Option<f64>) {
         let mut intro: Option<(f64, f64)> = None;
         let mut outro: Option<f64> = None;
-        if let Ok(v) = self.get::<serde_json::Value>(&format!("/MediaSegments/{id}"), &[]).await {
+        if let Ok(v) = self.get::<serde_json::Value>(&format!("/MediaSegments/{}", seg(id)), &[]).await {
             for s in v["Items"].as_array().into_iter().flatten() {
                 let (Some(a), Some(b)) = (s["StartTicks"].as_f64(), s["EndTicks"].as_f64()) else { continue };
                 match s["Type"].as_str() {
@@ -1182,7 +1182,7 @@ impl Client {
         }
         if intro.is_none() || outro.is_none() {
             // Ancienne API d'Intro Skipper : {"Introduction": {...}, "Credits": {...}}.
-            if let Ok(v) = self.get::<serde_json::Value>(&format!("/Episode/{id}/IntroSkipperSegments"), &[]).await {
+            if let Ok(v) = self.get::<serde_json::Value>(&format!("/Episode/{}/IntroSkipperSegments", seg(id)), &[]).await {
                 let pick = |o: &serde_json::Value| -> Option<(f64, f64)> {
                     if o["Valid"].as_bool() == Some(false) {
                         return None;
@@ -1217,13 +1217,13 @@ impl Client {
 
     /// « Plus de ce genre » (éléments similaires de la bibliothèque).
     pub async fn similar(&self, id: &str) -> Result<Vec<Item>> {
-        let r: ItemsResp = self.get(&format!("/Items/{id}/Similar"), &[("userId", &self.user_id), ("limit", "16")]).await?;
+        let r: ItemsResp = self.get(&format!("/Items/{}/Similar", seg(id)), &[("userId", &self.user_id), ("limit", "16")]).await?;
         Ok(r.items)
     }
 
     /// Le compte a-t-il le droit de télécharger ?
     pub async fn can_download(&self) -> bool {
-        let v: serde_json::Value = match self.get(&format!("/Users/{}", self.user_id), &[]).await {
+        let v: serde_json::Value = match self.get(&format!("/Users/{}", seg(&self.user_id)), &[]).await {
             Ok(v) => v,
             Err(_) => return false,
         };
@@ -1246,17 +1246,17 @@ impl Client {
 
     pub async fn set_favorite(&self, id: &str, on: bool) -> Result<()> {
         let m = if on { reqwest::Method::POST } else { reqwest::Method::DELETE };
-        self.send_flag(m, &format!("/UserFavoriteItems/{id}")).await
+        self.send_flag(m, &format!("/UserFavoriteItems/{}", seg(id))).await
     }
 
     pub async fn set_played(&self, id: &str, on: bool) -> Result<()> {
         let m = if on { reqwest::Method::POST } else { reqwest::Method::DELETE };
-        self.send_flag(m, &format!("/UserPlayedItems/{id}")).await
+        self.send_flag(m, &format!("/UserPlayedItems/{}", seg(id))).await
     }
 
     /// Position, « vu » et date de lecture d'un élément (lectures faites hors ligne).
     pub async fn set_user_data(&self, id: &str, body: &serde_json::Value) -> Result<()> {
-        let path = format!("/UserItems/{id}/UserData?userId={}", self.user_id);
+        let path = format!("/UserItems/{}/UserData?userId={}", seg(id), seg(&self.user_id));
         self.post_json(&path, body).await
     }
 
@@ -1366,7 +1366,7 @@ impl Client {
             .await?;
         if !resp.status().is_success() {
             let code = resp.status();
-            let txt = resp.text().await.unwrap_or_default();
+            let txt = String::from_utf8_lossy(&body_limited(resp, 1 << 20).await.unwrap_or_default()).into_owned();
             let msg = serde_json::from_str::<serde_json::Value>(&txt)
                 .ok()
                 .and_then(|v| v["message"].as_str().map(str::to_string))
@@ -1435,7 +1435,7 @@ impl Client {
         if let Some(s) = season_id {
             q.push(("seasonId", s));
         }
-        let r: ItemsResp = self.get(&format!("/Shows/{series_id}/Episodes"), &q).await?;
+        let r: ItemsResp = self.get(&format!("/Shows/{}/Episodes", seg(series_id)), &q).await?;
         Ok(r.items)
     }
 

@@ -231,6 +231,14 @@ Done after remarks on Reddit; the app was “attacked” point by point:
   shell interpretation (`$1` and `$@` parameters).
 - **Foreign .po files**: bounded plural rule (i64::MIN divided by -1, endless nesting).
 - **Windows**: `open_url` quotes the URL (a `&` in a folder name no longer starts a command).
+- **Second pass**: UDP discovery limited to replies from the local network / VPN, announced address checked
+  (same id): an Internet machine can no longer pose as the server; warning before sending a password over
+  `http://` across the Internet (`discovery::plain_over_internet`, second try = sign in); remote source (`.strm`,
+  `Protocol: Http`) played directly, without the token (a redirect would have sent it to the other host); all ids
+  in paths encoded; trapped theme (color with an accented character) that crashed; languages, themes, presets
+  size-capped (`paths::read_text_limited`); watch party: resume delay bounded, WebSocket messages 2 MiB max;
+  mpv's built-in scripts not loaded. `TURTLEFIN_MPV_LOG` (diagnostics) still writes the token into mpv's log:
+  do not share it as is.
 
 Left: an `http://` server sends the token in clear text (user's choice); token in clear text (0600) on Linux,
 for lack of a keyring common to all target machines.

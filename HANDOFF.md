@@ -234,6 +234,14 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
   de version vérifié, relance du .deb sans interprétation shell (paramètres `$1` et `$@`).
 - **Fichiers .po étrangers** : règle de pluriel bornée (division de i64::MIN par -1, imbrication sans fin).
 - **Windows** : `open_url` met l'adresse entre guillemets (un `&` dans un nom de dossier n'ouvre plus une commande).
+- **Deuxième passe** : découverte UDP limitée aux réponses du réseau local / VPN et adresse annoncée vérifiée
+  (même identifiant) : une machine d'Internet ne peut plus se faire passer pour le serveur ; avertissement avant
+  d'envoyer un mot de passe en `http://` par Internet (`discovery::plain_over_internet`, second essai = connexion) ;
+  source distante (`.strm`, `Protocol: Http`) lue directement, sans jeton (une redirection l'aurait envoyé à
+  l'autre hôte) ; tous les identifiants des chemins encodés ; thème piégé (couleur avec un caractère accentué)
+  qui faisait planter ; langues, thèmes, préréglages bornés en taille (`paths::read_text_limited`) ; watch party :
+  délai de reprise borné, messages WebSocket de 2 Mio au plus ; scripts intégrés de mpv non chargés.
+  `TURTLEFIN_MPV_LOG` (diagnostic) écrit encore le jeton dans le journal de mpv : à ne pas partager tel quel.
 
 Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
 sous Linux, faute de trousseau commun à toutes les machines visées.
