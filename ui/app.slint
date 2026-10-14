@@ -2593,6 +2593,8 @@ export component AppWindow inherits Window {
     callback player-cmd(string);            // pendant la lecture : "pause", "seek:-10", "episode:1", ...
 
     property <float> k: root.tv-mode ? 1.4 : 1.0;
+    // Entrée / sortie de l'interface TV : tout grandit ou rétrécit en douceur.
+    animate k { duration: Motion.pages ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     property <length> card-w: root.tv-mode ? 230px : 170px;
     property <length> header-h: 72px * root.k;
     property <int> tab-count: root.has-requests ? 3 : 2;
@@ -6469,8 +6471,14 @@ export component AppWindow inherits Window {
         property <length> cat-free-y;
         property <length> cat-y: sets.cat-free ? sets.cat-free-y
             : clamp(root.set-cat * 52px * root.k + 23px * root.k - sets.cat-view-h / 2, 0px, sets.cat-max);
+        // La colonne glisse (doigt, molette, catégorie choisie) en douceur ; elle se remet en place
+        // quand sa taille change (interface TV retirée : elle tient de nouveau en entier).
+        animate cat-y { duration: Motion.scroll && !Nav.drag ? 300ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         property <int> cat-now: root.set-cat;
         changed cat-now => {
+            sets.cat-free = false;
+        }
+        changed cat-max => {
             sets.cat-free = false;
         }
         Rectangle {
