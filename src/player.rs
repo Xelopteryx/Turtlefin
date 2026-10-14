@@ -200,8 +200,8 @@ struct Current {
 }
 
 impl Current {
-    /// Moment où proposer la suite : segment « Outro », sinon chapitre de générique, sinon
-    /// les 3 dernières % de la durée (au moins 40 s).
+    /// Moment où proposer la suite : segment « Outro », sinon chapitre de générique (par son nom, sinon
+    /// par sa place), sinon les 3 dernières % de la durée (au moins 40 s).
     fn outro_at(&self) -> f64 {
         if let Some(o) = self.outro {
             return o;
@@ -211,6 +211,12 @@ impl Current {
             let n = name.to_lowercase();
             *t > self.dur * 0.5 && (credits.iter().any(|c| n.contains(c)) || n == "ed" || n.starts_with("ed "))
         }) {
+            return *t;
+        }
+        // Chapitres sans nom (« (05)00:21:50:040 ») : le dernier qui commence dans les 5 dernières minutes,
+        // au moins 45 s avant la fin, est le générique (l'aperçu de l'épisode suivant, plus court, vient
+        // après ; la dernière scène, avant). Le plus sûr reste le plugin Intro Skipper du serveur (segments).
+        if let Some(t) = self.chapters.iter().rev().find(|&&t| t > self.dur * 0.6 && self.dur - t <= 300.0 && self.dur - t >= 45.0) {
             return *t;
         }
         self.dur - (self.dur * 0.03).max(40.0)
@@ -352,6 +358,9 @@ pub async fn play(
                                         });
                                     }
                                 }
+                                if std::env::var_os("TURTLEFIN_DEBUG_UP").is_some() && sec % 5 == 0 {
+                                    eprintln!("turtlefin : pos {:.0} / {:.0}, générique à {:.0}, déjà proposé {}, fini {}", cur.pos, cur.dur, cur.outro_at(), cur.up_shown, cur.ended);
+                                }
                                 // Générique de fin : on propose la suite (une fois par fichier).
                                 if !cur.up_shown && !cur.ended && cur.dur > 120.0 && cur.pos >= cur.outro_at() && cur.pos < cur.dur - 2.0 {
                                     cur.up_shown = true;
@@ -385,6 +394,9 @@ pub async fn play(
                                 .flatten()
                                 .filter_map(|c| Some((c["time"].as_f64()?, c["title"].as_str().unwrap_or("").to_string())))
                                 .collect();
+                            if std::env::var_os("TURTLEFIN_DEBUG_UP").is_some() {
+                                eprintln!("turtlefin : chapitres {list:?}");
+                            }
                             cur.chapters = list.iter().map(|(t, _)| *t).collect();
                             cur.chapter_titles = list;
                             push_chapters(&ui, &cur);

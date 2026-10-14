@@ -187,6 +187,10 @@ Mechanisms that are not obvious in the code:
   snapshots and icons were taken for text.
 - **Playback ending before the announced duration**: real end if the credits were reached and the server
   answers (`natural`, player.rs); otherwise a network cut (automatic resume).
+- **“Next episode” card** (`outro_at`): the server's Outro / Credits segment (Intro Skipper plugin, recommended),
+  else a chapter named “ending”, “credits”…, else an unnamed chapter: the last one starting within the final 5
+  minutes and at least 45 s before the end; failing that, 3 % before the end (at least 40 s).
+  `TURTLEFIN_DEBUG_UP=1` prints position, credits time and chapters.
 
 Not done: Quick Connect; native gamepad (XeLauncher turns it into keys: `xe_tf_input.py`, repeat ~6 steps/s and
 double presses ignored since October 14, 2026). Planned next: Android version (phone and Meta Quest), once the

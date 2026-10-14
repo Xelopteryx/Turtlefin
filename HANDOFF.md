@@ -189,6 +189,10 @@ Mécanismes non évidents dans le code :
   deux captures et les icônes étaient prises pour du texte.
 - **Fin de lecture plus tôt que la durée annoncée** : vraie fin si le générique est atteint et que le serveur
   répond (`natural`, player.rs) ; sinon coupure du réseau (reprise automatique).
+- **Proposition « Épisode suivant »** (`outro_at`) : segment Outro / Credits du serveur (plugin Intro Skipper,
+  conseillé), sinon chapitre nommé « ending », « credits »…, sinon chapitre sans nom : le dernier qui commence
+  dans les 5 dernières minutes et au moins 45 s avant la fin ; à défaut, 3 % avant la fin (40 s au moins).
+  `TURTLEFIN_DEBUG_UP=1` affiche position, générique et chapitres.
 
 Pas fait : Quick Connect ; manette native (XeLauncher la traduit en touches : `xe_tf_input.py`, répétition
 ~6 pas/s et appuis en double ignorés depuis le 14 octobre 2026). Prévu ensuite : version Android (téléphone et
