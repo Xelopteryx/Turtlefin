@@ -187,7 +187,8 @@ struct App {
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
     lx_mode: Mutex<&'static str>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
-    home_keep: Mutex<Option<(String, String)>>,
+    /// Carte de l'accueil à resélectionner après un rechargement : (rangée, id, série, n° de rangée, n° de carte).
+    home_keep: Mutex<Option<(String, String, String, usize, usize)>>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
     player_tx: Mutex<Option<tokio::sync::mpsc::UnboundedSender<String>>>,
 }
@@ -1373,6 +1374,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                group: c.group.clone().into(),
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -1392,13 +1394,30 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
         }
         let empty = rows.is_empty();
         let keep = app2.home_keep.lock().unwrap().take();
-        let find = |same_row: bool| -> Option<(usize, usize)> {
-            let (title, id) = keep.as_ref()?;
+        // La même carte (dans sa rangée, sinon ailleurs) ; sinon, épisode passé au suivant (« vu ») ou
+        // élément retiré : la carte de la même série, ou la même place dans la même rangée.
+        let find = |same_row: bool, by_group: bool| -> Option<(usize, usize)> {
+            let (title, id, group, _, _) = keep.as_ref()?;
+            if by_group && group.is_empty() {
+                return None;
+            }
             rows.iter().enumerate().filter(|(_, r)| !same_row || r.title.as_str() == title).find_map(|(si, r)| {
-                (0..r.items.row_count()).find(|&i| r.items.row_data(i).is_some_and(|c| c.id.as_str() == id)).map(|i| (si, i))
+                (0..r.items.row_count())
+                    .find(|&i| r.items.row_data(i).is_some_and(|c| if by_group { c.group.as_str() == group } else { c.id.as_str() == id }))
+                    .map(|i| (si, i))
             })
         };
-        let (sel_s, sel_i) = find(true).or_else(|| find(false)).unwrap_or((0, 0));
+        let same_place = || -> Option<(usize, usize)> {
+            let (title, _, _, s, i) = keep.as_ref()?;
+            let si = rows.iter().position(|r| r.title.as_str() == title).unwrap_or(*s).min(rows.len().checked_sub(1)?);
+            let n = rows[si].items.row_count();
+            (n > 0).then(|| (si, (*i).min(n - 1)))
+        };
+        let (sel_s, sel_i) = find(true, false)
+            .or_else(|| find(false, false))
+            .or_else(|| find(true, true))
+            .or_else(same_place)
+            .unwrap_or((0, 0));
         u.set_sections(ModelRc::new(VecModel::from(rows)));
         u.set_user_name(user_name.into());
         u.set_sel_section(sel_s as i32);
@@ -1490,6 +1509,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                group: c.group.clone().into(),
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -1924,6 +1944,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
             .iter()
             .enumerate()
             .map(|(i, (name, role, photo))| api::CardInfo {
+                group: String::new(),
                 id: format!("person:{i}"),
                 title: name.clone(),
                 subtitle: role.clone(),
@@ -2041,6 +2062,7 @@ fn card_data(c: &api::CardInfo) -> CardData {
         status: c.status,
         count: c.count,
         played: c.played,
+        group: c.group.clone().into(),
         ..Default::default()
     }
 }
@@ -4035,8 +4057,9 @@ fn go_home_at(app: &Arc<App>, top: bool) {
         } else if stale {
             // Carte sélectionnée avant de partir : retrouvée par son id après le rechargement.
             let secs = u.get_sections();
-            let keep = secs.row_data(u.get_sel_section().max(0) as usize).and_then(|s| {
-                s.items.row_data(u.get_sel_item().max(0) as usize).map(|c| (s.title.to_string(), c.id.to_string()))
+            let (si, ci) = (u.get_sel_section().max(0) as usize, u.get_sel_item().max(0) as usize);
+            let keep = secs.row_data(si).and_then(|s| {
+                s.items.row_data(ci).map(|c| (s.title.to_string(), c.id.to_string(), c.group.to_string(), si, ci))
             });
             *app.home_keep.lock().unwrap() = keep;
         }

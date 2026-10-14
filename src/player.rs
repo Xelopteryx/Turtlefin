@@ -420,10 +420,20 @@ pub async fn play(
                         let _ = ui.upgrade_in_event_loop(|u| u.set_p_ready(true));
                     }
                     Event::EndFile { eof, error } => {
+                        // Fin avant la durée annoncée : coupure du réseau, ou durée du fichier fausse (souvent
+                        // plus longue que la vidéo). Le serveur répond et le générique est atteint : c'est
+                        // la vraie fin, pas une coupure.
+                        let early = streaming && eof && lost_at.is_none() && cur.dur > 60.0 && cur.pos < cur.dur - 15.0;
+                        let natural = early
+                            && (cur.up_shown || cur.pos >= cur.outro_at() - 5.0 || cur.pos >= cur.dur * 0.9)
+                            && match client {
+                                Some(c) => tokio::time::timeout(Duration::from_secs(4), crate::discovery::reachable(&c.server)).await.unwrap_or(false),
+                                None => false,
+                            };
                         if switching {
                             // Fin de l'ancien fichier, provoquée par le changement d'élément.
                             switching = false;
-                        } else if streaming && (lost_at.is_some() || (eof && cur.dur > 60.0 && cur.pos < cur.dur - 15.0)) {
+                        } else if streaming && (lost_at.is_some() || (early && !natural)) {
                             // Le flux s'arrête bien avant la fin (ou la reprise a échoué) : c'est le réseau,
                             // pas la fin de l'épisode. Rien n'est marqué « vu » ; on reprend au même
                             // endroit dès que le serveur répond.

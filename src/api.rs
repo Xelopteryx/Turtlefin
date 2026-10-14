@@ -136,6 +136,9 @@ pub struct Item {
 /// Ce dont l'interface a besoin pour afficher une carte.
 #[derive(Clone, Debug)]
 pub struct CardInfo {
+    /// Série d'un épisode (vide sinon) : au retour d'une fiche, l'affiche rejoint la carte de la même
+    /// série même si l'épisode a changé (« À suivre » passé à l'épisode d'après).
+    pub group: String,
     pub id: String,
     pub title: String,
     pub subtitle: String,
@@ -233,6 +236,7 @@ impl SeerrRequest {
             parts.push(format!("{d}/{m}"));
         }
         CardInfo {
+            group: String::new(),
             // Disponible : sa fiche Jellyfin ; sinon la page Seerr.
             id: self.jellyfin_id.clone().unwrap_or_else(|| seerr_id(self.tv, self.tmdb)),
             title: self.title.clone(),
@@ -340,6 +344,7 @@ impl Item {
         };
 
         CardInfo {
+            group: if is_episode { self.series_id.clone().unwrap_or_default() } else { String::new() },
             id: self.id.clone(),
             title,
             subtitle,
@@ -374,6 +379,7 @@ impl Item {
         let played = self.user_data.as_ref().map(|u| u.played).unwrap_or(false);
         let tag = self.primary_tag();
         CardInfo {
+            group: String::new(),
             id: self.id.clone(),
             title,
             subtitle: parts.join(" · "),
@@ -507,6 +513,7 @@ impl Item {
                 _ => String::new(),
             };
             out.push(CardInfo {
+                group: String::new(),
                 // Pas encore de page « personne » : la carte ne mène nulle part.
                 id: format!("person:{}", p.id),
                 title: p.name.clone(),
@@ -1081,6 +1088,7 @@ impl Client {
             let title = r["title"].as_str().or(r["name"].as_str()).unwrap_or("").to_string();
             let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
             out.push(CardInfo {
+                group: String::new(),
                 id: seerr_id(tv, id),
                 title,
                 subtitle: [if tv { tr("Série") } else { tr("Film") }.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
@@ -1380,6 +1388,7 @@ impl Client {
                 sub.push("disponible".into());
             }
             out.push(CardInfo {
+                group: String::new(),
                 id: jf.unwrap_or_else(|| seerr_id(rtv, rid)),
                 title,
                 subtitle: sub.into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),

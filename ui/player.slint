@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion, Gloss, Sheen } from "theme.slint";
+import { Theme, Tr, Motion, Gloss, Sheen, Nav } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -149,7 +149,8 @@ component PlayerButton inherits Rectangle {
     in property <int> press;
     callback clicked();
 
-    property <bool> lit: root.enabled && (root.focused || area.has-hover);
+    // Sélection au clavier (au bureau : seulement après une touche de navigation, voir Nav) ou survol.
+    property <bool> lit: root.enabled && ((root.focused && Nav.kb) || area.has-hover);
     property <duration> t0;
     property <bool> anim;
     changed press => {
@@ -185,7 +186,11 @@ component PlayerButton inherits Rectangle {
     height: parent.height;
     border-radius: self.height / 2;
     transform-scale: root.lit-s + root.push;
-    background: root.lit || root.orb ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.player-ink.with-alpha(0.08);
+    // Orbe au repos : verre teinté d'accent, plus discret ; choisie : pleine, brillante et lumineuse.
+    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        : root.orb ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.38) 0%, Theme.accent2.with-alpha(0.38) 100%)
+        : Theme.player-ink.with-alpha(0.08);
+    animate background { duration: Motion.player ? 180ms : 0ms; }
     border-width: root.lit && !root.orb ? 0px : 1px;
     border-color: root.orb ? Theme.player-ink.with-alpha(0.55) : Theme.player-ink.with-alpha(0.25);
     drop-shadow-blur: root.orb && root.lit ? 16px : 0px;
@@ -237,9 +242,10 @@ component EpisodeCard inherits Rectangle {
     in property <bool> current;
     in property <float> k: 1.0;
     callback clicked();
+    property <bool> lit: (root.focused && Nav.kb) || ep-area.has-hover;
 
-    z: root.focused ? 1 : 0;
-    transform-scale: root.focused ? 1.06 : 1.0;
+    z: root.lit ? 1 : 0;
+    transform-scale: root.lit ? 1.06 : 1.0;
     animate transform-scale { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     // Aux couleurs du thème, comme les cartes des pages : fond de la barre du lecteur, contour,
     // lueur et reflet de verre du thème.
@@ -247,12 +253,12 @@ component EpisodeCard inherits Rectangle {
     background: Theme.player-bar;
     border-width: root.current ? 2px : 1px;
     border-color: root.current ? Theme.accent2 : Theme.card-border;
-    drop-shadow-blur: root.focused ? 18px * root.k : 0px;
+    drop-shadow-blur: root.lit ? 18px * root.k : 0px;
     drop-shadow-color: Theme.glow;
     // Carte choisie : un peu plus claire.
     Rectangle {
         border-radius: Theme.radius;
-        background: root.focused ? Theme.player-ink.with-alpha(0.12) : transparent;
+        background: root.lit ? Theme.player-ink.with-alpha(0.12) : transparent;
     }
 
     Rectangle {
@@ -272,7 +278,7 @@ component EpisodeCard inherits Rectangle {
     if Theme.sheen > 0: Sheen {
         height: root.width * 0.5625;
         r: Theme.radius;
-        on: root.focused;
+        on: root.lit;
     }
     Marquee {
         x: 8px * root.k;
@@ -280,7 +286,7 @@ component EpisodeCard inherits Rectangle {
         width: parent.width - 16px * root.k;
         height: 18px * root.k;
         text: root.data.title;
-        active: root.focused;
+        active: root.lit;
         text-color: Theme.player-ink;
         font-size: 13px * root.k;
         font-weight: 600;
@@ -295,7 +301,7 @@ component EpisodeCard inherits Rectangle {
         font-size: 11px * root.k;
         overflow: elide;
     }
-    TouchArea {
+    ep-area := TouchArea {
         clicked => {
             root.clicked();
         }
@@ -308,12 +314,13 @@ component PickCard inherits Rectangle {
     in property <bool> focused;
     in property <float> k: 1.0;
     callback clicked();
+    property <bool> lit: (root.focused && Nav.kb) || pick-area.has-hover;
 
-    transform-scale: root.focused ? 1.08 : 1.0;
+    transform-scale: root.lit ? 1.08 : 1.0;
     animate transform-scale { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: 10px;
-    background: root.focused ? Theme.player-ink.with-alpha(0.15) : Theme.player-ink.with-alpha(0.06);
-    border-width: root.focused ? 3px : 0px;
+    background: root.lit ? Theme.player-ink.with-alpha(0.15) : Theme.player-ink.with-alpha(0.06);
+    border-width: root.lit ? 3px : 0px;
     border-color: Theme.accent2;
 
     Rectangle {
@@ -350,7 +357,7 @@ component PickCard inherits Rectangle {
         horizontal-alignment: center;
         overflow: elide;
     }
-    TouchArea {
+    pick-area := TouchArea {
         clicked => {
             root.clicked();
         }

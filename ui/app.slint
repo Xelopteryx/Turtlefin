@@ -279,6 +279,7 @@ global Hero {
     in-out property <float> k: 1.0;
     in-out property <string> hide-id;  // carte cachée pendant le vol (l'image partagée la remplace)
     in-out property <string> want-id;  // retour : la carte de cet élément répond (sinon la carte sélectionnée)
+    in-out property <string> want-group; // retour : à défaut, la carte d'un autre épisode de la même série
 }
 
 // Image d'une carte avec ses pastilles (avancement, Seerr, épisodes restants / vu, statut, note).
@@ -444,8 +445,9 @@ component CardArt inherits Rectangle {
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
-    // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav).
-    property <bool> lit: root.focused && Nav.kb;
+    // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav) ; à la
+    // souris, la carte survolée est mise en avant de la même façon.
+    property <bool> lit: (root.focused && Nav.kb) || card-area.has-hover;
     in property <float> ratio: 1.5;
     in property <float> k: 1.0;
     callback clicked();
@@ -455,7 +457,10 @@ component Card inherits Rectangle {
     // Ouverture animée : la carte sélectionnée donne la place de son image (agrandie de 6 %).
     property <int> hero-tick: Hero.tick;
     changed hero-tick => {
-        if (Hero.want-id != "" ? root.data.id == Hero.want-id && root.data.has-image : root.focused && root.data.has-image) {
+        // Retour : la carte de l'élément quitté, ou (épisode « À suivre » passé au suivant, après « vu »)
+        // celle de la même série ; son image peut encore être en chargement.
+        if (Hero.want-id != "" ? root.data.id == Hero.want-id || (Hero.want-group != "" && root.data.group == Hero.want-group)
+                : root.focused && root.data.has-image) {
             Hero.seq += 1;
             // absolute-position tient déjà compte de l'agrandissement de la carte (transform-scale,
             // centré) : c'est le coin de l'image telle qu'elle est dessinée. Taille : à l'échelle
@@ -505,7 +510,7 @@ component Card inherits Rectangle {
         width: parent.width - 16px * root.k;
         height: 22px * root.k;
         text: root.data.title;
-        active: root.focused;
+        active: root.lit;
         text-color: Theme.text;
         font-size: 15px * root.k;
         font-weight: 500;
@@ -517,13 +522,13 @@ component Card inherits Rectangle {
         width: parent.width - 16px * root.k;
         height: 18px * root.k;
         text: root.data.subtitle;
-        active: root.focused;
+        active: root.lit;
         text-color: Theme.muted;
         font-size: 12px * root.k;
         font-weight: 400;
     }
 
-    TouchArea {
+    card-area := TouchArea {
         clicked => {
             root.clicked();
         }
@@ -621,7 +626,7 @@ component Tab inherits Rectangle {
         width: parent.width;
         height: parent.height;
         text: root.text;
-        color: (root.active || root.focused || area.has-hover) ? Theme.fg : Theme.fg.with-alpha(0.65);
+        color: (root.active || (root.focused && Nav.kb) || area.has-hover) ? Theme.fg : Theme.fg.with-alpha(0.65);
         font-size: 18px * root.k;
         font-weight: root.active ? 700 : 600;
         horizontal-alignment: center;
@@ -630,7 +635,7 @@ component Tab inherits Rectangle {
 
     // Soulignement qui s'étire depuis le centre à la sélection.
     Rectangle {
-        property <float> w: root.focused ? 1 : 0;
+        property <float> w: (root.focused && Nav.kb) || area.has-hover ? 1 : 0;
         animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
         visible: self.w > 0.01;
         x: (parent.width - self.width) / 2;
@@ -841,15 +846,17 @@ component HeaderIcon inherits Rectangle {
     width: 44px * root.k;
     height: 44px * root.k;
     border-radius: self.height / 2;
-    transform-scale: (root.focused || area.has-hover ? 1.12 : 1.0) * root.pop;
+    // Sélection au clavier montrée seulement si Nav.kb (au bureau, la souris la cache).
+    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
+    transform-scale: (root.lit ? 1.12 : 1.0) * root.pop;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-    background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-    border-width: root.on && !root.focused ? 2px * root.k : 0px;
+    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+    border-width: root.on && !root.lit ? 2px * root.k : 0px;
     border-color: Theme.accent2;
-    property <color> ink: root.focused || area.has-hover ? Theme.on-accent : Theme.fg;
+    property <color> ink: root.lit ? Theme.on-accent : Theme.fg;
     Gloss {
         r: parent.border-radius;
-        visible: Theme.gloss > 0 && (root.focused || area.has-hover);
+        visible: Theme.gloss > 0 && root.lit;
     }
 
     if root.icon == "search": Path {
@@ -960,9 +967,10 @@ component ActionButton inherits Rectangle {
     property <bool> bubble: Theme.gloss > 0;
     border-radius: root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond.
-    transform-scale: root.focused || area.has-hover ? 1.07 : 1.0;
+    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
+    transform-scale: root.lit ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-    background: (root.focused || area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.45) 0%, Theme.accent1.with-alpha(0.55) 100%)
         : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
     border-width: root.bubble ? 1px : 0px;
@@ -977,7 +985,7 @@ component ActionButton inherits Rectangle {
 
     label := Text {
         text: root.text;
-        color: root.focused || area.has-hover ? Theme.on-accent : Theme.fg;
+        color: root.lit ? Theme.on-accent : Theme.fg;
         font-size: root.font;
         font-weight: 600;
         horizontal-alignment: center;
@@ -1001,7 +1009,7 @@ component DetailButton inherits Rectangle {
     in property <int> press;            // incrémenté à chaque activation : le bouton sélectionné réagit
     callback clicked();
 
-    property <bool> lit: root.focused || area.has-hover;
+    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
     property <bool> is-icon: root.icon != "" && root.icon != "label";
 
     // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
@@ -1715,7 +1723,9 @@ export component AppWindow inherits Window {
         if (!root.hero-on) {
             Hero.hide-id = "";
             Hero.want-id = "";
+            Hero.want-group = "";
             root.hero-flying = false;
+            root.hero-out = false;
         }
     }
     Timer {
@@ -1761,7 +1771,7 @@ export component AppWindow inherits Window {
         root.open-item(id);
     }
     // Retour : l'image attend que sa carte soit affichée, puis vole exactement jusqu'à elle.
-    property <bool> hero-wait: root.hero-on && !root.hero-dest && !root.hero-flying && !root.loading && !root.veil-hold
+    property <bool> hero-wait: root.hero-on && !root.hero-dest && !root.hero-flying && !root.hero-out && !root.loading && !root.veil-hold
         && !root.sr-open && root.screen != "loading" && !(root.screen == "detail" && root.detail.id == root.hero-from-id);
     Timer {
         interval: 60ms;
@@ -1771,10 +1781,21 @@ export component AppWindow inherits Window {
         }
     }
     Timer {
-        interval: 1200ms;
+        interval: 700ms;
         running: root.hero-wait;
         triggered => {
-            // Carte introuvable (plus affichée) : l'image s'efface sur place.
+            // Carte introuvable (plus affichée, vue en entier…) : l'image s'efface en fondu sur place.
+            root.hero-out-t0 = animation-tick();
+            root.hero-out = true;
+        }
+    }
+    property <bool> hero-out;
+    property <duration> hero-out-t0;
+    property <float> hero-out-a: root.hero-out && Motion.detail ? 1 - clamp((animation-tick() - root.hero-out-t0) / 220ms, 0, 1) : root.hero-out ? 0 : 1;
+    Timer {
+        interval: 240ms;
+        running: root.hero-out;
+        triggered => {
             root.hero-on = false;
         }
     }
@@ -1796,7 +1817,7 @@ export component AppWindow inherits Window {
             root.hero-fh = Hero.h;
             return;
         }
-        if (root.hero-pending == "" && root.hero-wait) {
+        if (root.hero-pending == "" && root.hero-wait && Hero.data.id != "") {
             root.hero-fx = Hero.x;
             root.hero-fy = Hero.y;
             root.hero-fw = Hero.w;
@@ -1839,6 +1860,7 @@ export component AppWindow inherits Window {
         // la fiche reste, l'image repart tout de suite vers sa carte (sinon elle restait figée).
         root.hero-from-id = root.screen == "detail" && !root.sr-open ? root.detail.id : "";
         Hero.want-id = root.hero-data.id;
+        Hero.want-group = root.hero-data.group;
         root.hero-dest = false;
         root.hero-flying = false;
         root.hero-anim = false;
@@ -1856,7 +1878,9 @@ export component AppWindow inherits Window {
         if (root.veil-hold) {
             return; // retour déjà en cours
         }
-        if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id) {
+        // Fiche descendue (rangées du bas, épisodes) : son affiche n'est plus à l'écran, rien ne
+        // revole vers la carte (l'image réapparaîtrait de nulle part).
+        if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id && root.d-scroll < root.poster-w * 0.5) {
             root.hero-return();
         }
         root.hero-id = "";
@@ -2523,6 +2547,7 @@ export component AppWindow inherits Window {
 
     function close-menu() {
         root.menu-open = false;
+        root.menu-hov = -1;
         root.refocus += 1;
     }
 
@@ -3909,13 +3934,13 @@ export component AppWindow inherits Window {
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
-                background: (!root.h-focus && i == root.sp-sel) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : ((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                background: (!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : ((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 Text {
                     x: 20px * root.k;
                     height: parent.height;
                     text: g.label;
-                    color: ((!root.h-focus && i == root.sp-sel) || g-area.has-hover ? Theme.on-accent : Theme.fg);
+                    color: ((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : Theme.fg);
                     font-size: 16px * root.k;
                     vertical-alignment: center;
                 }
@@ -5116,23 +5141,23 @@ export component AppWindow inherits Window {
                     width: parent.width - 24px * root.k;
                     height: 40px * root.k;
                     border-radius: 10px * root.k;
-                    background: (i == root.tp-sel || tp-area.has-hover)
+                    background: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover)
                         ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && (i == root.tp-sel || tp-area.has-hover); }
+                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((i == root.tp-sel && Nav.kb) || tp-area.has-hover); }
                     if t.current: Rectangle {
                         x: 14px * root.k;
                         y: (parent.height - self.height) / 2;
                         width: 9px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: (i == root.tp-sel || tp-area.has-hover ? Theme.on-accent : Theme.fg);
+                        background: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover ? Theme.on-accent : Theme.fg);
                     }
                     Text {
                         x: 34px * root.k;
                         width: parent.width - 44px * root.k;
                         height: parent.height;
                         text: t.label;
-                        color: (i == root.tp-sel || tp-area.has-hover ? Theme.on-accent : Theme.fg);
+                        color: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover ? Theme.on-accent : Theme.fg);
                         font-size: 15px * root.k;
                         vertical-alignment: center;
                         overflow: elide;
@@ -6318,7 +6343,7 @@ export component AppWindow inherits Window {
                 border-radius: parent.border-radius;
                 background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                 Gloss { r: parent.border-radius; strength: 0.8; }
-                opacity: !root.set-in && !root.h-focus ? 1 : 0;
+                opacity: !root.set-in && !root.h-focus && Nav.kb ? 1 : 0;
                 animate opacity { duration: Motion.panels ? 200ms : 0ms; }
             }
         }
@@ -6328,20 +6353,20 @@ export component AppWindow inherits Window {
             width: sets.left-w - 32px * root.k;
             height: 46px * root.k;
             border-radius: 10px * root.k;
-            background: cat-area.has-hover && i != root.set-cat ? ((i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : (i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
+            background: cat-area.has-hover && i != root.set-cat ? ((i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
             NavIcon {
                 x: 14px * root.k;
                 y: (parent.height - self.height) / 2;
                 width: 22px * root.k;
                 height: 22px * root.k;
                 name: sets.cat-icons[i];
-                tint: i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg;
+                tint: i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg;
             }
             Text {
                 x: 46px * root.k;
                 height: parent.height;
                 text: c;
-                color: (i == root.set-cat && !root.set-in && !root.h-focus ? Theme.on-accent : Theme.fg);
+                color: (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg);
                 font-size: 17px * root.k;
                 font-weight: i == root.set-cat ? 700 : 500;
                 vertical-alignment: center;
@@ -6451,7 +6476,7 @@ export component AppWindow inherits Window {
                         height: parent.height;
                         opacity: sets.rw-e(i);
                         border-radius: 12px * root.k;
-                        property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel;
+                        property <bool> sel: root.set-in && root.ch-key == "" && i == root.set-sel && Nav.kb;
                         property <bool> still: r.kind == "info" || r.kind == "profile";
                         background: r.kind == "info" ? transparent
                             : r.kind == "profile" ? Theme.fg.with-alpha(0.05)
@@ -6703,15 +6728,15 @@ export component AppWindow inherits Window {
                         width: parent.width - 20px * root.k;
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
-                        background: i == root.ch-sel || ch-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && (i == root.ch-sel || ch-area.has-hover); }
+                        background: (i == root.ch-sel && Nav.kb) || ch-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((i == root.ch-sel && Nav.kb) || ch-area.has-hover); }
                         Text {
                             x: 16px * root.k;
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
                             font-family: "Montserrat";
-                            color: (i == root.ch-sel || ch-area.has-hover ? Theme.on-accent : Theme.fg);
+                            color: ((i == root.ch-sel && Nav.kb) || ch-area.has-hover ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
@@ -6846,7 +6871,7 @@ export component AppWindow inherits Window {
                         border-radius: parent.border-radius;
                         background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                         Gloss { r: parent.border-radius; strength: 0.8; }
-                        opacity: !root.h-focus && root.av-zone == 0 ? 1 : 0;
+                        opacity: !root.h-focus && root.av-zone == 0 && Nav.kb ? 1 : 0;
                         animate opacity { duration: Motion.panels ? 200ms : 0ms; }
                     }
                 }
@@ -6855,13 +6880,13 @@ export component AppWindow inherits Window {
                     animate y { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
-                    background: avg-area.has-hover && i != root.av-group ? ((i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
+                    background: avg-area.has-hover && i != root.av-group ? ((i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
                     Text {
                         x: 16px * root.k;
                         width: parent.width - 70px * root.k;
                         height: parent.height;
                         text: g.title;
-                        color: (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg);
+                        color: (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg);
                         font-size: 16px * root.k;
                         font-weight: i == root.av-group ? 700 : 500;
                         vertical-alignment: center;
@@ -6872,7 +6897,7 @@ export component AppWindow inherits Window {
                         width: 46px * root.k;
                         height: parent.height;
                         text: g.count;
-                        color: ((i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 ? Theme.on-accent : Theme.fg))).with-alpha(0.7);
+                        color: ((i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.7);
                         font-size: 13px * root.k;
                         horizontal-alignment: right;
                         vertical-alignment: center;
@@ -6918,7 +6943,7 @@ export component AppWindow inherits Window {
                         opacity: self.e;
                         width: sets.av-cw;
                         height: sets.av-ch;
-                        property <bool> sel: !root.h-focus && root.av-zone == 1 && i == root.av-sel;
+                        property <bool> sel: !root.h-focus && root.av-zone == 1 && i == root.av-sel && Nav.kb;
                         property <bool> lit: self.sel || av-area.has-hover;
                         property <bool> busy: a.id == root.av-busy;
                         property <bool> done: a.id == root.av-current;
@@ -7304,6 +7329,10 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Menu latéral
     // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
     property <float> menu-p: root.menu-open ? 1 : 0;
+    // Entrée du menu survolée par la souris (-1 : aucune) : au bureau, c'est elle qui est choisie.
+    property <int> menu-hov: -1;
+    // Surbrillance montrée : au clavier (Nav.kb), ou sous la souris.
+    property <bool> menu-lit: Nav.kb || root.menu-hov >= 0;
     animate menu-p { duration: Motion.menu ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Toujours construit (invisible quand il est fermé) : l'ouverture ne crée rien, pas d'à-coup.
     // Pas de « visible: false » quand il est fermé : un élément caché ne peut pas prendre le clavier
@@ -7407,11 +7436,14 @@ export component AppWindow inherits Window {
                 height: parent.height - parent.top;
                 clip: true;
 
-                // Surbrillance de l'entrée choisie : elle glisse d'une entrée à l'autre.
+                // Surbrillance de l'entrée choisie : elle glisse d'une entrée à l'autre. À l'ouverture,
+                // elle est déjà sur la page en cours (pas de glissement depuis l'entrée d'avant).
                 Rectangle {
                     x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - root.menu-sel * 0.045, 0, 1)) * 90px * root.k;
                     y: root.menu-sel * drawer.row-h - drawer.scroll;
-                    animate y { duration: Motion.menu ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    animate y { duration: Motion.menu && root.menu-open && root.menu-p > 0.05 ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    opacity: root.menu-lit ? 1 : 0;
+                    animate opacity { duration: Motion.menu ? 150ms : 0ms; }
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
@@ -7426,7 +7458,7 @@ export component AppWindow inherits Window {
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
                     border-radius: 10px * root.k;
-                    background: !e.header && i != root.menu-sel && row.has-hover ? Theme.fg.with-alpha(0.1) : transparent;
+                    property <bool> on: i == root.menu-sel && root.menu-lit;
 
                     if e.header && i > 0: Rectangle {
                         x: 4px * root.k;
@@ -7442,17 +7474,17 @@ export component AppWindow inherits Window {
                         width: 20px * root.k;
                         height: 20px * root.k;
                         name: root.menu-icon(e.action);
-                        tint: i == root.menu-sel ? Theme.on-accent : Theme.fg.with-alpha(0.8);
+                        tint: parent.on ? Theme.on-accent : Theme.fg.with-alpha(0.8);
                     }
                     Marquee {
                         x: (e.header ? 14px : 48px) * root.k;
                         width: parent.width - (e.header ? 28px : 62px) * root.k;
                         text: e.header ? e.label.to-uppercase() : e.label;
-                        text-color: e.header ? Theme.muted : i == root.menu-sel ? Theme.on-accent : Theme.fg;
+                        text-color: e.header ? Theme.muted : parent.on ? Theme.on-accent : Theme.fg;
                         font-size: (e.header ? 12px : 17px) * root.k;
-                        font-weight: e.header ? 700 : (i == root.menu-sel ? 600 : 500);
+                        font-weight: e.header ? 700 : (parent.on ? 600 : 500);
                         vertical-alignment: e.header ? TextVerticalAlignment.bottom : TextVerticalAlignment.center;
-                        active: !e.header && i == root.menu-sel;
+                        active: !e.header && parent.on;
                         horizontal-alignment: TextHorizontalAlignment.left;
                         height: self.preferred-height;
                     }
@@ -7464,7 +7496,7 @@ export component AppWindow inherits Window {
                         width: 4px * root.k;
                         height: parent.height * 0.6;
                         border-radius: self.width / 2;
-                        background: i == root.menu-sel ? Theme.on-accent : Theme.accent2;
+                        background: parent.on ? Theme.on-accent : Theme.accent2;
                     }
                     if !e.header && e.action == root.here: Rectangle {
                         x: parent.width - self.width - 14px * root.k;
@@ -7472,11 +7504,20 @@ export component AppWindow inherits Window {
                         width: 8px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: i == root.menu-sel ? Theme.on-accent : Theme.accent2;
+                        background: parent.on ? Theme.on-accent : Theme.accent2;
                     }
 
                     row := TouchArea {
                         enabled: !e.header;
+                        // La souris choisit l'entrée qu'elle survole (la surbrillance la rejoint).
+                        changed has-hover => {
+                            if (self.has-hover) {
+                                root.menu-sel = i;
+                                root.menu-hov = i;
+                            } else if (root.menu-hov == i) {
+                                root.menu-hov = -1;
+                            }
+                        }
                         clicked => {
                             root.menu-sel = i;
                             root.close-menu();
@@ -7838,6 +7879,7 @@ export component AppWindow inherits Window {
     // la page (voir plus haut, avant les écrans). Coins arrondis (rognage, le temps du vol) et
     // pastilles de la carte (épisodes restants, note...), qui s'effacent vers la page.
     if root.hero-on && !root.hero-under && !root.playing: Rectangle {
+        opacity: root.hero-out-a;
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
         y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
