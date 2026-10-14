@@ -1687,3 +1687,6 @@ msgstr "onbekend item"
 
 msgid "mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"
 msgstr "bijgewerkt door Flatpak (softwarecentrum, of „flatpak update”)"
+
+msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
+msgstr "Let op: dit http://-adres gaat onversleuteld over internet, je wachtwoord zou leesbaar verstuurd worden. Gebruik liever een https://-adres (of een vpn). Bevestig nogmaals om toch in te loggen."

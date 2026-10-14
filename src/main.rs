@@ -189,6 +189,8 @@ struct App {
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
     /// Carte de l'accueil à resélectionner après un rechargement : (rangée, id, série, n° de rangée, n° de carte).
     home_keep: Mutex<Option<(String, String, String, usize, usize)>>,
+    /// Serveur en http:// par Internet dont l'avertissement a été vu (second essai : connexion).
+    plain_ok: Mutex<String>,
     /// Canal vers la lecture en cours (touches clavier -> commandes mpv).
     player_tx: Mutex<Option<tokio::sync::mpsc::UnboundedSender<String>>>,
 }
@@ -897,6 +899,13 @@ fn push_section(out: &mut Vec<SectionData>, title: &str, landscape: bool, items:
 }
 
 async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
+    // Mot de passe en clair sur Internet : prévenir une fois ; un second essai se connecte quand même.
+    let norm = api::normalize_server(&server);
+    if *app.plain_ok.lock().unwrap() != norm && discovery::plain_over_internet(&norm).await {
+        *app.plain_ok.lock().unwrap() = norm;
+        show_login_error(&app.ui(), tr("Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même.").into());
+        return;
+    }
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
         Ok(client) => start_session(app, client).await,
         Err(e) => show_login_error(&app.ui(), format!("{}", human_err(&e))),
@@ -3736,7 +3745,7 @@ fn lx_activate(app: &Arc<App>, i: usize) {
             u.set_toast(trf("Langue : {}", &[&name]).into());
         }
         "preset" => {
-            let preset = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
+            let preset = paths::read_text_limited(&path, 1 << 20).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
             if let Some(c) = preset {
                 let name = c.name.clone();
                 set_anim(app, move |p| {
@@ -3884,7 +3893,7 @@ fn browse_presets(dir: &std::path::Path) -> Vec<i18n::Entry> {
             let n = std::fs::read_dir(&p).into_iter().flatten().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "json")).count();
             dirs.push(i18n::Entry { path: p, kind: "dir", name: fname, code: n.to_string(), done: 0.0 });
         } else if p.extension().is_some_and(|x| x == "json") {
-            let preset = std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
+            let preset = paths::read_text_limited(&p, 1 << 20).ok().and_then(|t| serde_json::from_str::<config::AnimPreset>(t.trim_start_matches('\u{feff}')).ok());
             match preset {
                 Some(c) => files.push(i18n::Entry { path: p, kind: "preset", name: c.name, code: c.anim.count().to_string(), done: 0.0 }),
                 None => files.push(i18n::Entry { path: p, kind: "other", name: fname, code: String::new(), done: 0.0 }),
@@ -5224,6 +5233,7 @@ fn main() -> anyhow::Result<()> {
         lx_paths: Mutex::new(Vec::new()),
         lx_mode: Mutex::new("lang"),
         home_keep: Mutex::new(None),
+        plain_ok: Mutex::new(String::new()),
         player_tx: Mutex::new(None),
     });
 

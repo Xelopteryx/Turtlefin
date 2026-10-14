@@ -66,3 +66,13 @@ pub fn quiet_command(prog: impl AsRef<std::ffi::OsStr>) -> std::process::Command
     }
     cmd
 }
+
+/// Fichier texte ajouté par l'utilisateur (langue, thème, préréglage : il peut venir de n'importe où) :
+/// refusé au-delà de `max` octets plutôt que chargé en entier en mémoire.
+pub fn read_text_limited(p: impl AsRef<std::path::Path>, max: u64) -> std::io::Result<String> {
+    let p = p.as_ref();
+    if std::fs::metadata(p)?.len() > max {
+        return Err(std::io::Error::other("fichier trop gros"));
+    }
+    std::fs::read_to_string(p)
+}

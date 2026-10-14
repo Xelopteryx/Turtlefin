@@ -43,7 +43,9 @@ fn http() -> reqwest::Client {
 /// Interroge `/System/Info/Public` : (identifiant, nom, version) si c'est un serveur Jellyfin.
 pub async fn probe(client: &reqwest::Client, base: &str) -> Option<(String, String, String)> {
     // Délai court : un serveur éteint ne doit pas bloquer l'écran (sans limite, plusieurs minutes).
-    let v: Value = client.get(format!("{base}/System/Info/Public")).timeout(Duration::from_secs(4)).send().await.ok()?.json().await.ok()?;
+    // N'importe quel appareil du réseau peut répondre : réponse bornée (1 Mio).
+    let resp = client.get(format!("{base}/System/Info/Public")).timeout(Duration::from_secs(4)).send().await.ok()?;
+    let v: Value = serde_json::from_slice(&crate::api::body_limited(resp, 1 << 20).await.ok()?).ok()?;
     let id = v["Id"].as_str()?.to_string();
     let name = v["ServerName"].as_str().unwrap_or("Jellyfin").to_string();
     let version = v["Version"].as_str().unwrap_or("").to_string();
@@ -136,7 +138,15 @@ fn mesh_peers() -> Vec<Ipv4Addr> {
     Vec::new()
 }
 
-/// Découverte UDP de Jellyfin : réponses au format {"Address", "Id", "Name"}.
+/// Adresse d'un réseau local ou d'un VPN (privée, lien local, CGNAT 100.64/10 de Tailscale…).
+pub fn local_ip(ip: Ipv4Addr) -> bool {
+    let o = ip.octets();
+    ip.is_private() || ip.is_link_local() || ip.is_loopback() || (o[0] == 100 && (64..128).contains(&o[1]))
+}
+
+/// Découverte UDP de Jellyfin : réponses au format {"Address", "Id", "Name"}. Seules les réponses
+/// venues d'un réseau local ou d'un VPN sont gardées (une machine d'Internet pourrait sinon se faire
+/// passer pour le serveur et recevoir le mot de passe saisi) ; l'adresse annoncée est ensuite vérifiée.
 fn udp_discovery(targets: &[Ipv4Addr]) -> Vec<(String, String, String)> {
     let Ok(s) = UdpSocket::bind("0.0.0.0:0") else { return Vec::new() };
     let _ = s.set_broadcast(true);
@@ -151,7 +161,10 @@ fn udp_discovery(targets: &[Ipv4Addr]) -> Vec<(String, String, String)> {
     let mut buf = [0u8; 2048];
     while std::time::Instant::now() < end {
         // Sous Windows, un « port injoignable » renvoyé par un appareil fait échouer recv : on continue.
-        let Ok((n, _)) = s.recv_from(&mut buf) else { continue };
+        let Ok((n, from)) = s.recv_from(&mut buf) else { continue };
+        if !matches!(from.ip(), IpAddr::V4(ip) if local_ip(ip)) {
+            continue;
+        }
         if let Ok(v) = serde_json::from_slice::<Value>(&buf[..n]) {
             if let (Some(addr), Some(id)) = (v["Address"].as_str(), v["Id"].as_str()) {
                 out.push((addr.trim_end_matches('/').to_string(), id.to_string(), v["Name"].as_str().unwrap_or("").to_string()));
@@ -208,8 +221,16 @@ pub async fn discover() -> Vec<Found> {
         }
     }
     for (addr, id, name) in udp.await.unwrap_or_default() {
-        if !hits.iter().any(|h| h.0 == addr) {
-            hits.push((addr, id, name, String::new()));
+        if hits.iter().any(|h| h.0 == addr) {
+            continue;
+        }
+        // L'adresse annoncée doit répondre, en tant que ce même serveur (sinon : ignorée).
+        if !(addr.starts_with("http://") || addr.starts_with("https://")) {
+            continue;
+        }
+        match probe(&client, &addr).await {
+            Some((real_id, real_name, version)) if real_id == id => hits.push((addr, id, if name.is_empty() { real_name } else { name }, version)),
+            _ => {}
         }
     }
 
@@ -283,6 +304,26 @@ pub async fn resolve(input: &str) -> Vec<(String, String, String)> {
         }
     }
     out
+}
+
+/// Adresse en `http://` qui passe par Internet (ni réseau local, ni VPN) : le mot de passe et le
+/// jeton y circuleraient en clair. Un nom est résolu : il compte comme local si toutes ses adresses le
+/// sont (MagicDNS de Tailscale, `.local`…).
+pub async fn plain_over_internet(server: &str) -> bool {
+    let Some(rest) = server.strip_prefix("http://") else { return false };
+    let host_port = rest.split('/').next().unwrap_or("");
+    let with_port = if host_port.rsplit_once(':').is_some_and(|(_, p)| p.parse::<u16>().is_ok()) && !host_port.starts_with('[') {
+        host_port.to_string()
+    } else {
+        format!("{host_port}:80")
+    };
+    let Ok(Ok(addrs)) = tokio::time::timeout(Duration::from_secs(3), tokio::net::lookup_host(with_port)).await else { return false };
+    let addrs: Vec<SocketAddr> = addrs.collect();
+    !addrs.is_empty()
+        && !addrs.iter().all(|a| match a.ip() {
+            IpAddr::V4(ip) => local_ip(ip),
+            IpAddr::V6(ip) => ip.is_loopback() || (ip.segments()[0] & 0xfe00) == 0xfc00 || (ip.segments()[0] & 0xffc0) == 0xfe80,
+        })
 }
 
 /// Identifiant du serveur Jellyfin qui répond à cette adresse (quelques secondes au plus).

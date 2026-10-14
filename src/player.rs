@@ -981,7 +981,11 @@ fn load(
                 })
                 .unwrap_or_default();
             let (t, s) = it.titles();
-            (c.stream_url(&it.id, &ms_id), ms_id, t, s, subs)
+            let url = match source.and_then(|m| m.remote_url()) {
+                Some(remote) => remote.to_string(),
+                None => c.stream_url(&it.id, &ms_id),
+            };
+            (url, ms_id, t, s, subs)
         }
         (_, _, Some(u)) => (u.to_string(), String::new(), tr("Vidéo de test").to_string(), u.to_string(), Vec::new()),
         _ => return Err(anyhow!("{}", tr("rien à lire"))),
@@ -991,7 +995,8 @@ fn load(
     // journaux (mpv, serveur, proxy) ni dans les messages d'erreur. `append` garde la valeur entière
     // (elle contient des virgules, séparateur des listes de mpv).
     let _ = player.command(&["change-list", "http-header-fields", "clr", ""]);
-    if let (Some(c), Some(_)) = (client, &item) {
+    // Seulement vers le serveur Jellyfin lui-même (pas vers une source distante).
+    if let (Some(c), Some(_), true) = (client, &item, client.is_some_and(|c| url.starts_with(&c.server))) {
         player.command(&["change-list", "http-header-fields", "append", &format!("Authorization: {}", c.auth())])?;
     }
     player.set_property("force-media-title", &title)?;

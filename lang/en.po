@@ -1687,3 +1687,6 @@ msgstr "unknown item"
 
 msgid "mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"
 msgstr "updated by Flatpak (software center, or “flatpak update”)"
+
+msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
+msgstr "Warning: this http:// address goes over the Internet without encryption, your password would travel in clear text. Prefer an https:// address (or a VPN). Confirm again to sign in anyway."

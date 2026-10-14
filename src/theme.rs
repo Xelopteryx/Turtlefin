@@ -270,6 +270,11 @@ pub fn find(key: &str, custom: &[ThemeDef]) -> ThemeDef {
 /// « #rgb », « #rrggbb » ou « #rrggbbaa ».
 pub fn parse(c: &str) -> Option<Color> {
     let h = c.trim().strip_prefix('#')?;
+    // Fichier de thème venu d'ailleurs : seulement des chiffres hexadécimaux (un caractère accentué
+    // faisait couper une lettre en deux, et planter l'application).
+    if !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
     let v = |i: usize, n: usize| u8::from_str_radix(&h[i..i + n], 16).ok();
     match h.len() {
         3 => Some(Color::from_rgb_u8(v(0, 1)? * 17, v(1, 1)? * 17, v(2, 1)? * 17)),
@@ -281,7 +286,7 @@ pub fn parse(c: &str) -> Option<Color> {
 
 /// Lit un fichier de thème (`None` : pas un thème de Turtlefin).
 pub fn load(path: &std::path::Path) -> Option<ThemeDef> {
-    let text = std::fs::read_to_string(path).ok()?;
+    let text = crate::paths::read_text_limited(path, 1 << 20).ok()?;
     let t: ThemeDef = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
     (t.turtlefin_theme >= 1 && !t.name.trim().is_empty()).then_some(t)
 }
@@ -695,6 +700,8 @@ mod tests {
 
     #[test]
     fn colors() {
+        assert!(super::parse("#aééa").is_none()); // 6 octets : plantait avant
+        assert!(super::parse("#aéé").is_none());
         let c = super::parse("#0a6fd1").unwrap();
         assert_eq!((c.red(), c.green(), c.blue(), c.alpha()), (0x0a, 0x6f, 0xd1, 255));
         let c = super::parse("#ffffff80").unwrap();

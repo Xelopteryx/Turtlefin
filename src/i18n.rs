@@ -107,7 +107,7 @@ fn custom_files() -> Vec<(String, PathBuf)> {
         }
         let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else { continue };
         let code = stem.to_lowercase();
-        if !out.iter().any(|(c, _)| *c == code) && std::fs::read_to_string(&p).is_ok_and(|t| is_turtlefin_po(&t)) {
+        if !out.iter().any(|(c, _)| *c == code) && crate::paths::read_text_limited(&p, 8 << 20).is_ok_and(|t| is_turtlefin_po(&t)) {
             out.push((code, p));
         }
     }
@@ -143,7 +143,7 @@ pub fn browse(dir: &std::path::Path) -> Vec<Entry> {
             po_files(&p, 2, &mut inner);
             dirs.push(Entry { path: p, kind: "dir", name: fname, code: inner.len().to_string(), done: 0.0 });
         } else if p.extension().and_then(|s| s.to_str()) == Some("po") {
-            let text = std::fs::read_to_string(&p).unwrap_or_default();
+            let text = crate::paths::read_text_limited(&p, 8 << 20).unwrap_or_default();
             let code = p.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
             if is_template(&p) {
                 files.push(Entry { path: p, kind: "template", name: fname, code, done: 0.0 });
@@ -163,7 +163,7 @@ pub fn browse(dir: &std::path::Path) -> Vec<Entry> {
 /// Texte d'un fichier .po (langue ajoutée en priorité, sinon intégrée).
 fn po_text(code: &str) -> Option<String> {
     if let Some((_, p)) = custom_files().into_iter().find(|(c, _)| c == code) {
-        if let Ok(t) = std::fs::read_to_string(p) {
+        if let Ok(t) = crate::paths::read_text_limited(p, 8 << 20) {
             return Some(t);
         }
     }
@@ -175,7 +175,7 @@ fn po_text(code: &str) -> Option<String> {
 pub fn languages() -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = BUILTIN.iter().map(|(c, n, _)| (c.to_string(), n.to_string())).collect();
     for (code, path) in custom_files() {
-        let name = std::fs::read_to_string(&path)
+        let name = crate::paths::read_text_limited(&path, 8 << 20)
             .ok()
             .and_then(|t| header(&t, "X-Language-Name"))
             .unwrap_or_else(|| code.clone());

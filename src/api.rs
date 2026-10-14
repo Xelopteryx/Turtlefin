@@ -96,6 +96,18 @@ pub struct MediaSource {
     pub media_streams: Vec<MediaStream>,
     /// Format du fichier (« mkv », « mov,mp4,m4a »...).
     pub container: Option<String>,
+    /// « File » (fichier du serveur) ou « Http » (adresse distante : fichier .strm…).
+    pub protocol: Option<String>,
+    pub path: Option<String>,
+}
+
+impl MediaSource {
+    /// Source distante (adresse web) : lue directement, sans le jeton du serveur Jellyfin (il
+    /// n'a rien à faire chez un autre hôte, où une redirection l'aurait envoyé).
+    pub fn remote_url(&self) -> Option<&str> {
+        let p = self.path.as_deref()?;
+        (self.protocol.as_deref() == Some("Http") && (p.starts_with("https://") || p.starts_with("http://"))).then_some(p)
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]

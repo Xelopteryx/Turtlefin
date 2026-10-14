@@ -102,7 +102,12 @@ async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedS
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     let mut req = format!("{base}/socket?deviceId={}", client.device_id).into_client_request()?;
     req.headers_mut().insert("Authorization", client.auth().parse()?);
-    let (ws, _) = tokio_tungstenite::connect_async(req).await?;
+    // Messages de la watch party : quelques kilo-octets. Au-delà de 2 Mio, la connexion est refusée
+    // (un serveur malveillant ne remplit pas la mémoire).
+    let mut cfg = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();
+    cfg.max_message_size = Some(2 << 20);
+    cfg.max_frame_size = Some(2 << 20);
+    let (ws, _) = tokio_tungstenite::connect_async_with_config(req, Some(cfg), false).await?;
     let (mut write, mut read) = ws.split();
     let mut keepalive = tokio::time::interval(Duration::from_secs(30));
     loop {
@@ -195,7 +200,9 @@ fn command(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, d: &V
         state.lock().unwrap().playlist_item = pid.to_string();
     }
     let cmd = match d["Command"].as_str().unwrap_or("") {
-        "Unpause" => Cmd::Unpause { pos, delay: until(when) },
+        // Délai borné : une horloge du serveur très décalée (ou un serveur malveillant) ne laisse pas la
+        // lecture en pause indéfiniment.
+        "Unpause" => Cmd::Unpause { pos, delay: until(when).clamp(-30.0, 10.0) },
         "Pause" => Cmd::Pause { pos },
         "Seek" => Cmd::Seek { pos },
         "Stop" => Cmd::Stop,
