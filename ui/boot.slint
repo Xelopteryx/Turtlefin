@@ -7,7 +7,7 @@
 // l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis on zoome dans le centre
 // vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
-import { Theme, Tr, Gloss, Motion } from "theme.slint";
+import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
@@ -492,7 +492,7 @@ export component BootLogo inherits Rectangle {
                     la := TouchArea {
                         // La souris choisit la langue qu'elle survole.
                         changed has-hover => {
-                            if (self.has-hover) {
+                            if (self.has-hover && !Nav.kb) {
                                 root.lang-sel = i;
                             }
                         }

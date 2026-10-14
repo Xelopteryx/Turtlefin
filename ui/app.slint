@@ -447,7 +447,7 @@ component Card inherits Rectangle {
     in property <bool> focused;
     // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav) ; à la
     // souris, la carte survolée est mise en avant de la même façon.
-    property <bool> lit: (root.focused && Nav.kb) || card-area.has-hover;
+    property <bool> lit: (Nav.kb ? (root.focused) : card-area.has-hover);
     in property <float> ratio: 1.5;
     in property <float> k: 1.0;
     callback clicked();
@@ -626,7 +626,7 @@ component Tab inherits Rectangle {
         width: parent.width;
         height: parent.height;
         text: root.text;
-        color: (root.active || (root.focused && Nav.kb) || area.has-hover) ? Theme.fg : Theme.fg.with-alpha(0.65);
+        color: (root.active || (Nav.kb ? (root.focused) : area.has-hover)) ? Theme.fg : Theme.fg.with-alpha(0.65);
         font-size: 18px * root.k;
         font-weight: root.active ? 700 : 600;
         horizontal-alignment: center;
@@ -635,7 +635,7 @@ component Tab inherits Rectangle {
 
     // Soulignement qui s'étire depuis le centre à la sélection.
     Rectangle {
-        property <float> w: (root.focused && Nav.kb) || area.has-hover ? 1 : 0;
+        property <float> w: (Nav.kb ? (root.focused) : area.has-hover) ? 1 : 0;
         animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
         visible: self.w > 0.01;
         x: (parent.width - self.width) / 2;
@@ -847,7 +847,7 @@ component HeaderIcon inherits Rectangle {
     height: 44px * root.k;
     border-radius: self.height / 2;
     // Sélection au clavier montrée seulement si Nav.kb (au bureau, la souris la cache).
-    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
     transform-scale: (root.lit ? 1.12 : 1.0) * root.pop;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
@@ -967,7 +967,7 @@ component ActionButton inherits Rectangle {
     property <bool> bubble: Theme.gloss > 0;
     border-radius: root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond.
-    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
     transform-scale: root.lit ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
@@ -1011,7 +1011,7 @@ component DetailButton inherits Rectangle {
     in property <int> press;            // incrémenté à chaque activation : le bouton sélectionné réagit
     callback clicked();
 
-    property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
     property <bool> is-icon: root.icon != "" && root.icon != "label";
 
     // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
@@ -3122,7 +3122,7 @@ export component AppWindow inherits Window {
                 height: lg.tile + 70 * lg.u;
                 property <float> e: lg.in-e(1.5 + i);
                 property <bool> removable: t.subtitle == Tr.t(Tr.k, "Enregistré");
-                property <bool> sel: (i == root.login-sel && Nav.kb) || tile-area.has-hover;
+                property <bool> sel: (Nav.kb ? (i == root.login-sel) : tile-area.has-hover);
                 property <bool> gone: t.id == lg.gone-id;
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
@@ -3974,13 +3974,13 @@ export component AppWindow inherits Window {
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
-                background: (!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : ((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 Text {
                     x: 20px * root.k;
                     height: parent.height;
                     text: g.label;
-                    color: ((!root.h-focus && i == root.sp-sel && Nav.kb) || g-area.has-hover ? Theme.on-accent : Theme.fg);
+                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : Theme.fg);
                     font-size: 16px * root.k;
                     vertical-alignment: center;
                 }
@@ -5181,23 +5181,23 @@ export component AppWindow inherits Window {
                     width: parent.width - 24px * root.k;
                     height: 40px * root.k;
                     border-radius: 10px * root.k;
-                    background: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover)
+                    background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover))
                         ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((i == root.tp-sel && Nav.kb) || tp-area.has-hover); }
+                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover)); }
                     if t.current: Rectangle {
                         x: 14px * root.k;
                         y: (parent.height - self.height) / 2;
                         width: 9px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover ? Theme.on-accent : Theme.fg);
+                        background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover) ? Theme.on-accent : Theme.fg);
                     }
                     Text {
                         x: 34px * root.k;
                         width: parent.width - 44px * root.k;
                         height: parent.height;
                         text: t.label;
-                        color: ((i == root.tp-sel && Nav.kb) || tp-area.has-hover ? Theme.on-accent : Theme.fg);
+                        color: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover) ? Theme.on-accent : Theme.fg);
                         font-size: 15px * root.k;
                         vertical-alignment: center;
                         overflow: elide;
@@ -5467,7 +5467,7 @@ export component AppWindow inherits Window {
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                    : (srv-area.has-hover ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
+                    : ((srv-area.has-hover && !Nav.kb) ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 border-width: self.sel ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
@@ -6520,8 +6520,8 @@ export component AppWindow inherits Window {
                         property <bool> still: r.kind == "info" || r.kind == "profile";
                         background: r.kind == "info" ? transparent
                             : r.kind == "profile" ? Theme.fg.with-alpha(0.05)
-                            : r.kind == "action" && (self.sel || row-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                            : self.sel ? Theme.fg.with-alpha(0.18) : row-area.has-hover ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
+                            : r.kind == "action" && (self.sel || (row-area.has-hover && !Nav.kb)) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                            : self.sel ? Theme.fg.with-alpha(0.18) : (row-area.has-hover && !Nav.kb) ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
                         border-width: self.sel && r.kind != "action" ? 2px : 0px;
                         border-color: Theme.accent2;
                         transform-scale: self.sel ? 1.015 : 1.0;
@@ -6558,14 +6558,14 @@ export component AppWindow inherits Window {
                             spacing: 3px * root.k;
                             if r.label != "": Text {
                                 text: r.label;
-                                color: (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg);
+                                color: (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb)) ? Theme.on-accent : Theme.fg);
                                 font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                                 overflow: elide;
                             }
                             if r.hint != "": Text {
                                 text: r.hint;
-                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || row-area.has-hover) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
+                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
                                 // Trois lignes au plus : un texte trop long finit par « … » au lieu de déborder.
@@ -6614,7 +6614,7 @@ export component AppWindow inherits Window {
                             width: 240px * root.k;
                             height: parent.height;
                             text: r.value;
-                            color: ((set-row.sel || row-area.has-hover ? Theme.on-accent : (set-row.sel || row-area.has-hover ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
+                            color: ((set-row.sel || (row-area.has-hover && !Nav.kb) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
                             font-size: 15px * root.k;
                             font-weight: 600;
                             horizontal-alignment: right;
@@ -6768,15 +6768,15 @@ export component AppWindow inherits Window {
                         width: parent.width - 20px * root.k;
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
-                        background: (i == root.ch-sel && Nav.kb) || ch-area.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((i == root.ch-sel && Nav.kb) || ch-area.has-hover); }
+                        background: (Nav.kb ? (i == root.ch-sel) : ch-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover)); }
                         Text {
                             x: 16px * root.k;
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
                             font-family: "Montserrat";
-                            color: ((i == root.ch-sel && Nav.kb) || ch-area.has-hover ? Theme.on-accent : Theme.fg);
+                            color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover) ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
@@ -6984,7 +6984,7 @@ export component AppWindow inherits Window {
                         width: sets.av-cw;
                         height: sets.av-ch;
                         property <bool> sel: !root.h-focus && root.av-zone == 1 && i == root.av-sel && Nav.kb;
-                        property <bool> lit: self.sel || av-area.has-hover;
+                        property <bool> lit: self.sel || (av-area.has-hover && !Nav.kb);
                         property <bool> busy: a.id == root.av-busy;
                         property <bool> done: a.id == root.av-current;
                         // Appui : la case s'écrase puis rebondit.
@@ -7551,7 +7551,9 @@ export component AppWindow inherits Window {
                         enabled: !e.header;
                         // La souris choisit l'entrée qu'elle survole (la surbrillance la rejoint).
                         changed has-hover => {
-                            if (self.has-hover) {
+                            // Au clavier / à la télécommande (Nav.kb), un pointeur immobile sous le menu
+                            // qui glisse ne doit pas déplacer la sélection.
+                            if (self.has-hover && !Nav.kb) {
                                 root.menu-sel = i;
                                 root.menu-hov = i;
                             } else if (root.menu-hov == i) {
@@ -8511,7 +8513,7 @@ export component AppWindow inherits Window {
                     width: self.shown ? b-t.preferred-width + 34px * root.k : 0px;
                     border-radius: 10px * root.k;
                     background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : b-a.has-hover ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
+                        : (b-a.has-hover && !Nav.kb) ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
                     Gloss { r: parent.border-radius; strength: 0.8; }
                     b-t := Text {
                         text: b == 0 ? Tr.t(Tr.k, "Retour") : b == 1 ? Tr.t(Tr.k, "Passer la visite")
@@ -8745,8 +8747,8 @@ export component AppWindow inherits Window {
     }
 
     // Démarrage (au-dessus de tout) : vérifications, liaison du logo, puis zoom vers la page suivante.
-    // Changement de thème (Rust : switch_theme) : l'écran de l'ancien thème, photographié, est découpé
-    // en carreaux qui basculent un à un, au hasard, sur le nouveau thème déjà posé dessous.
+    // Changement de thème (Rust : switch_theme) : l'écran de l'ancien thème, photographié, est balayé
+    // par le nouveau, déjà posé dessous.
     in property <image> theme-snap;
     property <bool> theme-tiles;
     property <duration> theme-t0;
@@ -8775,31 +8777,30 @@ export component AppWindow inherits Window {
     }
     if root.theme-tiles: Rectangle {
         TouchArea { }
-        for i in 96: Rectangle {
-            property <int> cx: mod(i, 12);
-            property <int> cy: floor(i / 12);
-            // Ordre pseudo-aléatoire (37 et 96 premiers entre eux : chaque carreau a son tour).
-            property <float> rnd: mod(i * 37 + 11, 96) / 96;
-            property <float> q: root.theme-armed ? clamp((animation-tick() - root.theme-t0 - self.rnd * 620ms) / 300ms, 0, 1) : 0;
-            x: self.cx * parent.width / 12;
-            y: self.cy * parent.height / 8;
-            width: parent.width / 12 + 1px;
-            height: parent.height / 8 + 1px;
+        // Balayage : le nouveau thème (déjà posé dessous) recouvre l'ancien de gauche à droite,
+        // précédé d'une bande de lumière aux couleurs du nouveau thème. Une seule image, découpée.
+        property <float> q: root.theme-armed ? clamp((animation-tick() - root.theme-t0) / 760ms, 0, 1) : 0;
+        property <float> e: self.q < 0.5 ? 4 * self.q * self.q * self.q : 1 - (-2 * self.q + 2) * (-2 * self.q + 2) * (-2 * self.q + 2) / 2;
+        property <length> band: 220px * root.k;
+        // Milieu de la bande : part avant le bord gauche, finit après le bord droit.
+        property <length> edge: -self.band / 2 + (self.width + self.band) * self.e;
+        Rectangle {
+            x: max(0px, parent.edge);
+            width: max(0px, parent.width - self.x);
             clip: true;
             Image {
+                x: -parent.x;
+                width: root.width;
+                height: root.height;
                 source: root.theme-snap;
                 image-fit: fill;
-                source-clip-x: parent.cx * root.theme-snap.width / 12;
-                source-clip-y: parent.cy * root.theme-snap.height / 8;
-                source-clip-width: root.theme-snap.width / 12;
-                source-clip-height: root.theme-snap.height / 8;
-                // Le carreau se retourne (rétrécit en tournant) et laisse voir le nouveau thème.
-                width: parent.width * (1 - parent.q);
-                height: parent.height * (1 - parent.q);
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-                transform-rotation: parent.q * 90deg;
             }
+        }
+        Rectangle {
+            x: parent.edge - parent.band / 2;
+            width: parent.band;
+            background: @linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, Theme.accent1.with-alpha(0.28) 38%,
+                rgba(255, 255, 255, 0.55) 50%, Theme.accent2.with-alpha(0.28) 62%, rgba(255, 255, 255, 0) 100%);
         }
     }
 
