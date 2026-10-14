@@ -125,6 +125,10 @@ export global Rows {
     pure callback scroll(int /* key */, int /* idx */, int /* n */, float /* w */, float /* écart */, float /* marge */, float /* largeur */) -> float;
     // Carte de la rangée `to` la plus proche (à l'écran) de la carte `from-idx` de la rangée `from`.
     pure callback pick(int /* from */, int /* from-idx */, float /* from-w */, int /* to */, int /* to-n */, float /* to-w */, float /* écart */, float /* marge */, float /* largeur */) -> int;
+    // Rangée lâchée après un glisser (doigt, souris) : son décalage devient celui-ci.
+    callback set(int /* key */, float /* décalage */);
+    // Incrémenté après `set` : les rangées recalculent leur décalage.
+    in-out property <int> tick;
 }
 
 // Champ de saisie au style de l'appli : intitulé au-dessus, case de verre, contour d'accent quand
@@ -447,7 +451,7 @@ component Card inherits Rectangle {
     in property <bool> focused;
     // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav) ; à la
     // souris, la carte survolée est mise en avant de la même façon.
-    property <bool> lit: (Nav.kb ? (root.focused) : card-area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : card-area.has-hover && !Nav.touch);
     in property <float> ratio: 1.5;
     in property <float> k: 1.0;
     callback clicked();
@@ -530,19 +534,6 @@ component Card inherits Rectangle {
     }
 
     card-area := TouchArea {
-        // Doigt posé sur la carte (écran tactile) : sa rangée devient la rangée active, pour qu'un
-        // glissement fasse défiler celle-ci (voir Swipe dans main.rs). La souris n'est pas concernée.
-        pointer-event(e) => {
-            if (e.kind == PointerEventKind.down && e.touch-finger-id != 0) {
-                root.touched();
-            }
-        }
-        // Souris : carte tirée de quelques pixels (début d'un glisser) : même chose.
-        moved => {
-            if (self.pressed && (abs(self.mouse-x - self.pressed-x) > 6px || abs(self.mouse-y - self.pressed-y) > 6px)) {
-                root.touched();
-            }
-        }
         clicked => {
             root.clicked();
         }
@@ -571,12 +562,25 @@ component SectionRow inherits Rectangle {
     property <int> remembered: 0;
     property <int> idx: root.active ? root.focus-index : root.remembered;
     property <length> strip-w: root.items.length * (root.card-w + root.gap) + root.pad * 2;
-    property <length> target-x: Rows.scroll(root.key, root.idx, root.items.length, root.card-w / 1px, root.gap / 1px,
+    property <length> target-x: Rows.scroll(root.key, root.idx + 0 * Rows.tick, root.items.length, root.card-w / 1px, root.gap / 1px,
         root.pad / 1px, root.width / 1px) * 1px;
+    // Défilement libre (doigt, molette horizontale) : la rangée est à ce décalage, indépendamment de
+    // la sélection ; une sélection qui bouge dans la rangée (flèches) le reprend comme point de départ.
+    property <bool> free;
+    property <length> free-x;
+    property <length> min-x: min(0px, root.width - root.strip-w);
+    function unfree() {
+        if (root.free) {
+            Rows.set(root.key, root.free-x / 1px);
+            Rows.tick += 1;
+            root.free = false;
+        }
+    }
 
     changed focus-index => {
         if (root.active) {
             root.remembered = root.focus-index;
+            root.unfree();
         }
     }
 
@@ -605,10 +609,23 @@ component SectionRow inherits Rectangle {
         height: root.height - root.title-h;
         clip: true;
 
+        // Doigt, molette horizontale (ou Maj + molette) : la rangée défile librement, sans rien choisir.
+        TouchArea {
+            scroll-event(e) => {
+                let d = e.modifiers.shift ? e.delta-y : e.delta-x;
+                if (d == 0 || root.min-x >= 0px) {
+                    return EventResult.reject;
+                }
+                let base = root.free ? root.free-x : root.target-x;
+                root.free-x = clamp(base + d, root.min-x, 0px);
+                root.free = true;
+                return EventResult.accept;
+            }
+        }
         Rectangle {
-            x: root.target-x;
+            x: root.free ? root.free-x : root.target-x;
             width: root.strip-w;
-            animate x { duration: Motion.select ? 160ms : 0ms; easing: ease-out; }
+            animate x { duration: Motion.select && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
 
             for card[i] in root.items: Card {
                 x: root.pad + i * (root.card-w + root.gap);
@@ -644,7 +661,7 @@ component Tab inherits Rectangle {
         width: parent.width;
         height: parent.height;
         text: root.text;
-        color: (root.active || (Nav.kb ? (root.focused) : area.has-hover)) ? Theme.fg : Theme.fg.with-alpha(0.65);
+        color: (root.active || (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch)) ? Theme.fg : Theme.fg.with-alpha(0.65);
         font-size: 18px * root.k;
         font-weight: root.active ? 700 : 600;
         horizontal-alignment: center;
@@ -653,7 +670,7 @@ component Tab inherits Rectangle {
 
     // Soulignement qui s'étire depuis le centre à la sélection.
     Rectangle {
-        property <float> w: (Nav.kb ? (root.focused) : area.has-hover) ? 1 : 0;
+        property <float> w: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch) ? 1 : 0;
         animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
         visible: self.w > 0.01;
         x: (parent.width - self.width) / 2;
@@ -865,7 +882,7 @@ component HeaderIcon inherits Rectangle {
     height: 44px * root.k;
     border-radius: self.height / 2;
     // Sélection au clavier montrée seulement si Nav.kb (au bureau, la souris la cache).
-    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     transform-scale: (root.lit ? 1.12 : 1.0) * root.pop;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
@@ -985,7 +1002,7 @@ component ActionButton inherits Rectangle {
     property <bool> bubble: Theme.gloss > 0;
     border-radius: root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond.
-    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     transform-scale: root.lit ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
@@ -1029,7 +1046,7 @@ component DetailButton inherits Rectangle {
     in property <int> press;            // incrémenté à chaque activation : le bouton sélectionné réagit
     callback clicked();
 
-    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     property <bool> is-icon: root.icon != "" && root.icon != "label";
 
     // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
@@ -1980,7 +1997,7 @@ export component AppWindow inherits Window {
         }
         // Fiche descendue (rangées du bas, épisodes) : son affiche n'est plus à l'écran, rien ne
         // revole vers la carte (l'image réapparaîtrait de nulle part).
-        if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id && root.d-scroll < root.poster-w * 0.5) {
+        if (root.screen == "detail" && root.hero-id != "" && root.detail.id == root.hero-id && root.d-view-y < root.poster-w * 0.5) {
             root.hero-return();
         }
         root.hero-id = "";
@@ -2647,6 +2664,7 @@ export component AppWindow inherits Window {
 
     function close-menu() {
         root.menu-open = false;
+        root.menu-free = false;
         root.menu-hov = -1;
         root.refocus += 1;
     }
@@ -2748,6 +2766,8 @@ export component AppWindow inherits Window {
     property <length> d-extra-y: root.d-children-y
         + (root.child-items.length > 0 ? root.child-card-w * root.child-ratio + 132px * root.k : 0px);
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
+    // Défilement affiché de la fiche : celui de la sélection, ou le défilement libre (doigt, molette).
+    property <length> d-view-y: root.d-free ? root.d-free-y : root.d-scroll;
     property <length> d-scroll: root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
         ? max(0px, root.d-extra-y + root.detail-rows[root.d-zone - 4].y-px * 1px - 40px * root.k)
         : root.d-zone == 2 ? max(0px, root.d-children-y - 140px * root.k) : 0px;
@@ -2764,7 +2784,7 @@ export component AppWindow inherits Window {
         bg-mix: root.bg-mix;
         bg-vis: root.bg-vis;
         po: root.po;
-        d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
+        d-fade: root.header-h + 24px + 316px * root.k - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";
@@ -3140,7 +3160,7 @@ export component AppWindow inherits Window {
                 height: lg.tile + 70 * lg.u;
                 property <float> e: lg.in-e(1.5 + i);
                 property <bool> removable: t.subtitle == Tr.t(Tr.k, "Enregistré");
-                property <bool> sel: (Nav.kb ? (i == root.login-sel) : tile-area.has-hover);
+                property <bool> sel: (Nav.kb ? (i == root.login-sel) : tile-area.has-hover && !Nav.touch);
                 property <bool> gone: t.id == lg.gone-id;
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
@@ -3664,6 +3684,12 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
+                // Après un défilement libre : la sélection repart de la rangée affichée en haut.
+                if (root.home-free && root.sections.length > 0) {
+                    root.sel-section = root.home-section-at(root.home-free-y / 1px);
+                    root.sel-item = min(root.sel-item, root.sections[root.sel-section].items.length - 1);
+                    root.home-free = false;
+                }
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                 if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                     return EventResult.accept;
@@ -3780,12 +3806,13 @@ export component AppWindow inherits Window {
                         } else if (side > 0 && root.sel-item > 0) {
                             root.sel-item -= 1;
                         }
-                    } else if (e.delta-y < 0 && root.sel-section < root.sections.length - 1) {
-                        root.sel-item = root.home-pick(root.sel-section, root.sel-section + 1);
-                        root.sel-section += 1;
-                    } else if (e.delta-y > 0 && root.sel-section > 0) {
-                        root.sel-item = root.home-pick(root.sel-section, root.sel-section - 1);
-                        root.sel-section -= 1;
+                    } else if (e.delta-y != 0) {
+                        // Défilement libre de la page (doigt, molette), sans changer la sélection.
+                        let last = root.sections[root.sections.length - 1];
+                        let max-y = max(0px, (last.y-px + last.h-px) * 1px - self.height + 16px * root.k);
+                        let base = root.home-free ? root.home-free-y : max(0px, root.sections[root.sel-section].y-px * 1px - 4px * root.k);
+                        root.home-free-y = clamp(base - e.delta-y, 0px, max-y);
+                        root.home-free = true;
                     }
                     return EventResult.accept;
                 }
@@ -3803,10 +3830,11 @@ export component AppWindow inherits Window {
             Rectangle {
                 clip: true;
 
-                Rectangle {
+                home-view := Rectangle {
                     y: root.sections.length == 0 ? 0px
+                        : root.home-free ? -root.home-free-y
                         : min(0px, 4px * root.k - root.sections[root.sel-section].y-px * 1px);
-                    animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                     for section[si] in root.sections: SectionRow {
                         y: section.y-px * 1px + root.stagger(si);
@@ -3997,13 +4025,13 @@ export component AppWindow inherits Window {
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
-                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 Text {
                     x: 20px * root.k;
                     height: parent.height;
                     text: g.label;
-                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover) ? Theme.on-accent : Theme.fg);
+                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                     font-size: 16px * root.k;
                     vertical-alignment: center;
                 }
@@ -4761,6 +4789,8 @@ export component AppWindow inherits Window {
             }
 
             key-pressed(event) => {
+                // Une touche rend la fiche à la sélection.
+                root.d-free = false;
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                 if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                     return EventResult.accept;
@@ -4831,6 +4861,14 @@ export component AppWindow inherits Window {
                     dt.d-nav(Key.RightArrow);
                 } else if (side > 0) {
                     dt.d-nav(Key.LeftArrow);
+                } else if (e.delta-y != 0) {
+                    // Défilement libre (doigt, molette), sans changer la sélection.
+                    let rows-h = root.detail-rows.length > 0
+                        ? (root.detail-rows[root.detail-rows.length - 1].y-px + root.detail-rows[root.detail-rows.length - 1].h-px) * 1px : 0px;
+                    let max-y = max(0px, root.d-extra-y + rows-h - self.height + root.header-h);
+                    let base = root.d-free ? root.d-free-y : root.d-scroll;
+                    root.d-free-y = clamp(base - e.delta-y, 0px, max-y);
+                    root.d-free = true;
                 } else if (e.delta-y < 0) {
                     dt.d-nav(Key.DownArrow);
                 } else if (e.delta-y > 0 && !(root.d-zone == 0 && root.d-button < root.detail.icon-count)) {
@@ -4843,9 +4881,9 @@ export component AppWindow inherits Window {
 
         // Contenu qui défile (la barre de navigation reste en place).
         Rectangle {
-            y: 0px - root.d-scroll;
-            height: parent.height + root.d-scroll;
-            animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+            y: 0px - root.d-view-y;
+            height: parent.height + root.d-view-y;
+            animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
         // Poster (portrait)
         Rectangle {
@@ -5216,23 +5254,23 @@ export component AppWindow inherits Window {
                     width: parent.width - 24px * root.k;
                     height: 40px * root.k;
                     border-radius: 10px * root.k;
-                    background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover))
+                    background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover && !Nav.touch))
                         ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover)); }
+                    Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover && !Nav.touch)); }
                     if t.current: Rectangle {
                         x: 14px * root.k;
                         y: (parent.height - self.height) / 2;
                         width: 9px * root.k;
                         height: self.width;
                         border-radius: self.width / 2;
-                        background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover) ? Theme.on-accent : Theme.fg);
+                        background: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                     }
                     Text {
                         x: 34px * root.k;
                         width: parent.width - 44px * root.k;
                         height: parent.height;
                         text: t.label;
-                        color: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover) ? Theme.on-accent : Theme.fg);
+                        color: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                         font-size: 15px * root.k;
                         vertical-alignment: center;
                         overflow: elide;
@@ -5298,6 +5336,12 @@ export component AppWindow inherits Window {
                 }
             }
             key-pressed(event) => {
+                // Après un défilement libre : la sélection repart de la ligne au milieu de l'écran.
+                if (root.lib-free && root.lib-items.length > 0) {
+                    let row = clamp(floor((root.lib-free-y + lib.height / 2 - 12px * root.k) / (lib.ch + lib.gap)), 0, lib.rows - 1);
+                    root.l-sel = min(root.lib-items.length - 1, row * lib.cols + mod(root.l-sel, lib.cols));
+                    root.lib-free = false;
+                }
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                 if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                     return EventResult.accept;
@@ -5346,12 +5390,16 @@ export component AppWindow inherits Window {
                     if (root.lib-items.length == 0 || root.h-focus) {
                         return EventResult.reject;
                     }
-                    if (e.delta-y < 0 && lib.sel-row < lib.rows - 1) {
-                        root.l-sel = min(root.lib-items.length - 1, root.l-sel + lib.cols);
-                    } else if (e.delta-y > 0 && lib.sel-row > 0) {
-                        root.l-sel -= lib.cols;
+                    // Défilement libre (doigt, molette), sans changer la sélection ; la page suivante se
+                    // charge en approchant de la fin.
+                    let view = self.height;
+                    let max-y = max(0px, 12px * root.k + lib.rows * (lib.ch + lib.gap) - view + 24px * root.k);
+                    let base = root.lib-free ? root.lib-free-y : -min(0px, view / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+                    root.lib-free-y = clamp(base - e.delta-y, 0px, max-y);
+                    root.lib-free = true;
+                    if (root.lib-free-y > max-y - 2 * (lib.ch + lib.gap) && root.lib-items.length < root.lib-total) {
+                        root.lib-more();
                     }
-                    lib.maybe-more();
                     return EventResult.accept;
                 }
             }
@@ -5369,9 +5417,9 @@ export component AppWindow inherits Window {
             clip: true;
 
             Rectangle {
-                // La rangée sélectionnée reste vers le milieu de l'écran.
-                y: min(0px, parent.height / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
-                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                // La rangée sélectionnée reste vers le milieu de l'écran (défilement libre : le décalage).
+                y: root.lib-free ? -root.lib-free-y : min(0px, parent.height / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+                animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                 for card[i] in root.lib-items: Card {
                     x: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
@@ -5506,7 +5554,7 @@ export component AppWindow inherits Window {
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
                 background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                    : ((srv-area.has-hover && !Nav.kb) ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
+                    : ((srv-area.has-hover && !Nav.kb && !Nav.touch) ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 border-width: self.sel ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
@@ -6413,56 +6461,86 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Catégories : la surbrillance glisse jusqu'à la catégorie choisie (dégradé quand la
-        // sélection est dans la colonne, gris quand elle est dans les lignes).
-        Rectangle {
-            x: 32px * root.k;
-            y: 64px * root.k + root.set-cat * 52px * root.k;
-            animate y { duration: Motion.scroll ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
-            width: sets.left-w - 32px * root.k;
-            height: 46px * root.k;
-            border-radius: 10px * root.k;
-            background: Theme.fg.with-alpha(0.12);
-            Rectangle {
-                border-radius: parent.border-radius;
-                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-                Gloss { r: parent.border-radius; strength: 0.8; }
-                opacity: !root.set-in && !root.h-focus && Nav.kb ? 1 : 0;
-                animate opacity { duration: Motion.panels ? 200ms : 0ms; }
-            }
+        // Colonne des catégories : elle défile si elle ne tient pas (petit écran, interface TV) ; elle
+        // suit la catégorie choisie, ou le doigt / la molette (défilement libre).
+        property <length> cat-view-h: self.height - 56px * root.k - 16px * root.k;
+        property <length> cat-max: max(0px, sets.cats.length * 52px * root.k + 8px * root.k - sets.cat-view-h);
+        property <bool> cat-free;
+        property <length> cat-free-y;
+        property <length> cat-y: sets.cat-free ? sets.cat-free-y
+            : clamp(root.set-cat * 52px * root.k + 23px * root.k - sets.cat-view-h / 2, 0px, sets.cat-max);
+        property <int> cat-now: root.set-cat;
+        changed cat-now => {
+            sets.cat-free = false;
         }
-        for c[i] in sets.cats: Rectangle {
-            x: 32px * root.k;
-            y: 64px * root.k + i * 52px * root.k;
-            width: sets.left-w - 32px * root.k;
-            height: 46px * root.k;
-            border-radius: 10px * root.k;
-            background: cat-area.has-hover && i != root.set-cat ? ((i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
-            NavIcon {
-                x: 14px * root.k;
-                y: (parent.height - self.height) / 2;
-                width: 22px * root.k;
-                height: 22px * root.k;
-                name: sets.cat-icons[i];
-                tint: i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg;
-            }
-            Text {
-                x: 46px * root.k;
-                height: parent.height;
-                text: c;
-                color: (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg);
-                font-size: 17px * root.k;
-                font-weight: i == root.set-cat ? 700 : 500;
-                vertical-alignment: center;
-            }
-            cat-area := TouchArea {
-                clicked => {
-                    if (root.set-cat != i) {
-                        root.set-cat = i;
-                        root.settings-category();
-                        sets.rows-in();
+        Rectangle {
+            y: 56px * root.k;
+            height: parent.height - self.y;
+            width: sets.left-w + 8px * root.k;
+            x: 0px;
+            clip: true;
+            TouchArea {
+                scroll-event(e) => {
+                    if (sets.cat-max <= 0px || e.delta-y == 0px) {
+                        return EventResult.reject;
                     }
-                    root.set-in = false;
+                    let base = sets.cat-free ? sets.cat-free-y : sets.cat-y;
+                    sets.cat-free-y = clamp(base - e.delta-y, 0px, sets.cat-max);
+                    sets.cat-free = true;
+                    return EventResult.accept;
+                }
+            }
+            // Catégories : la surbrillance glisse jusqu'à la catégorie choisie (dégradé quand la
+            // sélection est dans la colonne, gris quand elle est dans les lignes).
+            Rectangle {
+                x: 32px * root.k;
+                y: 8px * root.k + root.set-cat * 52px * root.k - sets.cat-y;
+                animate y { duration: Motion.scroll && !Nav.drag ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
+                width: sets.left-w - 32px * root.k;
+                height: 46px * root.k;
+                border-radius: 10px * root.k;
+                background: Theme.fg.with-alpha(0.12);
+                Rectangle {
+                    border-radius: parent.border-radius;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    Gloss { r: parent.border-radius; strength: 0.8; }
+                    opacity: !root.set-in && !root.h-focus && Nav.kb ? 1 : 0;
+                    animate opacity { duration: Motion.panels ? 200ms : 0ms; }
+                }
+            }
+            for c[i] in sets.cats: Rectangle {
+                x: 32px * root.k;
+                y: 8px * root.k + i * 52px * root.k - sets.cat-y;
+                width: sets.left-w - 32px * root.k;
+                height: 46px * root.k;
+                border-radius: 10px * root.k;
+                background: cat-area.has-hover && !Nav.touch && i != root.set-cat ? ((i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
+                NavIcon {
+                    x: 14px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    width: 22px * root.k;
+                    height: 22px * root.k;
+                    name: sets.cat-icons[i];
+                    tint: i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg;
+                }
+                Text {
+                    x: 46px * root.k;
+                    height: parent.height;
+                    text: c;
+                    color: (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg);
+                    font-size: 17px * root.k;
+                    font-weight: i == root.set-cat ? 700 : 500;
+                    vertical-alignment: center;
+                }
+                cat-area := TouchArea {
+                    clicked => {
+                        if (root.set-cat != i) {
+                            root.set-cat = i;
+                            root.settings-category();
+                            sets.rows-in();
+                        }
+                        root.set-in = false;
+                    }
                 }
             }
         }
@@ -6532,7 +6610,7 @@ export component AppWindow inherits Window {
                 }
                 set-list := VerticalLayout {
                     y: -sets.set-scroll;
-                    animate y { duration: Motion.scroll ? 220ms : 0ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll && !Nav.drag ? 220ms : 0ms; easing: ease-out; }
                     width: parent.width - 8px * root.k;
                     height: self.preferred-height;
                     changed height => {
@@ -6564,8 +6642,8 @@ export component AppWindow inherits Window {
                         property <bool> still: r.kind == "info" || r.kind == "profile";
                         background: r.kind == "info" ? transparent
                             : r.kind == "profile" ? Theme.fg.with-alpha(0.05)
-                            : r.kind == "action" && (self.sel || (row-area.has-hover && !Nav.kb)) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                            : self.sel ? Theme.fg.with-alpha(0.18) : (row-area.has-hover && !Nav.kb) ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
+                            : r.kind == "action" && (self.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                            : self.sel ? Theme.fg.with-alpha(0.18) : (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
                         border-width: self.sel && r.kind != "action" ? 2px : 0px;
                         border-color: Theme.accent2;
                         transform-scale: self.sel ? 1.015 : 1.0;
@@ -6602,14 +6680,14 @@ export component AppWindow inherits Window {
                             spacing: 3px * root.k;
                             if r.label != "": Text {
                                 text: r.label;
-                                color: (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb)) ? Theme.on-accent : Theme.fg);
+                                color: (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg);
                                 font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                                 overflow: elide;
                             }
                             if r.hint != "": Text {
                                 text: r.hint;
-                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
+                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
                                 // Trois lignes au plus : un texte trop long finit par « … » au lieu de déborder.
@@ -6658,7 +6736,7 @@ export component AppWindow inherits Window {
                             width: 240px * root.k;
                             height: parent.height;
                             text: r.value;
-                            color: ((set-row.sel || (row-area.has-hover && !Nav.kb) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
+                            color: ((set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
                             font-size: 15px * root.k;
                             font-weight: 600;
                             horizontal-alignment: right;
@@ -6812,15 +6890,15 @@ export component AppWindow inherits Window {
                         width: parent.width - 20px * root.k;
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
-                        background: (Nav.kb ? (i == root.ch-sel) : ch-area.has-hover) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover)); }
+                        background: (Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch)); }
                         Text {
                             x: 16px * root.k;
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
                             font-family: "Montserrat";
-                            color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover) ? Theme.on-accent : Theme.fg);
+                            color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
@@ -6964,7 +7042,7 @@ export component AppWindow inherits Window {
                     animate y { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
-                    background: avg-area.has-hover && i != root.av-group ? ((i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
+                    background: avg-area.has-hover && !Nav.touch && i != root.av-group ? ((i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.08) : transparent;
                     Text {
                         x: 16px * root.k;
                         width: parent.width - 70px * root.k;
@@ -7028,7 +7106,7 @@ export component AppWindow inherits Window {
                         width: sets.av-cw;
                         height: sets.av-ch;
                         property <bool> sel: !root.h-focus && root.av-zone == 1 && i == root.av-sel && Nav.kb;
-                        property <bool> lit: self.sel || (av-area.has-hover && !Nav.kb);
+                        property <bool> lit: self.sel || (av-area.has-hover && !Nav.kb && !Nav.touch);
                         property <bool> busy: a.id == root.av-busy;
                         property <bool> done: a.id == root.av-current;
                         // Appui : la case s'écrase puis rebondit.
@@ -7412,6 +7490,18 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Menu latéral
     // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
+    // Défilement libre (doigt, molette) : la page ne suit plus la sélection mais ce décalage ; une
+    // touche de navigation la rend à la sélection (repartie de ce qui est à l'écran).
+    in-out property <bool> home-free;
+    in-out property <length> home-free-y;
+    in-out property <bool> lib-free;
+    in-out property <length> lib-free-y;
+    in-out property <bool> d-free;
+    in-out property <length> d-free-y;
+    property <bool> menu-free;
+    property <length> menu-free-y;
+    // Rangée de l'accueil dont le haut est le plus près de ce décalage (Rust).
+    pure callback home-section-at(float) -> int;
     property <float> menu-p: root.menu-open ? 1 : 0;
     // Entrée du menu survolée par la souris (-1 : aucune) : au bureau, c'est elle qui est choisie.
     property <int> menu-hov: -1;
@@ -7450,16 +7540,19 @@ export component AppWindow inherits Window {
             property <length> row-h: 40px * root.k;
             property <length> top: 84px * root.k;
             // Défilement si le menu dépasse l'écran (mode TV).
-            property <length> scroll: max(0px, (root.menu-sel + 1) * self.row-h - (self.height - self.top - 16px * root.k));
-            animate scroll { duration: Motion.menu ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+            property <length> max-scroll: max(0px, root.menu-entries.length * self.row-h - (self.height - self.top - 16px * root.k));
+            property <length> scroll: root.menu-free ? root.menu-free-y
+                : max(0px, (root.menu-sel + 1) * self.row-h - (self.height - self.top - 16px * root.k));
+            animate scroll { duration: Motion.menu && !Nav.drag ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
 
             TouchArea {
                 // Molette dans le menu : la sélection monte ou descend.
                 scroll-event(e) => {
-                    if (e.delta-y > 0) {
-                        root.menu-move(-1);
-                    } else if (e.delta-y < 0) {
-                        root.menu-move(1);
+                    // Doigt, molette : le menu défile librement (s'il dépasse l'écran), sans changer la sélection.
+                    if (drawer.max-scroll > 0px) {
+                        let base = root.menu-free ? root.menu-free-y : drawer.scroll;
+                        root.menu-free-y = clamp(base - e.delta-y, 0px, drawer.max-scroll);
+                        root.menu-free = true;
                     }
                     return EventResult.accept;
                 }
@@ -7484,6 +7577,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 key-pressed(event) => {
+                    root.menu-free = false;
                     // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                     if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                         return EventResult.accept;
@@ -7606,7 +7700,7 @@ export component AppWindow inherits Window {
                         changed has-hover => {
                             // Au clavier / à la télécommande (Nav.kb), un pointeur immobile sous le menu
                             // qui glisse ne doit pas déplacer la sélection.
-                            if (self.has-hover && !Nav.kb) {
+                            if (self.has-hover && !Nav.kb && !Nav.touch) {
                                 root.menu-sel = i;
                                 root.menu-hov = i;
                             } else if (root.menu-hov == i) {
@@ -7917,7 +8011,7 @@ export component AppWindow inherits Window {
         bg-mix: root.bg-mix;
         bg-vis: root.bg-vis;
         po: root.po;
-        d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
+        d-fade: root.header-h + 24px + 316px * root.k - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";
@@ -8566,7 +8660,7 @@ export component AppWindow inherits Window {
                     width: self.shown ? b-t.preferred-width + 34px * root.k : 0px;
                     border-radius: 10px * root.k;
                     background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                        : (b-a.has-hover && !Nav.kb) ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
+                        : (b-a.has-hover && !Nav.kb && !Nav.touch) ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
                     Gloss { r: parent.border-radius; strength: 0.8; }
                     b-t := Text {
                         text: b == 0 ? Tr.t(Tr.k, "Retour") : b == 1 ? Tr.t(Tr.k, "Passer la visite")

@@ -43,6 +43,8 @@ struct Cli {
     pass: Option<String>,
     server: Option<String>,
     tv: Option<bool>,
+    /// Plein écran sans l'interface TV (petit écran tactile) : --fullscreen.
+    fullscreen: bool,
     /// Lecture d'essai sans serveur : --test-video=FICHIER_OU_URL.
     test_video: Option<String>,
     /// Lecture directe d'un élément du serveur (essais) : --play=ID[@SECONDES].
@@ -53,7 +55,7 @@ struct Cli {
 
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
-    let mut cli = Cli { user: None, pass: None, server: None, tv: None, test_video: None, play: None, no_intro: false };
+    let mut cli = Cli { user: None, pass: None, server: None, tv: None, fullscreen: false, test_video: None, play: None, no_intro: false };
 
     for a in update::launch_args() {
         match a.as_str() {
@@ -66,6 +68,7 @@ fn parse_cli() -> Cli {
                 config::save_ui_prefs(&p);
             }
             "--desktop" => cli.tv = Some(false),
+            "--fullscreen" => cli.fullscreen = true,
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
@@ -246,6 +249,9 @@ fn show_screen(u: &AppWindow, name: &str) {
 /// d'origine) sont repris tels quels ; une affiche différente fait un fondu enchaîné avec l'ancienne.
 fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
     let old = u.get_detail();
+    if old.id != new.id {
+        u.set_d_free(false);
+    }
     let on_detail = u.get_screen().as_str() == "detail";
     if on_detail && old.has_logo && !new.logo_key.is_empty() && old.logo_key == new.logo_key && !new.has_logo {
         new.logo = old.logo.clone();
@@ -1163,6 +1169,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
         u.set_has_avatar(false);
         u.set_bg_show(false);
         u.set_menu_open(false);
+        u.set_lib_free(false);
         u.set_lib_items(ModelRc::default());
         u.set_sections(ModelRc::default());
         u.set_detail(DetailData::default());
@@ -1428,6 +1435,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
             .or_else(same_place)
             .unwrap_or((0, 0));
         u.set_sections(ModelRc::new(VecModel::from(rows)));
+        u.set_home_free(false);
         u.set_user_name(user_name.into());
         u.set_sel_section(sel_s as i32);
         u.set_sel_item(sel_i as i32);
@@ -2092,6 +2100,7 @@ fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
     let title = lib.name.clone();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_lib_title(title.into());
+        u.set_lib_free(false);
         u.set_lib_items(ModelRc::new(VecModel::<CardData>::default()));
         u.set_lib_total(0);
         u.set_l_sel(0);
@@ -4074,6 +4083,7 @@ fn go_home_at(app: &Arc<App>, top: bool) {
         }
         u.set_detail(DetailData::default());
         u.set_child_items(ModelRc::default());
+        u.set_lib_free(false);
         u.set_lib_items(ModelRc::default());
         u.set_overview_open(false);
         u.set_h_focus(false);
@@ -4248,7 +4258,8 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
         CachedPage::Library { title, items, total, sel, at_root, state } => {
             *app.library.lock().unwrap() = Some(state);
             u.set_lib_title(title);
-            u.set_lib_items(items);
+            u.set_lib_free(false);
+        u.set_lib_items(items);
             u.set_lib_total(total);
             u.set_l_sel(sel);
             u.set_at_lib_root(at_root);
@@ -4816,6 +4827,14 @@ fn install_f11(app: &Arc<App>) {
     let mut swipe = Swipe::default();
     u.window().on_winit_window_event(move |_, ev| {
         // Tactile : un appui court reste un clic (Slint) ; un glissement devient des pas de navigation.
+        if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() {
+            match ev {
+                winit::event::WindowEvent::MouseInput { state, button, .. } => eprintln!("turtlefin : souris {button:?} {state:?}"),
+                winit::event::WindowEvent::CursorEntered { .. } => eprintln!("turtlefin : pointeur entré"),
+                winit::event::WindowEvent::CursorLeft { .. } => eprintln!("turtlefin : pointeur sorti"),
+                _ => {}
+            }
+        }
         // La souris (bouton gauche maintenu) glisse de la même façon : écrans tactiles vus comme une
         // souris, et navigation à la souris seule.
         let touch = match ev {
@@ -4826,6 +4845,11 @@ fn install_f11(app: &Arc<App>) {
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 swipe.mouse = (position.x, position.y);
+                if let Some(u) = weak.upgrade() {
+                    if u.global::<Nav>().get_touch() {
+                        u.global::<Nav>().set_touch(false);
+                    }
+                }
                 swipe.id.filter(|id| *id == u64::MAX).map(|id| (winit::event::TouchPhase::Moved, id, position.x, position.y, false))
             }
             _ => None,
@@ -4871,9 +4895,13 @@ fn install_f11(app: &Arc<App>) {
     });
 }
 
-/// Glissement du doigt (écran tactile) traduit en pas de navigation, comme les flèches : chaque page
-/// sait déjà s'en servir (rangées, listes, paramètres, fiche…). Le contenu suit le doigt pas à pas ;
-/// lâché vite, il continue un peu (lancer). Depuis le bord gauche : Retour (ou le menu).
+/// Glissement du doigt (écran tactile), ou de la souris bouton gauche maintenu :
+/// - vertical : la page défile au pixel, sous le doigt (événements de molette, que chaque page
+///   reçoit comme un défilement libre, sans toucher à la sélection) ; lâché vite, elle continue sur
+///   sa lancée et ralentit (lancer) ;
+/// - horizontal : la rangée touchée suit le doigt (Slint, voir Card) ;
+/// - depuis le bord gauche, vers la droite : Retour (ou le menu).
+/// Dès que le geste est reconnu, l'appui en cours est annulé : rien ne s'ouvre, rien n'est choisi.
 #[derive(Default)]
 struct Swipe {
     id: Option<u64>,
@@ -4886,11 +4914,26 @@ struct Swipe {
     active: bool,
     /// Sens du geste une fois reconnu : true horizontal.
     horizontal: bool,
-    /// Distance déjà convertie en pas.
-    done: f64,
     edge: bool,
     /// Dernière position de la souris (les clics de winit n'en donnent pas).
     mouse: (f64, f64),
+}
+
+thread_local! {
+    /// Lancer en cours : minuterie qui fait défiler en ralentissant.
+    static FLING: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Défilement de `d` pixels physiques à la position `p` : vertical (positif : le contenu descend) ou
+/// horizontal (positif : le contenu va à droite).
+fn scroll_at(u: &AppWindow, p: (f64, f64), d: f64, horizontal: bool) {
+    let s = u.window().scale_factor() as f64;
+    let d = (d / s) as f32;
+    u.window().dispatch_event(slint::platform::WindowEvent::PointerScrolled {
+        position: slint::LogicalPosition::new((p.0 / s) as f32, (p.1 / s) as f32),
+        delta_x: if horizontal { d } else { 0.0 },
+        delta_y: if horizontal { 0.0 } else { d },
+    });
 }
 
 impl Swipe {
@@ -4902,12 +4945,20 @@ impl Swipe {
         if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() && phase != TouchPhase::Moved {
             eprintln!("turtlefin : toucher {phase:?} {id} ({:.0}, {:.0})", p.0, p.1);
         }
-        // Le tactile n'a pas de sélection visible : comme la souris.
-        if finger && u.global::<Nav>().get_kb() {
-            u.global::<Nav>().set_kb(false);
+        // Le tactile n'a pas de sélection visible, et le survol n'y met rien en avant.
+        if finger {
+            if u.global::<Nav>().get_kb() {
+                u.global::<Nav>().set_kb(false);
+            }
+            if !u.global::<Nav>().get_touch() {
+                u.global::<Nav>().set_touch(true);
+            }
         }
         match phase {
             TouchPhase::Started => {
+                // Un nouveau toucher arrête le lancer en cours (comme sur un téléphone).
+                FLING.with(|f| *f.borrow_mut() = None);
+                u.global::<Nav>().set_drag(false);
                 // Souris dans un champ de saisie ou pendant la lecture : glisser sélectionne du texte, ou
                 // la barre de lecture ; pas de geste.
                 if !finger && (u.get_playing() || u.get_screen() == "login") {
@@ -4920,78 +4971,87 @@ impl Swipe {
             }
             TouchPhase::Moved if self.id == Some(id) => {
                 let now = std::time::Instant::now();
+                let prev = self.last;
                 if let Some(t0) = self.t_last {
                     let dt = now.duration_since(t0).as_secs_f64().max(0.001);
-                    self.v = ((p.0 - self.last.0) / dt, (p.1 - self.last.1) / dt);
+                    // Vitesse lissée : un dernier événement isolé ne fausse pas le lancer.
+                    let v = ((p.0 - prev.0) / dt, (p.1 - prev.1) / dt);
+                    self.v = (self.v.0 * 0.4 + v.0 * 0.6, self.v.1 * 0.4 + v.1 * 0.6);
                 }
                 self.last = p;
                 self.t_last = Some(now);
                 let (dx, dy) = (p.0 - self.start.0, p.1 - self.start.1);
                 if !self.active {
-                    if dx.hypot(dy) < 22.0 * s {
+                    if dx.hypot(dy) < 14.0 * s {
                         return false;
                     }
                     self.active = true;
                     self.horizontal = dx.abs() > dy.abs();
-                    // L'appui en cours n'est plus un clic (la carte touchée ne s'ouvre pas).
+                    // L'appui en cours n'est plus un clic : rien ne s'ouvre, rien n'est choisi.
                     u.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
+                    if !self.edge {
+                        u.global::<Nav>().set_drag(true);
+                        // Le début du geste (le seuil) compte aussi : le contenu part de sous le doigt.
+                        scroll_at(u, p, if self.horizontal { dx } else { dy }, self.horizontal);
+                        return true;
+                    }
                 }
                 if self.edge {
                     return true; // geste depuis le bord : décidé au lâcher
                 }
                 if !u.get_playing() {
-                    self.step(u, if self.horizontal { dx } else { dy }, s);
+                    let d = if self.horizontal { p.0 - prev.0 } else { p.1 - prev.1 };
+                    scroll_at(u, p, d, self.horizontal);
                 }
                 true
             }
             TouchPhase::Ended | TouchPhase::Cancelled if self.id == Some(id) => {
-                let was = self.active;
-                if was && phase == TouchPhase::Ended && !u.get_playing() {
-                    let (dx, dy) = (self.last.0 - self.start.0, self.last.1 - self.start.1);
+                if self.active && phase == TouchPhase::Ended && !u.get_playing() {
+                    let dx = self.last.0 - self.start.0;
                     if self.edge && self.horizontal && dx > 60.0 * s {
                         key(u, slint::platform::Key::Escape);
                     } else if !self.edge {
-                        // Lancer : le geste continue d'autant que la vitesse le porte (au plus 6 pas).
-                        let (d, v) = if self.horizontal { (dx, self.v.0) } else { (dy, self.v.1) };
-                        let extra = (v * 0.18).clamp(-6.0 * self.unit(s), 6.0 * self.unit(s));
-                        if v.abs() > 600.0 * s {
-                            self.step(u, d + extra, s);
+                        let v = if self.horizontal { self.v.0 } else { self.v.1 };
+                        if v.abs() > 300.0 * s {
+                            self.fling(u, self.last, v, self.horizontal);
                         }
                     }
                 }
+                if !FLING.with(|f| f.borrow().is_some()) {
+                    u.global::<Nav>().set_drag(false);
+                }
                 self.id = None;
-                // Souris : le relâchement va quand même à Slint (son appui a été annulé, pas de clic).
-                was && finger
+                // Toujours transmis à Slint : il suit les doigts posés (un doigt jamais levé pour lui
+                // ferait prendre chaque toucher suivant pour un second doigt, sans clic possible).
+                // L'appui a été annulé dès le début du glissement : pas de clic.
+                false
             }
             _ => false,
         }
     }
 
-    /// Longueur du doigt qui fait un pas : une demi-carte en largeur, une rangée en hauteur.
-    fn unit(&self, s: f64) -> f64 {
-        if self.horizontal { 110.0 * s } else { 150.0 * s }
-    }
-
-    /// Envoie les pas correspondant à la distance `d` parcourue (moins ceux déjà envoyés).
-    fn step(&mut self, u: &AppWindow, d: f64, s: f64) {
-        use slint::platform::Key;
-        let unit = self.unit(s);
-        let want = (d / unit).trunc();
-        while self.done != want {
-            let forward = want > self.done;
-            // Doigt vers la gauche (ou le haut) : le contenu avance, comme → (ou ↓).
-            let k = match (self.horizontal, forward) {
-                (true, true) => Key::LeftArrow,
-                (true, false) => Key::RightArrow,
-                (false, true) => Key::UpArrow,
-                (false, false) => Key::DownArrow,
-            };
-            if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() {
-                eprintln!("turtlefin : glissement -> {k:?}");
+    /// Lancer : la page continue à la vitesse `v` (px/s), en ralentissant, jusqu'à l'arrêt.
+    fn fling(&self, u: &AppWindow, p: (f64, f64), v: f64, horizontal: bool) {
+        let weak = u.as_weak();
+        let v = std::cell::Cell::new(v.clamp(-6000.0, 6000.0));
+        let last = std::cell::Cell::new(std::time::Instant::now());
+        let timer = slint::Timer::default();
+        timer.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(16), move || {
+            let Some(u) = weak.upgrade() else { return };
+            let now = std::time::Instant::now();
+            let dt = now.duration_since(last.replace(now)).as_secs_f64();
+            // Frottement : la vitesse est divisée par ~20 chaque seconde.
+            let nv = v.get() * (0.05f64).powf(dt);
+            v.set(nv);
+            if nv.abs() < 40.0 || u.get_playing() {
+                u.global::<Nav>().set_drag(false);
+                // La minuterie s'arrête au tour suivant (pas depuis son propre rappel).
+                slint::Timer::single_shot(std::time::Duration::ZERO, || FLING.with(|f| *f.borrow_mut() = None));
+                return;
             }
-            key(u, k);
-            self.done += if forward { 1.0 } else { -1.0 };
-        }
+            scroll_at(&u, p, nv * dt, horizontal);
+        });
+        FLING.with(|f| *f.borrow_mut() = Some(timer));
     }
 }
 
@@ -5170,7 +5230,8 @@ fn main() -> anyhow::Result<()> {
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
     ui.global::<Nav>().set_kb(tv);
-    if tv || prefs.fullscreen {
+    let full = tv || prefs.fullscreen || cli.fullscreen;
+    if full {
         set_tv_window(&ui, true);
     } else {
         #[cfg(windows)]
@@ -5186,7 +5247,7 @@ fn main() -> anyhow::Result<()> {
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
         tv_flag: AtomicBool::new(tv),
-        full_flag: AtomicBool::new(tv || prefs.fullscreen),
+        full_flag: AtomicBool::new(full),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
         library: Mutex::new(None),
@@ -5501,6 +5562,12 @@ fn main() -> anyhow::Result<()> {
             off
         }
     });
+    ui.global::<Rows>().on_set({
+        let m = row_off.clone();
+        move |key, off| {
+            m.lock().unwrap().insert(key, off.min(0.0));
+        }
+    });
     ui.global::<Rows>().on_pick({
         let m = row_off.clone();
         move |from, from_idx, from_w, to, to_n, to_w, gap, pad, _rw| {
@@ -5627,6 +5694,9 @@ fn main() -> anyhow::Result<()> {
     ui.on_open_item({
         let app = app.clone();
         move |id| {
+            if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() {
+                eprintln!("turtlefin : ouvrir {id}");
+            }
             // Depuis l'accueil : une bibliothèque (« Mes médias ») devient l'endroit où l'on est ;
             // autre chose reste une branche de l'accueil.
             if app.stack.lock().unwrap().is_empty() {
@@ -5640,6 +5710,21 @@ fn main() -> anyhow::Result<()> {
     });
 
     ui.on_is_seerr(|id| id.starts_with("seerr:"));
+
+    // Défilement libre de l'accueil rendu à la sélection : rangée dont le haut est à ce décalage.
+    ui.on_home_section_at({
+        let weak = ui.as_weak();
+        move |y| {
+            let Some(u) = weak.upgrade() else { return 0 };
+            let rows = u.get_sections();
+            (0..rows.row_count())
+                .filter_map(|i| rows.row_data(i).map(|r| (i, r)))
+                .take_while(|(i, r)| *i == 0 || r.y_px <= y + r.h_px / 2.0)
+                .last()
+                .map(|(i, _)| i as i32)
+                .unwrap_or(0)
+        }
+    });
 
     // Écran des comptes : retirer un compte enregistré de cet appareil.
     ui.on_login_forget({

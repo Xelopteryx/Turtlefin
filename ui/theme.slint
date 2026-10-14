@@ -158,4 +158,10 @@ export component Sheen inherits Rectangle {
 // navigation (la souris la cache : le survol suffit). Posé par Rust (install_f11).
 export global Nav {
     in-out property <bool> kb: true;
+    // Doigt (ou lancer) en train de faire défiler une page : les défilements ne sont pas animés
+    // (la page suit le doigt, sans retard).
+    in-out property <bool> drag;
+    // Dernier pointeur : le doigt (écran tactile). Le survol ne met alors rien en avant (un doigt
+    // posé pour faire défiler n'est pas un choix) ; la souris le rend.
+    in-out property <bool> touch;
 }

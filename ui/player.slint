@@ -150,7 +150,7 @@ component PlayerButton inherits Rectangle {
     callback clicked();
 
     // Sélection au clavier (au bureau : seulement après une touche de navigation, voir Nav) ou survol.
-    property <bool> lit: root.enabled && ((Nav.kb ? (root.focused) : area.has-hover));
+    property <bool> lit: root.enabled && ((Nav.kb ? (root.focused) : area.has-hover && !Nav.touch));
     property <duration> t0;
     property <bool> anim;
     changed press => {
@@ -242,7 +242,7 @@ component EpisodeCard inherits Rectangle {
     in property <bool> current;
     in property <float> k: 1.0;
     callback clicked();
-    property <bool> lit: (Nav.kb ? (root.focused) : ep-area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : ep-area.has-hover && !Nav.touch);
 
     z: root.lit ? 1 : 0;
     transform-scale: root.lit ? 1.06 : 1.0;
@@ -314,7 +314,7 @@ component PickCard inherits Rectangle {
     in property <bool> focused;
     in property <float> k: 1.0;
     callback clicked();
-    property <bool> lit: (Nav.kb ? (root.focused) : pick-area.has-hover);
+    property <bool> lit: (Nav.kb ? (root.focused) : pick-area.has-hover && !Nav.touch);
 
     transform-scale: root.lit ? 1.08 : 1.0;
     animate transform-scale { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
