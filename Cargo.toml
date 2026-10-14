@@ -49,7 +49,9 @@ name = "turtlefin"
 maintainer = "Xelopteryx <https://github.com/Xelopteryx/Turtlefin>"
 section = "video"
 priority = "optional"
-depends = "$auto, libmpv2 | libmpv1"
+# Bibliothèques chargées au démarrage (dlopen), invisibles pour $auto : sans libxkbcommon-x11-0,
+# Turtlefin s'arrêtait aussitôt lancé sur une Debian minimale (PC Intel « Mjollnir »).
+depends = "$auto, libmpv2 | libmpv1, libxkbcommon-x11-0, libxkbcommon0, libx11-6, libx11-xcb1, libxcursor1, libxrandr2, libxi6, libegl1, libgl1, libwayland-client0, libwayland-egl1, libwayland-cursor0, libfontconfig1"
 extended-description = "Client Jellyfin natif, léger et animé, pensé pour la télé : accueil, fiches, lecture (libmpv), watch party, téléchargements hors ligne, demandes Seerr."
 assets = [
     ["target/release/turtlefin", "usr/bin/", "755"],

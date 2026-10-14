@@ -27,6 +27,12 @@ LDCONFIG="$(command -v ldconfig || echo /sbin/ldconfig)"
 LIBMPV="$("$LDCONFIG" -p | awk '/libmpv\.so\.2 /{print $NF; exit}')"
 [ -n "$LIBMPV" ] || LIBMPV="$("$LDCONFIG" -p | awk '/libmpv\.so\.1 /{print $NF; exit}')"
 [ -n "$LIBMPV" ] || { echo "libmpv introuvable (installe libmpv-dev)"; exit 1; }
+# Clavier sous X : libxkbcommon-x11 est elle aussi chargée à l'exécution (winit). Absente d'une Debian
+# minimale : Turtlefin s'arrêtait aussitôt lancé. Embarquée si la machine de compilation l'a.
+XKBX11="$("$LDCONFIG" -p | awk '/libxkbcommon-x11\.so\.0 /{print $NF; exit}')"
+# (chemins système, sans espace : passés tels quels à linuxdeploy)
+EXTRA=""
+[ -n "$XKBX11" ] && EXTRA="--library $XKBX11"
 
 # Pas de FUSE dans les conteneurs d'intégration continue : on extrait l'outil à la volée.
 export APPIMAGE_EXTRACT_AND_RUN=1
@@ -34,7 +40,7 @@ export LDAI_OUTPUT="Turtlefin-$VERSION-linux-$ARCH.AppImage"
 
 "$LD" --appdir "$WORK/AppDir" \
   --executable "$BIN" \
-  --library "$LIBMPV" \
+  --library "$LIBMPV"   $EXTRA \
   --desktop-file packaging/linux/turtlefin.desktop \
   --icon-file packaging/turtlefin.svg \
   --output appimage
