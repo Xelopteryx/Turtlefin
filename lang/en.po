@@ -1672,3 +1672,15 @@ msgid "Une nouvelle version est disponible : {n} nouveauté."
 msgid_plural "Une nouvelle version est disponible : {n} nouveautés."
 msgstr[0] "A new version is available: {n} change."
 msgstr[1] "A new version is available: {n} changes."
+
+msgid "Sans titre"
+msgstr "Untitled"
+
+msgid "fichier téléchargé abîmé ou modifié (empreinte différente) : mise à jour annulée"
+msgstr "downloaded file damaged or altered (checksum mismatch): update cancelled"
+
+msgid "réponse du serveur trop grande"
+msgstr "server response too large"
+
+msgid "élément inconnu"
+msgstr "unknown item"

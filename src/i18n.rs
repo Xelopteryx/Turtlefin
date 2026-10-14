@@ -279,17 +279,22 @@ impl Plural {
     }
 
     fn index(&self, n: i64) -> usize {
-        let toks: Vec<char> = self.0.chars().filter(|c| !c.is_whitespace()).collect();
-        let mut p = Expr { t: &toks, i: 0, n };
+        // Un fichier .po vient de n'importe où : règle trop longue (imbrication sans fin) ignorée.
+        let toks: Vec<char> = self.0.chars().filter(|c| !c.is_whitespace()).take(400).collect();
+        let mut p = Expr { t: &toks, i: 0, n, depth: 0 };
         let v = p.ternary();
-        v.max(0) as usize
+        v.clamp(0, 16) as usize
     }
 }
+
+/// Imbrication au-delà de laquelle une règle de pluriel est abandonnée (sinon dépassement de pile).
+const MAX_DEPTH: u32 = 64;
 
 struct Expr<'a> {
     t: &'a [char],
     i: usize,
     n: i64,
+    depth: u32,
 }
 
 impl Expr<'_> {
@@ -305,6 +310,16 @@ impl Expr<'_> {
         }
     }
     fn ternary(&mut self) -> i64 {
+        if self.depth > MAX_DEPTH {
+            self.i = self.t.len();
+            return 0;
+        }
+        self.depth += 1;
+        let v = self.ternary_inner();
+        self.depth -= 1;
+        v
+    }
+    fn ternary_inner(&mut self) -> i64 {
         let c = self.or();
         if self.eat("?") {
             let a = self.ternary();
@@ -352,10 +367,10 @@ impl Expr<'_> {
         let mut v = self.mul();
         loop {
             if self.eat("+") {
-                v += self.mul();
+                v = v.wrapping_add(self.mul());
             } else if self.peek("-") {
                 self.i += 1;
-                v -= self.mul();
+                v = v.wrapping_sub(self.mul());
             } else {
                 return v;
             }
@@ -365,13 +380,13 @@ impl Expr<'_> {
         let mut v = self.unary();
         loop {
             if self.eat("*") {
-                v *= self.unary();
+                v = v.wrapping_mul(self.unary());
             } else if self.eat("/") {
                 let r = self.unary();
-                v = if r == 0 { 0 } else { v / r };
+                v = v.checked_div(r).unwrap_or(0);
             } else if self.eat("%") {
                 let r = self.unary();
-                v = if r == 0 { 0 } else { v % r };
+                v = v.checked_rem(r).unwrap_or(0);
             } else {
                 return v;
             }
@@ -380,7 +395,14 @@ impl Expr<'_> {
     fn unary(&mut self) -> i64 {
         if self.peek("!") && !self.peek("!=") {
             self.i += 1;
-            return (self.unary() == 0) as i64;
+            if self.depth > MAX_DEPTH {
+                self.i = self.t.len();
+                return 0;
+            }
+            self.depth += 1;
+            let v = (self.unary() == 0) as i64;
+            self.depth -= 1;
+            return v;
         }
         if self.eat("(") {
             let v = self.ternary();
@@ -662,6 +684,18 @@ mod tests {
         assert_eq!(m.get("Bonjour {}").map(|v| v[0].as_str()), Some("Hello {}"));
         assert_eq!(m.get("ab").map(|v| v[0].as_str()), Some("c\"d"));
         assert_eq!(m.get("{n} x").map(|v| v.len()), Some(2));
+    }
+
+    #[test]
+    fn plural_hostile() {
+        // Règles piégées d'un .po étranger : ni plantage ni dépassement de pile.
+        assert_eq!(super::Plural("(0-9223372036854775807-1)/(0-1)".into()).index(1), 0);
+        assert_eq!(super::Plural("(0-9223372036854775807-1)%(0-1)".into()).index(1), 0);
+        let deep = "(".repeat(100_000) + "n" + &")".repeat(100_000);
+        let _ = super::Plural(deep).index(3);
+        let bangs = "!".repeat(100_000) + "n";
+        let _ = super::Plural(bangs).index(3);
+        assert!(super::Plural("n*999999999999".into()).index(99999999) <= 16);
     }
 
     #[test]

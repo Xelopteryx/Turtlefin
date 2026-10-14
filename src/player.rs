@@ -965,6 +965,13 @@ fn load(
         _ => return Err(anyhow!("{}", tr("rien à lire"))),
     };
 
+    // Jeton dans l'en-tête des requêtes de mpv, pas dans l'adresse : il n'apparaît ni dans les
+    // journaux (mpv, serveur, proxy) ni dans les messages d'erreur. `append` garde la valeur entière
+    // (elle contient des virgules, séparateur des listes de mpv).
+    let _ = player.command(&["change-list", "http-header-fields", "clr", ""]);
+    if let (Some(c), Some(_)) = (client, &item) {
+        player.command(&["change-list", "http-header-fields", "append", &format!("Authorization: {}", c.auth())])?;
+    }
     player.set_property("force-media-title", &title)?;
     // Paramètres > Sous-titres > Taille.
     let _ = player.set_property("sub-scale", &format!("{:.2}", crate::config::ui_prefs().sub_scale));

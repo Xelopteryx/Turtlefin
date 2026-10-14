@@ -108,7 +108,7 @@ async fn github(path: &str) -> Result<serde_json::Value> {
         404 => Err(NotFound.into()),
         403 | 429 => Err(anyhow!("{}", tr("GitHub limite les vérifications : réessaie dans une heure"))),
         s if !(200..300).contains(&s) => Err(anyhow!("{}", trf("GitHub a répondu {}", &[&s]))),
-        _ => Ok(resp.json().await?),
+        _ => Ok(serde_json::from_slice(&crate::api::body_limited(resp, 8 << 20).await?)?),
     }
 }
 
@@ -247,17 +247,22 @@ fn install_source(step: impl Fn(&str)) -> Result<()> {
     Ok(())
 }
 
-/// Télécharge le fichier publié `name` de la dernière version, avec l'avancement.
+/// Télécharge le fichier publié `name` de la dernière version, avec l'avancement. Son empreinte
+/// SHA-256 doit être celle annoncée par GitHub (fichier abîmé ou remplacé en route : refusé).
 async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     let v = github("releases/latest").await?;
-    let url = v["assets"]
+    let asset = v["assets"]
         .as_array()
         .into_iter()
         .flatten()
         .find(|a| a["name"].as_str() == Some(name))
-        .and_then(|a| a["browser_download_url"].as_str())
-        .ok_or_else(|| anyhow!("{}", trf("fichier {} absent de la publication", &[&name])))?
-        .to_string();
+        .ok_or_else(|| anyhow!("{}", trf("fichier {} absent de la publication", &[&name])))?;
+    let url = asset["browser_download_url"].as_str().unwrap_or("").to_string();
+    // Seulement depuis GitHub, en HTTPS.
+    if !url.starts_with(&format!("https://github.com/{REPO}/releases/download/")) {
+        return Err(anyhow!("{}", trf("fichier {} absent de la publication", &[&name])));
+    }
+    let digest = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_ascii_lowercase);
     let client = reqwest::Client::builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(15))
@@ -266,6 +271,8 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     let total = resp.content_length().unwrap_or(0);
     let tmp = dest.with_extension("part");
     let mut file = tokio::fs::File::create(&tmp).await?;
+    use sha2::Digest;
+    let mut hash = sha2::Sha256::new();
     let mut done = 0u64;
     let mut last = std::time::Instant::now();
     use tokio::io::AsyncWriteExt;
@@ -274,6 +281,7 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
         .map_err(|_| anyhow!("{}", tr("téléchargement bloqué (plus de données depuis 60 s)")))??
     {
         file.write_all(&chunk).await?;
+        hash.update(&chunk);
         done += chunk.len() as u64;
         if total > 0 && last.elapsed().as_millis() > 400 {
             last = std::time::Instant::now();
@@ -282,17 +290,38 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     }
     file.flush().await?;
     drop(file);
+    let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    if digest.as_deref().is_some_and(|d| d != got) {
+        let _ = tokio::fs::remove_file(&tmp).await;
+        return Err(anyhow!("{}", tr("fichier téléchargé abîmé ou modifié (empreinte différente) : mise à jour annulée")));
+    }
     tokio::fs::rename(&tmp, dest).await?;
     Ok(())
+}
+
+/// Dossier des fichiers de mise à jour : dans le cache de l'utilisateur, pas dans le /tmp partagé
+/// (un autre compte de la machine pourrait y préparer un dossier piégé ou remplacer le paquet
+/// avant son installation avec les droits administrateur).
+fn update_dir() -> PathBuf {
+    crate::paths::cache_dir().unwrap_or_else(std::env::temp_dir).join("update")
 }
 
 async fn install_release(k: Kind, step: impl Fn(&str)) -> Result<()> {
     let v = github("releases/latest").await?;
     let version = v["tag_name"].as_str().unwrap_or("").trim_start_matches('v').to_string();
     let name = asset_name(&version)?;
-    let tmp_dir = std::env::temp_dir().join("turtlefin-update");
+    // Le numéro vient de GitHub : rien d'autre que des chiffres, lettres, points et tirets.
+    if version.is_empty() || !version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
+        return Err(anyhow!("{}", tr("pas de fichier publié pour cette installation")));
+    }
+    let tmp_dir = update_dir();
     let _ = std::fs::remove_dir_all(&tmp_dir);
     std::fs::create_dir_all(&tmp_dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp_dir, std::fs::Permissions::from_mode(0o700))?;
+    }
     let file = tmp_dir.join(&name);
     step(tr("Téléchargement…"));
     download(&name, &file, &step).await?;
@@ -399,12 +428,13 @@ pub fn restart() {
         }
         // Paquet : installé avec les droits administrateur (pkexec demande le mot de passe), puis relance.
         (Kind::Deb, Some(deb)) => {
-            let script = format!(
-                "pkexec apt-get install -y --allow-downgrades '{}' && exec turtlefin {}",
-                deb.display(),
-                args.iter().map(|a| format!("'{}'", a.replace('\'', ""))).collect::<Vec<_>>().join(" ")
-            );
-            Command::new("sh").args(["-c", &script]).spawn().is_ok()
+            // Chemin et options passés en paramètres du script (« $1 », « $@ ») : jamais interprétés.
+            Command::new("sh")
+                .args(["-c", r#"deb="$1"; shift; pkexec apt-get install -y --allow-downgrades "$deb" && exec turtlefin "$@""#, "sh"])
+                .arg(&deb)
+                .args(&args)
+                .spawn()
+                .is_ok()
         }
         (Kind::AppImage, _) => match std::env::var_os("APPIMAGE") {
             Some(p) => Command::new(p).args(&args).spawn().is_ok(),

@@ -28,8 +28,143 @@ pub struct Saved {
     pub server_id: String,
     pub user_name: String,
     pub user_id: String,
+    #[serde(with = "secret")]
     pub token: String,
     pub device_id: String,
+}
+
+/// Jetons d'accès sur le disque. Windows : chiffrés par DPAPI (liés au compte Windows : un
+/// `session.json` copié ailleurs ou lu par un autre compte ne donne pas accès au serveur). Ailleurs :
+/// en clair, dans des fichiers lisibles du seul utilisateur (0600). Un jeton illisible (fichier venu
+/// d'un autre PC) est vide : le compte redemande son mot de passe.
+mod secret {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(token: &str, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&protect(token))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+        let v = String::deserialize(d)?;
+        Ok(match v.strip_prefix(PREFIX) {
+            Some(b) => unprotect(b).unwrap_or_default(),
+            None => v,
+        })
+    }
+
+    const PREFIX: &str = "dpapi:";
+
+    #[cfg(not(windows))]
+    fn protect(t: &str) -> String {
+        t.to_string()
+    }
+
+    #[cfg(not(windows))]
+    fn unprotect(_: &str) -> Option<String> {
+        None
+    }
+
+    #[cfg(windows)]
+    #[repr(C)]
+    struct Blob {
+        len: u32,
+        data: *mut u8,
+    }
+
+    #[cfg(windows)]
+    #[link(name = "crypt32")]
+    extern "system" {
+        fn CryptProtectData(input: *const Blob, desc: *const u16, entropy: *const Blob, reserved: *const u8, prompt: *const u8, flags: u32, out: *mut Blob) -> i32;
+        fn CryptUnprotectData(input: *const Blob, desc: *mut *mut u16, entropy: *const Blob, reserved: *const u8, prompt: *const u8, flags: u32, out: *mut Blob) -> i32;
+    }
+
+    #[cfg(windows)]
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LocalFree(mem: *mut u8) -> *mut u8;
+    }
+
+    /// Pas de fenêtre (CRYPTPROTECT_UI_FORBIDDEN).
+    #[cfg(windows)]
+    const UI_FORBIDDEN: u32 = 1;
+
+    #[cfg(windows)]
+    fn call(input: &[u8], encrypt: bool) -> Option<Vec<u8>> {
+        let blob = Blob { len: input.len() as u32, data: input.as_ptr() as *mut u8 };
+        let mut out = Blob { len: 0, data: std::ptr::null_mut() };
+        let (nb, nu): (*const Blob, *const u8) = (std::ptr::null(), std::ptr::null());
+        // SAFETY : tampons valides pendant l'appel ; la sortie, allouée par Windows, est copiée puis libérée.
+        unsafe {
+            let ok = if encrypt {
+                CryptProtectData(&blob, std::ptr::null(), nb, nu, nu, UI_FORBIDDEN, &mut out)
+            } else {
+                CryptUnprotectData(&blob, std::ptr::null_mut(), nb, nu, nu, UI_FORBIDDEN, &mut out)
+            };
+            if ok == 0 || out.data.is_null() {
+                return None;
+            }
+            let v = std::slice::from_raw_parts(out.data, out.len as usize).to_vec();
+            LocalFree(out.data);
+            Some(v)
+        }
+    }
+
+    #[cfg(windows)]
+    fn protect(t: &str) -> String {
+        use base64::Engine;
+        if t.is_empty() {
+            return String::new();
+        }
+        match call(t.as_bytes(), true) {
+            Some(v) => format!("{PREFIX}{}", base64::engine::general_purpose::STANDARD.encode(v)),
+            None => t.to_string(),
+        }
+    }
+
+    #[cfg(windows)]
+    fn unprotect(b: &str) -> Option<String> {
+        use base64::Engine;
+        let raw = base64::engine::general_purpose::STANDARD.decode(b).ok()?;
+        String::from_utf8(call(&raw, false)?).ok()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn round_trip() {
+            let p = super::protect("abc123");
+            match p.strip_prefix(super::PREFIX) {
+                Some(b) => assert_eq!(super::unprotect(b).as_deref(), Some("abc123")),
+                None => assert_eq!(p, "abc123"),
+            }
+            assert_eq!(super::protect(""), "");
+        }
+    }
+}
+
+/// Écrit un fichier de configuration d'un coup (fichier provisoire puis renommage : une coupure de
+/// courant ne laisse pas un fichier à moitié écrit). Sous Unix, `private` : lisible du seul
+/// utilisateur dès sa création (pas d'instant où un autre compte pourrait lire le jeton).
+pub fn write_atomic(p: &std::path::Path, text: &str, private: bool) -> std::io::Result<()> {
+    use std::io::Write;
+    if let Some(dir) = p.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp = p.with_extension("json.tmp");
+    let _ = std::fs::remove_file(&tmp);
+    let mut o = std::fs::OpenOptions::new();
+    o.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        o.mode(if private { 0o600 } else { 0o644 });
+    }
+    let _ = private;
+    let mut f = o.open(&tmp)?;
+    f.write_all(text.as_bytes())?;
+    f.sync_all()?;
+    drop(f);
+    std::fs::rename(&tmp, p)
 }
 
 /// Dossier de configuration (voir `paths`).
@@ -86,16 +221,8 @@ pub fn load() -> Saved {
 
 pub fn save(s: &Saved) {
     let Some(p) = path() else { return };
-    if let Some(dir) = p.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
     if let Ok(text) = serde_json::to_string_pretty(s) {
-        let _ = std::fs::write(&p, text);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600));
-        }
+        let _ = write_atomic(&p, &text, true);
     }
 }
 
@@ -149,7 +276,7 @@ pub fn set_track_pref(key: &str, audio: Option<&str>, sub: Option<&str>) {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(t) = serde_json::to_string_pretty(&all) {
-        let _ = std::fs::write(p, t);
+        let _ = write_atomic(&p, &t, false);
     }
 }
 
@@ -175,6 +302,7 @@ pub struct Account {
     pub server_id: String,
     pub user_id: String,
     pub user_name: String,
+    #[serde(with = "secret")]
     pub token: String,
 }
 
@@ -191,16 +319,8 @@ pub fn accounts() -> Vec<Account> {
 
 fn save_accounts(list: &[Account]) {
     let Some(p) = accounts_path() else { return };
-    if let Some(dir) = p.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
     if let Ok(t) = serde_json::to_string_pretty(list) {
-        let _ = std::fs::write(&p, t);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600));
-        }
+        let _ = write_atomic(&p, &t, true);
     }
 }
 
@@ -261,7 +381,7 @@ fn save_flags(all: &std::collections::HashMap<String, Flags>) {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(t) = serde_json::to_string_pretty(all) {
-        let _ = std::fs::write(p, t);
+        let _ = write_atomic(&p, &t, false);
     }
 }
 
@@ -469,6 +589,6 @@ pub fn save_ui_prefs(p: &UiPrefs) {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(t) = serde_json::to_string_pretty(p) {
-        let _ = std::fs::write(path, t);
+        let _ = write_atomic(&path, &t, false);
     }
 }

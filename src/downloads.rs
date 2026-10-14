@@ -1,18 +1,32 @@
 //! Téléchargements (lecture hors ligne).
 //!
-//! Chaque élément téléchargé a son dossier `<données>/turtlefin/downloads/<id>/` :
-//! - `media.<ext>` : le fichier original (`/Items/{id}/Download`, droit « téléchargement » requis) ;
-//! - `poster.jpg`, `thumb.jpg` : affiche et vignette 16:9 ;
-//! - `series.jpg`, `season.jpg` (épisodes) : affiches de la série et de la saison ;
-//! - `sub_<n>.<ext>` : sous-titres externes ;
-//! - `info.json` : titre, sous-titre, résumé, sous-titres (écrit en dernier : sa présence signifie
-//!   « téléchargement complet »).
-//! Pendant le transfert, le média s'appelle `media.<ext>.part` ; un transfert interrompu (réseau
+//! Rangement dans `<données>/turtlefin/downloads/`, comme une bibliothèque Jellyfin :
+//! ```text
+//! <bibliothèque>/                       (ex. « Anime »)
+//!   <série>/                            poster.jpg, logo.png, backdrop.jpg : partagés par les épisodes
+//!     Season 01/                        season.jpg (« Season 00 » : épisodes spéciaux)
+//!       <série> S01E01.mkv              le fichier original (`/Items/{id}/Download`)
+//!       <série> S01E01.json             titre, résumé, position… (écrit en dernier : sa présence
+//!                                       signifie « téléchargement complet »)
+//!       <série> S01E01.jpg              image de l'épisode
+//!       <série> S01E01.<n>.<langue>.srt sous-titres externes
+//!   <film> (<année>)/                   poster.jpg, logo.png, backdrop.jpg, thumb.jpg
+//!     <film> (<année>).mkv, .json, sous-titres
+//! ```
+//! Les anciens téléchargements (`downloads/<id>/info.json`, `media.<ext>`, une copie des images par
+//! épisode) restent lisibles, et sont rangés ainsi dès que le serveur répond (`enrich`).
+//!
+//! Pendant le transfert, le média s'appelle `<nom>.<ext>.part` ; un transfert interrompu (réseau
 //! coupé, appli fermée) reprend là où il s'était arrêté (requête `Range`). La file d'attente est
 //! gardée dans `queue.json` et reprend au lancement suivant.
+//!
+//! Noms et identifiants viennent du serveur : ils sont nettoyés (`fs_name`, `id_ok`) avant de
+//! devenir des chemins (pas de « ../ », de séparateur ni de nom réservé de Windows).
 
 use crate::i18n::{tr, trf};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
@@ -28,7 +42,7 @@ pub struct Entry {
     pub title: String,
     pub subtitle: String,
     pub overview: String,
-    /// Nom du fichier média dans le dossier de l'élément.
+    /// Nom du fichier média, dans le dossier de l'élément.
     pub media: String,
     /// Sous-titres externes : (nom de fichier, langue).
     pub subs: Vec<(String, String)>,
@@ -52,31 +66,58 @@ pub struct Entry {
     pub dirty: bool,
     /// Métadonnées complètes (série, saison, année...) : faux pour un téléchargement plus ancien.
     pub meta: bool,
-    /// Version des métadonnées (2 : logo, fond, classification, résumé de saison, favori).
+    /// Version des métadonnées (4 : rangement par bibliothèque / série / saison).
     pub meta_v: u32,
     pub official_rating: String,
     pub season_overview: String,
     /// Favori (état du compte au téléchargement, puis changements faits sur l'appareil).
     pub favorite: bool,
+    /// Bibliothèque du serveur (nom du premier dossier).
+    pub library: String,
+    /// Fichier de description de l'élément (`<nom>.json`, ou `info.json` à l'ancienne).
+    #[serde(skip)]
+    pub loc: PathBuf,
 }
 
 /// Version actuelle des métadonnées enregistrées.
-const META_V: u32 = 3;
+const META_V: u32 = 4;
 
 impl Entry {
+    /// Ancien rangement : un dossier par élément, avec `info.json`.
+    fn legacy(&self) -> bool {
+        self.loc.file_name().is_some_and(|n| n == "info.json")
+    }
+    /// Dossier du fichier média (saison pour un épisode).
     pub fn dir(&self) -> PathBuf {
-        root().join(&self.id)
+        self.loc.parent().map(Path::to_path_buf).unwrap_or_else(root)
+    }
+    /// Dossier des images partagées (série, ou film).
+    fn meta_dir(&self) -> PathBuf {
+        let d = self.dir();
+        if !self.legacy() && self.kind == "Episode" {
+            return d.parent().map(Path::to_path_buf).unwrap_or(d);
+        }
+        d
+    }
+    /// Nom commun des fichiers de l'élément (« Série S01E01 »).
+    fn base(&self) -> String {
+        self.loc.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
     }
     pub fn media_path(&self) -> PathBuf {
         self.dir().join(&self.media)
     }
     pub fn poster_path(&self) -> PathBuf {
-        self.dir().join("poster.jpg")
+        self.meta_dir().join("poster.jpg")
     }
     /// Affiche de la série (sinon celle de l'élément).
     pub fn series_poster(&self) -> PathBuf {
-        let p = self.dir().join("series.jpg");
-        if p.exists() { p } else { self.poster_path() }
+        if self.legacy() {
+            let p = self.dir().join("series.jpg");
+            if p.exists() {
+                return p;
+            }
+        }
+        self.poster_path()
     }
     /// Affiche de la saison (sinon celle de la série).
     pub fn season_poster(&self) -> PathBuf {
@@ -85,29 +126,156 @@ impl Entry {
     }
     /// Logo (série ou film), s'il y en a un.
     pub fn logo_path(&self) -> Option<PathBuf> {
-        let p = self.dir().join("logo.png");
+        let p = self.meta_dir().join("logo.png");
         p.exists().then_some(p)
     }
     /// Image de fond (série ou film), s'il y en a une.
     pub fn backdrop_path(&self) -> Option<PathBuf> {
-        let p = self.dir().join("backdrop.jpg");
+        let p = self.meta_dir().join("backdrop.jpg");
         p.exists().then_some(p)
     }
     pub fn thumb_path(&self) -> PathBuf {
-        // Épisode : son image à lui (still.jpg), sinon la vignette.
-        let still = self.dir().join("still.jpg");
+        // Épisode : son image à lui, sinon la vignette.
+        let still = if self.legacy() { self.dir().join("still.jpg") } else { self.dir().join(format!("{}.jpg", self.base())) };
         if still.exists() {
             return still;
         }
-        let p = self.dir().join("thumb.jpg");
+        let p = self.meta_dir().join("thumb.jpg");
         if p.exists() { p } else { self.poster_path() }
     }
 }
 
-/// Réécrit `info.json` (position, « vu », métadonnées complétées).
+// ---------------------------------------------------------------------------
+// Noms de fichiers
+// ---------------------------------------------------------------------------
+
+/// Identifiant Jellyfin utilisable tel quel dans un chemin (lettres et chiffres seulement).
+fn id_ok(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// Nom de dossier / de fichier tiré d'un texte du serveur : caractères interdits (Windows compris)
+/// remplacés, pas de « . » ni « .. », pas de nom réservé (CON, NUL…), longueur bornée.
+pub fn fs_name(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        let c = match c {
+            '<' | '>' | '"' | '|' | '?' | '*' => continue,
+            ':' => ' ',
+            '/' | '\\' => '-',
+            c if c.is_control() => ' ',
+            c => c,
+        };
+        if c == ' ' && (out.is_empty() || out.ends_with(' ')) {
+            continue;
+        }
+        out.push(c);
+    }
+    // Au plus 80 caractères (chemins Windows), sans couper une lettre.
+    if let Some((i, _)) = out.char_indices().nth(80) {
+        out.truncate(i);
+    }
+    let out = out.trim_matches(|c: char| c == ' ' || c == '.').to_string();
+    if out.is_empty() {
+        return tr("Sans titre").to_string();
+    }
+    let stem = out.split('.').next().unwrap_or("").trim().to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.as_bytes()[3].is_ascii_digit());
+    if reserved { format!("{out}_") } else { out }
+}
+
+/// Dossier de la saison : « Season 01 », « Season 00 » pour les épisodes spéciaux.
+fn season_dir(index: Option<u32>) -> String {
+    format!("Season {:02}", index.unwrap_or(0))
+}
+
+/// Emplacement d'un élément : (dossier du média, nom commun de ses fichiers).
+fn place(library: &str, item: &crate::api::Item) -> (PathBuf, String) {
+    let lib = root().join(fs_name(library));
+    if item.kind == "Episode" {
+        let series = fs_name(item.series_name.as_deref().unwrap_or(&item.name));
+        let base = match (item.parent_index_number, item.index_number) {
+            (Some(s), Some(e)) => format!("{series} S{s:02}E{e:02}"),
+            (None, Some(e)) => format!("{series} E{e:02}"),
+            _ => format!("{series} - {}", fs_name(&item.name)),
+        };
+        return (lib.join(&series).join(season_dir(item.parent_index_number)), fs_name(&base));
+    }
+    let name = match item.production_year {
+        Some(y) => format!("{} ({y})", item.name),
+        None => item.name.clone(),
+    };
+    let name = fs_name(&name);
+    (lib.join(&name), name)
+}
+
+/// Bibliothèque d'un élément (nom du dossier du serveur), sinon un nom selon son type.
+async fn library_of(client: &Client, item: &crate::api::Item) -> String {
+    match client.library_name(&item.id).await {
+        Some(n) => n,
+        None if item.kind == "Episode" => tr("Séries").to_string(),
+        None => tr("Films").to_string(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Index : identifiant -> fichier de description, gardé en mémoire (les écrans demandent souvent
+// « cet élément est-il téléchargé ? »). Refait quand un fichier attendu a disparu.
+// ---------------------------------------------------------------------------
+
+static INDEX: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
+
+fn invalidate() {
+    *INDEX.lock().unwrap() = None;
+}
+
+/// Fichiers de description trouvés sous `dir` (sur `depth` niveaux).
+fn scan(dir: &Path, depth: u32, out: &mut Vec<PathBuf>) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for d in rd.flatten() {
+        let p = d.path();
+        let Ok(ft) = d.file_type() else { continue };
+        if ft.is_dir() {
+            if depth > 0 {
+                scan(&p, depth - 1, out);
+            }
+        } else if p.extension().is_some_and(|x| x == "json") && dir != root() {
+            out.push(p);
+        }
+    }
+}
+
+fn read_entry(loc: &Path) -> Option<Entry> {
+    let text = std::fs::read_to_string(loc).ok()?;
+    let mut e: Entry = serde_json::from_str(&text).ok()?;
+    if !id_ok(&e.id) || e.media.is_empty() || e.media.contains(['/', '\\']) || e.media.starts_with('.') {
+        return None;
+    }
+    e.loc = loc.to_path_buf();
+    e.media_path().exists().then_some(e)
+}
+
+/// Tous les éléments complets, avec la date de leur description.
+fn all() -> Vec<(std::time::SystemTime, Entry)> {
+    let mut files = Vec::new();
+    scan(&root(), 3, &mut files);
+    let mut out = Vec::new();
+    let mut index = HashMap::new();
+    for f in files {
+        let Some(e) = read_entry(&f) else { continue };
+        index.insert(e.id.clone(), f.clone());
+        let t = std::fs::metadata(&f).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+        out.push((t, e));
+    }
+    *INDEX.lock().unwrap() = Some(index);
+    out
+}
+
+/// Réécrit la description de l'élément (position, « vu », métadonnées complétées).
 pub fn save(e: &Entry) {
     if let Ok(t) = serde_json::to_string_pretty(e) {
-        let _ = std::fs::write(e.dir().join("info.json"), t);
+        let _ = std::fs::write(&e.loc, t);
     }
 }
 
@@ -176,7 +344,17 @@ pub async fn sync(client: &Client) -> usize {
     n
 }
 
-/// Métadonnées et affiches de série / saison : `item` est l'élément tel que donné par le serveur.
+/// Image enregistrée seulement si elle manque (images partagées par les épisodes d'une série).
+async fn save_missing(path: &Path, fetch: impl std::future::Future<Output = Option<Vec<u8>>>) {
+    if !path.exists() {
+        if let Some(b) = fetch.await {
+            save_bytes(path, &b).await;
+        }
+    }
+}
+
+/// Métadonnées et images : `item` est l'élément tel que donné par le serveur. Les images de la
+/// série (ou du film) et de la saison ne sont demandées qu'une fois, pour tous les épisodes.
 async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
     e.meta = true;
     e.meta_v = META_V;
@@ -201,22 +379,20 @@ async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
     if let Some(t) = item.run_time_ticks {
         e.runtime_secs = t as f64 / 1e7;
     }
-    let dir = e.dir();
+    let (dir, meta) = (e.dir(), e.meta_dir());
+    let _ = tokio::fs::create_dir_all(&meta).await;
     if item.kind == "Episode" {
         if let Some(t) = item.image_tags.as_ref().and_then(|m| m.get("Primary")) {
             if let Some(b) = client.image_first(&[(item.id.clone(), Some(t.clone()))], "Primary", Size::Fill(400, 225)).await {
-                save_bytes(&dir.join("still.jpg"), &b).await;
+                save_bytes(&dir.join(format!("{}.jpg", e.base())), &b).await;
             }
         }
-    }
-    if !dir.join("poster.jpg").exists() {
-        if let Some(b) = client.image_first(&item.poster_candidates(), "Primary", Size::Fill(400, 600)).await {
-            save_bytes(&dir.join("poster.jpg"), &b).await;
-        }
+    } else {
+        save_missing(&meta.join("thumb.jpg"), client.image_any(&item.card().thumbs, Size::Fill(400, 225))).await;
     }
     // Logo et fond : ceux de la série pour un épisode.
     let mut look = item.clone();
-    if !e.series_id.is_empty() {
+    if id_ok(&e.series_id) {
         if let Ok(series) = client.item(&e.series_id).await {
             e.series_overview = series.overview.clone().unwrap_or_default();
             if e.year.is_none() {
@@ -225,38 +401,127 @@ async fn fill_meta(client: &Client, e: &mut Entry, item: &crate::api::Item) {
             look = series;
         }
         let series_ref = [(e.series_id.clone(), item.series_primary_image_tag.clone())];
-        if let Some(b) = client.image_first(&series_ref, "Primary", Size::Fill(400, 600)).await {
-            save_bytes(&dir.join("series.jpg"), &b).await;
-        }
+        save_missing(&meta.join("poster.jpg"), client.image_first(&series_ref, "Primary", Size::Fill(400, 600))).await;
     }
-    if !e.season_id.is_empty() {
-        if let Some(b) = client.image_first(&[(e.season_id.clone(), None)], "Primary", Size::Fill(400, 600)).await {
-            save_bytes(&dir.join("season.jpg"), &b).await;
-        }
+    save_missing(&meta.join("poster.jpg"), client.image_first(&item.poster_candidates(), "Primary", Size::Fill(400, 600))).await;
+    if id_ok(&e.season_id) {
+        save_missing(&dir.join("season.jpg"), client.image_first(&[(e.season_id.clone(), None)], "Primary", Size::Fill(400, 600))).await;
         if let Ok(season) = client.item(&e.season_id).await {
             e.season_overview = season.overview.clone().unwrap_or_default();
         }
     }
     if let Some(logo) = look.logo_candidate().or_else(|| item.logo_candidate()) {
-        if let Some(b) = client.image_first(&[logo], "Logo", Size::MaxWidth(500)).await {
-            save_bytes(&dir.join("logo.png"), &b).await;
-        }
+        save_missing(&meta.join("logo.png"), client.image_first(&[logo], "Logo", Size::MaxWidth(500))).await;
     }
-    if let Some(b) = client.backdrop(&look).await {
-        save_bytes(&dir.join("backdrop.jpg"), &b).await;
-    }
+    save_missing(&meta.join("backdrop.jpg"), client.backdrop(&look)).await;
 }
 
-/// Téléchargement d'avant le regroupement par série : métadonnées complétées (une fois).
+/// Téléchargement plus ancien : métadonnées complétées et fichiers rangés par bibliothèque /
+/// série / saison (une fois, quand le serveur répond).
 pub async fn enrich(client: &Client, id: &str) -> bool {
-    let Some(mut e) = get(id) else { return false };
-    if e.meta_v >= META_V {
+    // Un seul rangement à la fois (l'écran Téléchargements et la reconnexion peuvent le demander).
+    static BUSY: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _busy = BUSY.lock().await;
+    let Some(old) = get(id) else { return false };
+    if old.meta_v >= META_V {
         return false;
     }
     let Ok(item) = client.item(id).await else { return false };
+    let mut e = old.clone();
+    if old.legacy() {
+        let library = library_of(client, &item).await;
+        let Some(moved) = relocate(&old, &library, &item) else { return false };
+        e = moved;
+    }
     fill_meta(client, &mut e, &item).await;
     save(&e);
+    invalidate();
     true
+}
+
+/// Métadonnées à compléter ou fichiers à ranger (`enrich`).
+pub fn outdated(e: &Entry) -> bool {
+    e.meta_v < META_V
+}
+
+/// Tous les anciens téléchargements rangés (à la connexion) ; rend le nombre d'éléments rangés.
+pub async fn migrate(client: &Client) -> usize {
+    let mut n = 0;
+    for e in list().into_iter().filter(outdated) {
+        if enrich(client, &e.id).await {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Range un ancien téléchargement (`downloads/<id>/`) à sa place, puis supprime l'ancien dossier.
+fn relocate(old: &Entry, library: &str, item: &crate::api::Item) -> Option<Entry> {
+    let (dir, mut base) = place(library, item);
+    std::fs::create_dir_all(&dir).ok()?;
+    if let Some(other) = read_entry(&dir.join(format!("{base}.json"))).filter(|o| o.id != old.id) {
+        let _ = other;
+        base = format!("{base} [{}]", &old.id[..old.id.len().min(8)]);
+    }
+    let src = old.dir();
+    let ext = Path::new(&old.media).extension().map(|x| x.to_string_lossy().into_owned()).unwrap_or_else(|| "mkv".into());
+    let media = format!("{base}.{ext}");
+    move_file(&old.media_path(), &dir.join(&media)).ok()?;
+    let mut e = old.clone();
+    e.media = media;
+    e.library = library.to_string();
+    e.subs = old
+        .subs
+        .iter()
+        .enumerate()
+        .filter_map(|(n, (f, lang))| {
+            let ext = Path::new(f).extension()?.to_string_lossy().into_owned();
+            let name = sub_name(&base, n, lang, &ext);
+            move_file(&src.join(f), &dir.join(&name)).ok()?;
+            Some((name, lang.clone()))
+        })
+        .collect();
+    e.loc = dir.join(format!("{base}.json"));
+    // Images : celles de l'épisode à côté de lui, celles de la série / du film partagées.
+    let meta = e.meta_dir();
+    let keep = |from: &str, to: PathBuf| {
+        let f = src.join(from);
+        if f.exists() && !to.exists() {
+            let _ = move_file(&f, &to);
+        }
+    };
+    if item.kind == "Episode" {
+        keep("still.jpg", dir.join(format!("{base}.jpg")));
+        keep("season.jpg", dir.join("season.jpg"));
+        keep("series.jpg", meta.join("poster.jpg"));
+    } else {
+        keep("thumb.jpg", meta.join("thumb.jpg"));
+        keep("poster.jpg", meta.join("poster.jpg"));
+    }
+    keep("logo.png", meta.join("logo.png"));
+    keep("backdrop.jpg", meta.join("backdrop.jpg"));
+    save(&e);
+    if src.starts_with(root()) && src != root() {
+        let _ = std::fs::remove_dir_all(&src);
+    }
+    Some(e)
+}
+
+/// Déplace un fichier (copie puis suppression si le renommage est impossible).
+fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    if std::fs::rename(from, to).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(from, to)?;
+    std::fs::remove_file(from)
+}
+
+/// « Série S01E01.0.fre.srt » : numéro (plusieurs pistes d'une même langue), langue, format.
+fn sub_name(base: &str, n: usize, lang: &str, ext: &str) -> String {
+    let lang: String = lang.chars().filter(|c| c.is_ascii_alphanumeric()).take(12).collect();
+    let ext: String = ext.chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
+    let ext = if ext.is_empty() { "srt".to_string() } else { ext };
+    if lang.is_empty() { format!("{base}.{n}.{ext}") } else { format!("{base}.{n}.{lang}.{ext}") }
 }
 
 /// Le serveur refuse le téléchargement (droit retiré, élément supprimé...) : réessayer ne sert à rien.
@@ -276,7 +541,13 @@ pub fn save_queue(q: &[(String, String)]) {
 }
 
 pub fn load_queue() -> Vec<(String, String)> {
-    std::fs::read_to_string(root().join("queue.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(root().join("queue.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Vec<(String, String)>>(&t).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(id, _)| id_ok(id))
+        .collect()
 }
 
 pub fn root() -> PathBuf {
@@ -287,36 +558,79 @@ pub fn root() -> PathBuf {
 
 /// Éléments complètement téléchargés, du plus récent au plus ancien.
 pub fn list() -> Vec<Entry> {
-    let mut out: Vec<(std::time::SystemTime, Entry)> = Vec::new();
-    let Ok(dirs) = std::fs::read_dir(root()) else { return Vec::new() };
-    for d in dirs.flatten() {
-        let info = d.path().join("info.json");
-        let Ok(text) = std::fs::read_to_string(&info) else { continue };
-        let Ok(e) = serde_json::from_str::<Entry>(&text) else { continue };
-        if !e.media_path().exists() {
-            continue;
-        }
-        let t = std::fs::metadata(&info).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-        out.push((t, e));
-    }
+    let mut out = all();
     out.sort_by(|a, b| b.0.cmp(&a.0));
     out.into_iter().map(|(_, e)| e).collect()
 }
 
 pub fn get(id: &str) -> Option<Entry> {
-    let text = std::fs::read_to_string(root().join(id).join("info.json")).ok()?;
-    let e: Entry = serde_json::from_str(&text).ok()?;
-    e.media_path().exists().then_some(e)
+    if !id_ok(id) {
+        return None;
+    }
+    let cached = INDEX.lock().unwrap().as_ref().map(|m| m.get(id).cloned());
+    let loc = match cached {
+        Some(loc) => loc,
+        None => {
+            all();
+            INDEX.lock().unwrap().as_ref().and_then(|m| m.get(id).cloned())
+        }
+    }?;
+    match read_entry(&loc) {
+        Some(e) if e.id == id => Some(e),
+        // Fichier déplacé ou supprimé entre-temps : l'index est refait.
+        _ => {
+            invalidate();
+            None
+        }
+    }
 }
 
 pub fn exists(id: &str) -> bool {
     get(id).is_some()
 }
 
+/// Supprime un élément ; les images de la saison, de la série (ou du film) partent avec le dernier
+/// élément qui les utilisait.
 pub fn remove(id: &str) {
-    if !id.is_empty() && !id.contains(['/', '\\', '.']) {
-        let _ = std::fs::remove_dir_all(root().join(id));
+    let Some(e) = get(id) else { return };
+    invalidate();
+    if e.legacy() {
+        let dir = e.dir();
+        if dir.starts_with(root()) && dir != root() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        return;
     }
+    let dir = e.dir();
+    let base = e.base();
+    let _ = std::fs::remove_file(e.media_path());
+    for (f, _) in &e.subs {
+        let _ = std::fs::remove_file(dir.join(f));
+    }
+    let _ = std::fs::remove_file(dir.join(format!("{base}.jpg")));
+    let _ = std::fs::remove_file(&e.loc);
+    // Dossiers devenus inutiles (plus aucun élément dedans), jusqu'à la bibliothèque.
+    let mut d = dir;
+    while d.starts_with(root()) && d != root() {
+        let mut files = Vec::new();
+        scan(&d, 2, &mut files);
+        if files.iter().any(|f| read_entry(f).is_some()) || has_partial(&d) {
+            break;
+        }
+        let _ = std::fs::remove_dir_all(&d);
+        match d.parent() {
+            Some(p) => d = p.to_path_buf(),
+            None => break,
+        }
+    }
+}
+
+/// Un transfert en cours (fichier `.part`) dans ce dossier ou en dessous.
+fn has_partial(dir: &Path) -> bool {
+    std::fs::read_dir(dir).into_iter().flatten().flatten().any(|d| {
+        let p = d.path();
+        if p.is_dir() { has_partial(&p) } else { p.extension().is_some_and(|x| x == "part") }
+    })
 }
 
 async fn save_bytes(path: &Path, bytes: &[u8]) {
@@ -325,36 +639,41 @@ async fn save_bytes(path: &Path, bytes: &[u8]) {
 
 /// Télécharge un film / un épisode. `progress(fraction)` est appelé au fil du transfert.
 pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Result<()> {
+    if !id_ok(id) {
+        return Err(Refused(tr("élément inconnu").to_string()).into());
+    }
     if exists(id) {
         return Ok(());
     }
     let item = client.item(id).await?;
-    let dir = root().join(id);
+    if item.id != id {
+        return Err(Refused(tr("élément inconnu").to_string()).into());
+    }
+    let library = library_of(client, &item).await;
+    let (dir, mut base) = place(&library, &item);
     tokio::fs::create_dir_all(&dir).await?;
-
-    // Affiche et vignette (le cache d'images de Jellyfin sert aussi ici).
-    if let Some(b) = client.image_first(&item.poster_candidates(), "Primary", Size::Fill(400, 600)).await {
-        save_bytes(&dir.join("poster.jpg"), &b).await;
-    }
-    let card = item.card();
-    if let Some(b) = client.image_any(&card.thumbs, Size::Fill(400, 225)).await {
-        save_bytes(&dir.join("thumb.jpg"), &b).await;
+    // Deux éléments du même nom (même série en double sur le serveur…) : le second est distingué.
+    if read_entry(&dir.join(format!("{base}.json"))).is_some_and(|o| o.id != item.id) {
+        base = format!("{base} [{}]", &item.id[..item.id.len().min(8)]);
     }
 
-    // Sous-titres externes.
+    // Sous-titres externes (jeton dans l'en-tête, comme pour le média).
     let source = item.media_sources.as_ref().and_then(|v| v.first());
     let ms_id = source.map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
     let mut subs: Vec<(String, String)> = Vec::new();
-    let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(15)).build()?;
+    let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(60)).build()?;
     for (n, st) in source.into_iter().flat_map(|s| s.media_streams.iter()).filter(|s| s.kind == "Subtitle" && s.is_external).enumerate() {
         let Some(url) = client.subtitle_url(&item.id, &ms_id, st) else { continue };
-        let ext = url.rsplit('.').next().and_then(|e| e.split('?').next()).unwrap_or("srt").to_string();
-        if let Ok(r) = http.get(&url).send().await {
-            if let Ok(b) = r.bytes().await {
-                let name = format!("sub_{n}.{ext}");
-                save_bytes(&dir.join(&name), &b).await;
-                subs.push((name, st.language.clone().unwrap_or_default()));
-            }
+        let ext = url.rsplit('.').next().unwrap_or("srt");
+        let Ok(r) = http.get(&url).header("Authorization", client.auth()).send().await else { continue };
+        if !r.status().is_success() {
+            continue;
+        }
+        if let Ok(b) = crate::api::body_limited(r, 16 << 20).await {
+            let lang = st.language.clone().unwrap_or_default();
+            let name = sub_name(&base, n, &lang, ext);
+            save_bytes(&dir.join(&name), &b).await;
+            subs.push((name, lang));
         }
     }
 
@@ -362,9 +681,9 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     let ext = source
         .and_then(|s| s.container.clone())
         .and_then(|c| c.split(',').next().map(str::to_string))
-        .filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric()))
+        .filter(|c| !c.is_empty() && c.len() <= 8 && c.chars().all(|ch| ch.is_ascii_alphanumeric()))
         .unwrap_or_else(|| "mkv".to_string());
-    let media = format!("media.{ext}");
+    let media = format!("{base}.{ext}");
     let part = dir.join(format!("{media}.part"));
     // Transfert interrompu : on reprend après ce qui est déjà sur le disque.
     let have = tokio::fs::metadata(&part).await.map(|m| m.len()).unwrap_or(0);
@@ -372,6 +691,8 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     if have > 0 {
         req = req.header("Range", format!("bytes={have}-"));
     }
+    // Pas de limite de durée pour le média lui-même (plusieurs gigaoctets) : seulement le silence.
+    let req = req.timeout(Duration::from_secs(24 * 3600));
     let mut resp = req.send().await?;
     let status = resp.status().as_u16();
     use tokio::io::AsyncWriteExt;
@@ -425,6 +746,8 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         media,
         subs,
         size: done,
+        library,
+        loc: dir.join(format!("{base}.json")),
         ..Default::default()
     };
     if let Some(ud) = &item.user_data {
@@ -432,7 +755,59 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         entry.played = ud.played;
     }
     fill_meta(client, &mut entry, &item).await;
-    tokio::fs::write(dir.join("info.json"), serde_json::to_string_pretty(&entry)?).await?;
+    tokio::fs::write(&entry.loc, serde_json::to_string_pretty(&entry)?).await?;
+    invalidate();
     progress(1.0);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names() {
+        assert_eq!(fs_name("Cowboy Bebop"), "Cowboy Bebop");
+        assert_eq!(fs_name("../../etc/passwd"), "-..-etc-passwd");
+        assert_eq!(fs_name("Re:Zero"), "Re Zero");
+        assert_eq!(fs_name("What?*<>|\""), "What");
+        assert_eq!(fs_name("CON"), "CON_");
+        assert_eq!(fs_name("com1.txt"), "com1.txt_");
+        assert_eq!(fs_name("  ..  "), tr("Sans titre"));
+        assert_eq!(fs_name("x".repeat(300).as_str()).chars().count(), 80);
+        assert_eq!(season_dir(Some(1)), "Season 01");
+        assert_eq!(season_dir(Some(0)), "Season 00");
+        assert_eq!(season_dir(Some(12)), "Season 12");
+        assert!(!id_ok("../x"));
+        assert!(id_ok("13562385d903c96cf4c7f20f40768987"));
+        assert_eq!(sub_name("B S01E01", 0, "fre", "srt"), "B S01E01.0.fre.srt");
+        assert_eq!(sub_name("B", 1, "../", "s/rt?x"), "B.1.srtx");
+    }
+
+    #[test]
+    fn places() {
+        let ep: crate::api::Item = serde_json::from_value(serde_json::json!({
+            "Id": "a1", "Name": "Session 1", "Type": "Episode", "IsFolder": false,
+            "SeriesName": "Cowboy Bebop", "ParentIndexNumber": 1, "IndexNumber": 1
+        }))
+        .unwrap();
+        let (dir, base) = place("Anime", &ep);
+        assert!(dir.ends_with(Path::new("Anime").join("Cowboy Bebop").join("Season 01")));
+        assert_eq!(base, "Cowboy Bebop S01E01");
+        let sp: crate::api::Item = serde_json::from_value(serde_json::json!({
+            "Id": "a2", "Name": "Special", "Type": "Episode", "IsFolder": false,
+            "SeriesName": "Cowboy Bebop", "ParentIndexNumber": 0, "IndexNumber": 3
+        }))
+        .unwrap();
+        let (dir, base) = place("Anime", &sp);
+        assert!(dir.ends_with("Season 00"));
+        assert_eq!(base, "Cowboy Bebop S00E03");
+        let mv: crate::api::Item = serde_json::from_value(serde_json::json!({
+            "Id": "a3", "Name": "Akira", "Type": "Movie", "IsFolder": false, "ProductionYear": 1988
+        }))
+        .unwrap();
+        let (dir, base) = place("Films", &mv);
+        assert!(dir.ends_with(Path::new("Films").join("Akira (1988)")));
+        assert_eq!(base, "Akira (1988)");
+    }
 }

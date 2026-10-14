@@ -1672,3 +1672,15 @@ msgid "Une nouvelle version est disponible : {n} nouveauté."
 msgid_plural "Une nouvelle version est disponible : {n} nouveautés."
 msgstr[0] "Er is een nieuwe versie beschikbaar: {n} nieuwigheid."
 msgstr[1] "Er is een nieuwe versie beschikbaar: {n} nieuwigheden."
+
+msgid "Sans titre"
+msgstr "Zonder titel"
+
+msgid "fichier téléchargé abîmé ou modifié (empreinte différente) : mise à jour annulée"
+msgstr "gedownload bestand beschadigd of gewijzigd (andere controlesom): update geannuleerd"
+
+msgid "réponse du serveur trop grande"
+msgstr "antwoord van de server te groot"
+
+msgid "élément inconnu"
+msgstr "onbekend item"

@@ -644,13 +644,63 @@ fn build_http() -> Result<reqwest::Client> {
     Ok(b.build()?)
 }
 
+/// Taille maximale d'une réponse JSON, d'une image : un serveur défaillant (ou malveillant) ne peut
+/// pas remplir la mémoire en envoyant une réponse sans fin.
+const MAX_JSON: usize = 64 << 20;
+const MAX_IMAGE: usize = 24 << 20;
+
+/// Corps d'une réponse, refusé au-delà de `max` octets.
+pub async fn body_limited(mut resp: reqwest::Response, max: usize) -> Result<Vec<u8>> {
+    if resp.content_length().is_some_and(|n| n > max as u64) {
+        return Err(anyhow!("{}", tr("réponse du serveur trop grande")));
+    }
+    let mut out = Vec::new();
+    while let Some(c) = resp.chunk().await? {
+        if out.len() + c.len() > max {
+            return Err(anyhow!("{}", tr("réponse du serveur trop grande")));
+        }
+        out.extend_from_slice(&c);
+    }
+    Ok(out)
+}
+
+async fn json_limited<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T> {
+    Ok(serde_json::from_slice(&body_limited(resp, MAX_JSON).await?)?)
+}
+
+/// Morceau d'adresse venu du serveur (identifiant, étiquette d'image) : tout ce qui n'est pas
+/// lettre, chiffre, « - » ou « _ » est encodé (pas de « ../ », « ? » ou « # » glissés dans l'adresse).
+pub fn seg(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    let mut out = String::new();
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Nom de fichier sûr tiré d'un texte du serveur (cache d'images) : pas de séparateur de dossier.
+pub fn file_key(s: &str) -> String {
+    s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(64).collect()
+}
+
 /// Dossier du cache d'images (Paramètres > À propos : taille, vidage).
 pub fn image_cache_dir() -> Option<PathBuf> {
     crate::paths::cache_dir().map(|d| d.join("img"))
 }
 
 fn image_cache_path(item_id: &str, kind: &str, tag: Option<&str>, size_key: &str) -> Option<PathBuf> {
-    image_cache_dir().map(|d| d.join(format!("{item_id}_{kind}_{}_{size_key}.bin", tag.unwrap_or("none"))))
+    let (id, kind, tag) = (file_key(item_id), file_key(kind), file_key(tag.unwrap_or("none")));
+    if id.is_empty() {
+        return None;
+    }
+    image_cache_dir().map(|d| d.join(format!("{id}_{kind}_{tag}_{size_key}.bin")))
 }
 
 impl Client {
@@ -711,7 +761,7 @@ impl Client {
         if !status.is_success() {
             return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&status])));
         }
-        let r: AuthResult = resp.json().await?;
+        let r: AuthResult = json_limited(resp).await?;
         Ok(Self {
             http,
             server,
@@ -733,7 +783,7 @@ impl Client {
         match resp.status().as_u16() {
             401 => Err(Unauthorized.into()),
             c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&c, &path]))),
-            _ => Ok(resp.json::<T>().await?),
+            _ => json_limited(resp).await,
         }
     }
 
@@ -812,6 +862,7 @@ impl Client {
 
     /// Un élément avec ses métadonnées (résumé, note, durée, état de lecture...).
     pub async fn item(&self, id: &str) -> Result<Item> {
+        let id = seg(id);
         match self.get::<Item>(&format!("/Items/{id}"), &[("userId", &self.user_id)]).await {
             Ok(i) => Ok(i),
             Err(e) if e.downcast_ref::<Unauthorized>().is_some() => Err(e),
@@ -887,7 +938,23 @@ impl Client {
         if !resp.status().is_success() {
             return Err(anyhow!("{path} : {}", resp.status()));
         }
-        Ok(resp.bytes().await?.to_vec())
+        body_limited(resp, MAX_IMAGE).await
+    }
+
+    /// Nom de la bibliothèque (dossier de médias du serveur) qui contient un élément.
+    pub async fn library_name(&self, id: &str) -> Option<String> {
+        let v: serde_json::Value = self.get(&format!("/Items/{}/Ancestors", seg(id)), &[("userId", &self.user_id)]).await.ok()?;
+        v.as_array()?
+            .iter()
+            .find(|a| a["Type"].as_str() == Some("CollectionFolder"))
+            .and_then(|a| a["Name"].as_str())
+            .filter(|n| !n.trim().is_empty())
+            .map(str::to_string)
+    }
+
+    /// Fin de session côté serveur : le jeton est révoqué (compte retiré de l'appareil).
+    pub async fn logout(&self) -> Result<()> {
+        self.post_json("/Sessions/Logout", &serde_json::json!({})).await
     }
 
     /// Avatar du compte (image Primary de l'utilisateur), si défini.
@@ -923,12 +990,12 @@ impl Client {
     pub async fn upload_avatar(&self, avatar_id: &str) -> Result<()> {
         let resp = self
             .http
-            .get(format!("{}/GetAvatar/Image/{avatar_id}", self.server))
+            .get(format!("{}/GetAvatar/Image/{}", self.server, seg(avatar_id)))
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .send()
             .await?;
         let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("image/png").to_string();
-        let bytes = resp.bytes().await?;
+        let bytes = body_limited(resp, MAX_IMAGE).await?;
         use base64::Engine;
         let body = base64::engine::general_purpose::STANDARD.encode(&bytes);
         let resp = self
@@ -1351,18 +1418,22 @@ impl Client {
         Ok(r.items)
     }
 
-    /// Flux brut (lecture directe) lu par mpv.
+    /// Flux brut (lecture directe) lu par mpv. Le jeton passe par l'en-tête (voir `auth`, posé dans
+    /// `http-header-fields` de mpv), jamais dans l'adresse.
     pub fn stream_url(&self, item_id: &str, media_source_id: &str) -> String {
         format!(
-            "{}/Videos/{}/stream?static=true&mediaSourceId={}&deviceId={}&api_key={}",
-            self.server, item_id, media_source_id, self.device_id, self.token
+            "{}/Videos/{}/stream?static=true&mediaSourceId={}&deviceId={}",
+            self.server,
+            seg(item_id),
+            seg(media_source_id),
+            seg(&self.device_id)
         )
     }
 
     /// Fichier original à télécharger (lecture hors ligne). Le jeton doit passer par l'en-tête
     /// (voir `auth`) : ce point d'accès refuse `api_key` dans l'adresse (401).
     pub fn download_url(&self, item_id: &str) -> String {
-        format!("{}/Items/{}/Download", self.server, item_id)
+        format!("{}/Items/{}/Download", self.server, seg(item_id))
     }
 
     /// Valeur de l'en-tête Authorization de la session.
@@ -1379,8 +1450,12 @@ impl Client {
             _ => return None,
         };
         Some(format!(
-            "{}/Videos/{}/{}/Subtitles/{}/Stream.{}?api_key={}",
-            self.server, item_id, media_source_id, st.index, fmt, self.token
+            "{}/Videos/{}/{}/Subtitles/{}/Stream.{}",
+            self.server,
+            seg(item_id),
+            seg(media_source_id),
+            st.index,
+            fmt
         ))
     }
 
@@ -1426,7 +1501,7 @@ impl Client {
 
         let resp = self
             .http
-            .get(format!("{}/Items/{}/Images/{}", self.server, item_id, kind))
+            .get(format!("{}/Items/{}/Images/{}", self.server, seg(item_id), seg(kind)))
             .query(&q)
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .send()
@@ -1434,7 +1509,7 @@ impl Client {
         if !resp.status().is_success() {
             return Err(anyhow!("image {} ({}) : {}", item_id, kind, resp.status()));
         }
-        let bytes = resp.bytes().await?.to_vec();
+        let bytes = body_limited(resp, MAX_IMAGE).await?;
 
         if let Some(p) = &cache {
             if let Some(dir) = p.parent() {
@@ -1471,7 +1546,7 @@ impl Client {
         if !resp.status().is_success() {
             return Err(anyhow!("image {url} : {}", resp.status()));
         }
-        let bytes = resp.bytes().await?.to_vec();
+        let bytes = body_limited(resp, MAX_IMAGE).await?;
         if let Some(p) = &cache {
             if let Some(dir) = p.parent() {
                 let _ = tokio::fs::create_dir_all(dir).await;

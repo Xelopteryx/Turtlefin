@@ -43,6 +43,10 @@ pub fn cache_dir() -> Option<PathBuf> {
 
 /// Données (téléchargements).
 pub fn data_dir() -> Option<PathBuf> {
+    // Essais : téléchargements dans un autre dossier (comme TURTLEFIN_CONFIG_DIR pour la config).
+    if let Some(d) = std::env::var_os("TURTLEFIN_DATA_DIR") {
+        return Some(PathBuf::from(d));
+    }
     if let Some(p) = portable_root() {
         return Some(p);
     }

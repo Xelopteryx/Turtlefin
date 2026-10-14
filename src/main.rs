@@ -347,9 +347,26 @@ fn round_corners(img: &mut image::RgbaImage, r: f32, top_only: bool) {
     }
 }
 
+/// Limites de décodage : une image venue du réseau (ou d'un fichier) ne peut pas demander des
+/// gigaoctets de mémoire (« bombe » de décompression : petit fichier, image immense).
+fn image_limits() -> image::Limits {
+    let mut l = image::Limits::default();
+    l.max_image_width = Some(8192);
+    l.max_image_height = Some(8192);
+    l.max_alloc = Some(256 << 20);
+    l
+}
+
+/// `image::load_from_memory`, avec `image_limits`.
+fn load_image(bytes: &[u8]) -> Option<image::DynamicImage> {
+    let mut r = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    r.limits(image_limits());
+    r.decode().ok()
+}
+
 /// Fond d'écran : image réduite, floutée et assombrie une seule fois au décodage.
 fn decode_backdrop(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
-    let img = image::load_from_memory(bytes).ok()?.resize_to_fill(960, 540, image::imageops::FilterType::Triangle);
+    let img = load_image(bytes)?.resize_to_fill(960, 540, image::imageops::FilterType::Triangle);
     let mut img = image::imageops::blur(&img.to_rgba8(), 3.0);
     for p in img.pixels_mut() {
         for c in 0..3 {
@@ -361,7 +378,7 @@ fn decode_backdrop(bytes: &[u8]) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
 }
 
 fn decode(bytes: &[u8], shape: Option<Shape>) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
-    let img = image::load_from_memory(bytes).ok()?;
+    let img = load_image(bytes)?;
     Some(match shape {
         Some(s) => shaped(img, s),
         None => {
@@ -464,9 +481,16 @@ const MAX_FRAMES: usize = 150;
 
 /// Comme `decode`, en gardant toutes les images d'un GIF animé (sauf si les GIF sont figés).
 fn decode_frames(bytes: &[u8], shape: Shape) -> Option<Frames> {
-    use image::AnimationDecoder;
+    use image::{AnimationDecoder, ImageDecoder};
     if bytes.starts_with(b"GIF8") && !STILL_GIFS.load(Ordering::Relaxed) {
-        if let Ok(dec) = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(bytes)) {
+        let dec = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(bytes))
+            .ok()
+            .and_then(|mut d| {
+                // Chaque image d'un GIF fait la taille du canevas : il est borné plus serré.
+                let (w, h) = d.dimensions();
+                (w <= 2048 && h <= 2048 && d.set_limits(image_limits()).is_ok()).then_some(d)
+            });
+        if let Some(dec) = dec {
             let mut out = Frames::new();
             for f in dec.into_frames().take(MAX_FRAMES) {
                 let Ok(f) = f else { break };
@@ -543,7 +567,7 @@ fn anim_set(u: &AppWindow, slot: AnimSlot, key: &str, img: slint::Image) -> bool
 /// de suite aux lancements suivants, puis rafraîchi depuis le serveur.
 fn avatar_cache_path(uid: &str) -> Option<std::path::PathBuf> {
     let still = if STILL_GIFS.load(Ordering::Relaxed) { "still" } else { "anim" };
-    api::image_cache_dir().map(|d| d.join(format!("avatar_{uid}_{still}.bin")))
+    api::image_cache_dir().map(|d| d.join(format!("avatar_{}_{still}.bin", api::file_key(uid))))
 }
 
 fn avatar_cached(uid: &str) -> Option<(Vec<u8>, Frames)> {
@@ -555,7 +579,7 @@ fn avatar_cached(uid: &str) -> Option<(Vec<u8>, Frames)> {
 /// Vignette d'un avatar (sa première image, déjà en cercle) : se lit en une milliseconde, affichée
 /// tout de suite pendant que l'avatar complet (GIF animé, parfois lourd) se décode à part.
 fn avatar_thumb_path(uid: &str) -> Option<std::path::PathBuf> {
-    api::image_cache_dir().map(|d| d.join(format!("avatar_{uid}_thumb.png")))
+    api::image_cache_dir().map(|d| d.join(format!("avatar_{}_thumb.png", api::file_key(uid))))
 }
 
 fn avatar_thumb(uid: &str) -> Option<Frames> {
@@ -576,11 +600,11 @@ fn save_avatar_thumb(uid: &str, frames: &Frames) {
 async fn avatar_fetch(http: &reqwest::Client, server: &str, uid: &str, known: Option<&[u8]>) -> Option<Frames> {
     // Fichier d'origine si les GIF sont animés (réduit par le serveur, un GIF ne l'est plus).
     let size = if STILL_GIFS.load(Ordering::Relaxed) { "?maxWidth=200" } else { "" };
-    let r = http.get(format!("{server}/Users/{uid}/Images/Primary{size}")).send().await.ok()?;
+    let r = http.get(format!("{server}/Users/{}/Images/Primary{size}", api::seg(uid))).send().await.ok()?;
     if !r.status().is_success() {
         return None;
     }
-    let bytes = r.bytes().await.ok()?.to_vec();
+    let bytes = api::body_limited(r, 24 << 20).await.ok()?;
     if known == Some(&bytes[..]) {
         return None;
     }
@@ -1101,6 +1125,10 @@ fn end_session(app: &Arc<App>, forget: bool) {
     if forget {
         if let Some(c) = app.client() {
             config::forget_account(&c.user_id);
+            // Le jeton est aussi révoqué sur le serveur (il ne servira plus nulle part).
+            app.rt.spawn(async move {
+                let _ = c.logout().await;
+            });
         }
     }
     stop_syncplay(app);
@@ -3789,7 +3817,13 @@ fn open_url(url: &str) -> std::io::Result<()> {
     #[cfg(windows)]
     {
         // `start` (cmd) garde le « ?preset=… » d'une adresse file:///, contrairement à explorer.
-        paths::quiet_command("cmd").args(["/C", "start", "", url]).spawn().map(|_| ())
+        // Adresse entre guillemets : un « & » (dossier « Tom & Jerry ») n'est pas pris pour une
+        // seconde commande (en ligne de commande, cmd laisse tel quel un %…% inconnu).
+        use std::os::windows::process::CommandExt;
+        if url.contains(['"', '\n', '\r']) {
+            return Err(std::io::Error::other("adresse refusée"));
+        }
+        paths::quiet_command("cmd").raw_arg(format!("/C start \"\" \"{url}\"")).spawn().map(|_| ())
     }
     #[cfg(not(windows))]
     {
@@ -4592,9 +4626,17 @@ async fn play_local(app: Arc<App>, e: downloads::Entry) {
 
 /// Lectures faites hors ligne renvoyées au serveur (position, « vu »).
 fn sync_offline_plays(app: &Arc<App>, client: &api::Client) {
-    let (c, ui) = (client.clone(), app.ui());
-    app.rt.spawn(async move {
+    let (c, ui, app) = (client.clone(), app.ui(), app.clone());
+    app.clone().rt.spawn(async move {
         let n = downloads::sync(&c).await;
+        // Anciens téléchargements rangés par bibliothèque / série / saison.
+        if downloads::migrate(&c).await > 0 {
+            let _ = ui.upgrade_in_event_loop(move |u| {
+                if u.get_screen().as_str() == "downloads" {
+                    refresh_downloads(&app);
+                }
+            });
+        }
         if n > 0 {
             let msg = if n == 1 { tr("1 changement fait hors ligne envoyé au serveur.").to_string() } else { trf("{} changements faits hors ligne envoyés au serveur.", &[&n]) };
             let _ = ui.upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
@@ -5416,8 +5458,18 @@ fn main() -> anyhow::Result<()> {
         let app = app.clone();
         move |id| {
             if let Some(uid) = id.strip_prefix("acc:") {
-                let name = config::accounts().into_iter().find(|a| a.user_id == uid).map(|a| a.user_name).unwrap_or_default();
+                let acc = config::accounts().into_iter().find(|a| a.user_id == uid);
+                let name = acc.as_ref().map(|a| a.user_name.clone()).unwrap_or_default();
                 config::forget_account(uid);
+                // Jeton révoqué sur le serveur (s'il est joignable) : retiré pour de bon.
+                let saved = config::load();
+                if let Some(a) = acc.filter(|a| !a.token.is_empty() && a.server_id == saved.server_id) {
+                    if let Ok(c) = api::Client::from_token(&saved.server, &a.user_id, &a.user_name, &a.token, &saved.device_id) {
+                        app.rt.spawn(async move {
+                            let _ = c.logout().await;
+                        });
+                    }
+                }
                 if let Some(u) = app.ui().upgrade() {
                     u.set_error_text("".into());
                     u.set_toast(trf("{} retiré de cet appareil.", &[&name]).into());
@@ -6044,7 +6096,7 @@ fn refresh_downloads(app: &Arc<App>) {
     }
     // Anciens téléchargements (métadonnées incomplètes) : complétés si le serveur répond.
     if let (Some(client), false) = (app.client(), app.offline.load(Ordering::SeqCst)) {
-        let old: Vec<String> = entries.iter().filter(|e| e.meta_v < 3).map(|e| e.id.clone()).collect();
+        let old: Vec<String> = entries.iter().filter(|e| downloads::outdated(e)).map(|e| e.id.clone()).collect();
         if !old.is_empty() {
             let a = app.clone();
             app.rt.spawn(async move {
