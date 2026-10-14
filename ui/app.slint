@@ -451,6 +451,7 @@ component Card inherits Rectangle {
     in property <float> ratio: 1.5;
     in property <float> k: 1.0;
     callback clicked();
+    callback touched();
 
     property <length> img-h: root.width * root.ratio;
 
@@ -529,6 +530,19 @@ component Card inherits Rectangle {
     }
 
     card-area := TouchArea {
+        // Doigt posé sur la carte (écran tactile) : sa rangée devient la rangée active, pour qu'un
+        // glissement fasse défiler celle-ci (voir Swipe dans main.rs). La souris n'est pas concernée.
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.touch-finger-id != 0) {
+                root.touched();
+            }
+        }
+        // Souris : carte tirée de quelques pixels (début d'un glisser) : même chose.
+        moved => {
+            if (self.pressed && (abs(self.mouse-x - self.pressed-x) > 6px || abs(self.mouse-y - self.pressed-y) > 6px)) {
+                root.touched();
+            }
+        }
         clicked => {
             root.clicked();
         }
@@ -547,6 +561,7 @@ component SectionRow inherits Rectangle {
     in property <float> k: 1.0;
     in property <int> key;                  // voir Rows
     callback activated(int);
+    callback touched(int);                  // carte touchée du doigt (sans l'ouvrir)
 
     property <length> gap: 18px * root.k;
     property <length> pad: 32px * root.k;
@@ -606,6 +621,9 @@ component SectionRow inherits Rectangle {
                 focused: root.active && i == root.focus-index;
                 clicked => {
                     root.activated(i);
+                }
+                touched => {
+                    root.touched(i);
                 }
             }
         }
@@ -3802,6 +3820,11 @@ export component AppWindow inherits Window {
                         active: !root.h-focus && si == root.sel-section;
                         focus-index: root.sel-item;
                         key: si;
+                        touched(i) => {
+                            root.h-focus = false;
+                            root.sel-section = si;
+                            root.sel-item = i;
+                        }
                         activated(i) => {
                             root.h-focus = false;
                             root.sel-section = si;
@@ -4356,6 +4379,10 @@ export component AppWindow inherits Window {
                     active: !root.h-focus && !root.s-osk && !(root.tv-mode && root.s-field) && si == root.s-section;
                     focus-index: root.s-item;
                     key: 2000 + si;
+                    touched(i) => {
+                        root.s-section = si;
+                        root.s-item = i;
+                    }
                     activated(i) => {
                         root.s-section = si;
                         root.s-item = i;
@@ -5107,6 +5134,10 @@ export component AppWindow inherits Window {
             active: !root.h-focus && root.d-zone == 2;
             focus-index: root.d-child;
             key: 1002;
+            touched(i) => {
+                root.d-zone = 2;
+                root.d-child = i;
+            }
             activated(i) => {
                 root.d-zone = 2;
                 root.d-child = i;
@@ -5127,6 +5158,10 @@ export component AppWindow inherits Window {
             active: !root.h-focus && root.d-zone == 4 + ri;
             focus-index: root.d-x;
             key: 1004 + ri;
+            touched(i) => {
+                root.d-zone = 4 + ri;
+                root.d-x = i;
+            }
             activated(i) => {
                 root.d-zone = 4 + ri;
                 root.d-x = i;
@@ -5347,6 +5382,10 @@ export component AppWindow inherits Window {
                     ratio: 1.5;
                     k: root.k;
                     focused: !root.h-focus && i == root.l-sel;
+                    touched => {
+                        root.h-focus = false;
+                        root.l-sel = i;
+                    }
                     clicked => {
                         root.h-focus = false;
                         root.l-sel = i;
@@ -6069,6 +6108,11 @@ export component AppWindow inherits Window {
                     active: !root.h-focus && si == root.dl-sec;
                     focus-index: root.dl-item;
                     key: 3000 + si;
+                    touched(i) => {
+                        root.h-focus = false;
+                        root.dl-sec = si;
+                        root.dl-item = i;
+                    }
                     activated(i) => {
                         root.h-focus = false;
                         root.dl-sec = si;

@@ -4804,7 +4804,31 @@ fn install_f11(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
     let app = app.clone();
     let weak = u.as_weak();
+    let mut swipe = Swipe::default();
     u.window().on_winit_window_event(move |_, ev| {
+        // Tactile : un appui court reste un clic (Slint) ; un glissement devient des pas de navigation.
+        // La souris (bouton gauche maintenu) glisse de la même façon : écrans tactiles vus comme une
+        // souris, et navigation à la souris seule.
+        let touch = match ev {
+            winit::event::WindowEvent::Touch(t) => Some((t.phase, t.id, t.location.x, t.location.y, true)),
+            winit::event::WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } => {
+                let phase = if *state == winit::event::ElementState::Pressed { winit::event::TouchPhase::Started } else { winit::event::TouchPhase::Ended };
+                Some((phase, u64::MAX, swipe.mouse.0, swipe.mouse.1, false))
+            }
+            winit::event::WindowEvent::CursorMoved { position, .. } => {
+                swipe.mouse = (position.x, position.y);
+                swipe.id.filter(|id| *id == u64::MAX).map(|id| (winit::event::TouchPhase::Moved, id, position.x, position.y, false))
+            }
+            _ => None,
+        };
+        if let (Some((phase, id, x, y, finger)), Some(u)) = (touch, weak.upgrade()) {
+            if swipe.touch(&u, phase, id, (x, y), finger) {
+                return EventResult::PreventDefault;
+            }
+            if finger {
+                return EventResult::Propagate;
+            }
+        }
         // Sélection au clavier (hors interface TV) : montrée après une touche de navigation, cachée
         // dès que la souris bouge (à la souris, seul le survol met en avant).
         if !app.tv() {
@@ -4836,6 +4860,137 @@ fn install_f11(app: &Arc<App>) {
         }
         EventResult::Propagate
     });
+}
+
+/// Glissement du doigt (écran tactile) traduit en pas de navigation, comme les flèches : chaque page
+/// sait déjà s'en servir (rangées, listes, paramètres, fiche…). Le contenu suit le doigt pas à pas ;
+/// lâché vite, il continue un peu (lancer). Depuis le bord gauche : Retour (ou le menu).
+#[derive(Default)]
+struct Swipe {
+    id: Option<u64>,
+    start: (f64, f64),
+    last: (f64, f64),
+    t_last: Option<std::time::Instant>,
+    /// Vitesse (px/s) de la fin du geste, pour le lancer.
+    v: (f64, f64),
+    /// Glissement reconnu : l'appui n'est plus un clic.
+    active: bool,
+    /// Sens du geste une fois reconnu : true horizontal.
+    horizontal: bool,
+    /// Distance déjà convertie en pas.
+    done: f64,
+    edge: bool,
+    /// Dernière position de la souris (les clics de winit n'en donnent pas).
+    mouse: (f64, f64),
+}
+
+impl Swipe {
+    /// Rend true si l'événement est consommé (ne va pas à Slint).
+    /// `finger` : doigt (sinon souris, bouton gauche).
+    fn touch(&mut self, u: &AppWindow, phase: slint::winit_030::winit::event::TouchPhase, id: u64, p: (f64, f64), finger: bool) -> bool {
+        use slint::winit_030::winit::event::TouchPhase;
+        let s = u.window().scale_factor() as f64;
+        if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() && phase != TouchPhase::Moved {
+            eprintln!("turtlefin : toucher {phase:?} {id} ({:.0}, {:.0})", p.0, p.1);
+        }
+        // Le tactile n'a pas de sélection visible : comme la souris.
+        if finger && u.global::<Nav>().get_kb() {
+            u.global::<Nav>().set_kb(false);
+        }
+        match phase {
+            TouchPhase::Started => {
+                // Souris dans un champ de saisie ou pendant la lecture : glisser sélectionne du texte, ou
+                // la barre de lecture ; pas de geste.
+                if !finger && (u.get_playing() || u.get_screen() == "login") {
+                    self.id = None;
+                    return false;
+                }
+                let mouse = self.mouse;
+                *self = Swipe { id: Some(id), start: p, last: p, t_last: Some(std::time::Instant::now()), edge: finger && p.0 < 24.0 * s, mouse, ..Default::default() };
+                false
+            }
+            TouchPhase::Moved if self.id == Some(id) => {
+                let now = std::time::Instant::now();
+                if let Some(t0) = self.t_last {
+                    let dt = now.duration_since(t0).as_secs_f64().max(0.001);
+                    self.v = ((p.0 - self.last.0) / dt, (p.1 - self.last.1) / dt);
+                }
+                self.last = p;
+                self.t_last = Some(now);
+                let (dx, dy) = (p.0 - self.start.0, p.1 - self.start.1);
+                if !self.active {
+                    if dx.hypot(dy) < 22.0 * s {
+                        return false;
+                    }
+                    self.active = true;
+                    self.horizontal = dx.abs() > dy.abs();
+                    // L'appui en cours n'est plus un clic (la carte touchée ne s'ouvre pas).
+                    u.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
+                }
+                if self.edge {
+                    return true; // geste depuis le bord : décidé au lâcher
+                }
+                if !u.get_playing() {
+                    self.step(u, if self.horizontal { dx } else { dy }, s);
+                }
+                true
+            }
+            TouchPhase::Ended | TouchPhase::Cancelled if self.id == Some(id) => {
+                let was = self.active;
+                if was && phase == TouchPhase::Ended && !u.get_playing() {
+                    let (dx, dy) = (self.last.0 - self.start.0, self.last.1 - self.start.1);
+                    if self.edge && self.horizontal && dx > 60.0 * s {
+                        key(u, slint::platform::Key::Escape);
+                    } else if !self.edge {
+                        // Lancer : le geste continue d'autant que la vitesse le porte (au plus 6 pas).
+                        let (d, v) = if self.horizontal { (dx, self.v.0) } else { (dy, self.v.1) };
+                        let extra = (v * 0.18).clamp(-6.0 * self.unit(s), 6.0 * self.unit(s));
+                        if v.abs() > 600.0 * s {
+                            self.step(u, d + extra, s);
+                        }
+                    }
+                }
+                self.id = None;
+                // Souris : le relâchement va quand même à Slint (son appui a été annulé, pas de clic).
+                was && finger
+            }
+            _ => false,
+        }
+    }
+
+    /// Longueur du doigt qui fait un pas : une demi-carte en largeur, une rangée en hauteur.
+    fn unit(&self, s: f64) -> f64 {
+        if self.horizontal { 110.0 * s } else { 150.0 * s }
+    }
+
+    /// Envoie les pas correspondant à la distance `d` parcourue (moins ceux déjà envoyés).
+    fn step(&mut self, u: &AppWindow, d: f64, s: f64) {
+        use slint::platform::Key;
+        let unit = self.unit(s);
+        let want = (d / unit).trunc();
+        while self.done != want {
+            let forward = want > self.done;
+            // Doigt vers la gauche (ou le haut) : le contenu avance, comme → (ou ↓).
+            let k = match (self.horizontal, forward) {
+                (true, true) => Key::LeftArrow,
+                (true, false) => Key::RightArrow,
+                (false, true) => Key::UpArrow,
+                (false, false) => Key::DownArrow,
+            };
+            if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() {
+                eprintln!("turtlefin : glissement -> {k:?}");
+            }
+            key(u, k);
+            self.done += if forward { 1.0 } else { -1.0 };
+        }
+    }
+}
+
+/// Touche simulée (appui puis relâchement), reçue par la page comme une vraie.
+fn key(u: &AppWindow, k: slint::platform::Key) {
+    let text: slint::SharedString = k.into();
+    u.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+    u.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
 }
 
 /// Fenêtre (pas l'interface TV) sur un petit écran : 1280 x 720 plus le cadre dépasse la zone de
