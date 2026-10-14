@@ -53,5 +53,9 @@ for weight in ["Regular", "Medium", "SemiBold", "Bold"]:
         elif rec.nameID == 6:
             rec.string = f"TurtlefinBlank-{weight}"
     out = FONTS / f"TurtlefinBlank-{weight}.ttf"
+    # Boîtes englobantes et extrêmes d'origine gardés (sinon recalculés à 0 sur des lettres vides) :
+    # certains moteurs s'en servent pour placer le texte, et la page bougeait d'une fraction de pixel
+    # entre les deux captures (icônes prises pour du texte en interface TV).
+    font.recalcBBoxes = False
     font.save(out)
     print(out.name, out.stat().st_size // 1024, "Ko")

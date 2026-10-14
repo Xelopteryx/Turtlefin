@@ -7,7 +7,7 @@
 // l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis on zoome dans le centre
 // vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
-import { Theme, Tr, Gloss } from "theme.slint";
+import { Theme, Tr, Gloss, Motion } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
@@ -441,25 +441,61 @@ export component BootLogo inherits Rectangle {
                 y: 64px * root.k;
                 height: parent.shown * parent.row-h;
                 clip: true;
+                // Cases des langues : elles arrivent en cascade (glissent et apparaissent l'une après l'autre).
                 for l[i] in root.langs: Rectangle {
-                    x: 16px * root.k;
+                    property <float> e: 0;
+                    init => {
+                        self.e = 1;
+                    }
+                    animate e { duration: Motion.language ? 360ms : 0ms; delay: Motion.language ? 120ms + min(i, 10) * 45ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                    x: 16px * root.k + (1 - self.e) * 36px * root.k;
                     y: (i - lang-box.first) * lang-box.row-h;
-                    animate y { duration: 160ms; easing: ease-out; }
+                    animate y { duration: Motion.language ? 160ms : 0ms; easing: ease-out; }
                     width: parent.width - 32px * root.k;
                     height: 48px * root.k;
                     border-radius: 12px * root.k;
-                    background: i == root.lang-sel || la.has-hover ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.07);
+                    background: Theme.fg.with-alpha(0.07 * self.e);
+                }
+                // Surbrillance : elle glisse jusqu'à la langue choisie (petit rebond), comme dans les menus.
+                Rectangle {
+                    x: 16px * root.k;
+                    y: (root.lang-sel - lang-box.first) * lang-box.row-h;
+                    animate y { duration: Motion.language ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                    width: parent.width - 32px * root.k;
+                    height: 48px * root.k;
+                    border-radius: 12px * root.k;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
                     Gloss { r: parent.border-radius; strength: 0.8; }
+                }
+                for l[i] in root.langs: Rectangle {
+                    property <float> e: 0;
+                    init => {
+                        self.e = 1;
+                    }
+                    animate e { duration: Motion.language ? 360ms : 0ms; delay: Motion.language ? 120ms + min(i, 10) * 45ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                    property <bool> on: i == root.lang-sel;
+                    x: 16px * root.k + (1 - self.e) * 36px * root.k;
+                    y: (i - lang-box.first) * lang-box.row-h;
+                    animate y { duration: Motion.language ? 160ms : 0ms; easing: ease-out; }
+                    width: parent.width - 32px * root.k;
+                    height: 48px * root.k;
                     Text {
                         text: l.label;
                         font-family: "Montserrat"; // lisible pendant l'effet de langue
-                        color: i == root.lang-sel || la.has-hover ? Theme.on-accent : Theme.fg;
-                        font-size: 17px * root.k;
-                        font-weight: 600;
+                        color: (parent.on ? Theme.on-accent : Theme.fg).with-alpha(parent.e);
+                        animate color { duration: Motion.language ? 160ms : 0ms; }
+                        font-size: (parent.on ? 18px : 17px) * root.k;
+                        font-weight: parent.on ? 700 : 600;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
                     la := TouchArea {
+                        // La souris choisit la langue qu'elle survole.
+                        changed has-hover => {
+                            if (self.has-hover) {
+                                root.lang-sel = i;
+                            }
+                        }
                         clicked => {
                             root.lang-chosen(l.id);
                         }

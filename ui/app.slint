@@ -970,17 +970,19 @@ component ActionButton inherits Rectangle {
     property <bool> lit: (root.focused && Nav.kb) || area.has-hover;
     transform-scale: root.lit ? 1.07 : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
+    // pleine, brillante et lumineuse (sinon on ne voyait pas laquelle était choisie).
     background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-        : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.45) 0%, Theme.accent1.with-alpha(0.55) 100%)
+        : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.16) 0%, Theme.accent1.with-alpha(0.22) 100%)
         : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
     border-width: root.bubble ? 1px : 0px;
-    border-color: rgba(255, 255, 255, 0.55);
-    drop-shadow-blur: root.bubble ? 14px : 0px;
-    drop-shadow-offset-y: root.bubble ? 3px : 0px;
-    drop-shadow-color: Theme.accent2.with-alpha(0.45);
+    border-color: root.lit ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.28);
+    drop-shadow-blur: root.bubble && root.lit ? 16px : 0px;
+    drop-shadow-offset-y: root.bubble && root.lit ? 3px : 0px;
+    drop-shadow-color: Theme.accent2.with-alpha(0.55);
     Gloss {
         r: parent.border-radius;
-        strength: root.bubble ? 1.3 : 1.0;
+        strength: root.bubble ? (root.lit ? 1.3 : 0.55) : 1.0;
     }
 
     label := Text {
@@ -1529,6 +1531,86 @@ component HeaderRight inherits Rectangle {
             font-weight: 500;
             vertical-alignment: center;
         }
+    }
+}
+
+// Fond de la fenêtre : dégradé du thème, image du média sélectionné (fondu enchaîné entre deux
+// calques), décor du thème, barre de verre de l'en-tête. Dessiné une fois sous les pages, et une
+// seconde fois (`a` < 1) comme voile des changements de page : le contenu s'efface, le fond reste.
+// L'opacité est portée par chaque calque (pas de rendu hors écran de l'ensemble).
+component Backdrop inherits Rectangle {
+    in property <float> a: 1;
+    in property <image> bg-a;
+    in property <image> bg-b;
+    in property <float> bg-mix;
+    in property <float> bg-vis;
+    in property <float> po;
+    in property <length> d-fade;
+    in property <bool> on-detail;
+    in property <float> k: 1.0;
+    in property <bool> glass;
+    in property <length> header-h;
+
+    // Voile : il doit couvrir la page, donc d'abord le dégradé opaque de la fenêtre.
+    if root.a < 1: Rectangle {
+        background: @linear-gradient(180deg, Theme.bg.with-alpha(root.a) 0%, Theme.bg-mid.with-alpha(root.a) 55%, Theme.bg-end.with-alpha(root.a) 100%);
+    }
+    if root.bg-vis > 0.001: bgr := Rectangle {
+        transform-scale: 1 + 0.12 * root.po;
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg-a;
+            image-fit: cover;
+            opacity: (1 - root.bg-mix) * root.bg-vis * root.a;
+        }
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg-b;
+            image-fit: cover;
+            opacity: root.bg-mix * root.bg-vis * root.a;
+        }
+        // Plus sombre vers le bas, là où sont les rangées. Fiche : l'image reste bien visible jusqu'au
+        // bas de l'affiche (d-fade), puis s'assombrit (le voile suit le défilement de la fiche).
+        property <float> d-v: root.on-detail ? 1 : 0;
+        animate d-v { duration: Motion.pages ? 500ms : 0ms; easing: ease-in-out; }
+        Rectangle {
+            opacity: (1 - bgr.d-v) * root.a;
+            background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.25 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.69 * Theme.veil)) 60%, Theme.bg-end.with-alpha(min(1, 0.88 * Theme.veil)) 100%);
+        }
+        if bgr.d-v > 0: Rectangle {
+            Rectangle {
+                y: 0px;
+                height: max(1px, root.d-fade);
+                opacity: bgr.d-v * root.a;
+                background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.3 * Theme.veil)) 0%, Theme.bg.with-alpha(min(0.35, 0.08 * Theme.veil)) 30%, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 100%);
+            }
+            Rectangle {
+                y: max(1px, root.d-fade);
+                height: parent.height - self.y + 1px;
+                opacity: bgr.d-v * root.a;
+                background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.75 * Theme.veil)) 35%, Theme.bg-end.with-alpha(min(1, 0.92 * Theme.veil)) 100%);
+            }
+        }
+    }
+
+    // Décor du thème (Frutiger Aero : ciel, bulles), sur l'image de fond et sous les pages.
+    if Theme.bubbles: AeroSky {
+        k: root.k;
+        opacity: root.a;
+    }
+    // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
+    // Windows 7) : moitié haute claire, moitié basse plus sombre, liserés clairs.
+    if Theme.header-glass && root.glass: Rectangle {
+        y: 0px;
+        height: root.header-h;
+        opacity: root.a;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
+            rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
+        Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
+        Rectangle { y: parent.height - 2px; height: 1px; background: rgba(0, 0, 0, 0.35); }
+        Rectangle { y: parent.height - 1px; height: 1px; background: rgba(255, 255, 255, 0.28); }
     }
 }
 
@@ -2656,61 +2738,19 @@ export component AppWindow inherits Window {
     property <bool> show-next: root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
-    if root.bg-vis > 0.001 && !root.playing: bgr := Rectangle {
-        transform-scale: 1 + 0.12 * root.po;
-        Image {
-            width: parent.width;
-            height: parent.height;
-            source: root.bg-a;
-            image-fit: cover;
-            opacity: (1 - root.bg-mix) * root.bg-vis;
-        }
-        Image {
-            width: parent.width;
-            height: parent.height;
-            source: root.bg-b;
-            image-fit: cover;
-            opacity: root.bg-mix * root.bg-vis;
-        }
-        // Plus sombre vers le bas, là où sont les rangées. Fiche : l'image reste bien visible jusqu'au
-        // bas de l'affiche (d-fade), puis s'assombrit (le voile suit le défilement de la fiche).
-        property <length> d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
-        property <bool> on-detail: root.screen == "detail";
-        property <float> d-v: bgr.on-detail ? 1 : 0;
-        animate d-v { duration: Motion.pages ? 500ms : 0ms; easing: ease-in-out; }
-        Rectangle {
-            opacity: 1 - bgr.d-v;
-            background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.25 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.69 * Theme.veil)) 60%, Theme.bg-end.with-alpha(min(1, 0.88 * Theme.veil)) 100%);
-        }
-        if bgr.d-v > 0: Rectangle {
-            opacity: bgr.d-v;
-            Rectangle {
-                y: 0px;
-                height: max(1px, bgr.d-fade);
-                background: @linear-gradient(180deg, Theme.bg.with-alpha(min(1, 0.3 * Theme.veil)) 0%, Theme.bg.with-alpha(min(0.35, 0.08 * Theme.veil)) 30%, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 100%);
-            }
-            Rectangle {
-                y: max(1px, bgr.d-fade);
-                height: parent.height - self.y + 1px;
-                background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(min(0.5, 0.18 * Theme.veil)) 0%, Theme.bg-mid.with-alpha(min(1, 0.75 * Theme.veil)) 35%, Theme.bg-end.with-alpha(min(1, 0.92 * Theme.veil)) 100%);
-            }
-        }
-    }
-
-    // Décor du thème (Frutiger Aero : ciel, bulles), sur l'image de fond et sous les pages.
-    if Theme.bubbles && !root.playing: AeroSky {
+    // Fond : image du média sélectionné, décor du thème, barre de verre de l'en-tête (voir Backdrop).
+    if !root.playing: Backdrop {
+        a: 1;
+        bg-a: root.bg-a;
+        bg-b: root.bg-b;
+        bg-mix: root.bg-mix;
+        bg-vis: root.bg-vis;
+        po: root.po;
+        d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
+        on-detail: root.screen == "detail";
         k: root.k;
-    }
-    // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
-    // Windows 7) : moitié haute claire, moitié basse plus sombre, liserés clairs.
-    if Theme.header-glass && !root.playing && root.signed-in && root.screen != "login" && root.screen != "loading": Rectangle {
-        y: 0px;
-        height: root.header-h;
-        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
-            rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
-        Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
-        Rectangle { y: parent.height - 2px; height: 1px; background: rgba(0, 0, 0, 0.35); }
-        Rectangle { y: parent.height - 1px; height: 1px; background: rgba(255, 255, 255, 0.28); }
+        glass: root.signed-in && root.screen != "login" && root.screen != "loading";
+        header-h: root.header-h;
     }
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
@@ -7812,11 +7852,32 @@ export component AppWindow inherits Window {
         opacity: clamp((root.po - 0.45) / 0.55, 0, 1);
     }
 
-    // Voile de transition : la page qui part s'efface dans la couleur de fond.
-    if root.veil > 0.001 && !root.playing: Rectangle {
+    // Voile de transition : la page qui part s'efface dans son fond, qui lui ne bouge pas (même image,
+    // même décor : une copie du fond passe par-dessus la page, seul le contenu disparaît).
+    property <bool> veil-dim: root.hero-on && root.hero-big && root.hero-dest;
+    if root.veil > 0.001 && !root.playing && !root.veil-dim: Backdrop {
+        a: root.veil;
+        bg-a: root.bg-a;
+        bg-b: root.bg-b;
+        bg-mix: root.bg-mix;
+        bg-vis: root.bg-vis;
+        po: root.po;
+        d-fade: root.header-h + 24px + 316px * root.k - root.d-scroll;
+        on-detail: root.screen == "detail";
+        k: root.k;
+        glass: root.signed-in && root.screen != "login" && root.screen != "loading";
+        header-h: root.header-h;
+        TouchArea {
+            // La molette ne fait pas défiler la page dessous.
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+    }
+    if root.veil > 0.001 && !root.playing && root.veil-dim: Rectangle {
         // Sous une vignette qui grandit jusqu'au plein écran : léger assombrissement seulement
         // (pas de « fondu au noir » avant que l'image ne couvre tout).
-        background: Theme.bg.transparentize(1 - root.veil * (root.hero-on && root.hero-big && root.hero-dest ? 0.45 : 1));
+        background: Theme.bg.transparentize(1 - root.veil * 0.45);
         TouchArea {
             // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
