@@ -26,6 +26,8 @@ pub enum Kind {
     WinPortable,
     AppImage,
     Deb,
+    /// Flatpak (Flathub) : mis à jour par Flatpak, jamais par l'application.
+    Flatpak,
     Unknown,
 }
 
@@ -45,6 +47,9 @@ fn is_release_build() -> bool {
 }
 
 pub fn kind() -> Kind {
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        return Kind::Flatpak;
+    }
     if !is_release_build() && source_dir().join(".git").exists() {
         return Kind::Source;
     }
@@ -75,6 +80,7 @@ pub fn kind_label() -> &'static str {
         Kind::WinPortable => tr("Windows, portable"),
         Kind::AppImage => "AppImage",
         Kind::Deb => tr("paquet .deb"),
+        Kind::Flatpak => "Flatpak",
         Kind::Unknown => tr("installation inconnue"),
     }
 }
@@ -124,6 +130,7 @@ fn newer(remote: &str, local: &str) -> bool {
 pub async fn check() -> Result<Option<(String, Vec<String>)>> {
     match kind() {
         Kind::Source => check_source().await,
+        Kind::Flatpak => Err(anyhow!("{}", tr("mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"))),
         Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"))),
         _ => check_release().await,
     }
@@ -207,6 +214,7 @@ fn run(dir: &Path, prog: &str, args: &[&str]) -> Result<()> {
 pub fn install(step: impl Fn(&str)) -> Result<()> {
     match kind() {
         Kind::Source => install_source(step),
+        Kind::Flatpak => Err(anyhow!("{}", tr("mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"))),
         Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation"))),
         k => tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(install_release(k, step)),
     }

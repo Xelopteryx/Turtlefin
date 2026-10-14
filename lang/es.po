@@ -1684,3 +1684,6 @@ msgstr "respuesta del servidor demasiado grande"
 
 msgid "élément inconnu"
 msgstr "elemento desconocido"
+
+msgid "mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"
+msgstr "actualizado por Flatpak (tienda de aplicaciones, o «flatpak update»)"

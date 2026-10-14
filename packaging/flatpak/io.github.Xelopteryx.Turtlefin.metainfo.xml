@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.Xelopteryx.Turtlefin</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Turtlefin</name>
+  <summary>Native, lightweight Jellyfin client for the TV</summary>
+  <summary xml:lang="fr">Client Jellyfin natif et léger, pensé pour la télé</summary>
+  <developer id="io.github.xelopteryx">
+    <name>Xelopteryx</name>
+  </developer>
+  <description>
+    <p>Turtlefin plays your Jellyfin library without a web browser: home rows, detail pages, built-in
+      playback (libmpv), watch party, offline downloads and Seerr requests. It works with a remote,
+      a keyboard, a mouse or a touch screen, and stays light on small machines.</p>
+    <p xml:lang="fr">Turtlefin lit ta bibliothèque Jellyfin sans navigateur : accueil, fiches, lecture
+      intégrée (libmpv), watch party, téléchargements hors ligne et demandes Seerr. Il se pilote à la
+      télécommande, au clavier, à la souris ou au doigt, et reste léger sur les petites machines.</p>
+  </description>
+  <launchable type="desktop-id">io.github.Xelopteryx.Turtlefin.desktop</launchable>
+  <url type="homepage">https://github.com/Xelopteryx/Turtlefin</url>
+  <url type="bugtracker">https://github.com/Xelopteryx/Turtlefin/issues</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+  </categories>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>tv-remote</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.1.0" date="2026-10-09"/>
+  </releases>
+</component>

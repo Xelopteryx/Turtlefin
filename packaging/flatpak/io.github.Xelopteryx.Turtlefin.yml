@@ -1,0 +1,97 @@
+# Turtlefin en Flatpak (Flathub) : tout est compilé hors ligne à partir de sources déclarées ici.
+# - Rust : les 650 crates de Cargo.lock sont listées dans cargo-sources.json (tools/flatpak-cargo-sources.py
+#   le régénère après chaque changement de Cargo.lock).
+# - Lecture : libmpv (avec libass et libplacebo) compilée ici ; FFmpeg complet vient de l'extension
+#   org.freedesktop.Platform.ffmpeg-full (codecs H.264, HEVC…).
+# Essai : flatpak-builder --user --install --force-clean build-dir io.github.Xelopteryx.Turtlefin.yml
+app-id: io.github.Xelopteryx.Turtlefin
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: turtlefin
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  # Langues, thèmes et préréglages ajoutés : dossiers « Turtlefin … » dans Documents.
+  - --filesystem=xdg-documents
+  # Écran de veille suspendu pendant la lecture.
+  - --talk-name=org.freedesktop.ScreenSaver
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    version: '25.08'
+    add-ld-path: .
+cleanup-commands:
+  - mkdir -p /app/lib/ffmpeg
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - '*.a'
+  - '*.la'
+
+modules:
+  - name: libass
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.xz
+        sha256: 2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc
+
+  - name: libplacebo
+    buildsystem: meson
+    config-opts:
+      - -Dvulkan=disabled
+      - -Ddemos=false
+      - -Dtests=false
+    sources:
+      - type: git
+        url: https://code.videolan.org/videolan/libplacebo.git
+        tag: v7.360.1
+        commit: cee9b076f2c63104ccfd497fa79c39a867293ec4
+
+  - name: mpv
+    buildsystem: meson
+    config-opts:
+      # Seulement la bibliothèque (Turtlefin dessine la vidéo dans sa fenêtre, voir src/video.rs).
+      - -Dlibmpv=true
+      - -Dcplayer=false
+      - -Dlua=disabled
+      - -Djavascript=disabled
+      - -Dmanpage-build=disabled
+      - -Dvulkan=disabled
+    sources:
+      - type: archive
+        url: https://github.com/mpv-player/mpv/archive/refs/tags/v0.41.0.tar.gz
+        sha256: ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209
+
+  - name: turtlefin
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/turtlefin/cargo
+        # Version publiée : la mise à jour intégrée renvoie vers Flatpak (voir src/update.rs).
+        TURTLEFIN_DIST: flatpak
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --verbose
+      - install -Dm755 target/release/turtlefin /app/bin/turtlefin
+      - install -Dm644 packaging/flatpak/io.github.Xelopteryx.Turtlefin.desktop /app/share/applications/io.github.Xelopteryx.Turtlefin.desktop
+      - install -Dm644 packaging/flatpak/io.github.Xelopteryx.Turtlefin.metainfo.xml /app/share/metainfo/io.github.Xelopteryx.Turtlefin.metainfo.xml
+      - install -Dm644 packaging/turtlefin.svg /app/share/icons/hicolor/scalable/apps/io.github.Xelopteryx.Turtlefin.svg
+      - install -Dm644 packaging/icons/turtlefin-256.png /app/share/icons/hicolor/256x256/apps/io.github.Xelopteryx.Turtlefin.png
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .git
+      - cargo-sources.json

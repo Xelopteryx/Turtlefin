@@ -1684,3 +1684,6 @@ msgstr "antwoord van de server te groot"
 
 msgid "élément inconnu"
 msgstr "onbekend item"
+
+msgid "mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"
+msgstr "bijgewerkt door Flatpak (softwarecentrum, of „flatpak update”)"
