@@ -139,6 +139,7 @@ La ligne de commande l'emporte toujours sur les réglages (compte de démarrage,
 - **F11**, partout : plein écran (aussi dans Paramètres → Affichage → **Plein écran**, gardé d'un lancement à
   l'autre hors interface TV).
 - **Souris** : clic pour ouvrir, molette pour passer d'une rangée à l'autre (Maj + molette : dans la rangée).
+- **Tactile et glisser** : toucher ouvre ; glisser le doigt (ou la souris, bouton gauche) fait défiler la rangée ou la page, un geste rapide va plus loin ; depuis le bord gauche : retour.
 - **Texte** : une lettre tapée au clavier va directement dans le champ (recherche, connexion, adresse), même en
   interface TV ; un clic sur le champ de recherche en interface TV ouvre le clavier à l'écran.
 
@@ -147,7 +148,7 @@ La ligne de commande l'emporte toujours sur les réglages (compte de démarrage,
 | Où | Quoi |
 |---|---|
 | dossier de config, `turtlefin/` | `session.json` (session en cours), `accounts.json` (comptes enregistrés), `prefs.json` (réglages de l'appareil), `tracks.json` (pistes par série), `userdata.json` (vu / favoris faits hors ligne) |
-| dossier de données, `turtlefin/downloads/` | téléchargements (média, affiches, fond, logo, `info.json`), `queue.json` (file en attente) |
+| dossier de données, `turtlefin/downloads/` | téléchargements rangés comme une bibliothèque : `<bibliothèque>/<série>/Season 01/<série> S01E01.mkv` (avec son `.json`, son image et ses sous-titres), images de la série partagées ; `queue.json` (file en attente) |
 | dossier de cache, `turtlefin/img/` | images et photos de profil (vidable dans À propos) |
 | **Documents** | `Turtlefin Languages` (langues ajoutées) et `Turtlefin Presets` (presets d'animations exportés) |
 

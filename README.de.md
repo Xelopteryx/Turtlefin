@@ -140,6 +140,7 @@ Die Befehlszeile hat immer Vorrang vor den Einstellungen (Startkonto, TV-Oberfl�
 - **F11**, überall: Vollbild (auch unter Einstellungen → Anzeige → **Vollbild**, außerhalb der TV-Oberfläche über
   Neustarts hinweg gemerkt).
 - **Maus**: Klick zum Öffnen, Mausrad von Reihe zu Reihe (Umschalt + Mausrad: innerhalb der Reihe).
+- **Touch und Ziehen**: Tippen öffnet; mit dem Finger wischen (oder mit gedrückter linker Maustaste ziehen) scrollt die Reihe oder die Seite, eine schnelle Geste geht weiter; vom linken Rand: zurück.
 - **Text**: ein auf der Tastatur getippter Buchstabe landet direkt im Feld (Suche, Anmeldung, Adresse), auch in
   der TV-Oberfläche; dort öffnet ein Klick auf das Suchfeld die Bildschirmtastatur.
 
@@ -148,7 +149,7 @@ Die Befehlszeile hat immer Vorrang vor den Einstellungen (Startkonto, TV-Oberfl�
 | Wo | Was |
 |---|---|
 | Konfigurationsordner, `turtlefin/` | `session.json` (aktuelle Sitzung), `accounts.json` (gespeicherte Konten), `prefs.json` (Geräteeinstellungen), `tracks.json` (Spuren pro Serie), `userdata.json` (offline Gesehenes / Favoriten) |
-| Datenordner, `turtlefin/downloads/` | Downloads (Medium, Poster, Hintergrund, Logo, `info.json`), `queue.json` (Warteschlange) |
+| Datenordner, `turtlefin/downloads/` | Downloads wie eine Bibliothek geordnet: `<Bibliothek>/<Serie>/Season 01/<Serie> S01E01.mkv` (mit `.json`, Bild und Untertiteln), Bilder der Serie geteilt; `queue.json` (Warteschlange) |
 | Cache-Ordner, `turtlefin/img/` | Bilder und Profilbilder (unter Über leerbar) |
 | **Dokumente** | `Turtlefin Languages` (hinzugefügte Sprachen) und `Turtlefin Presets` (exportierte Animations-Presets) |
 

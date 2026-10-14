@@ -1,4 +1,4 @@
-# Turtlefin: Projektübergabe (Stand 9. Oktober 2026, Version 1.1.0)
+# Turtlefin: Projektübergabe (Stand 14. Oktober 2026, Version 1.1.0 + unveröffentlichte Arbeit)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · **Deutsch** · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -267,3 +267,25 @@ Branches: `main` (einziger Arbeitsbranch), `ci` (CI-Tests). `interface-lua` und 
 - Tests mit einer Kopie der Konfiguration (`TURTLEFIN_CONFIG_DIR`), nie mit der echten; Testkonten `test` / `test2`.
 - Nach jeder Änderungsrunde: ein Test-Installationsprogramm auf dem Desktop des Maintainers
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, das alte gelöscht).
+
+## 11. Änderungen vom 14. Oktober 2026 (unveröffentlicht)
+
+Ausführlich in [HANDOFF.md](HANDOFF.md) (Abschnitte 2, 5, 6 bis, 7, 9) und [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Sicherheit** (Audit): IDs aus dem Server in Adressen kodiert (`api::seg`), Datei- und Ordnernamen bereinigt
+  (`fs_name`, `id_ok`: kein `../` mehr), Antworten und Bilder in der Größe begrenzt, Bilddekodierung begrenzt;
+  Token nie mehr in einer Adresse (mpv erhält ihn per Header), unter Windows mit DPAPI verschlüsselt, beim
+  Entfernen eines Kontos auf dem Server widerrufen; Konfigurationsdateien atomar und sofort mit 0600 geschrieben;
+  Update: SHA-256 geprüft, privater Ordner statt `/tmp`, .deb-Neustart ohne Shell-Interpretation; Pluralregeln
+  fremder .po-Dateien abgesichert; `open_url` unter Windows ohne Befehlsinjektion.
+- **Downloads**: `<Bibliothek>/<Serie>/Season 01/<Serie> S01E01.mkv`, Bilder der Serie und Staffel geteilt; alte
+  Downloads werden beim Verbinden umsortiert. `TURTLEFIN_DATA_DIR` für Tests.
+- **Bedienung**: am Desktop ist die Maus der Selektor (Hervorhebung exklusiv: Tastatur `Nav.kb` oder Maus);
+  Touch und Ziehen mit der Maus werden zu Pfeilschritten (`Swipe`); linkes Menü holt sich die Tastatur zurück.
+- **Animationen**: Hintergrund bleibt beim Seitenwechsel stehen (`Backdrop`), Rückkehr des geteilten Bildes zur
+  Karte derselben Serie, Themenwechsel als Lichtwischer, animierte Sprachliste beim ersten Start, Icons beim
+  Sprachwechsel nicht mehr verdeckt.
+- **Wiedergabe**: Ende vor der angegebenen Dauer = echtes Ende, wenn der Server antwortet.
+- **Flatpak**: `packaging/flatpak/` (Manifest, AppStream, `cargo-sources.json` via
+  `tools/flatpak-cargo-sources.py`), noch nie wirklich gebaut.
+- **Speicher** (Pi, 3 h 48 Film): kein Wachstum von einer Wiedergabe zur nächsten.

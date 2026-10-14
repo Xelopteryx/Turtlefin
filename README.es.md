@@ -142,6 +142,7 @@ La línea de comandos siempre tiene prioridad sobre los ajustes (cuenta de inici
 - **F11**, en todas partes: pantalla completa (también en Ajustes → Pantalla → **Pantalla completa**, que se
   recuerda entre inicios fuera de la interfaz TV).
 - **Ratón**: clic para abrir, rueda para pasar de una fila a otra (Mayús + rueda: dentro de la fila).
+- **Táctil y arrastre**: tocar abre; deslizar el dedo (o arrastrar con el botón izquierdo del ratón) desplaza la fila o la página, un gesto rápido va más lejos; desde el borde izquierdo: volver.
 - **Texto**: una letra escrita en el teclado va directamente al campo (búsqueda, inicio de sesión, dirección),
   incluso en la interfaz TV; en ella, un clic en el campo de búsqueda abre el teclado en pantalla.
 
@@ -150,7 +151,7 @@ La línea de comandos siempre tiene prioridad sobre los ajustes (cuenta de inici
 | Dónde | Qué |
 |---|---|
 | carpeta de configuración, `turtlefin/` | `session.json` (sesión actual), `accounts.json` (cuentas guardadas), `prefs.json` (ajustes del dispositivo), `tracks.json` (pistas por serie), `userdata.json` (visto / favoritos sin conexión) |
-| carpeta de datos, `turtlefin/downloads/` | descargas (medio, carteles, fondo, logotipo, `info.json`), `queue.json` (cola pendiente) |
+| carpeta de datos, `turtlefin/downloads/` | descargas ordenadas como una biblioteca: `<biblioteca>/<serie>/Season 01/<serie> S01E01.mkv` (con su `.json`, su imagen y sus subtítulos), imágenes de la serie compartidas; `queue.json` (cola pendiente) |
 | carpeta de caché, `turtlefin/img/` | imágenes y fotos de perfil (se puede vaciar en Acerca de) |
 | **Documentos** | `Turtlefin Languages` (idiomas añadidos) y `Turtlefin Presets` (presets de animaciones exportados) |
 

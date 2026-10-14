@@ -1,4 +1,4 @@
-# Turtlefin: traspaso del proyecto (estado a 9 de octubre de 2026, versión 1.1.0)
+# Turtlefin: traspaso del proyecto (estado a 14 de octubre de 2026, versión 1.1.0 + trabajo sin publicar)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · **Español** · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -265,3 +265,25 @@ antiguos, ya fusionados en `main`: se pueden borrar. Etiquetas: `v0.9.0`, `v0.9.
   `test2`.
 - Tras cada tanda de cambios: un instalador de prueba en su Escritorio
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, borrando el anterior).
+
+## 11. Cambios del 14 de octubre de 2026 (sin publicar)
+
+En detalle en [HANDOFF.md](HANDOFF.md) (secciones 2, 5, 6 bis, 7, 9) y [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Seguridad** (auditoría): identificadores del servidor codificados en las direcciones (`api::seg`), nombres de
+  archivos y carpetas saneados (`fs_name`, `id_ok`: no más `../`), respuestas e imágenes limitadas en tamaño,
+  decodificación de imágenes limitada; el token nunca más en una dirección (mpv lo recibe por cabecera), cifrado
+  con DPAPI en Windows, revocado en el servidor al quitar una cuenta; archivos de configuración escritos de una vez
+  y en 0600 desde su creación; actualización: SHA-256 comprobado, carpeta privada en lugar de `/tmp`, reinicio del
+  .deb sin interpretación de shell; reglas de plural de .po ajenos acotadas; `open_url` en Windows sin inyección.
+- **Descargas**: `<biblioteca>/<serie>/Season 01/<serie> S01E01.mkv`, imágenes de serie y temporada compartidas;
+  las descargas antiguas se reordenan al conectar. `TURTLEFIN_DATA_DIR` para pruebas.
+- **Manejo**: en el escritorio el ratón es el selector (resalte exclusivo: teclado `Nav.kb` o ratón); el tacto y
+  el arrastre con el ratón se convierten en pasos de flecha (`Swipe`); el menú izquierdo recupera el teclado.
+- **Animaciones**: el fondo no se mueve al cambiar de página (`Backdrop`), la imagen compartida vuelve a la tarjeta
+  de la misma serie, cambio de tema con barrido de luz, lista de idiomas animada al primer arranque, iconos ya no
+  tapados al cambiar de idioma.
+- **Reproducción**: un final antes de la duración anunciada es un final real si el servidor responde.
+- **Flatpak**: `packaging/flatpak/` (manifiesto, AppStream, `cargo-sources.json` con
+  `tools/flatpak-cargo-sources.py`), aún sin compilar de verdad.
+- **Memoria** (Pi, película de 3 h 48): sin crecimiento de una reproducción a otra.

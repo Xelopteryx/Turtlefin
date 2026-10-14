@@ -140,6 +140,7 @@ La riga di comando prevale sempre sulle impostazioni (account di avvio, interfac
 - **F11**, ovunque: schermo intero (anche in Impostazioni → Schermo → **Schermo intero**, ricordato tra un avvio
   e l'altro fuori dall'interfaccia TV).
 - **Mouse**: clic per aprire, rotellina per passare da una riga all'altra (Maiusc + rotellina: dentro la riga).
+- **Tocco e trascinamento**: toccare apre; far scorrere il dito (o trascinare col tasto sinistro del mouse) fa scorrere la riga o la pagina, un gesto rapido va più lontano; dal bordo sinistro: indietro.
 - **Testo**: una lettera digitata sulla tastiera va direttamente nel campo (ricerca, accesso, indirizzo), anche
   nell'interfaccia TV; lì, un clic sul campo di ricerca apre la tastiera a schermo.
 
@@ -148,7 +149,7 @@ La riga di comando prevale sempre sulle impostazioni (account di avvio, interfac
 | Dove | Cosa |
 |---|---|
 | cartella di configurazione, `turtlefin/` | `session.json` (sessione attuale), `accounts.json` (account salvati), `prefs.json` (impostazioni del dispositivo), `tracks.json` (tracce per serie), `userdata.json` (visti / preferiti offline) |
-| cartella dei dati, `turtlefin/downloads/` | download (media, locandine, sfondo, logo, `info.json`), `queue.json` (coda in attesa) |
+| cartella dei dati, `turtlefin/downloads/` | download ordinati come una libreria: `<libreria>/<serie>/Season 01/<serie> S01E01.mkv` (con il suo `.json`, l'immagine e i sottotitoli), immagini della serie condivise; `queue.json` (coda in attesa) |
 | cartella della cache, `turtlefin/img/` | immagini e immagini del profilo (svuotabile in Informazioni) |
 | **Documenti** | `Turtlefin Languages` (lingue aggiunte) e `Turtlefin Presets` (preset di animazioni esportati) |
 

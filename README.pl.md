@@ -139,6 +139,7 @@ Wiersz poleceń zawsze ma pierwszeństwo przed ustawieniami (konto startowe, int
 - **F11**, wszędzie: pełny ekran (także w Ustawienia → Wyświetlanie → **Pełny ekran**, zapamiętywany między
   uruchomieniami poza interfejsem TV).
 - **Mysz**: kliknięcie otwiera, kółko przechodzi z rzędu do rzędu (Shift + kółko: w obrębie rzędu).
+- **Dotyk i przeciąganie**: dotknięcie otwiera; przesunięcie palcem (lub przeciąganie lewym przyciskiem myszy) przewija rząd lub stronę, szybki ruch sięga dalej; od lewej krawędzi: wstecz.
 - **Tekst**: litera wpisana na klawiaturze trafia od razu do pola (wyszukiwanie, logowanie, adres), także w
   interfejsie TV; tam kliknięcie pola wyszukiwania otwiera klawiaturę ekranową.
 
@@ -147,7 +148,7 @@ Wiersz poleceń zawsze ma pierwszeństwo przed ustawieniami (konto startowe, int
 | Gdzie | Co |
 |---|---|
 | folder konfiguracji, `turtlefin/` | `session.json` (bieżąca sesja), `accounts.json` (zapisane konta), `prefs.json` (ustawienia urządzenia), `tracks.json` (ścieżki dla seriali), `userdata.json` (obejrzane / ulubione offline) |
-| folder danych, `turtlefin/downloads/` | pobrane pliki (materiał, plakaty, tło, logo, `info.json`), `queue.json` (kolejka) |
+| folder danych, `turtlefin/downloads/` | pobrane pliki ułożone jak biblioteka: `<biblioteka>/<serial>/Season 01/<serial> S01E01.mkv` (z plikiem `.json`, obrazem i napisami), obrazy serialu wspólne; `queue.json` (kolejka) |
 | folder pamięci podręcznej, `turtlefin/img/` | obrazy i zdjęcia profilowe (do wyczyszczenia w Informacje) |
 | **Dokumenty** | `Turtlefin Languages` (dodane języki) i `Turtlefin Presets` (wyeksportowane presety animacji) |
 

@@ -1,4 +1,4 @@
-# Turtlefin: passagem do projeto (estado a 9 de outubro de 2026, versão 1.1.0)
+# Turtlefin: passagem do projeto (estado a 14 de outubro de 2026, versão 1.1.0 + trabalho não publicado)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · **Português**
 
@@ -262,3 +262,25 @@ já integradas em `main`: podem ser apagados. Etiquetas: `v0.9.0`, `v0.9.1` (ver
   `test2`.
 - Depois de cada conjunto de alterações: um instalador de teste no Ambiente de Trabalho de quem mantém o projeto
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, apagando o anterior).
+
+## 11. Alterações de 14 de outubro de 2026 (não publicadas)
+
+Em pormenor em [HANDOFF.md](HANDOFF.md) (secções 2, 5, 6 bis, 7, 9) e [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Segurança** (auditoria): identificadores do servidor codificados nos endereços (`api::seg`), nomes de ficheiros
+  e pastas limpos (`fs_name`, `id_ok`: acabou o `../`), respostas e imagens limitadas em tamanho, descodificação de
+  imagens limitada; o token nunca mais num endereço (o mpv recebe-o por cabeçalho), cifrado com DPAPI no Windows,
+  revogado no servidor ao remover uma conta; ficheiros de configuração escritos de uma vez e em 0600 desde a
+  criação; atualização: SHA-256 verificado, pasta privada em vez de `/tmp`, reinício do .deb sem interpretação da
+  shell; regras de plural de .po externos limitadas; `open_url` no Windows sem injeção.
+- **Transferências**: `<biblioteca>/<série>/Season 01/<série> S01E01.mkv`, imagens da série e da temporada
+  partilhadas; as transferências antigas são reorganizadas ao ligar. `TURTLEFIN_DATA_DIR` para testes.
+- **Utilização**: no computador o rato é o seletor (destaque exclusivo: teclado `Nav.kb` ou rato); o toque e o
+  arrastar com o rato tornam-se passos de seta (`Swipe`); o menu da esquerda recupera o teclado.
+- **Animações**: o fundo fica parado nas mudanças de página (`Backdrop`), a imagem partilhada volta ao cartão da
+  mesma série, mudança de tema com um varrimento de luz, lista de línguas animada no primeiro arranque, ícones já
+  não tapados na mudança de língua.
+- **Reprodução**: um fim antes da duração anunciada é um fim verdadeiro se o servidor responder.
+- **Flatpak**: `packaging/flatpak/` (manifesto, AppStream, `cargo-sources.json` com
+  `tools/flatpak-cargo-sources.py`), ainda nunca compilado a sério.
+- **Memória** (Pi, filme de 3 h 48): sem crescimento de uma reprodução para a seguinte.

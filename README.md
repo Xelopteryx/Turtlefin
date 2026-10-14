@@ -138,6 +138,7 @@ Command-line options always win over settings (startup account, TV interface).
 - **F11**, anywhere: full screen (also in Settings → Display → **Full screen**, kept between launches outside the
   TV interface).
 - **Mouse**: click to open, wheel to move from row to row (Shift + wheel: within the row).
+- **Touch and dragging**: tap to open; swipe a finger (or drag with the left mouse button) to scroll the row or the page, a quick flick goes further; from the left edge: back.
 - **Text**: a letter typed on the keyboard goes straight into the field (search, sign-in, address), even in the
   TV interface; in the TV interface, clicking the search field opens the on-screen keyboard.
 
@@ -146,7 +147,7 @@ Command-line options always win over settings (startup account, TV interface).
 | Where | What |
 |---|---|
 | config folder, `turtlefin/` | `session.json` (current session), `accounts.json` (saved accounts), `prefs.json` (device settings), `tracks.json` (tracks per series), `userdata.json` (watched / favorites done offline) |
-| data folder, `turtlefin/downloads/` | downloads (media, posters, background, logo, `info.json`), `queue.json` (pending queue) |
+| data folder, `turtlefin/downloads/` | downloads laid out like a library: `<library>/<series>/Season 01/<series> S01E01.mkv` (with its `.json`, image and subtitles), series images shared; `queue.json` (pending queue) |
 | cache folder, `turtlefin/img/` | images and profile pictures (can be cleared in About) |
 | **Documents** | `Turtlefin Languages` (added languages) and `Turtlefin Presets` (exported animation presets) |
 

@@ -1,4 +1,4 @@
-# Turtlefin: passaggio di consegne (stato al 9 ottobre 2026, versione 1.1.0)
+# Turtlefin: passaggio di consegne (stato al 14 ottobre 2026, versione 1.1.0 + lavoro non pubblicato)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · **Italiano** · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -268,3 +268,25 @@ già uniti in `main`: si possono cancellare. Etichette: `v0.9.0`, `v0.9.1` (vers
   `test2`.
 - Dopo ogni gruppo di modifiche: un programma di installazione di prova sul suo Desktop
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, cancellando il precedente).
+
+## 11. Modifiche del 14 ottobre 2026 (non pubblicate)
+
+In dettaglio in [HANDOFF.md](HANDOFF.md) (sezioni 2, 5, 6 bis, 7, 9) e [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Sicurezza** (audit): identificativi del server codificati negli indirizzi (`api::seg`), nomi di file e cartelle
+  ripuliti (`fs_name`, `id_ok`: niente più `../`), risposte e immagini limitate in dimensione, decodifica delle
+  immagini limitata; token mai più in un indirizzo (mpv lo riceve nell'intestazione), cifrato con DPAPI su
+  Windows, revocato sul server quando si rimuove un account; file di configurazione scritti in un colpo e in 0600
+  dalla creazione; aggiornamento: SHA-256 verificato, cartella privata invece di `/tmp`, riavvio del .deb senza
+  interpretazione della shell; regole del plurale dei .po esterni limitate; `open_url` su Windows senza iniezione.
+- **Download**: `<libreria>/<serie>/Season 01/<serie> S01E01.mkv`, immagini di serie e stagione condivise; i vecchi
+  download vengono riordinati alla connessione. `TURTLEFIN_DATA_DIR` per i test.
+- **Comandi**: sul desktop il mouse è il selettore (evidenziazione esclusiva: tastiera `Nav.kb` o mouse); il tocco
+  e il trascinamento col mouse diventano passi di freccia (`Swipe`); il menu di sinistra riprende la tastiera.
+- **Animazioni**: lo sfondo resta fermo nei cambi di pagina (`Backdrop`), l'immagine condivisa torna alla scheda
+  della stessa serie, cambio di tema con una passata di luce, elenco delle lingue animato al primo avvio, icone non
+  più coperte al cambio di lingua.
+- **Riproduzione**: una fine prima della durata annunciata è una fine vera se il server risponde.
+- **Flatpak**: `packaging/flatpak/` (manifesto, AppStream, `cargo-sources.json` con
+  `tools/flatpak-cargo-sources.py`), mai ancora compilato davvero.
+- **Memoria** (Pi, film di 3 h 48): nessuna crescita da una riproduzione all'altra.

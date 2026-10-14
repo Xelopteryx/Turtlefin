@@ -1,4 +1,4 @@
-# Turtlefin: projectoverdracht (stand op 9 oktober 2026, versie 1.1.0)
+# Turtlefin: projectoverdracht (stand op 14 oktober 2026, versie 1.1.0 + niet-gepubliceerd werk)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · **Nederlands** · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -268,3 +268,25 @@ samengevoegd in `main`: ze mogen weg. Tags: `v0.9.0`, `v0.9.1` (gepubliceerde ve
 - Testen met een kopie van de configuratie (`TURTLEFIN_CONFIG_DIR`), nooit de echte; testaccounts `test` / `test2`.
 - Na elke reeks wijzigingen: een testinstallatieprogramma op het Bureaublad van wie het project onderhoudt
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, het oude verwijderd).
+
+## 11. Wijzigingen van 14 oktober 2026 (niet gepubliceerd)
+
+Uitgebreid in [HANDOFF.md](HANDOFF.md) (secties 2, 5, 6 bis, 7, 9) en [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Beveiliging** (audit): id's van de server gecodeerd in adressen (`api::seg`), bestands- en mapnamen opgeschoond
+  (`fs_name`, `id_ok`: geen `../` meer), antwoorden en afbeeldingen in grootte begrensd, afbeeldingsdecodering
+  begrensd; token nooit meer in een adres (mpv krijgt hem via een header), met DPAPI versleuteld op Windows,
+  ingetrokken op de server bij het verwijderen van een account; configuratiebestanden in één keer en meteen met
+  0600 geschreven; update: SHA-256 gecontroleerd, privémap in plaats van `/tmp`, herstart van de .deb zonder
+  shell-interpretatie; meervoudsregels van vreemde .po-bestanden begrensd; `open_url` op Windows zonder injectie.
+- **Downloads**: `<bibliotheek>/<serie>/Season 01/<serie> S01E01.mkv`, afbeeldingen van serie en seizoen gedeeld;
+  oude downloads worden bij het verbinden heringedeeld. `TURTLEFIN_DATA_DIR` voor tests.
+- **Bediening**: op de desktop is de muis de selector (exclusieve markering: toetsenbord `Nav.kb` of muis); aanraken
+  en slepen met de muis worden pijlstappen (`Swipe`); het linkermenu pakt het toetsenbord terug.
+- **Animaties**: de achtergrond blijft staan bij paginawissels (`Backdrop`), de gedeelde afbeelding keert terug naar
+  de kaart van dezelfde serie, themawissel met een lichtveeg, geanimeerde taallijst bij de eerste start, iconen
+  niet meer bedekt bij het wisselen van taal.
+- **Afspelen**: een einde vóór de opgegeven duur is een echt einde als de server antwoordt.
+- **Flatpak**: `packaging/flatpak/` (manifest, AppStream, `cargo-sources.json` via
+  `tools/flatpak-cargo-sources.py`), nog nooit echt gebouwd.
+- **Geheugen** (Pi, film van 3 u 48): geen groei van de ene weergave naar de volgende.

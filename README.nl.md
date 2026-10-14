@@ -143,6 +143,7 @@ De opdrachtregel gaat altijd voor de instellingen (startaccount, tv-interface).
 - **F11**, overal: volledig scherm (ook via Instellingen → Weergave → **Volledig scherm**, buiten de tv-interface
   onthouden tussen starts).
 - **Muis**: klikken om te openen, scrollwiel om van rij naar rij te gaan (Shift + scrollwiel: binnen de rij).
+- **Aanraken en slepen**: tikken opent; met de vinger vegen (of slepen met de linkermuisknop) scrollt de rij of de pagina, een snelle veeg gaat verder; vanaf de linkerrand: terug.
 - **Tekst**: een letter die je op het toetsenbord typt, komt direct in het veld (zoeken, aanmelden, adres), ook in
   de tv-interface; daar opent een klik op het zoekveld het schermtoetsenbord.
 
@@ -151,7 +152,7 @@ De opdrachtregel gaat altijd voor de instellingen (startaccount, tv-interface).
 | Waar | Wat |
 |---|---|
 | configuratiemap, `turtlefin/` | `session.json` (huidige sessie), `accounts.json` (opgeslagen accounts), `prefs.json` (apparaatinstellingen), `tracks.json` (sporen per serie), `userdata.json` (offline gezien / favorieten) |
-| gegevensmap, `turtlefin/downloads/` | downloads (media, posters, achtergrond, logo, `info.json`), `queue.json` (wachtrij) |
+| gegevensmap, `turtlefin/downloads/` | downloads geordend als een bibliotheek: `<bibliotheek>/<serie>/Season 01/<serie> S01E01.mkv` (met `.json`, afbeelding en ondertitels), afbeeldingen van de serie gedeeld; `queue.json` (wachtrij) |
 | cachemap, `turtlefin/img/` | afbeeldingen en profielfoto's (te legen via Over) |
 | **Documenten** | `Turtlefin Languages` (toegevoegde talen) en `Turtlefin Presets` (geëxporteerde animatiepresets) |
 

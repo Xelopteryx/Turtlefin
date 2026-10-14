@@ -1,4 +1,4 @@
-# Turtlefin: przekazanie projektu (stan na 9 października 2026, wersja 1.1.0)
+# Turtlefin: przekazanie projektu (stan na 14 października 2026, wersja 1.1.0 + nieopublikowane zmiany)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · **Polski** · [Português](HANDOFF.pt.md)
 
@@ -263,3 +263,25 @@ scalone z `main`: można je usunąć. Tagi: `v0.9.0`, `v0.9.1` (opublikowane wer
 - Testy na kopii konfiguracji (`TURTLEFIN_CONFIG_DIR`), nigdy na prawdziwej; konta testowe `test` / `test2`.
 - Po każdej serii zmian: testowy instalator na Pulpicie osoby utrzymującej projekt
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, poprzedni usunięty).
+
+## 11. Zmiany z 14 października 2026 (nieopublikowane)
+
+Szczegóły w [HANDOFF.md](HANDOFF.md) (sekcje 2, 5, 6 bis, 7, 9) i [HANDOFF.en.md](HANDOFF.en.md).
+
+- **Bezpieczeństwo** (audyt): identyfikatory z serwera kodowane w adresach (`api::seg`), nazwy plików i folderów
+  oczyszczane (`fs_name`, `id_ok`: koniec z `../`), odpowiedzi i obrazy ograniczone rozmiarem, dekodowanie obrazów
+  ograniczone; token nigdy więcej w adresie (mpv dostaje go w nagłówku), szyfrowany DPAPI w Windows, unieważniany
+  na serwerze przy usuwaniu konta; pliki konfiguracji zapisywane naraz i od razu z 0600; aktualizacja: sprawdzany
+  SHA-256, prywatny folder zamiast `/tmp`, ponowne uruchomienie .deb bez interpretacji powłoki; reguły liczby
+  mnogiej obcych plików .po ograniczone; `open_url` w Windows bez wstrzykiwania poleceń.
+- **Pobrane**: `<biblioteka>/<serial>/Season 01/<serial> S01E01.mkv`, obrazy serialu i sezonu wspólne; stare pobrane
+  pliki są porządkowane po połączeniu. `TURTLEFIN_DATA_DIR` do testów.
+- **Obsługa**: na komputerze mysz jest selektorem (wyłączne wyróżnienie: klawiatura `Nav.kb` albo mysz); dotyk i
+  przeciąganie myszą zamieniają się w kroki strzałek (`Swipe`); lewe menu odzyskuje klawiaturę.
+- **Animacje**: tło nie rusza się przy zmianie strony (`Backdrop`), wspólny obraz wraca do karty tego samego
+  serialu, zmiana motywu jako świetlne przetarcie, animowana lista języków przy pierwszym uruchomieniu, ikony nie
+  są już zakrywane przy zmianie języka.
+- **Odtwarzanie**: koniec przed podanym czasem trwania to prawdziwy koniec, jeśli serwer odpowiada.
+- **Flatpak**: `packaging/flatpak/` (manifest, AppStream, `cargo-sources.json` przez
+  `tools/flatpak-cargo-sources.py`), jeszcze nigdy naprawdę nie zbudowany.
+- **Pamięć** (Pi, film 3 h 48): brak wzrostu między kolejnymi odtworzeniami.

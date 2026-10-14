@@ -141,6 +141,7 @@ A linha de comandos tem sempre prioridade sobre as definições (conta de arranq
 - **F11**, em todo o lado: ecrã inteiro (também em Definições → Ecrã → **Ecrã inteiro**, guardado entre
   arranques fora da interface TV).
 - **Rato**: clique para abrir, roda para passar de uma fila para outra (Shift + roda: dentro da fila).
+- **Toque e arrastar**: tocar abre; deslizar o dedo (ou arrastar com o botão esquerdo do rato) desloca a fila ou a página, um gesto rápido vai mais longe; a partir da margem esquerda: voltar.
 - **Texto**: uma letra escrita no teclado vai diretamente para o campo (pesquisa, início de sessão, endereço),
   mesmo na interface TV; aí, um clique no campo de pesquisa abre o teclado no ecrã.
 
@@ -149,7 +150,7 @@ A linha de comandos tem sempre prioridade sobre as definições (conta de arranq
 | Onde | O quê |
 |---|---|
 | pasta de configuração, `turtlefin/` | `session.json` (sessão atual), `accounts.json` (contas guardadas), `prefs.json` (definições do dispositivo), `tracks.json` (faixas por série), `userdata.json` (vistos / favoritos offline) |
-| pasta de dados, `turtlefin/downloads/` | transferências (conteúdo, cartazes, fundo, logótipo, `info.json`), `queue.json` (fila pendente) |
+| pasta de dados, `turtlefin/downloads/` | transferências arrumadas como uma biblioteca: `<biblioteca>/<série>/Season 01/<série> S01E01.mkv` (com o seu `.json`, imagem e legendas), imagens da série partilhadas; `queue.json` (fila pendente) |
 | pasta de cache, `turtlefin/img/` | imagens e fotos de perfil (pode ser limpa em Acerca) |
 | **Documentos** | `Turtlefin Languages` (idiomas acrescentados) e `Turtlefin Presets` (presets de animações exportados) |
 
