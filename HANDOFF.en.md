@@ -1,4 +1,4 @@
-# Turtlefin: project handoff (state on October 9, 2026, version 1.1.0)
+# Turtlefin: project handoff (state on October 14, 2026, version 1.1.0 + unreleased work)
 
 [Français](HANDOFF.md) · **English** · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -37,6 +37,10 @@ back real-time blur or filter animations.
 | Console window (Windows) | “windows” subsystem in release; `--console` attaches / opens one; external commands without a window (`paths::quiet_command`) | No console and no flashing CMD window |
 | Command line | Always overrides settings (startup account, TV interface) | User request |
 | Password | Never saved (token only); on the command line, prefer `TURTLEFIN_PASSWORD` | An argument is visible to other processes |
+| Token on disk | Encrypted with DPAPI on Windows (`config::secret`, `dpapi:` prefix), 0600 file elsewhere; never in a URL (mpv gets it through `http-header-fields`); revoked (`/Sessions/Logout`) when an account is removed | October 2026 security audit (section 6 bis) |
+| Downloads | `<library>/<series>/Season 01/<series> S01E01.mkv` (+ `.json`, `.jpg`, subtitles); series and season images shared | Maintainer's request: less space, readable layout |
+| Visible selection | Exclusive: with keyboard / remote (`Nav.kb`) only the selection is highlighted, with the mouse only the hovered item | On the Pi, the idle pointer highlighted a card on top of the selection |
+| Touch | Swipes turned into arrow steps (`Swipe`, main.rs); mouse dragging too | Every page already knows how to use the arrows |
 
 ## 3. Code layout
 
@@ -66,8 +70,10 @@ src/winfull.rs      Windows: screen / work area, window animated while moved
 src/theme.rs        built-in themes, .tftheme files (ThemeDef), applied to the Theme global
 ui/sky.slint        scenery (sky and bubbles · Windows 7 “Harmony”), static, render-cached
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
+                    flatpak/ (manifest, AppStream metainfo, cargo-sources.json),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator),
+                    flatpak-cargo-sources.py (Flatpak's Cargo sources, rerun after every Cargo.lock change)
 .github/workflows/release.yml   build and publish on a `v*` tag (trial: `ci` branch)
 ```
 
@@ -158,10 +164,33 @@ Mechanisms that are not obvious in the code:
   drawn in Rust in the theme's colors (`theme::icon`) and set through winit (`theme::window_icon`): Slint does not
   pass on an icon without a cache key.
 - **Mouse**: click everywhere; wheel on home, detail page (`d-nav`, shared with the keyboard), search, libraries,
-  downloads, settings; foreground windows swallow the wheel.
+  downloads, settings; foreground windows swallow the wheel. On the desktop the mouse is the selector: nothing
+  is highlighted without hovering, hovering animates cards, buttons, tabs, lists and the menu (which picks the
+  hovered entry). Highlighting is always written `Nav.kb ? focused : hover` (never both).
+- **Touch and dragging** (`Swipe`, main.rs, in `install_f11`'s winit event filter): a finger swipe (or a mouse drag
+  with the left button) becomes arrow steps (half a card horizontally, a row vertically), with a fling at the
+  end; from the left edge: Escape. Once the gesture is recognized, Slint gets `PointerExited`: the touched card
+  does not open. A touched card (or one dragged with the mouse) makes its row active (`touched`).
+  `TURTLEFIN_DEBUG_TOUCH=1` prints gestures. Mouse dragging checked; not yet tried on a real touch screen
+  (Windows touch injection reaches the app as a mouse).
+- **Background** (`Backdrop`, app.slint): theme gradient, media image (two cross-fading layers), scenery, glass
+  bar. Drawn once under the pages and once more as the page-change veil: the content fades, the background
+  stays (before, everything went dark except the flying poster).
+- **Shared image return**: the card of the same item, else the card of another episode of the same series
+  (`CardData.group`, “Next up” moved on to the next episode after “watched”); the reloaded home selects that
+  card again (`home_keep`). Card not found: the image fades out (`hero-out`). Detail page scrolled down
+  (poster off screen): no flight.
+- **Theme change**: left-to-right wipe with a light band in the new theme's colors (a single cut-up snapshot),
+  instead of the tiles.
+- **Language effect**: the blank font keeps Montserrat's bounding boxes (`recalcBBoxes = False` in
+  make-blank-font.py); otherwise, in TV mode (k = 1.4), the page moved by a fraction of a pixel between the two
+  snapshots and icons were taken for text.
+- **Playback ending before the announced duration**: real end if the credits were reached and the server
+  answers (`natural`, player.rs); otherwise a network cut (automatic resume).
 
-Not done: Quick Connect; gamepad; license (to be chosen by the maintainer, before or after 1.0.0); XeLauncher
-bridge (the maintainer's media center launcher, low priority). Planned next: optimization, Android TV version.
+Not done: Quick Connect; native gamepad (XeLauncher turns it into keys: `xe_tf_input.py`, repeat ~6 steps/s and
+double presses ignored since October 14, 2026). Planned next: Android version (phone and Meta Quest), once the
+maintainer considers the app finished.
 
 ## 6. Translations
 
@@ -182,6 +211,25 @@ bridge (the maintainer's media center launcher, low priority). Planned next: opt
 - Installer: `[Languages]` and `[CustomMessages]` in `turtlefin.iss`; it writes the chosen code to `language` next
   to the exe, picked up on first launch.
 - Names coming from the server (libraries, media) are not translated.
+
+## 6 bis. Security (October 2026 audit)
+
+Done after remarks on Reddit; the app was “attacked” point by point:
+- **Malicious or broken server**: ids and tags put in URLs are encoded (`api::seg`), cache and download file
+  names are cleaned (`api::file_key`, `downloads::fs_name`, `id_ok`: no more `../`, separators or reserved
+  Windows names); JSON (64 MiB) and image (24 MiB) responses are capped (`api::body_limited`); image decoding is
+  limited to 8192 px and 256 MiB (`load_image`, GIFs to 2048 px) against decompression bombs.
+- **Token**: see section 2 (DPAPI, header, revocation). Config files written in one go (`config::write_atomic`,
+  temporary file then rename) and created directly as 0600 on Unix.
+- **Update**: only from `https://github.com/Xelopteryx/Turtlefin/releases/download/`, SHA-256 checked against the
+  one published by GitHub (`digest`), folder in the user's cache (no longer `/tmp/turtlefin-update`, where
+  another account could swap the .deb before its root install), version number checked, .deb restart without
+  shell interpretation (`$1` and `$@` parameters).
+- **Foreign .po files**: bounded plural rule (i64::MIN divided by -1, endless nesting).
+- **Windows**: `open_url` quotes the URL (a `&` in a folder name no longer starts a command).
+
+Left: an `http://` server sends the token in clear text (user's choice); token in clear text (0600) on Linux,
+for lack of a keyring common to all target machines.
 
 ## 7. Building, packaging, publishing
 
@@ -212,6 +260,12 @@ By hand:
 - x86: shinchiro's 32-bit libmpv builds published since July 2026 crash on startup (OpenSSL); the June 10, 2026
   one is kept in Turtlefin's `libmpv-i686-20260610` pre-release (do not delete it), used by `build.ps1`
   (`MPV_TAG`: another shinchiro version). aws-lc needs NASM in 32-bit.
+- **Flatpak** (Flathub): `packaging/flatpak/io.github.Xelopteryx.Turtlefin.yml` builds libass, libplacebo and
+  libmpv, takes full FFmpeg from the `org.freedesktop.Platform.ffmpeg-full` extension, then builds Turtlefin
+  offline from `cargo-sources.json` (`python tools/flatpak-cargo-sources.py` after every Cargo.lock change).
+  Try: `flatpak-builder --user --install --force-clean build-dir <manifest>`. For Flathub, the `dir` source is to
+  be replaced by the git repository (tag + commit). Never actually built so far. Inside a Flatpak, the built-in
+  update points to Flatpak (`update::Kind::Flatpak`).
 - Icons: `packaging/turtlefin.svg` is the logo; `packaging/icons/make-icons.py <folder>` (Python + Pillow)
   regenerates the PNGs and the ICO.
 
@@ -227,7 +281,8 @@ already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (publi
 
 ## 8. Testing
 
-- `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs, languages) without touching the real one.
+- `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs, languages) without touching the real one;
+  `TURTLEFIN_DATA_DIR=<folder>`: another downloads folder.
 - `--open=ID|settings|downloads`, `--play=ID@SECONDS`, `--test-video=file` (player without a server).
 - `TURTLEFIN_DEBUG_FRAMES=1` (frames > 25 ms); `TURTLEFIN_DEBUG_GAPS=1` with
   `SLINT_DEBUG_PERFORMANCE=refresh_full_speed`: pauses over 40 ms between two frames.
@@ -247,12 +302,16 @@ already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (publi
    Workaround in `src/mpv.rs` (OpenGL ES only). Diagnosis: `ls /proc/$(pgrep -x turtlefin)/fd | wc -l` must
    stay stable during playback.
 4. mpv RAM growth (~3 MB/min) with ASS subtitles: bounded to one playback (mpv recreated for each video).
-5. Token in plain text in `session.json` / `accounts.json` (0600 on Unix).
+5. Token in plain text in `session.json` / `accounts.json` on Linux (0600); DPAPI-encrypted on Windows. A
+   `session.json` copied from another Windows PC can no longer be read: the account asks for its password again.
 6. Tearing under Xorg without a compositor (bare Openbox): use a compositor (picom `--backend egl --vsync`).
    Turtlefin holds 60 fps.
 7. Software decoding on Linux ARM: may struggle with 4K / HEVC; lead: `TURTLEFIN_HWDEC=auto-copy`.
 8. Micro-pauses (~40 ms) measured only with rendering forced to full speed, on each frame of a header GIF and when
    the logo joins; cause not found, invisible in normal use.
+9. Memory (measured on the Pi on October 14, 2026, 3 h 48 film): ~215 MB on the login screen, ~465 MB after a
+   first playback (kept plateau, no growth from one playback to the next), +20 MB/h during playback, given back
+   at the end; stable descriptors (46 while playing, 23-25 after).
 
 ## 10. Maintainer's working preferences
 

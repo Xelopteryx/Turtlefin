@@ -1,4 +1,4 @@
-# Turtlefin : passation de projet (état au 9 octobre 2026, version 1.1.0)
+# Turtlefin : passation de projet (état au 14 octobre 2026, version 1.1.0 + travaux non publiés)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -37,6 +37,10 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Fenêtre console (Windows) | Sous-système « windows » en release ; `--console` en rattache / ouvre une ; commandes externes sans fenêtre (`paths::quiet_command`) | Pas de console ni de fenêtre CMD qui clignote |
 | Ligne de commande | Prime toujours sur les réglages (compte de démarrage, interface TV) | Demande de l'utilisateur |
 | Mot de passe | Jamais enregistré (jeton seulement) ; en ligne de commande, préférer `TURTLEFIN_PASSWORD` | Un argument est visible des autres processus |
+| Jeton sur le disque | Chiffré par DPAPI sous Windows (`config::secret`, préfixe `dpapi:`), fichier 0600 ailleurs ; jamais dans une adresse (mpv le reçoit par `http-header-fields`) ; révoqué (`/Sessions/Logout`) quand un compte est retiré | Audit de sécurité d'octobre 2026 (section 6 bis) |
+| Téléchargements | `<bibliothèque>/<série>/Season 01/<série> S01E01.mkv` (+ `.json`, `.jpg`, sous-titres) ; images de la série et de la saison partagées | Demande du mainteneur : moins de place, rangement lisible |
+| Sélection visible | Exclusive : au clavier / télécommande (`Nav.kb`) seule la sélection est mise en avant, à la souris seul l'élément survolé | Sur le Pi, le pointeur immobile mettait une carte en avant en plus de la sélection |
+| Tactile | Glissements traduits en flèches (`Swipe`, main.rs) ; le glisser de la souris aussi | Toutes les pages savent déjà se servir des flèches |
 
 ## 3. Structure du code
 
@@ -66,8 +70,10 @@ src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant
 src/theme.rs        thèmes intégrés, fichiers .tftheme (ThemeDef), application au global Theme
 ui/sky.slint        décors (ciel et bulles · « Harmony » de Windows 7), statiques, gardés en cache
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
+                    flatpak/ (manifeste, fiche AppStream, cargo-sources.json),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
-tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator)
+tools/              lang-check.py, make-blank-font.py, theme-creator.html (Turtlefin Theme Creator),
+                    flatpak-cargo-sources.py (sources Cargo de Flatpak, à relancer après chaque Cargo.lock)
 .github/workflows/release.yml   compilation et publication sur étiquette `v*` (essai : branche `ci`)
 ```
 
@@ -160,10 +166,33 @@ Mécanismes non évidents dans le code :
   (`theme::window_icon`) : Slint ne transmet pas une icône sans clé de cache.
 - **Souris** : clic partout ; molette sur l'accueil, la fiche (`d-nav`, partagé avec le clavier), la recherche,
   les bibliothèques, les téléchargements, les paramètres ; les fenêtres au premier plan absorbent la molette.
+  Au bureau, la souris est le sélecteur : rien n'est mis en avant sans survol, le survol anime les cartes,
+  boutons, onglets, listes et le menu (qui choisit l'entrée survolée). Partout, la mise en avant s'écrit
+  `Nav.kb ? focused : survol` (jamais les deux à la fois).
+- **Tactile et glisser** (`Swipe`, main.rs, dans le filtre d'événements winit de `install_f11`) : un glissement
+  du doigt (ou de la souris, bouton gauche) devient des pas de flèches (une demi-carte en largeur, une rangée en
+  hauteur), avec un lancer à la fin ; depuis le bord gauche : Échap. Dès que le geste est reconnu, Slint reçoit
+  `PointerExited` : la carte touchée ne s'ouvre pas. Une carte touchée (ou tirée à la souris) rend sa rangée
+  active (`touched`). `TURTLEFIN_DEBUG_TOUCH=1` affiche les gestes. Glisser à la souris vérifié ; pas encore
+  essayé sur un vrai écran tactile (l'injection tactile de Windows arrive à l'appli comme une souris).
+- **Fond** (`Backdrop`, app.slint) : dégradé du thème, image du média (deux calques en fondu), décor, barre de
+  verre. Dessiné une fois sous les pages et une seconde fois comme voile des changements de page : le contenu
+  s'efface, le fond ne bouge pas (avant, tout passait au noir sauf l'affiche qui vole).
+- **Retour de l'image partagée** : la carte du même élément, sinon celle d'un autre épisode de la même série
+  (`CardData.group`, « À suivre » passé à l'épisode suivant après « vu ») ; l'accueil rechargé resélectionne
+  cette carte (`home_keep`). Carte introuvable : l'image s'efface en fondu (`hero-out`). Fiche descendue
+  (affiche hors de l'écran) : pas de vol.
+- **Changement de thème** : balayage de gauche à droite avec une bande de lumière aux couleurs du nouveau thème
+  (une seule capture découpée), à la place des carreaux.
+- **Effet de langue** : la police vide garde les boîtes englobantes de Montserrat (`recalcBBoxes = False` dans
+  make-blank-font.py) ; sinon, en interface TV (k = 1,4), la page bougeait d'une fraction de pixel entre les
+  deux captures et les icônes étaient prises pour du texte.
+- **Fin de lecture plus tôt que la durée annoncée** : vraie fin si le générique est atteint et que le serveur
+  répond (`natural`, player.rs) ; sinon coupure du réseau (reprise automatique).
 
-Pas fait : Quick Connect ; manette ; licence (à choisir par le mainteneur avant ou après la 1.0.0) ; passerelle
-XeLauncher (lanceur du média center du mainteneur, pas prioritaire). Prévu ensuite : optimisation, version
-Android TV.
+Pas fait : Quick Connect ; manette native (XeLauncher la traduit en touches : `xe_tf_input.py`, répétition
+~6 pas/s et appuis en double ignorés depuis le 14 octobre 2026). Prévu ensuite : version Android (téléphone et
+Meta Quest), une fois l'application jugée finie par le mainteneur.
 
 ## 6. Traductions
 
@@ -184,6 +213,26 @@ Android TV.
 - Installeur : `[Languages]` et `[CustomMessages]` de `turtlefin.iss` ; il écrit le code choisi dans `language`
   à côté de l'exe, repris au premier lancement.
 - Les noms venant du serveur (bibliothèques, médias) ne sont pas traduits.
+
+## 6 bis. Sécurité (audit d'octobre 2026)
+
+Fait après des remarques sur Reddit ; l'application a été « attaquée » point par point :
+- **Serveur malveillant ou défaillant** : identifiants et étiquettes passés dans les adresses encodés
+  (`api::seg`), noms de fichiers du cache et des téléchargements nettoyés (`api::file_key`,
+  `downloads::fs_name`, `id_ok` : plus de `../`, de séparateur ni de nom réservé Windows) ; réponses JSON
+  (64 Mio) et images (24 Mio) bornées (`api::body_limited`) ; décodage d'image limité à 8192 px et 256 Mio
+  (`load_image`, GIF à 2048 px) contre les bombes de décompression.
+- **Jeton** : voir la section 2 (DPAPI, en-tête, révocation). Fichiers de config écrits d'un coup
+  (`config::write_atomic`, fichier provisoire puis renommage) et créés directement en 0600 sous Unix.
+- **Mise à jour** : seulement depuis `https://github.com/Xelopteryx/Turtlefin/releases/download/`, empreinte
+  SHA-256 comparée à celle publiée par GitHub (`digest`), dossier dans le cache de l'utilisateur (plus
+  `/tmp/turtlefin-update`, où un autre compte pouvait remplacer le .deb avant son installation en root), numéro
+  de version vérifié, relance du .deb sans interprétation shell (paramètres `$1` et `$@`).
+- **Fichiers .po étrangers** : règle de pluriel bornée (division de i64::MIN par -1, imbrication sans fin).
+- **Windows** : `open_url` met l'adresse entre guillemets (un `&` dans un nom de dossier n'ouvre plus une commande).
+
+Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
+sous Linux, faute de trousseau commun à toutes les machines visées.
 
 ## 7. Compiler, fabriquer les paquets, publier
 
@@ -215,6 +264,12 @@ Publier une version :
 - x86 : les libmpv 32 bits de shinchiro publiées depuis juillet 2026 plantent au démarrage (OpenSSL) ; celle du
   10 juin 2026 est gardée dans la pré-version `libmpv-i686-20260610` de Turtlefin (ne pas la supprimer), que
   `build.ps1` utilise (`MPV_TAG` : une autre version de shinchiro). aws-lc demande NASM en 32 bits.
+- **Flatpak** (Flathub) : `packaging/flatpak/io.github.Xelopteryx.Turtlefin.yml` compile libass, libplacebo et
+  libmpv, prend FFmpeg complet dans l'extension `org.freedesktop.Platform.ffmpeg-full`, puis Turtlefin hors ligne
+  à partir de `cargo-sources.json` (`python tools/flatpak-cargo-sources.py` après chaque changement de
+  Cargo.lock). Essai : `flatpak-builder --user --install --force-clean build-dir <manifeste>`. Pour Flathub, la
+  source `dir` est à remplacer par le dépôt git (étiquette + commit). Jamais compilé pour de vrai à ce jour.
+  Dans un Flatpak, la mise à jour intégrée renvoie vers Flatpak (`update::Kind::Flatpak`).
 - Icônes : `packaging/turtlefin.svg` est le logo ; `packaging/icons/make-icons.py <dossier>` (Python + Pillow)
   régénère les PNG et l'ICO.
 
@@ -231,7 +286,8 @@ d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être s
 
 ## 8. Essais
 
-- `TURTLEFIN_CONFIG_DIR=<dossier>` : autre dossier de config (comptes, prefs, langues) sans toucher au vrai.
+- `TURTLEFIN_CONFIG_DIR=<dossier>` : autre dossier de config (comptes, prefs, langues) sans toucher au vrai ;
+  `TURTLEFIN_DATA_DIR=<dossier>` : autre dossier de téléchargements.
 - `--open=ID|settings|downloads`, `--play=ID@SECONDES`, `--test-video=fichier` (lecteur sans serveur).
 - `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms) ; `TURTLEFIN_DEBUG_GAPS=1` avec
   `SLINT_DEBUG_PERFORMANCE=refresh_full_speed` : pauses de plus de 40 ms entre deux images.
@@ -251,12 +307,16 @@ d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être s
    Contournement dans `src/mpv.rs` (OpenGL ES uniquement). Diagnostic : `ls /proc/$(pgrep -x turtlefin)/fd | wc -l`
    doit rester stable pendant la lecture.
 4. Croissance RAM de mpv (~3 Mo/min) sur des sous-titres ASS : bornée à une lecture (mpv recréé à chaque vidéo).
-5. Jeton en clair dans `session.json` / `accounts.json` (0600 sous Unix).
+5. Jeton en clair dans `session.json` / `accounts.json` sous Linux (0600) ; chiffré par DPAPI sous Windows.
+   Un `session.json` copié d'un autre PC Windows n'est plus lisible : le compte redemande son mot de passe.
 6. Déchirement d'image sous Xorg sans compositeur (Openbox seul) : utiliser un compositeur (picom
    `--backend egl --vsync`). Turtlefin tient 60 images/s.
 7. Décodage logiciel sous Linux ARM : peut peiner en 4K / HEVC ; piste : `TURTLEFIN_HWDEC=auto-copy`.
 8. Micro-pauses (~40 ms) mesurées seulement en rendu forcé à pleine vitesse, à chaque image d'un GIF de
    l'en-tête et à la liaison du logo ; cause non trouvée, invisibles en usage normal.
+9. Mémoire (mesurée sur le Pi le 14 octobre 2026, film de 3 h 48) : ~215 Mo à l'écran de connexion, ~465 Mo
+   après une première lecture (palier gardé, aucune croissance d'une lecture à l'autre), +20 Mo/h pendant une
+   lecture, rendus à la fin ; descripteurs stables (46 en lecture, 23-25 après).
 
 ## 10. Préférences de travail du mainteneur
 

@@ -7465,7 +7465,16 @@ export component AppWindow inherits Window {
                 }
             }
 
-            FocusScope {
+            // Menu ouvert sans le clavier (une page qui arrivait l'a repris : retour d'une bibliothèque,
+            // puis menu rouvert aussitôt) : il le reprend, sinon les flèches allaient à la page dessous.
+            Timer {
+                interval: 50ms;
+                running: root.menu-open && !root.tour-lock && !root.lx-open && !menu-fs.has-focus;
+                triggered => {
+                    menu-fs.focus();
+                }
+            }
+            menu-fs := FocusScope {
                 // À l'ouverture (même pendant qu'il se refermait), le clavier va au menu.
                 property <bool> open: root.menu-open;
                 changed open => {
