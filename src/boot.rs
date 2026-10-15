@@ -116,7 +116,9 @@ async fn check(i: usize, start: &Start) -> Result<bool, String> {
             if !start.video_ok {
                 return Err(tr("Affichage OpenGL indisponible : l'interface marche, mais pas la vidéo.").to_string());
             }
-            for _ in 0..30 {
+            // Jusqu'à 10 s : sur une petite machine, le premier lancement après une mise à jour
+            // reconstruit le cache des shaders de Mesa (plusieurs secondes avant la première image).
+            for _ in 0..100 {
                 if let Some(info) = crate::video::gl_info() {
                     eprintln!("turtlefin : OpenGL {info}");
                     return Ok(true);

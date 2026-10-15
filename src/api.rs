@@ -1170,7 +1170,14 @@ impl Client {
     pub async fn segments(&self, id: &str) -> (Option<(f64, f64)>, Option<f64>) {
         let mut intro: Option<(f64, f64)> = None;
         let mut outro: Option<f64> = None;
-        if let Ok(v) = self.get::<serde_json::Value>(&format!("/MediaSegments/{}", seg(id)), &[]).await {
+        let segs = self.get::<serde_json::Value>(&format!("/MediaSegments/{}", seg(id)), &[]).await;
+        if std::env::var_os("TURTLEFIN_DEBUG_UP").is_some() {
+            eprintln!("turtlefin : segments du serveur : {}", match &segs {
+                Ok(v) => v.to_string().chars().take(600).collect::<String>(),
+                Err(e) => format!("erreur {e}"),
+            });
+        }
+        if let Ok(v) = segs {
             for s in v["Items"].as_array().into_iter().flatten() {
                 let (Some(a), Some(b)) = (s["StartTicks"].as_f64(), s["EndTicks"].as_f64()) else { continue };
                 match s["Type"].as_str() {
