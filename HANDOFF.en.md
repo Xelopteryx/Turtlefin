@@ -300,6 +300,13 @@ Branches: `main` (the only working branch), `ci` (CI trials). `interface-lua` an
 already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (published versions) and
 `libmpv-i686-20260610` (32-bit libmpv, see above).
 
+Android (started on 15 October 2026, see `android/README.md`, in French): an APK of the same code
+(`android/`, root `../src/main.rs`, entry point `android/src/entry.rs`), Slint's Android backend (Skia) with a
+modified copy in `android/vendor/` (touch hook, physical keyboard, Back, scale). Build:
+`powershell -ExecutionPolicy Bypass -File android\build-apk.ps1`. Checked in the emulator (Android 13, x86_64):
+sign-in, home, finger scrolling, detail pages, playback (MediaCodec), pause, background. Left: a real phone and
+the Meta Quest (arm64), watch party over `wss://`, portrait layout, publishing (signing key, CI).
+
 ## 8. Testing
 
 - `TURTLEFIN_CONFIG_DIR=<folder>`: another config folder (accounts, prefs, languages) without touching the real one;

@@ -195,8 +195,14 @@ Mécanismes non évidents dans le code :
   `TURTLEFIN_DEBUG_UP=1` affiche position, générique et chapitres.
 
 Pas fait : Quick Connect ; manette native (XeLauncher la traduit en touches : `xe_tf_input.py`, répétition
-~6 pas/s et appuis en double ignorés depuis le 14 octobre 2026). Prévu ensuite : version Android (téléphone et
-Meta Quest), une fois l'application jugée finie par le mainteneur.
+~6 pas/s et appuis en double ignorés depuis le 14 octobre 2026).
+
+Android (commencé le 15 octobre 2026, voir `android/README.md`) : APK du même code (`android/`, racine
+`../src/main.rs`, point d'entrée `android/src/entry.rs`), moteur Android de Slint (Skia) dont une copie
+modifiée est dans `android/vendor/` (crochet tactile, clavier physique, Retour, échelle). Vérifié dans
+l'émulateur (Android 13, x86_64) : connexion, accueil, défilement au doigt, fiches, lecture (MediaCodec),
+pause, arrière-plan. Reste : essais sur un vrai téléphone et le Meta Quest (arm64), watch party en `wss://`,
+mise en page en portrait (l'appli est en paysage), publication (clé de signature, CI).
 
 ## 6. Traductions
 
@@ -305,6 +311,10 @@ simule une mise à jour pour l'essayer. Raccourcis aux couleurs du thème : `the
 Branches : `main` (seule branche de travail), `ci` (essais de la CI). `interface-lua` et `libmpv` sont
 d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être supprimées. Étiquettes : `v0.9.0`,
 `v0.9.1` (versions publiées) et `libmpv-i686-20260610` (libmpv 32 bits, voir plus haut).
+
+Android : `powershell -ExecutionPolicy Bypass -File android\build-apk.ps1` (NDK, cibles Rust Android et
+cargo-ndk : voir `android/README.md`) ; compilation dans `%LOCALAPPDATA%\turtlefin-android`, APK dans
+`target\dist`. Pas encore dans la CI.
 
 ## 8. Essais
 
