@@ -156,6 +156,15 @@ export component Sheen inherits Rectangle {
 
 // Sélection au clavier visible : toujours en interface TV ; au bureau, seulement après une touche de
 // navigation (la souris la cache : le survol suffit). Posé par Rust (install_f11).
+// Clavier virtuel (Android) : haut du clavier (0 : pas de clavier) et bas du champ qui l'a pris, en
+// position dans la fenêtre sans décalage. `lift` : de combien remonter l'écran de saisie pour que le
+// champ reste visible au-dessus du clavier (toujours 0 au bureau).
+export global Kb {
+    in-out property <length> top;
+    in-out property <length> field-bottom;
+    out property <length> lift: root.top > 0 && root.field-bottom > 0 ? max(0px, root.field-bottom + 16px - root.top) : 0px;
+}
+
 export global Nav {
     in-out property <bool> kb: true;
     // Doigt (ou lancer) en train de faire défiler une page : les défilements ne sont pas animés

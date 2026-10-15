@@ -86,7 +86,7 @@ pub fn kind_label() -> &'static str {
 }
 
 fn http() -> Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
+    Ok(crate::api::http_builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(20))
         .redirect(crate::api::redirect_policy())
@@ -272,7 +272,7 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
         return Err(anyhow!("{}", trf("fichier {} absent de la publication", &[&name])));
     }
     let digest = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_ascii_lowercase);
-    let client = reqwest::Client::builder()
+    let client = crate::api::http_builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(15))
         .redirect(crate::api::redirect_policy())

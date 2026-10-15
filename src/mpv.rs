@@ -150,6 +150,22 @@ fn candidates() -> Vec<std::path::PathBuf> {
     out
 }
 
+/// Android : FFmpeg a besoin de la machine virtuelle Java pour le décodage matériel (MediaCodec) et
+/// la sortie son AudioTrack. Donnée une fois, avant le chargement de libmpv.
+#[cfg(target_os = "android")]
+fn android_java_vm() {
+    let vm = ndk_context::android_context().vm();
+    // SAFETY : libavcodec.so (livrée avec libmpv) ; av_jni_set_java_vm(JavaVM*, void*) garde le pointeur
+    // de la machine virtuelle, valable toute la vie du processus. La bibliothèque reste chargée.
+    unsafe {
+        let Ok(lib) = Library::new("libavcodec.so") else { return };
+        if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void, *mut c_void) -> i32>(b"av_jni_set_java_vm\0") {
+            f(vm, std::ptr::null_mut());
+        }
+        std::mem::forget(lib);
+    }
+}
+
 /// Windows : retire le dossier courant de la recherche des DLL pour tout le processus (pilotes,
 /// dépendances chargées plus tard). À appeler au tout début.
 pub fn harden_dll_search() {
@@ -167,6 +183,8 @@ pub fn harden_dll_search() {
 
 fn load() -> Result<Api, String> {
     let mut last_err = String::new();
+    #[cfg(target_os = "android")]
+    android_java_vm();
     for path in candidates() {
         // SAFETY : libmpv n'exécute rien de particulier au chargement.
         let lib = match unsafe { Library::new(&path) } {

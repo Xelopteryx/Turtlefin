@@ -35,6 +35,10 @@ pub fn config_dir() -> Option<PathBuf> {
 
 /// Cache (images) : peut être vidé sans rien perdre.
 pub fn cache_dir() -> Option<PathBuf> {
+    // Android : dossier de cache de l'application (voir android/src/lib.rs).
+    if let Some(d) = std::env::var_os("TURTLEFIN_CACHE_DIR") {
+        return Some(PathBuf::from(d));
+    }
     if let Some(p) = portable_root() {
         return Some(p.join("cache"));
     }

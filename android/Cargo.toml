@@ -1,0 +1,56 @@
+# Turtlefin pour Android (téléphone, tablette, Meta Quest) : le même code que sur le bureau
+# (../src/main.rs et ses modules), compilé en bibliothèque lancée par NativeActivity.
+# Projet à part (pas un membre du projet principal) : le bureau ne compile rien de plus.
+# Fabrication de l'APK : build-apk.ps1 (voir README.md).
+[package]
+name = "turtlefin-android"
+version = "1.2.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+# Racine : ../src/main.rs elle-même (ses modules s'appellent par crate::…) ; le point d'entrée
+# Android (src/entry.rs) y est un module compilé seulement pour Android.
+[lib]
+name = "turtlefin"
+crate-type = ["cdylib"]
+path = "../src/main.rs"
+
+# Mêmes dépendances que ../Cargo.toml (à garder en accord), sauf Slint : moteur Android au lieu de winit.
+[dependencies]
+slint = { version = "~1.18", default-features = false, features = ["std", "compat-1-2", "backend-android-activity-06"] }
+# Moteur Android de Slint (copie modifiée, voir vendor/) : crochet tactile.
+i-slint-backend-android-activity = { version = "=1.18.1", features = ["aa-06", "native-activity"] }
+# Machine virtuelle Java : donnée à FFmpeg (décodage matériel MediaCodec, son AudioTrack).
+ndk-context = "0.1"
+libloading = "0.8"
+glow = "0.17"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time"] }
+reqwest = { version = "0.13", features = ["json", "query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+directories = "6"
+uuid = { version = "1", features = ["v4"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+if-addrs = "0.15.0"
+sha2 = "0.10"
+
+[build-dependencies]
+slint-build = "1"
+
+[patch.crates-io]
+i-slint-backend-android-activity = { path = "vendor/i-slint-backend-android-activity" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Projet indépendant (ni membre ni parent d'un espace de travail).
+[workspace]

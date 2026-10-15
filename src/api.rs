@@ -687,6 +687,37 @@ fn auth_header(device_id: &str, token: Option<&str>) -> String {
     h
 }
 
+/// Constructeur de client HTTP de Turtlefin. Android : le vérificateur de certificats de reqwest
+/// (rustls-platform-verifier) y exige un composant Java que Turtlefin n'a pas ; on lui donne donc
+/// directement les autorités de certification du système, et celles ajoutées par l'utilisateur.
+pub fn http_builder() -> reqwest::ClientBuilder {
+    let b = reqwest::Client::builder();
+    #[cfg(target_os = "android")]
+    let b = b.tls_certs_only(android_roots());
+    b
+}
+
+/// Client HTTP simple (sans délai ni redirection particuliers).
+pub fn http_client() -> reqwest::Client {
+    http_builder().build().unwrap_or_default()
+}
+
+/// Android : certificats d'autorité du système et de l'utilisateur (fichiers PEM), lus une fois.
+#[cfg(target_os = "android")]
+fn android_roots() -> Vec<reqwest::Certificate> {
+    static ROOTS: std::sync::OnceLock<Vec<reqwest::Certificate>> = std::sync::OnceLock::new();
+    ROOTS
+        .get_or_init(|| {
+            ["/system/etc/security/cacerts", "/apex/com.android.conscrypt/cacerts", "/data/misc/user/0/cacerts-added"]
+                .iter()
+                .flat_map(|d| std::fs::read_dir(d).into_iter().flatten().flatten())
+                .filter_map(|e| std::fs::read(e.path()).ok())
+                .filter_map(|pem| reqwest::Certificate::from_pem(&pem).ok())
+                .collect()
+        })
+        .clone()
+}
+
 /// Redirections suivies (10 au plus), sauf de https vers http : une 307/308 renverrait en clair le
 /// corps de la requête (le mot de passe à la connexion). reqwest retire déjà l'en-tête Authorization
 /// quand la redirection change d'hôte.
@@ -704,7 +735,7 @@ pub fn redirect_policy() -> reqwest::redirect::Policy {
 }
 
 fn build_http() -> Result<reqwest::Client> {
-    let mut b = reqwest::Client::builder()
+    let mut b = crate::api::http_builder()
         .timeout(Duration::from_secs(30))
         // Serveur éteint ou injoignable : échec en quelques secondes, pas au bout de 30.
         .connect_timeout(Duration::from_secs(5))

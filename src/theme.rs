@@ -538,6 +538,15 @@ fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32
 /// directement sur la fenêtre : Slint ne transmet pas une icône dessinée en mémoire (elle n'a pas de
 /// clé de cache). Sans fenêtre encore créée, rien ne se passe : main la repose une fois la fenêtre là.
 pub fn window_icon(u: &AppWindow, t: &ThemeDef) {
+    // Android : pas de fenêtre à icône (celle de l'appli vient du paquet).
+    #[cfg(target_os = "android")]
+    let _ = (u, t);
+    #[cfg(not(target_os = "android"))]
+    window_icon_winit(u, t);
+}
+
+#[cfg(not(target_os = "android"))]
+fn window_icon_winit(u: &AppWindow, t: &ThemeDef) {
     use slint::winit_030::{winit, WinitWindowAccessor};
     let make = |n: u32| {
         let b = icon(t, n);

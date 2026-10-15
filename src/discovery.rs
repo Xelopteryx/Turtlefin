@@ -33,7 +33,7 @@ pub struct Found {
 }
 
 fn http() -> reqwest::Client {
-    let mut b = reqwest::Client::builder().timeout(Duration::from_millis(2500)).connect_timeout(Duration::from_millis(700)).redirect(crate::api::redirect_policy());
+    let mut b = crate::api::http_builder().timeout(Duration::from_millis(2500)).connect_timeout(Duration::from_millis(700)).redirect(crate::api::redirect_policy());
     if std::env::var("TURTLEFIN_INSECURE").is_ok() {
         b = b.danger_accept_invalid_certs(true);
     }

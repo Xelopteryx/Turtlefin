@@ -194,6 +194,23 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
         let prev_tex = gl.get_parameter_i32(glow::TEXTURE_BINDING_2D);
         let blend = gl.is_enabled(glow::BLEND);
         let scissor = gl.is_enabled(glow::SCISSOR_TEST);
+        // Skia (moteur de rendu de Slint sous Android) laisse des « samplers » attachés aux unités de
+        // texture : ils remplaceraient les réglages de mpv (texture sans mipmap lue en noir, d'où une
+        // image noire quand mpv redessine la vidéo en pause). Détachés le temps du rendu de mpv.
+        // Skia retient aussi la texture attachée à chaque unité : celles que mpv y laisse seraient
+        // prises pour les siennes (et leurs réglages modifiés). Toutes les unités sont donc rétablies.
+        let units: Vec<(i32, i32)> = (0..16u32)
+            .map(|i| {
+                gl.active_texture(glow::TEXTURE0 + i);
+                let tex = gl.get_parameter_i32(glow::TEXTURE_BINDING_2D);
+                let s = if gl.version().major >= 3 { gl.get_parameter_i32(glow::SAMPLER_BINDING) } else { 0 };
+                if s != 0 {
+                    gl.bind_sampler(i, None);
+                }
+                (tex, s)
+            })
+            .collect();
+        gl.active_texture(prev_active as u32);
 
         // Texture à la taille de la fenêtre (recréée si elle change).
         let stale = st.target.as_ref().map(|t| (t.w, t.h) != (size.width, size.height)).unwrap_or(true);
@@ -242,6 +259,13 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
         // Rétablissement de l'état OpenGL attendu par Slint.
         gl.bind_framebuffer(glow::FRAMEBUFFER, NonZeroU32::new(prev_fbo as u32).map(glow::NativeFramebuffer));
         gl.viewport(vp[0], vp[1], vp[2], vp[3]);
+        for (i, (tex, s)) in units.iter().enumerate() {
+            gl.active_texture(glow::TEXTURE0 + i as u32);
+            gl.bind_texture(glow::TEXTURE_2D, NonZeroU32::new(*tex as u32).map(glow::NativeTexture));
+            if *s != 0 {
+                gl.bind_sampler(i as u32, NonZeroU32::new(*s as u32).map(glow::NativeSampler));
+            }
+        }
         gl.use_program(NonZeroU32::new(prev_program as u32).map(glow::NativeProgram));
         gl.bind_vertex_array(NonZeroU32::new(prev_vao as u32).map(glow::NativeVertexArray));
         gl.bind_buffer(glow::ARRAY_BUFFER, NonZeroU32::new(prev_buffer as u32).map(glow::NativeBuffer));

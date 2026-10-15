@@ -661,7 +661,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     let source = item.media_sources.as_ref().and_then(|v| v.first());
     let ms_id = source.map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
     let mut subs: Vec<(String, String)> = Vec::new();
-    let http = reqwest::Client::builder().redirect(crate::api::redirect_policy()).connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(60)).build()?;
+    let http = crate::api::http_builder().redirect(crate::api::redirect_policy()).connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(60)).build()?;
     for (n, st) in source.into_iter().flat_map(|s| s.media_streams.iter()).filter(|s| s.kind == "Subtitle" && s.is_external).enumerate() {
         let Some(url) = client.subtitle_url(&item.id, &ms_id, st) else { continue };
         let ext = url.rsplit('.').next().unwrap_or("srt");

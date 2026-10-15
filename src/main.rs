@@ -6,6 +6,10 @@ mod api;
 mod boot;
 #[cfg(windows)]
 mod winfull;
+// Android : point d'entrée (android_main), voir android/.
+#[cfg(target_os = "android")]
+#[path = "../android/src/entry.rs"]
+mod android_entry;
 mod config;
 mod discovery;
 mod downloads;
@@ -694,7 +698,7 @@ fn fly_autostart(app: &Arc<App>, server: String, uid: String, name: String) {
                 }
             });
         }
-        let Some(frames) = avatar_fetch(&reqwest::Client::new(), &server, &uid, known.as_deref()).await else { return };
+        let Some(frames) = avatar_fetch(&api::http_client(), &server, &uid, known.as_deref()).await else { return };
         let _ = ui.upgrade_in_event_loop(move |u| {
             if u.get_fly_phase() > 0 {
                 show_frames(&u, AnimSlot::Fly, "", frames);
@@ -937,7 +941,7 @@ async fn start_session(app: Arc<App>, client: api::Client) {
                 None => saved.server_main = client.server.clone(),
             }
             // Le même serveur (même identifiant) garde ses adresses connues.
-            let server_id = discovery::probe(&reqwest::Client::new(), &client.server).await.map(|i| i.0).unwrap_or_default();
+            let server_id = discovery::probe(&api::http_client(), &client.server).await.map(|i| i.0).unwrap_or_default();
             if !server_id.is_empty() && server_id == old.server_id && saved.server_backup.is_empty() {
                 if saved.server_main == old.server_main || saved.server_main == old.server_backup {
                     // Adresse déjà connue : les deux adresses enregistrées restent telles quelles.
@@ -1034,7 +1038,7 @@ fn login_opened(app: &Arc<App>) {
     apply_login_tiles(&u, &first);
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let http = reqwest::Client::new();
+        let http = api::http_client();
         let info = if server.ends_with("//") || server.is_empty() { None } else { discovery::probe(&http, &server).await };
         let reachable = info.is_some();
         let (mut sid, sname) = info.map(|i| (i.0, i.1)).unwrap_or_default();
@@ -2389,7 +2393,7 @@ fn complete_addresses(app: &Arc<App>, client: &api::Client) {
     }
     let (app2, base) = (app.clone(), client.server.clone());
     app.rt.spawn(async move {
-        let http = reqwest::Client::new();
+        let http = api::http_client();
         let Some((id, ..)) = discovery::probe(&http, &base).await else { return };
         let Some(f) = discovery::discover().await.into_iter().find(|f| f.id == id) else { return };
         let mut s = config::load();
@@ -4855,6 +4859,7 @@ fn toggle_full(app: &Arc<App>) {
 }
 
 /// F11, sur toutes les pages (la touche est prise avant l'interface, qui ne la voit pas).
+#[cfg(not(target_os = "android"))]
 fn install_f11(app: &Arc<App>) {
     use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
     let Some(u) = app.ui().upgrade() else { return };
@@ -4874,9 +4879,17 @@ fn install_f11(app: &Arc<App>) {
         // La souris (bouton gauche maintenu) glisse de la même façon : écrans tactiles vus comme une
         // souris, et navigation à la souris seule.
         let touch = match ev {
-            winit::event::WindowEvent::Touch(t) => Some((t.phase, t.id, t.location.x, t.location.y, true)),
+            winit::event::WindowEvent::Touch(t) => {
+                let phase = match t.phase {
+                    winit::event::TouchPhase::Started => TouchPh::Started,
+                    winit::event::TouchPhase::Moved => TouchPh::Moved,
+                    winit::event::TouchPhase::Ended => TouchPh::Ended,
+                    winit::event::TouchPhase::Cancelled => TouchPh::Cancelled,
+                };
+                Some((phase, t.id, t.location.x, t.location.y, true))
+            }
             winit::event::WindowEvent::MouseInput { state, button: winit::event::MouseButton::Left, .. } => {
-                let phase = if *state == winit::event::ElementState::Pressed { winit::event::TouchPhase::Started } else { winit::event::TouchPhase::Ended };
+                let phase = if *state == winit::event::ElementState::Pressed { TouchPh::Started } else { TouchPh::Ended };
                 Some((phase, u64::MAX, swipe.mouse.0, swipe.mouse.1, false))
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
@@ -4886,7 +4899,7 @@ fn install_f11(app: &Arc<App>) {
                         u.global::<Nav>().set_touch(false);
                     }
                 }
-                swipe.id.filter(|id| *id == u64::MAX).map(|id| (winit::event::TouchPhase::Moved, id, position.x, position.y, false))
+                swipe.id.filter(|id| *id == u64::MAX).map(|id| (TouchPh::Moved, id, position.x, position.y, false))
             }
             _ => None,
         };
@@ -4929,6 +4942,37 @@ fn install_f11(app: &Arc<App>) {
         }
         EventResult::Propagate
     });
+}
+
+/// Android : les touchers passent par le crochet du moteur Android de Slint (android/vendor), qui
+/// laisse Swipe reprendre les glissements comme sur le bureau.
+#[cfg(target_os = "android")]
+fn install_touch(app: &Arc<App>) {
+    use i_slint_backend_android_activity::{set_touch_hook, TouchHookPhase};
+    let Some(u) = app.ui().upgrade() else { return };
+    let weak = u.as_weak();
+    let swipe = std::cell::RefCell::new(Swipe::default());
+    set_touch_hook(move |phase, id, x, y| {
+        let Some(u) = weak.upgrade() else { return false };
+        let phase = match phase {
+            TouchHookPhase::Started => TouchPh::Started,
+            TouchHookPhase::Moved => TouchPh::Moved,
+            TouchHookPhase::Ended => TouchPh::Ended,
+            TouchHookPhase::Cancelled => TouchPh::Cancelled,
+        };
+        // Pas d'emprunt en double : un geste peut envoyer des événements qui reviennent ici.
+        let Ok(mut s) = swipe.try_borrow_mut() else { return false };
+        s.touch(&u, phase, id as u64, (x as f64, y as f64), true)
+    });
+}
+
+/// Phase d'un toucher (doigt ou souris bouton gauche), quel que soit le moteur de fenêtre.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TouchPh {
+    Started,
+    Moved,
+    Ended,
+    Cancelled,
 }
 
 /// Glissement du doigt (écran tactile), ou de la souris bouton gauche maintenu :
@@ -4975,8 +5019,8 @@ fn scroll_at(u: &AppWindow, p: (f64, f64), d: f64, horizontal: bool) {
 impl Swipe {
     /// Rend true si l'événement est consommé (ne va pas à Slint).
     /// `finger` : doigt (sinon souris, bouton gauche).
-    fn touch(&mut self, u: &AppWindow, phase: slint::winit_030::winit::event::TouchPhase, id: u64, p: (f64, f64), finger: bool) -> bool {
-        use slint::winit_030::winit::event::TouchPhase;
+    fn touch(&mut self, u: &AppWindow, phase: TouchPh, id: u64, p: (f64, f64), finger: bool) -> bool {
+        use TouchPh as TouchPhase;
         let s = u.window().scale_factor() as f64;
         if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() && phase != TouchPhase::Moved {
             eprintln!("turtlefin : toucher {phase:?} {id} ({:.0}, {:.0})", p.0, p.1);
@@ -5191,7 +5235,8 @@ fn open_console() {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+/// Point d'entrée (bureau ; sur Android, appelé par android/src/lib.rs).
+pub(crate) fn main() -> anyhow::Result<()> {
     mpv::harden_dll_search();
     if std::env::args().any(|a| a == "--console") {
         open_console();
@@ -5205,8 +5250,8 @@ fn main() -> anyhow::Result<()> {
         .build()?;
 
     // La vidéo passe par OpenGL : on demande le moteur de rendu femtovg (OpenGL / OpenGL ES),
-    // sauf si SLINT_BACKEND impose autre chose.
-    if std::env::var_os("SLINT_BACKEND").is_none() {
+    // sauf si SLINT_BACKEND impose autre chose. Android : moteur déjà choisi (Skia sur OpenGL ES).
+    if std::env::var_os("SLINT_BACKEND").is_none() && !cfg!(target_os = "android") {
         if let Err(e) = slint::BackendSelector::new().renderer_name("femtovg".into()).select() {
             eprintln!("turtlefin : rendu OpenGL indisponible ({e}), lecture vidéo impossible");
         }
@@ -5360,6 +5405,12 @@ fn main() -> anyhow::Result<()> {
     ui.on_switch_account({
         let app = app.clone();
         move || end_session(&app, false)
+    });
+
+    // Android : clavier virtuel rangé quand son champ disparaît (voir drop-keyboard, app.slint).
+    ui.on_hide_keyboard(|| {
+        #[cfg(target_os = "android")]
+        i_slint_backend_android_activity::hide_soft_input();
     });
 
     ui.on_login_opened({
@@ -5911,7 +5962,10 @@ fn main() -> anyhow::Result<()> {
     {
         let app = app.clone();
         slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
+            #[cfg(not(target_os = "android"))]
             install_f11(&app);
+            #[cfg(target_os = "android")]
+            install_touch(&app);
             // Icône du thème : la fenêtre existe maintenant.
             if let Some(u) = app.ui().upgrade() {
                 let p = config::ui_prefs();

@@ -50,7 +50,10 @@ fn hwdec_mode() -> String {
     if let Ok(v) = std::env::var("TURTLEFIN_HWDEC") {
         return v;
     }
-    if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+    if cfg!(target_os = "android") {
+        // Android : décodeurs matériels du téléphone (MediaCodec), images recopiées pour OpenGL.
+        "mediacodec-copy".to_string()
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         "drm-copy".to_string()
     } else {
         "auto-safe".to_string()
@@ -112,6 +115,13 @@ fn new_player() -> Result<Arc<Mpv>> {
             m.set_option("audio-device", "auto");
         }
     }
+    // Android : AudioTrack (machine virtuelle Java donnée à FFmpeg, voir mpv.rs), OpenSL ES en secours.
+    #[cfg(target_os = "android")]
+    m.set_option("ao", "audiotrack,opensles");
+    // Android : rendu « simple » de mpv (sans passes intermédiaires). Mêlées au rendu de Skia (moteur de
+    // Slint sous Android), celles-ci redonnaient une image noire quand mpv redessine l'image en pause.
+    #[cfg(target_os = "android")]
+    m.set_option("gpu-dumb-mode", "yes");
     // Coupure courte du réseau : ffmpeg se reconnecte tout seul et reprend au même octet. Réseau muet :
     // abandon au bout de 20 s (la lecture reprend alors quand le serveur répond, voir `play`).
     m.set_option("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=10");

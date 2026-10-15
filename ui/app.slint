@@ -10,7 +10,7 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
@@ -220,8 +220,13 @@ component Field inherits Rectangle {
                 root.accepted();
             }
             changed has-focus => {
+                // Bas du champ sans le décalage en cours (voir Kb) : le clavier virtuel le laissera visible.
+                let bottom = root.absolute-position.y + root.height + Kb.lift;
                 if (self.has-focus) {
+                    Kb.field-bottom = bottom;
                     root.got-focus();
+                } else if (Kb.field-bottom == bottom) {
+                    Kb.field-bottom = 0;
                 }
             }
         }
@@ -1656,6 +1661,11 @@ export struct DlInfo {
 }
 
 export component AppWindow inherits Window {
+    // Clavier virtuel (Android) : sa position, pour remonter l'écran de saisie au-dessus (voir Kb).
+    property <length> kb-top: self.virtual-keyboard-size.height > 0 ? self.virtual-keyboard-position.y : 0px;
+    changed kb-top => {
+        Kb.top = self.kb-top;
+    }
     title: "Turtlefin";
     // Icône de départ ; ensuite celle du thème, posée directement sur la fenêtre (theme::window_icon).
     icon: @image-url("../packaging/icons/turtlefin-64.png");
@@ -2077,6 +2087,7 @@ export component AppWindow inherits Window {
 
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
+        root.drop-keyboard();
         root.tour-ev(6);
         if (root.fly-phase == 1 || root.fly-phase == 2) {
             if (root.screen == "home") {
@@ -2229,6 +2240,9 @@ export component AppWindow inherits Window {
         }
     }
     changed login-mode => {
+        if (root.login-mode != "form") {
+            root.drop-keyboard();
+        }
         root.login-user-err = "";
         root.login-osk = false;
         // Retour aux comptes : l'ancien message n'a plus lieu d'être (« Session expirée » reste, lui,
@@ -2364,9 +2378,22 @@ export component AppWindow inherits Window {
     // Fenêtre fermée : la page des paramètres reprend le clavier.
     changed addr-edit => {
         if (root.addr-edit == 0) {
+            root.drop-keyboard();
             root.refocus += 1;
         }
     }
+    changed manual-open => {
+        if (!root.manual-open) {
+            root.drop-keyboard();
+        }
+    }
+    // Champ de saisie fermé avec son écran (sans perdre le clavier avant) : le clavier virtuel
+    // d'Android resterait ouvert ; il est rangé, et l'écran n'a plus à remonter (voir Kb).
+    function drop-keyboard() {
+        Kb.field-bottom = 0;
+        root.hide-keyboard();
+    }
+    callback hide-keyboard();
     function addr-close() {
         root.addr-edit = 0;
         root.addr-osk = false;
@@ -3314,7 +3341,7 @@ export component AppWindow inherits Window {
 
         if root.login-mode == "form": form-card := FocusScope {
             x: (parent.width - lg.card-w) / 2;
-            y: lg.card-y + (1 - lg.form-e) * 50 * lg.u;
+            y: lg.card-y + (1 - lg.form-e) * 50 * lg.u - Kb.lift;
             opacity: lg.form-e;
             width: lg.card-w;
             height: lg.card-h;
@@ -5695,7 +5722,7 @@ export component AppWindow inherits Window {
             mdlg := FocusScope {
                 x: (parent.width - parent.dw) / 2;
                 y: (1 - srv.mosk-p) * (parent.height - parent.dh) / 2 + srv.mosk-p * 20px * root.k
-                    + (1 - srv.mo-p) * 30px * root.k;
+                    + (1 - srv.mo-p) * 30px * root.k - Kb.lift;
                 width: parent.dw;
                 height: parent.dh;
                 // Bureau : un clic à côté d'un champ ne lui retire pas le clavier.
@@ -7265,7 +7292,7 @@ export component AppWindow inherits Window {
             adlg := FocusScope {
                 x: (parent.width - parent.dw) / 2;
                 y: (1 - sets.adk-p) * (parent.height - parent.dh) / 2 + sets.adk-p * 20px * root.k
-                    + (1 - sets.ad-p) * 30px * root.k;
+                    + (1 - sets.ad-p) * 30px * root.k - Kb.lift;
                 width: parent.dw;
                 height: parent.dh;
                 focus-on-click: root.tv-mode;

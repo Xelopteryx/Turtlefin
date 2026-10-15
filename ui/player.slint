@@ -636,10 +636,18 @@ export component PlayerView inherits Rectangle {
         clicked => {
             if (root.menu != "") {
                 root.menu = "";
+                root.show();
+            } else if (Nav.touch) {
+                // Au doigt (téléphone, tablette) : un toucher montre ou cache les commandes, comme ailleurs.
+                if (root.osd) {
+                    root.hide();
+                } else {
+                    root.show();
+                }
             } else {
                 root.command("pause");
+                root.show();
             }
-            root.show();
         }
         double-clicked => {
             root.toggle-fullscreen();
