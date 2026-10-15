@@ -142,8 +142,27 @@ fn candidates() -> Vec<std::path::PathBuf> {
     if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())) {
         out.extend(names.iter().map(|n| dir.join(n)));
     }
-    out.extend(names.iter().map(std::path::PathBuf::from));
+    // Recherche du système par nom seul : pas sous Windows, où elle passe aussi par le dossier courant
+    // (une DLL piégée posée dans le dossier d'où l'on lance Turtlefin serait chargée).
+    if !cfg!(windows) {
+        out.extend(names.iter().map(std::path::PathBuf::from));
+    }
     out
+}
+
+/// Windows : retire le dossier courant de la recherche des DLL pour tout le processus (pilotes,
+/// dépendances chargées plus tard). À appeler au tout début.
+pub fn harden_dll_search() {
+    #[cfg(windows)]
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetDllDirectoryW(path: *const u16) -> i32;
+        }
+        let empty = [0u16];
+        // SAFETY : chaîne vide terminée par zéro ; l'appel ne garde pas le pointeur.
+        unsafe { SetDllDirectoryW(empty.as_ptr()) };
+    }
 }
 
 fn load() -> Result<Api, String> {

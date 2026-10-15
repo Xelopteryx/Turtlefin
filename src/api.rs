@@ -650,11 +650,28 @@ fn auth_header(device_id: &str, token: Option<&str>) -> String {
     h
 }
 
+/// Redirections suivies (10 au plus), sauf de https vers http : une 307/308 renverrait en clair le
+/// corps de la requête (le mot de passe à la connexion). reqwest retire déjà l'en-tête Authorization
+/// quand la redirection change d'hôte.
+pub fn redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|a| {
+        let downgrade = a.previous().iter().any(|u| u.scheme() == "https") && a.url().scheme() != "https";
+        if downgrade {
+            a.error("redirection de https vers http refusée")
+        } else if a.previous().len() >= 10 {
+            a.error("trop de redirections")
+        } else {
+            a.follow()
+        }
+    })
+}
+
 fn build_http() -> Result<reqwest::Client> {
     let mut b = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         // Serveur éteint ou injoignable : échec en quelques secondes, pas au bout de 30.
         .connect_timeout(Duration::from_secs(5))
+        .redirect(redirect_policy())
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")));
     // À n'utiliser qu'en test : TURTLEFIN_INSECURE=1 accepte tout certificat.
     if std::env::var("TURTLEFIN_INSECURE").is_ok() {

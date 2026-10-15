@@ -89,6 +89,7 @@ fn http() -> Result<reqwest::Client> {
     Ok(reqwest::Client::builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(20))
+        .redirect(crate::api::redirect_policy())
         .build()?)
 }
 
@@ -274,6 +275,7 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     let client = reqwest::Client::builder()
         .user_agent(concat!("Turtlefin/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(15))
+        .redirect(crate::api::redirect_policy())
         .build()?;
     let mut resp = client.get(&url).send().await?.error_for_status()?;
     let total = resp.content_length().unwrap_or(0);

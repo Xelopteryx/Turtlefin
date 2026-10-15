@@ -5156,6 +5156,7 @@ fn open_console() {
 }
 
 fn main() -> anyhow::Result<()> {
+    mpv::harden_dll_search();
     if std::env::args().any(|a| a == "--console") {
         open_console();
     }
