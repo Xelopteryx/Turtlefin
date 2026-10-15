@@ -40,15 +40,18 @@ pub struct PlayRequest {
 }
 
 /// Décodage matériel : variable TURTLEFIN_HWDEC pour forcer une valeur (ex. « auto-safe », « no »).
-/// Sous Linux ARM 64 bits (pilote v3d), le décodage matériel V4L2 produit des images au format
-/// Broadcom « SAND » que mpv ne sait pas importer en OpenGL : résultat, un écran vide. On décode
-/// donc en logiciel par défaut. Ailleurs (Windows, PC Linux) : « auto-safe ».
+/// Sous Linux ARM 64 bits (Raspberry Pi), les images du décodeur matériel arrivent au format Broadcom
+/// « SAND » que mpv ne sait pas importer en OpenGL (écran vide) : « drm-copy » les recopie en mémoire
+/// au format habituel. Mesuré sur un Pi 5 (4K HEVC 10 bits, profil « fast ») : aucune image perdue au
+/// lieu de 17 %, ~1 cœur au lieu de 4 ; image identique au pixel près. Le H.264 (pas de décodeur
+/// matériel sur le Pi 5) et les machines sans DRM retombent seuls sur le logiciel.
+/// Ailleurs (Windows, PC Linux) : « auto-safe ».
 fn hwdec_mode() -> String {
     if let Ok(v) = std::env::var("TURTLEFIN_HWDEC") {
         return v;
     }
     if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        "no".to_string()
+        "drm-copy".to_string()
     } else {
         "auto-safe".to_string()
     }

@@ -27,7 +27,7 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Lecture | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), rendu OpenGL dans une texture affichée par Slint (`src/video.rs`), commandes Slint par-dessus (`ui/player.slint`) | Lecteur intégré, pas d'IPC, marche sous Wayland. Le lecteur est recréé à chaque lecture (mémoire bornée) |
 | Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini | La vidéo passe par une texture OpenGL |
 | Texture vidéo | Pixels physiques, origine `TopLeft`, état GL sauvegardé / rétabli autour de mpv ; `loadfile` attend le contexte de rendu | Sinon image à l'envers ou « No render context set » |
-| Décodage | `hwdec=no` sous Linux ARM 64 bits, `auto-safe` ailleurs (Windows : `d3d11va-copy`) | Sur les cartes ARM testées (pilote v3d), le décodage V4L2 sort un format que le rendu ne sait pas importer |
+| Décodage | `hwdec=drm-copy` sous Linux ARM 64 bits, `auto-safe` ailleurs (Windows : `d3d11va-copy`) | Sur le Pi (pilote v3d), le décodeur matériel sort un format (« SAND ») que le rendu ne sait pas importer ; la copie le remet au format habituel. Pi 5, 4K HEVC 10 bits : 0 image perdue au lieu de 17 %, ~1 cœur au lieu de 4 |
 | Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
 | Mémoire | Cache mpv plafonné (100 / 25 MiB), images demandées à la bonne taille, 16 éléments par rangée | Petites machines (4 Go) |
 | Langues | Français dans le code (langue source), traduction à l'exécution par `src/i18n.rs` depuis `lang/<code>.po` (intégrés) et le dossier `Turtlefin Languages` | Voir section 6 |
@@ -333,7 +333,9 @@ d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être s
    Un `session.json` copié d'un autre PC Windows n'est plus lisible : le compte redemande son mot de passe.
 6. Déchirement d'image sous Xorg sans compositeur (Openbox seul) : utiliser un compositeur (picom
    `--backend egl --vsync`). Turtlefin tient 60 images/s.
-7. Décodage logiciel sous Linux ARM : peut peiner en 4K / HEVC ; piste : `TURTLEFIN_HWDEC=auto-copy`.
+7. Linux ARM : HEVC décodé par la puce du Pi (`drm-copy`, mesuré avec mpv seul le 15 octobre 2026, pas encore
+   dans Turtlefin sur une vraie vidéo du serveur) ; le H.264 reste en logiciel (pas de décodeur sur le Pi 5),
+   suffisant en 1080p. `TURTLEFIN_HWDEC=no` pour revenir au logiciel.
 8. Micro-pauses (~40 ms) mesurées seulement en rendu forcé à pleine vitesse, à chaque image d'un GIF de
    l'en-tête et à la liaison du logo ; cause non trouvée, invisibles en usage normal.
 9. Mémoire (mesurée sur le Pi le 14 octobre 2026, film de 3 h 48) : ~215 Mo à l'écran de connexion, ~465 Mo

@@ -27,7 +27,7 @@ back real-time blur or filter animations.
 | Playback | **libmpv loaded at runtime** (`libloading`, `src/mpv.rs`), OpenGL rendering into a texture shown by Slint (`src/video.rs`), Slint controls on top (`ui/player.slint`) | Embedded player, no IPC, works on Wayland. The player is recreated for each playback (bounded memory) |
 | Slint renderer | femtovg (OpenGL / GLES) forced unless `SLINT_BACKEND` is set | Video goes through an OpenGL texture |
 | Video texture | Physical pixels, `TopLeft` origin, GL state saved / restored around mpv; `loadfile` waits for the render context | Otherwise upside-down image or “No render context set” |
-| Decoding | `hwdec=no` on 64-bit Linux ARM, `auto-safe` elsewhere (Windows: `d3d11va-copy`) | On the tested ARM boards (v3d driver), V4L2 decoding outputs a format the renderer cannot import |
+| Decoding | `hwdec=drm-copy` on 64-bit Linux ARM, `auto-safe` elsewhere (Windows: `d3d11va-copy`) | On the Pi (v3d driver), the hardware decoder outputs a format ("SAND") the renderer cannot import; the copy turns it back into the usual one. Pi 5, 4K HEVC 10-bit: 0 dropped frames instead of 17 %, ~1 core instead of 4 |
 | Linux audio | `ao=pipewire,pulse,alsa`, `config=no` | A user `mpv.conf` forcing ALSA failed when PipeWire holds the HDMI output |
 | Memory | mpv cache capped (100 / 25 MiB), images requested at the right size, 16 items per row | Small machines (4 GB) |
 | Languages | French in the code (source language), runtime translation by `src/i18n.rs` from `lang/<code>.po` (built in) and the `Turtlefin Languages` folder | See section 6 |
@@ -327,7 +327,9 @@ already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (publi
    `session.json` copied from another Windows PC can no longer be read: the account asks for its password again.
 6. Tearing under Xorg without a compositor (bare Openbox): use a compositor (picom `--backend egl --vsync`).
    Turtlefin holds 60 fps.
-7. Software decoding on Linux ARM: may struggle with 4K / HEVC; lead: `TURTLEFIN_HWDEC=auto-copy`.
+7. Linux ARM: HEVC decoded by the Pi's chip (`drm-copy`, measured with plain mpv on 15 October 2026, not yet
+   in Turtlefin on a real server video); H.264 stays in software (no decoder on the Pi 5), fine at 1080p.
+   `TURTLEFIN_HWDEC=no` to go back to software.
 8. Micro-pauses (~40 ms) measured only with rendering forced to full speed, on each frame of a header GIF and when
    the logo joins; cause not found, invisible in normal use.
 9. Memory (measured on the Pi on October 14, 2026, 3 h 48 film): ~215 MB on the login screen, ~465 MB after a
