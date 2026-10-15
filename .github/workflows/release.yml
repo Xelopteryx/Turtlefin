@@ -20,8 +20,11 @@ on:
     branches: ["ci"]
   workflow_dispatch:
 
+# Droits minimaux : lecture seule pour la compilation ; seule la publication écrit (voir « publish »).
+# Actions fixées sur un commit (une étiquette peut être déplacée par son auteur, ou par qui le pirate) :
+# pour les mettre à jour, remplacer l'empreinte par celle de la nouvelle version.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -31,11 +34,11 @@ jobs:
         arch: [x64, x86]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: ${{ matrix.arch == 'x64' && 'x86_64-pc-windows-msvc' || 'i686-pc-windows-msvc' }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.arch }}
       - name: Inno Setup et NASM
@@ -48,7 +51,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: packaging\windows\build.ps1 -Arch ${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-${{ matrix.arch }}
           path: |
@@ -72,15 +75,15 @@ jobs:
     env:
       TURTLEFIN_DIST: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Dépendances
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libfontconfig1-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev \
             libwayland-dev libmpv-dev file wget
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.arch }}
       - name: Compilation
@@ -94,7 +97,7 @@ jobs:
           cargo install cargo-deb --locked
           VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           cargo deb --no-build --output "target/turtlefin_${VERSION}_${{ matrix.deb }}.deb"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: linux-${{ matrix.arch }}
           path: |
@@ -105,8 +108,10 @@ jobs:
     needs: [windows, linux]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       # Notes de version = message de l'étiquette annotée (git tag -a v1.2.3 -m "…"), affiché par la
@@ -119,12 +124,12 @@ jobs:
           git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > notes.md
           cat notes.md
           echo "title=$(head -n 1 notes.md)" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           merge-multiple: true
       - name: Publication GitHub
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: dist/*
           name: ${{ steps.notes.outputs.title }}

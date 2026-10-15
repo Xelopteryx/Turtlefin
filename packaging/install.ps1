@@ -16,6 +16,15 @@ if (-not $asset) { throw "No Windows $arch installer in release $($release.tag_n
 $file = Join-Path $env:TEMP $asset.name
 Write-Host "Downloading $($asset.name)..."
 Invoke-WebRequest $asset.browser_download_url -OutFile $file -UseBasicParsing
+# SHA-256 published by GitHub: a damaged or altered installer is never run.
+if ($asset.digest -and $asset.digest -like 'sha256:*') {
+    $got = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+    if ($got -ne $asset.digest.Substring(7).ToLower()) {
+        Remove-Item $file -ErrorAction SilentlyContinue
+        throw "Checksum mismatch for $($asset.name): download damaged or altered, aborting."
+    }
+    Write-Host 'Checksum OK.'
+}
 Write-Host 'Installing...'
 # WaitForExit plutôt que -Wait : -Wait attendrait aussi Turtlefin, lancé par l'installeur à la fin.
 # Langue : celle de Windows si Turtlefin la connaît, sinon l'anglais (elle devient celle de l'appli).

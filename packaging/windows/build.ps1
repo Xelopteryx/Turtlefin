@@ -58,6 +58,14 @@ if (-not (Test-Path "$mpvDir\libmpv-2.dll")) {
     if (-not $asset) { throw "libmpv $mpvArch introuvable" }
     $archive = Join-Path $mpvDir $asset.name
     Invoke-WebRequest $asset.browser_download_url -OutFile $archive -UseBasicParsing
+    # Empreinte SHA-256 publiée par GitHub : une archive abîmée ou remplacée n'entre pas dans le paquet.
+    if ($asset.digest -and $asset.digest -like 'sha256:*') {
+        $got = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+        if ($got -ne $asset.digest.Substring(7).ToLower()) {
+            Remove-Item $archive -ErrorAction SilentlyContinue
+            throw "libmpv : empreinte différente de celle publiée ($($asset.name))"
+        }
+    }
     $7z = (Get-Command 7z -ErrorAction SilentlyContinue).Source
     if (-not $7z) { $7z = "C:\Program Files\7-Zip\7z.exe" }
     & $7z e $archive "-o$mpvDir" libmpv-2.dll -y | Out-Null

@@ -18,6 +18,22 @@ esac
 echo "Turtlefin: looking for the latest version ($ARCH)..."
 JSON=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest")
 url_of() { printf '%s\n' "$JSON" | grep -o "\"browser_download_url\": *\"[^\"]*$1\"" | head -n 1 | sed 's/.*"\(https[^"]*\)"/\1/'; }
+# SHA-256 published by GitHub for the asset whose URL is $1 ("digest" comes before the URL in each asset).
+digest_of() {
+  printf '%s\n' "$JSON" | tr ',' '\n' | awk -v url="$1" '
+    /"digest": *"sha256:/ { d = $0; sub(/.*sha256:/, "", d); sub(/".*/, "", d) }
+    index($0, url) && /browser_download_url/ { print d; exit }'
+}
+# Refuses a file whose SHA-256 differs from the published one (damaged or replaced on the way).
+check() {
+  want=$(digest_of "$1")
+  if [ -z "$want" ]; then echo "(no published checksum for this file: not verified)"; return 0; fi
+  if command -v sha256sum >/dev/null 2>&1; then got=$(sha256sum "$2" | cut -d' ' -f1)
+  elif command -v shasum >/dev/null 2>&1; then got=$(shasum -a 256 "$2" | cut -d' ' -f1)
+  else echo "(sha256sum missing: not verified)"; return 0; fi
+  [ "$got" = "$want" ] || { echo "Checksum mismatch for $(basename "$1"): download damaged or altered, aborting." >&2; exit 1; }
+  echo "Checksum OK."
+}
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -27,6 +43,7 @@ if command -v apt-get >/dev/null 2>&1 && command -v dpkg >/dev/null 2>&1; then
   [ -n "$URL" ] || { echo "No $DEB .deb package in the latest release." >&2; exit 1; }
   echo "Downloading $(basename "$URL")..."
   curl -fL --progress-bar -o "$TMP/turtlefin.deb" "$URL"
+  check "$URL" "$TMP/turtlefin.deb"
   chmod 644 "$TMP/turtlefin.deb"
   chmod 755 "$TMP"
   echo "Installing (administrator password)..."
@@ -40,7 +57,9 @@ else
   ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
   mkdir -p "$BIN" "$APPS" "$ICONS"
   echo "Downloading $(basename "$URL")..."
-  curl -fL --progress-bar -o "$BIN/Turtlefin.AppImage" "$URL"
+  curl -fL --progress-bar -o "$TMP/Turtlefin.AppImage" "$URL"
+  check "$URL" "$TMP/Turtlefin.AppImage"
+  mv "$TMP/Turtlefin.AppImage" "$BIN/Turtlefin.AppImage"
   chmod +x "$BIN/Turtlefin.AppImage"
   curl -fsSL -o "$ICONS/turtlefin.svg" "https://raw.githubusercontent.com/$REPO/main/packaging/turtlefin.svg" || true
   cat > "$APPS/turtlefin.desktop" <<EOF
