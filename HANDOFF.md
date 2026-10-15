@@ -242,6 +242,16 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
   qui faisait planter ; langues, thèmes, préréglages bornés en taille (`paths::read_text_limited`) ; watch party :
   délai de reprise borné, messages WebSocket de 2 Mio au plus ; scripts intégrés de mpv non chargés.
   `TURTLEFIN_MPV_LOG` (diagnostic) écrit encore le jeton dans le journal de mpv : à ne pas partager tel quel.
+- **Troisième passe** : redirections de `https` vers `http` refusées par tous les clients HTTP
+  (`api::redirect_policy` ; une 307/308 aurait renvoyé le mot de passe en clair) ; dossier de configuration en
+  0700 sous Unix ; Windows : `SetDllDirectoryW("")` au démarrage (`mpv::harden_dll_search`) et libmpv cherchée
+  seulement à côté de l'exécutable (une DLL piégée dans le dossier courant n'est plus chargée) ; scripts
+  d'installation (`packaging/install.sh`, `install.ps1`) et `packaging/windows/build.ps1` (libmpv de shinchiro)
+  vérifient l'empreinte SHA-256 publiée par GitHub ; CI : `permissions: contents: read` (écriture seulement pour
+  la publication), actions épinglées par commit (à mettre à jour à la main). Xelauncher : sortie audio,
+  rotation et volume vérifiés avant d'être passés au shell.
+  Non corrigé : `build-appimage.sh` télécharge linuxdeploy « continuous » sans empreinte (pas d'empreinte
+  stable publiée) ; mpv/ffmpeg renvoient l'en-tête du jeton si le serveur Jellyfin lui-même redirige un flux.
 
 Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
 sous Linux, faute de trousseau commun à toutes les machines visées.

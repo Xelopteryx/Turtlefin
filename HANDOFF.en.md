@@ -239,6 +239,15 @@ Done after remarks on Reddit; the app was “attacked” point by point:
   size-capped (`paths::read_text_limited`); watch party: resume delay bounded, WebSocket messages 2 MiB max;
   mpv's built-in scripts not loaded. `TURTLEFIN_MPV_LOG` (diagnostics) still writes the token into mpv's log:
   do not share it as is.
+- **Third pass**: `https` → `http` redirects refused by every HTTP client (`api::redirect_policy`; a 307/308
+  would have resent the password in clear text); config directory 0700 on Unix; Windows: `SetDllDirectoryW("")`
+  at startup (`mpv::harden_dll_search`) and libmpv looked up only next to the executable (a planted DLL in the
+  current directory is no longer loaded); install scripts (`packaging/install.sh`, `install.ps1`) and
+  `packaging/windows/build.ps1` (shinchiro libmpv) check the SHA-256 digest published by GitHub; CI:
+  `permissions: contents: read` (write only for publishing), actions pinned by commit (update by hand).
+  Xelauncher: audio output, rotation and volume validated before reaching the shell.
+  Not fixed: `build-appimage.sh` downloads linuxdeploy "continuous" without a digest (no stable one published);
+  mpv/ffmpeg resend the token header if the Jellyfin server itself redirects a stream.
 
 Left: an `http://` server sends the token in clear text (user's choice); token in clear text (0600) on Linux,
 for lack of a keyring common to all target machines.
