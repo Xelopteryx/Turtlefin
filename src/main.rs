@@ -183,6 +183,8 @@ struct App {
     home_stale: AtomicBool,
     /// Compte quitté par « Changer de compte » : Retour sur « Qui regarde ? » le rouvre.
     prev_account: Mutex<Option<String>>,
+    /// Comptes publics du serveur (nom, identifiant) vus à la dernière ouverture de la connexion.
+    login_pub: Mutex<Vec<(String, String)>>,
     /// Type du média de la fiche (« Movie », « Episode »...) : texte de la liste des pistes.
     detail_kind: Mutex<String>,
     /// Explorateur des langues : dossier affiché et chemins de ses éléments (même ordre que la liste).
@@ -962,6 +964,57 @@ async fn start_session(app: Arc<App>, client: api::Client) {
 // ---------------------------------------------------------------------------
 // Écran de connexion : comptes enregistrés, comptes du serveur, autre compte
 // ---------------------------------------------------------------------------
+/// Tuiles de « Qui regarde ? » : (action, nom, sous-titre, identifiant d'utilisateur pour l'avatar).
+/// Comptes enregistrés pour ce serveur, puis comptes publics du serveur (nom, identifiant), puis
+/// « Autre compte ».
+fn login_tiles(sid: &str, public: &[(String, String)]) -> Vec<(String, String, String, String)> {
+    let mut tiles: Vec<(String, String, String, String)> = Vec::new();
+    if !sid.is_empty() {
+        for a in config::accounts().into_iter().filter(|a| a.server_id == sid) {
+            tiles.push((format!("acc:{}", a.user_id), a.user_name, tr("Enregistré").into(), a.user_id));
+        }
+        for (name, id) in public {
+            if !tiles.iter().any(|t| &t.3 == id) {
+                tiles.push((format!("pub:{name}"), name.clone(), String::new(), id.clone()));
+            }
+        }
+    }
+    tiles.push(("other".into(), tr("Autre compte").into(), String::new(), String::new()));
+    tiles
+}
+
+/// Pose les tuiles, avec les vignettes d'avatars déjà connues (les avatars complets, parfois de
+/// lourds GIF animés, se décodent ensuite à part).
+fn apply_login_tiles(u: &AppWindow, rows: &[(String, String, String, String)]) {
+    let cards: Vec<CardData> = rows
+        .iter()
+        .map(|(id, name, sub, _)| CardData {
+            id: id.clone().into(),
+            title: name.clone().into(),
+            subtitle: sub.clone().into(),
+            // Initiale affichée tant que l'avatar n'est pas chargé (Slint n'a pas de sous-chaîne).
+            rating: name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "?".into()).into(),
+            ..Default::default()
+        })
+        .collect();
+    let saved = rows.iter().filter(|r| r.0.starts_with("acc:")).count() as i32;
+    u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+    for (i, (key, _, _, uid)) in rows.iter().enumerate() {
+        if let Some(frames) = (!uid.is_empty()).then(|| avatar_thumb(uid)).flatten() {
+            show_frames(u, AnimSlot::Login(i), key, frames);
+        }
+    }
+    u.set_login_saved(saved);
+    if saved == 0 {
+        u.set_login_edit(false);
+    }
+    if u.get_login_sel() >= rows.len() as i32 {
+        u.set_login_sel((rows.len() as i32 - 1).max(0));
+    }
+    // L'écran de connexion reprend le clavier (après le menu, par exemple).
+    u.set_refocus(u.get_refocus() + 1);
+}
+
 fn login_opened(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
     // Premier lancement (aucun serveur connu) : la recherche des serveurs plutôt qu'un écran de
@@ -973,6 +1026,12 @@ fn login_opened(app: &Arc<App>) {
     let server = api::normalize_server(&u.get_server());
     u.set_login_mode("pick".into());
     u.set_login_sel(0);
+    // Tuiles posées tout de suite (comptes enregistrés + comptes du serveur vus la dernière fois) :
+    // sans ça, l'écran montre un instant celles de la visite précédente (avant un changement de
+    // compte), le temps que le serveur réponde.
+    let known_pub = app.login_pub.lock().unwrap().clone();
+    let first = login_tiles(&config::load().server_id, &known_pub);
+    apply_login_tiles(&u, &first);
     let app2 = app.clone();
     app.rt.spawn(async move {
         let http = reqwest::Client::new();
@@ -983,62 +1042,27 @@ fn login_opened(app: &Arc<App>) {
         if sid.is_empty() {
             sid = config::load().server_id;
         }
-        // (action, nom, sous-titre, identifiant d'utilisateur pour l'avatar)
-        let mut tiles: Vec<(String, String, String, String)> = Vec::new();
-        if !sid.is_empty() {
-            for a in config::accounts().into_iter().filter(|a| a.server_id == sid) {
-                tiles.push((format!("acc:{}", a.user_id), a.user_name, tr("Enregistré").into(), a.user_id));
-            }
-            let public: serde_json::Value = if !reachable {
-                serde_json::Value::Null
-            } else {
-                match http.get(format!("{server}/Users/Public")).timeout(std::time::Duration::from_secs(8)).send().await {
-                    Ok(r) => api::body_limited(r, 8 << 20).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default(),
-                    Err(_) => serde_json::Value::Null,
-                }
+        let mut public: Vec<(String, String)> = Vec::new();
+        if reachable && !sid.is_empty() {
+            let list: serde_json::Value = match http.get(format!("{server}/Users/Public")).timeout(std::time::Duration::from_secs(8)).send().await {
+                Ok(r) => api::body_limited(r, 8 << 20).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default(),
+                Err(_) => serde_json::Value::Null,
             };
-            for p in public.as_array().into_iter().flatten() {
-                let (Some(id), Some(name)) = (p["Id"].as_str(), p["Name"].as_str()) else { continue };
-                if tiles.iter().any(|t| t.3 == id) {
-                    continue;
+            for p in list.as_array().into_iter().flatten() {
+                if let (Some(id), Some(name)) = (p["Id"].as_str(), p["Name"].as_str()) {
+                    public.push((name.to_string(), id.to_string()));
                 }
-                tiles.push((format!("pub:{name}"), name.to_string(), String::new(), id.to_string()));
             }
+            *app2.login_pub.lock().unwrap() = public.clone();
         }
-        tiles.push(("other".into(), tr("Autre compte").into(), String::new(), String::new()));
+        let tiles = login_tiles(&sid, &public);
+        let changed = tiles.iter().map(|t| &t.0).ne(first.iter().map(|t| &t.0));
         let rows = tiles.clone();
-        // Avatars déjà connus : leurs vignettes, posées avec les tuiles (les avatars complets,
-        // parfois de lourds GIF animés, se décodent ensuite à part).
-        let first: Vec<Option<Frames>> = tiles.iter().map(|t| if t.3.is_empty() { None } else { avatar_thumb(&t.3) }).collect();
-        let keys: Vec<String> = tiles.iter().map(|t| t.0.clone()).collect();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
-            let cards: Vec<CardData> = rows
-                .iter()
-                .map(|(id, name, sub, _)| CardData {
-                    id: id.clone().into(),
-                    title: name.clone().into(),
-                    subtitle: sub.clone().into(),
-                    // Initiale affichée tant que l'avatar n'est pas chargé (Slint n'a pas de sous-chaîne).
-                    rating: name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "?".into()).into(),
-                    ..Default::default()
-                })
-                .collect();
-            let saved = rows.iter().filter(|r| r.0.starts_with("acc:")).count() as i32;
-            u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
-            for (i, frames) in first.into_iter().enumerate() {
-                if let Some(frames) = frames {
-                    show_frames(&u, AnimSlot::Login(i), &keys[i], frames);
-                }
+            // Déjà en place (cas courant) : rien n'est reconstruit, les avatars restent.
+            if changed {
+                apply_login_tiles(&u, &rows);
             }
-            u.set_login_saved(saved);
-            if saved == 0 {
-                u.set_login_edit(false);
-            }
-            if u.get_login_sel() >= rows.len() as i32 {
-                u.set_login_sel((rows.len() as i32 - 1).max(0));
-            }
-            // L'écran de connexion reprend le clavier (après le menu, par exemple).
-            u.set_refocus(u.get_refocus() + 1);
             u.set_server_name(if reachable { sname.into() } else { tr("Serveur injoignable").into() });
         });
         // Avatars (publics, sans connexion), en cercle.
@@ -5290,6 +5314,7 @@ fn main() -> anyhow::Result<()> {
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         prev_account: Mutex::new(None),
+        login_pub: Mutex::new(Vec::new()),
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
         lx_paths: Mutex::new(Vec::new()),
