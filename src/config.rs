@@ -450,6 +450,9 @@ pub struct UiPrefs {
     pub autostart_server: String,
     /// Volume de Turtlefin (0 à 100, celui de mpv : ni Windows ni le système de son).
     pub volume: u32,
+    /// Débit maximal de lecture en kbit/s (0 : fichier original). Au-delà, le serveur convertit la
+    /// vidéo (Paramètres → Lecture, bouton Qualité du lecteur).
+    pub max_bitrate: u32,
     /// Visite guidée déjà proposée (premier lancement).
     pub tutorial_offered: bool,
     /// Visite guidée à lancer à la prochaine arrivée sur l'accueil (acceptée, `--tutorial`).
@@ -567,6 +570,7 @@ impl Default for UiPrefs {
             autostart_user: String::new(),
             autostart_server: String::new(),
             volume: 100,
+            max_bitrate: 0,
             tutorial_offered: false,
             tutorial_pending: false,
             anim: AnimFlags::default(),

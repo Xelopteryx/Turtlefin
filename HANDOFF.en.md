@@ -330,8 +330,15 @@ already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (publi
 7. Linux ARM: HEVC decoded by the Pi's chip (`drm-copy`, checked in Turtlefin on 15 October 2026 with a 4K
    HEVC episode from the server: ~0.15 core instead of ~0.8, correct picture); H.264 stays in software (no
    decoder on the Pi 5), fine at 1440p. `TURTLEFIN_HWDEC=no` to go back to software.
-   The Pi (Wi-Fi) only gets 3 to 5 Mbit/s from the server: 4K (~22 Mbit/s) stops to buffer. Turtlefin always
-   plays the original file (no transcoding, no maximum bitrate): room for improvement.
+   The Pi (Wi-Fi) only gets 3 to 5 Mbit/s from the server: 4K (~22 Mbit/s) stops to buffer.
+10. Maximum bitrate (Settings → Playback, Quality button in the player; `UiPrefs::max_bitrate`, kbit/s, 0 = original):
+   `api::Client::transcode` (PlaybackInfo with an "everything direct-plays under the limit, otherwise H.264 over
+   HLS" profile), `ApiKey` stripped from the address (the token goes in the header, which also works for HLS
+   segments), resolution capped by bitrate (`api::max_size`), a single audio track (preferred language,
+   `preferred_audio`), text subtitles served separately, conversion stopped at the end (`stop_transcode`).
+   Changing quality during playback reloads the video at the same spot. The maintainer's server (Raspberry Pi)
+   converts at ~0.3x real time (4K HEVC and 1440p H.264 alike, measured on 15 October 2026): unusable there,
+   useful with a stronger server.
 8. Micro-pauses (~40 ms) measured only with rendering forced to full speed, on each frame of a header GIF and when
    the logo joins; cause not found, invisible in normal use.
 9. Memory (measured on the Pi on October 14, 2026, 3 h 48 film): ~215 MB on the login screen, ~465 MB after a

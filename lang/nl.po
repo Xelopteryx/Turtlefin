@@ -1690,3 +1690,21 @@ msgstr "bijgewerkt door Flatpak (softwarecentrum, of „flatpak update”)"
 
 msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
 msgstr "Let op: dit http://-adres gaat onversleuteld over internet, je wachtwoord zou leesbaar verstuurd worden. Gebruik liever een https://-adres (of een vpn). Bevestig nogmaals om toch in te loggen."
+
+msgid "Débit maximal"
+msgstr "Maximale bitrate"
+
+msgid "Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."
+msgstr "Daarboven zet de server de video om naar een lichtere versie (daarvoor is een krachtige processor nodig). Ook in de speler."
+
+msgid "Originale (sans limite)"
+msgstr "Origineel (geen limiet)"
+
+msgid "Qualité"
+msgstr "Kwaliteit"
+
+msgid "Qualité : {}"
+msgstr "Kwaliteit: {}"
+
+msgid "{} Mbit/s"
+msgstr "{} Mbit/s"

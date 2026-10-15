@@ -101,6 +101,43 @@ pub struct MediaSource {
     pub path: Option<String>,
 }
 
+/// Flux converti par le serveur (voir `Client::transcode`).
+#[derive(Clone, Debug)]
+pub struct Transcode {
+    pub url: String,
+    /// Session de lecture du serveur (rapports de lecture, arrêt de la conversion).
+    pub session: String,
+}
+
+/// Débits maximaux proposés (kbit/s ; 0 : fichier original, sans limite).
+pub const BITRATES: [u32; 11] = [0, 40_000, 20_000, 12_000, 8_000, 6_000, 4_000, 3_000, 2_000, 1_500, 1_000];
+
+/// Taille d'image maximale demandée au serveur pour un débit : une image plus petite se convertit
+/// bien plus vite (serveurs modestes) et reste nette à ce débit.
+pub fn max_size(kbps: u32) -> (u32, u32) {
+    match kbps {
+        k if k >= 30_000 => (3840, 2160),
+        k if k >= 8_000 => (1920, 1080),
+        k if k >= 3_000 => (1280, 720),
+        k if k >= 1_500 => (854, 480),
+        _ => (640, 360),
+    }
+}
+
+/// Retire le jeton (`ApiKey`, `api_key`) d'une adresse fournie par le serveur : il passe par
+/// l'en-tête et ne doit apparaître ni dans les journaux ni dans les messages d'erreur.
+fn strip_api_key(path: &str) -> String {
+    let Some((base, query)) = path.split_once('?') else { return path.to_string() };
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|p| {
+            let key = p.split('=').next().unwrap_or("").to_ascii_lowercase();
+            key != "apikey" && key != "api_key"
+        })
+        .collect();
+    format!("{base}?{}", kept.join("&"))
+}
+
 impl MediaSource {
     /// Source distante (adresse web) : lue directement, sans le jeton du serveur Jellyfin (il
     /// n'a rien à faire chez un autre hôte, où une redirection l'aurait envoyé).
@@ -1481,6 +1518,67 @@ impl Client {
         format!("{}/Items/{}/Download", self.server, seg(item_id))
     }
 
+    /// Lecture limitée à `kbps` kbit/s : si le fichier dépasse, le serveur propose un flux HLS converti
+    /// (H.264, résolution réduite selon le débit, voir `max_size`). None : le fichier passe tel quel.
+    /// `audio` : piste audio à garder (index Jellyfin), le flux converti n'en contient qu'une.
+    pub async fn transcode(&self, item_id: &str, media_source_id: &str, kbps: u32, audio: Option<i32>) -> Result<Option<Transcode>> {
+        let bps = (kbps as u64 * 1000).to_string();
+        let mut q: Vec<(&str, String)> = vec![
+            ("userId", self.user_id.clone()),
+            ("MaxStreamingBitrate", bps.clone()),
+            ("MediaSourceId", media_source_id.to_string()),
+        ];
+        if let Some(a) = audio {
+            q.push(("AudioStreamIndex", a.to_string()));
+        }
+        // mpv lit tout : lecture directe de n'importe quel fichier sous la limite, sinon H.264 en HLS.
+        let profile = serde_json::json!({
+            "MaxStreamingBitrate": kbps as u64 * 1000,
+            "DirectPlayProfiles": [{ "Type": "Video" }, { "Type": "Audio" }],
+            "TranscodingProfiles": [{
+                "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3,ac3,eac3",
+                "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "6", "MinSegments": 1,
+                "BreakOnNonKeyFrames": true
+            }],
+        });
+        let resp = self
+            .http
+            .post(format!("{}/Items/{}/PlaybackInfo", self.server, seg(item_id)))
+            .query(&q)
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&serde_json::json!({ "DeviceProfile": profile }))
+            .send()
+            .await?;
+        if resp.status().as_u16() == 401 {
+            return Err(Unauthorized.into());
+        }
+        let v: serde_json::Value = json_limited(resp.error_for_status()?).await?;
+        let sources = v["MediaSources"].as_array().cloned().unwrap_or_default();
+        let Some(ms) = sources.iter().find(|m| m["Id"].as_str() == Some(media_source_id)).or(sources.first()) else {
+            return Ok(None);
+        };
+        if ms["SupportsDirectPlay"].as_bool() == Some(true) {
+            return Ok(None);
+        }
+        let Some(path) = ms["TranscodingUrl"].as_str().filter(|p| p.starts_with('/')) else { return Ok(None) };
+        let (w, h) = max_size(kbps);
+        Ok(Some(Transcode {
+            url: format!("{}{}&MaxWidth={w}&MaxHeight={h}", self.server, strip_api_key(path)),
+            session: v["PlaySessionId"].as_str().unwrap_or_default().to_string(),
+        }))
+    }
+
+    /// Arrête la conversion du serveur pour cette lecture (sinon elle tourne encore un moment pour rien).
+    pub async fn stop_transcode(&self, play_session: &str) {
+        let _ = self
+            .http
+            .delete(format!("{}/Videos/ActiveEncodings", self.server))
+            .query(&[("deviceId", self.device_id.as_str()), ("playSessionId", play_session)])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await;
+    }
+
     /// Valeur de l'en-tête Authorization de la session.
     pub fn auth(&self) -> String {
         auth_header(&self.device_id, Some(&self.token))
@@ -1676,5 +1774,23 @@ fn fr_date(iso: &str) -> String {
     match (p.first(), p.get(1).and_then(|m| m.parse::<usize>().ok()), p.get(2).and_then(|d| d.parse::<u32>().ok())) {
         (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) => format!("{d} {} {y}", MOIS[m - 1]),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn api_key_removed() {
+        let p = "/videos/x/master.m3u8?DeviceId=d&ApiKey=secret&VideoBitrate=1&api_key=s2&Tag=t";
+        assert_eq!(super::strip_api_key(p), "/videos/x/master.m3u8?DeviceId=d&VideoBitrate=1&Tag=t");
+        assert_eq!(super::strip_api_key("/a"), "/a");
+    }
+
+    #[test]
+    fn sizes_follow_bitrate() {
+        assert_eq!(super::max_size(40_000), (3840, 2160));
+        assert_eq!(super::max_size(8_000), (1920, 1080));
+        assert_eq!(super::max_size(4_000), (1280, 720));
+        assert_eq!(super::max_size(1_000), (640, 360));
     }
 }

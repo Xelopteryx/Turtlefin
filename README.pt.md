@@ -31,7 +31,7 @@ Nederlands — e qualquer idioma que acrescentes tu mesmo (ver [Traduzir o Turtl
   legendas guardada para a série inteira; «Mais deste género» e sugestões do Seerr; pedido das temporadas em
   falta.
 - **Reprodução** (libmpv): capítulos, episódios da temporada, «Saltar intro», episódio seguinte, sugestões no fim
-  de uma série, volume próprio do Turtlefin; posição e «visto» enviados ao servidor.
+  de uma série, volume próprio do Turtlefin, taxa de bits máxima (acima dela, o servidor converte o vídeo); posição e «visto» enviados ao servidor.
 - **Watch party** (SyncPlay): ver a mesma coisa ao mesmo tempo em vários dispositivos.
 - **Offline**: as transferências substituem a página inicial, com fichas completas sem servidor; o que foi visto
   ou marcado como favorito offline é enviado para a conta ao voltar a ligar.
@@ -163,7 +163,7 @@ idiomas e de presets ao lado do programa.
 
 - `turtlefin --console` (Windows) ou abrir a partir de um terminal (Linux) mostra o registo.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: registo do mpv · `TURTLEFIN_MPV_ARGS="…"`: opções do mpv adicionais.
-- `TURTLEFIN_HWDEC=auto-copy`: descodificação por hardware (por software, por omissão, no Linux ARM) · `TURTLEFIN_AO=alsa`: saída de som.
+- `TURTLEFIN_HWDEC=no`: descodificação por software (por hardware, por omissão; `drm-copy` no Raspberry Pi) · `TURTLEFIN_AO=alsa`: saída de som.
 - `TURTLEFIN_LIBMPV=caminho`: outra localização da libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: assinala as imagens lentas.
 - A renderização tem de ser OpenGL (escolhida automaticamente): com `SLINT_BACKEND=winit-software` não há vídeo.
 

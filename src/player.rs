@@ -206,6 +206,8 @@ struct Current {
     /// Sous-titres externes à ajouter une fois le fichier chargé : (url, langue).
     subs: Vec<(String, String)>,
     reported_stop: bool,
+    /// Flux converti par le serveur (débit maximal) : rapports « Transcode », conversion arrêtée à la fin.
+    transcode: bool,
 }
 
 impl Current {
@@ -240,7 +242,7 @@ impl Current {
             "PositionTicks": ticks(pos),
             "IsPaused": self.paused,
             "CanSeek": true,
-            "PlayMethod": "DirectPlay",
+            "PlayMethod": if self.transcode { "Transcode" } else { "DirectPlay" },
         }))
     }
 }
@@ -249,6 +251,36 @@ async fn report(client: Option<&Client>, endpoint: &str, body: Option<Value>) {
     if let (Some(c), Some(b)) = (client, body) {
         let _ = c.report(endpoint, &b).await;
     }
+}
+
+/// Fin de lecture d'un fichier (rapport « Stopped » à la position `pos`) ; flux converti : le
+/// serveur arrête aussi sa conversion (sur un petit serveur, elle occuperait le processeur pour rien).
+async fn stopped(client: Option<&Client>, cur: &Current, pos: f64) {
+    report(client, "/Sessions/Playing/Stopped", cur.body(pos)).await;
+    if let (Some(c), true) = (client, cur.transcode) {
+        c.stop_transcode(&cur.session).await;
+    }
+}
+
+/// Liste « Qualité » du lecteur : débits proposés, le réglage en cours marqué.
+pub fn quality_tracks() -> (Vec<TrackData>, i32) {
+    let cur = crate::config::ui_prefs().max_bitrate;
+    let list: Vec<TrackData> = crate::api::BITRATES
+        .iter()
+        .map(|&k| TrackData { id: k.to_string().into(), label: bitrate_label(k).into(), current: k == cur })
+        .collect();
+    let i = crate::api::BITRATES.iter().position(|&k| k == cur).unwrap_or(0) as i32;
+    (list, i)
+}
+
+/// « Originale (sans limite) », « 8 Mbit/s · 1080p »...
+pub fn bitrate_label(kbps: u32) -> String {
+    if kbps == 0 {
+        return tr("Originale (sans limite)").to_string();
+    }
+    let rate = if kbps % 1000 == 0 { format!("{}", kbps / 1000) } else { format!("{:.1}", kbps as f64 / 1000.0) };
+    let (_, h) = crate::api::max_size(kbps);
+    format!("{} · {}p", trf("{} Mbit/s", &[&rate]), h)
 }
 
 /// Liste des épisodes de la série (pour précédent / suivant et l'enchaînement).
@@ -311,7 +343,7 @@ pub async fn play(
     let streaming = req.test_url.is_none() && client.is_some();
     // Connexion perdue : position où reprendre quand le serveur répondra de nouveau.
     let mut lost_at: Option<f64> = None;
-    let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui)?;
+    let mut cur = load(&player, client, req.item, req.start_secs, req.test_url.as_deref(), &episodes, &ui).await?;
     if let Some((t, s)) = req.local_title {
         let _ = ui.upgrade_in_event_loop(move |u| {
             u.set_p_title(t.into());
@@ -491,7 +523,7 @@ pub async fn play(
                         } else if eof {
                             // Fin atteinte : on rapporte la durée complète (le serveur marque « vu »).
                             let end = if cur.dur > 0.0 { cur.dur } else { cur.pos };
-                            report(client, "/Sessions/Playing/Stopped", cur.body(end)).await;
+                            stopped(client, &cur, end).await;
                             cur.reported_stop = true;
                             cur.ended = true;
                             if sync {
@@ -609,7 +641,7 @@ pub async fn play(
                             // Adresse peut-être changée entre-temps (secours) : le client à jour.
                             let fresh = app.client();
                             let c = fresh.as_ref().or(client);
-                            match load(&player, c, cur.item.clone(), at, None, &episodes, &ui) {
+                            match load(&player, c, cur.item.clone(), at, None, &episodes, &ui).await {
                                 Ok(n) => {
                                     cur = n;
                                     (cur.up_shown, cur.intro_shown) = keep;
@@ -670,6 +702,35 @@ pub async fn play(
                     "episode" => {
                         go_episode = arg.parse().ok();
                         Ok(())
+                    }
+                    // Débit maximal changé pendant la lecture : enregistré, puis la vidéo repart au même endroit.
+                    "quality" => {
+                        let k = arg.parse::<u32>().unwrap_or(0);
+                        let mut p = crate::config::ui_prefs();
+                        if p.max_bitrate == k || cur.item.is_none() || cur.ended {
+                            Ok(())
+                        } else {
+                            p.max_bitrate = k;
+                            crate::config::save_ui_prefs(&p);
+                            let keep = (cur.up_shown, cur.intro_shown, cur.paused);
+                            let at = cur.pos;
+                            stopped(client, &cur, at).await;
+                            switching = true;
+                            match load(&player, client, cur.item.clone(), at, None, &episodes, &ui).await {
+                                Ok(n) => {
+                                    cur = n;
+                                    (cur.up_shown, cur.intro_shown) = (keep.0, keep.1);
+                                    last_sec = -1;
+                                    let _ = player.set_property("pause", if keep.2 { "yes" } else { "no" });
+                                    prepare_extras(&app, client, &mut cur).await;
+                                    report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
+                                    let label = bitrate_label(k);
+                                    let _ = ui.upgrade_in_event_loop(move |u| u.set_toast(trf("Qualité : {}", &[&label]).into()));
+                                    Ok(())
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
                     }
                     // Propositions de fin : lire la suite, ou continuer à regarder (générique).
                     "up" if arg == "play" => {
@@ -742,7 +803,7 @@ pub async fn play(
                 }
             };
             if !cur.reported_stop {
-                report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
+                stopped(client, &cur, cur.pos).await;
             }
             // Autre série (suggestion) : nouvelle liste d'épisodes.
             if !episodes.contains(&next.id) {
@@ -758,7 +819,7 @@ pub async fn play(
             }
             // L'ancien fichier se terminera (« stop ») sauf s'il était déjà fini.
             switching = !cur.ended;
-            match load(&player, client, Some(next), start, None, &episodes, &ui) {
+            match load(&player, client, Some(next), start, None, &episodes, &ui).await {
                 Ok(n) => {
                     cur = n;
                     last_sec = -1;
@@ -774,7 +835,7 @@ pub async fn play(
     }
 
     if !cur.reported_stop {
-        report(client, "/Sessions/Playing/Stopped", cur.body(cur.pos)).await;
+        stopped(client, &cur, cur.pos).await;
     }
     if let Some(at) = lost_at {
         cur.pos = at;
@@ -967,7 +1028,7 @@ fn neighbour(episodes: &[String], item: Option<&Item>, d: i64) -> Option<String>
 }
 
 /// Charge un fichier dans le lecteur et prépare l'interface.
-fn load(
+async fn load(
     player: &Mpv,
     client: Option<&Client>,
     item: Option<Item>,
@@ -976,23 +1037,36 @@ fn load(
     episodes: &[String],
     ui: &slint::Weak<AppWindow>,
 ) -> Result<Current> {
+    let mut tc: Option<crate::api::Transcode> = None;
     let (url, ms_id, title, subtitle, subs) = match (&item, client, test_url) {
         (Some(it), Some(c), _) => {
             let source = it.media_sources.as_ref().and_then(|v| v.first());
             let ms_id = source.map(|m| m.id.clone()).unwrap_or_else(|| it.id.clone());
+            // Débit maximal (réglage) : le serveur dit s'il faut convertir. Échec de la demande : on
+            // tente le fichier original plutôt que de ne rien lire.
+            let kbps = crate::config::ui_prefs().max_bitrate;
+            if kbps > 0 && source.and_then(|m| m.remote_url()).is_none() {
+                match c.transcode(&it.id, &ms_id, kbps, preferred_audio(it)).await {
+                    Ok(t) => tc = t,
+                    Err(e) => eprintln!("turtlefin : débit maximal ignoré ({e})"),
+                }
+            }
+            // Flux converti : les sous-titres intégrés n'y sont plus ; le serveur les fournit à part
+            // (texte seulement, comme les sous-titres externes).
             let subs = source
                 .map(|src| {
                     src.media_streams
                         .iter()
-                        .filter(|s| s.kind == "Subtitle" && s.is_external)
+                        .filter(|s| s.kind == "Subtitle" && (s.is_external || tc.is_some()))
                         .filter_map(|s| c.subtitle_url(&it.id, &ms_id, s).map(|u| (u, s.language.clone().unwrap_or_default())))
                         .collect()
                 })
                 .unwrap_or_default();
             let (t, s) = it.titles();
-            let url = match source.and_then(|m| m.remote_url()) {
-                Some(remote) => remote.to_string(),
-                None => c.stream_url(&it.id, &ms_id),
+            let url = match (&tc, source.and_then(|m| m.remote_url())) {
+                (Some(t), _) => t.url.clone(),
+                (None, Some(remote)) => remote.to_string(),
+                (None, None) => c.stream_url(&it.id, &ms_id),
             };
             (url, ms_id, t, s, subs)
         }
@@ -1041,7 +1115,12 @@ fn load(
 
     let has_prev = neighbour(episodes, item.as_ref(), -1).is_some();
     let has_next = neighbour(episodes, item.as_ref(), 1).is_some();
+    // Bouton Qualité : seulement pour un flux du serveur (pas un fichier téléchargé ni une source distante).
+    let quality = item.is_some() && client.is_some_and(|c| url.starts_with(&c.server));
     let _ = ui.upgrade_in_event_loop(move |u| {
+        let (list, i) = if quality { quality_tracks() } else { (Vec::new(), 0) };
+        u.set_p_quality(ModelRc::new(VecModel::from(list)));
+        u.set_p_quality_current(i);
         u.set_p_title(title.into());
         u.set_p_subtitle(subtitle.into());
         u.set_p_has_prev(has_prev);
@@ -1056,10 +1135,12 @@ fn load(
         u.set_p_chapter_count(0);
     });
 
+    let transcode = tc.is_some();
     Ok(Current {
         item,
         ms_id,
-        session: uuid::Uuid::new_v4().simple().to_string(),
+        // Flux converti : la session est celle que le serveur a ouverte pour la conversion.
+        session: tc.map(|t| t.session).filter(|s| !s.is_empty()).unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string()),
         pos: start_secs,
         dur: 0.0,
         paused: false,
@@ -1072,7 +1153,22 @@ fn load(
         ended: false,
         subs,
         reported_stop: false,
+        transcode,
     })
+}
+
+/// Piste audio à garder dans un flux converti (il n'en contient qu'une) : langue préférée de la
+/// série / du film, sinon celle du compte. None : le serveur prend la piste par défaut.
+fn preferred_audio(it: &Item) -> Option<i32> {
+    let pref = crate::config::track_pref(&it.pref_key()).audio;
+    let want = if pref.is_empty() { crate::config::user_defaults().0 } else { pref };
+    let langs: Vec<String> = want.split(',').map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty()).collect();
+    let streams = &it.media_sources.as_ref()?.first()?.media_streams;
+    streams
+        .iter()
+        .filter(|s| s.kind == "Audio")
+        .find(|s| s.language.as_deref().is_some_and(|l| langs.contains(&l.to_lowercase())))
+        .map(|s| s.index)
 }
 
 /// Temps écoulé, durée, progression et heure de fin.

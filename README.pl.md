@@ -30,7 +30,7 @@ Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtle
   dźwięku / napisów zapamiętany dla całego serialu; „Więcej podobnych” i propozycje Seerr; prośba o brakujące
   sezony.
 - **Odtwarzanie** (libmpv): rozdziały, odcinki sezonu, „Pomiń intro”, następny odcinek, propozycje na koniec
-  serialu, własna głośność Turtlefin; pozycja i „obejrzane” wysyłane do serwera.
+  serialu, własna głośność Turtlefin, maksymalna przepływność (powyżej serwer konwertuje wideo); pozycja i „obejrzane” wysyłane do serwera.
 - **Watch party** (SyncPlay): oglądanie tego samego w tym samym czasie na kilku urządzeniach.
 - **Offline**: pobrane materiały zastępują stronę główną, z pełnymi stronami szczegółów bez serwera; to, co
   obejrzano lub dodano do ulubionych offline, trafia do konta po ponownym połączeniu.
@@ -161,7 +161,7 @@ presetów obok programu.
 
 - `turtlefin --console` (Windows) lub uruchomienie z terminala (Linux) pokazuje dziennik.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: dziennik mpv · `TURTLEFIN_MPV_ARGS="…"`: dodatkowe opcje mpv.
-- `TURTLEFIN_HWDEC=auto-copy`: dekodowanie sprzętowe (w Linuksie ARM domyślnie programowe) · `TURTLEFIN_AO=alsa`: wyjście dźwięku.
+- `TURTLEFIN_HWDEC=no`: dekodowanie programowe (domyślnie sprzętowe, `drm-copy` na Raspberry Pi) · `TURTLEFIN_AO=alsa`: wyjście dźwięku.
 - `TURTLEFIN_LIBMPV=ścieżka`: inne położenie libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: zgłasza wolne klatki.
 - Renderowanie musi używać OpenGL (wybierane automatycznie): z `SLINT_BACKEND=winit-software` nie ma obrazu wideo.
 

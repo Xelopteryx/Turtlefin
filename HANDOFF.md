@@ -336,8 +336,15 @@ d'anciennes expériences, déjà fusionnées dans `main` : elles peuvent être s
 7. Linux ARM : HEVC décodé par la puce du Pi (`drm-copy`, vérifié dans Turtlefin le 15 octobre 2026 sur un
    épisode 4K HEVC du serveur : ~0,15 cœur au lieu de ~0,8, image correcte) ; le H.264 reste en logiciel (pas
    de décodeur sur le Pi 5), suffisant en 1440p. `TURTLEFIN_HWDEC=no` pour revenir au logiciel.
-   Le Pi (Wi-Fi) ne reçoit que 3 à 5 Mbit/s du serveur : la 4K (~22 Mbit/s) s'arrête pour charger. Turtlefin
-   lit toujours le fichier d'origine (pas de transcodage ni de débit maximal) : piste d'amélioration.
+   Le Pi (Wi-Fi) ne reçoit que 3 à 5 Mbit/s du serveur : la 4K (~22 Mbit/s) s'arrête pour charger.
+10. Débit maximal (Paramètres → Lecture, bouton Qualité du lecteur ; `UiPrefs::max_bitrate`, kbit/s, 0 = original) :
+   `api::Client::transcode` (PlaybackInfo avec un profil « tout en lecture directe sous la limite, sinon H.264
+   en HLS »), `ApiKey` retiré de l'adresse (le jeton passe par l'en-tête, qui marche aussi pour les morceaux HLS),
+   résolution plafonnée selon le débit (`api::max_size`), une seule piste audio (langue préférée,
+   `preferred_audio`), sous-titres texte servis à part, conversion arrêtée à la fin (`stop_transcode`). Changer de
+   qualité en lecture recharge la vidéo au même endroit. Le serveur du mainteneur (Raspberry Pi) convertit à
+   ~0,3× le temps réel (4K HEVC comme 1440p H.264, mesuré le 15 octobre 2026) : inutilisable chez lui, utile
+   avec un serveur plus puissant.
 8. Micro-pauses (~40 ms) mesurées seulement en rendu forcé à pleine vitesse, à chaque image d'un GIF de
    l'en-tête et à la liaison du logo ; cause non trouvée, invisibles en usage normal.
 9. Mémoire (mesurée sur le Pi le 14 octobre 2026, film de 3 h 48) : ~215 Mo à l'écran de connexion, ~465 Mo

@@ -2632,6 +2632,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("autonext", tr("Épisode suivant automatique"), tr("À la fin d'un épisode, le suivant démarre tout seul."), String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
+            row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
         ],
         2 => vec![
             row("slang", tr("Langue des sous-titres préférée"), tr("Utilisée selon le mode ci-dessous."), label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
@@ -2779,6 +2780,10 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             list.extend(p.themes.iter().map(|t| (format!("custom:{}", t.name), t.name.clone())));
             Some((tr("Thème").into(), list, p.theme.clone()))
         }
+        "maxrate" => {
+            let list: Vec<(String, String)> = api::BITRATES.iter().map(|&k| (k.to_string(), player::bitrate_label(k))).collect();
+            Some((tr("Débit maximal").into(), list, config::ui_prefs().max_bitrate.to_string()))
+        }
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
@@ -2867,6 +2872,13 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
     if key == "subsize" {
         let mut p = config::ui_prefs();
         p.sub_scale = value.parse().unwrap_or(1.0);
+        config::save_ui_prefs(&p);
+        refresh_settings(app);
+        return;
+    }
+    if key == "maxrate" {
+        let mut p = config::ui_prefs();
+        p.max_bitrate = value.parse().unwrap_or(0);
         config::save_ui_prefs(&p);
         refresh_settings(app);
         return;
@@ -3269,7 +3281,7 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "language" | "animpreset" | "theme" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();

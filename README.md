@@ -29,7 +29,7 @@ Polski, Nederlands — and any language you add yourself (see [Translate Turtlef
 - **Detail pages**: movie, series, season, episode; play, favorite, watched, download, audio / subtitle choice
   kept for the whole series; “More like this” and Seerr suggestions; request missing seasons.
 - **Playback** (libmpv): chapters, season episodes, “Skip intro”, next episode, suggestions at the end of a
-  series, Turtlefin's own volume; position and “watched” reported to the server.
+  series, Turtlefin's own volume, maximum bitrate (above it, the server converts the video); position and “watched” reported to the server.
 - **Watch party** (SyncPlay): watch the same thing at the same time on several devices.
 - **Offline**: downloads replace the home screen, with complete detail pages without a server; what was watched
   or favorited offline is sent back to the account on reconnection.
@@ -160,7 +160,7 @@ language and preset folders next to the program.
 
 - `turtlefin --console` (Windows) or launching from a terminal (Linux) shows the log.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: mpv log · `TURTLEFIN_MPV_ARGS="…"`: extra mpv options.
-- `TURTLEFIN_HWDEC=auto-copy`: hardware decoding (software by default on Linux ARM) · `TURTLEFIN_AO=alsa`: audio output.
+- `TURTLEFIN_HWDEC=no`: software decoding (hardware by default, `drm-copy` on the Raspberry Pi) · `TURTLEFIN_AO=alsa`: audio output.
 - `TURTLEFIN_LIBMPV=path`: other libmpv location · `TURTLEFIN_DEBUG_FRAMES=1`: reports slow frames.
 - Rendering must be OpenGL (chosen automatically): with `SLINT_BACKEND=winit-software`, no video.
 

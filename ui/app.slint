@@ -2472,6 +2472,9 @@ export component AppWindow inherits Window {
     in property <bool> p-has-next;
     in property <[TrackData]> audio-tracks;
     in property <int> audio-current;
+    // Débits maximaux proposés par le bouton Qualité du lecteur (vide : fichier local, pas de choix).
+    in property <[TrackData]> p-quality;
+    in property <int> p-quality-current;
     in property <[TrackData]> sub-tracks;
     in property <int> sub-current;
     in property <[CardData]> p-episodes;    // épisodes de la saison (bandeau ↓)
@@ -7979,6 +7982,8 @@ export component AppWindow inherits Window {
         has-next: root.p-has-next;
         audio-tracks: root.audio-tracks;
         audio-current: root.audio-current;
+        quality-tracks: root.p-quality;
+        quality-current: root.p-quality-current;
         sub-tracks: root.sub-tracks;
         sub-current: root.sub-current;
         episodes: root.p-episodes;

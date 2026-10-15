@@ -1690,3 +1690,21 @@ msgstr "wird von Flatpak aktualisiert (Softwarecenter oder „flatpak update“)
 
 msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
 msgstr "Achtung: Diese http://-Adresse läuft unverschlüsselt über das Internet, das Passwort würde im Klartext übertragen. Besser eine https://-Adresse (oder ein VPN). Erneut bestätigen, um dich trotzdem anzumelden."
+
+msgid "Débit maximal"
+msgstr "Maximale Bitrate"
+
+msgid "Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."
+msgstr "Darüber wandelt der Server das Video in ein leichteres um (dafür braucht er einen ausreichend starken Prozessor). Auch im Player."
+
+msgid "Originale (sans limite)"
+msgstr "Original (ohne Limit)"
+
+msgid "Qualité"
+msgstr "Qualität"
+
+msgid "Qualité : {}"
+msgstr "Qualität: {}"
+
+msgid "{} Mbit/s"
+msgstr "{} Mbit/s"

@@ -31,7 +31,7 @@ Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertale
   ondertitels onthouden voor de hele serie; „Meer zoals dit” en Seerr-suggesties; ontbrekende seizoenen
   aanvragen.
 - **Afspelen** (libmpv): hoofdstukken, afleveringen van het seizoen, „Intro overslaan”, volgende aflevering,
-  suggesties aan het einde van een serie, eigen volume van Turtlefin; positie en „gezien” worden naar de server
+  suggesties aan het einde van een serie, eigen volume van Turtlefin, maximale bitrate (daarboven zet de server de video om); positie en „gezien” worden naar de server
   gestuurd.
 - **Watch party** (SyncPlay): op meerdere apparaten tegelijk hetzelfde kijken.
 - **Offline**: downloads vervangen de startpagina, met volledige detailpagina's zonder server; wat offline is
@@ -165,7 +165,7 @@ en presets naast het programma.
 
 - `turtlefin --console` (Windows) of starten vanuit een terminal (Linux) toont het logboek.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: logboek van mpv · `TURTLEFIN_MPV_ARGS="…"`: extra mpv-opties.
-- `TURTLEFIN_HWDEC=auto-copy`: hardwaredecodering (standaard software op Linux ARM) · `TURTLEFIN_AO=alsa`: geluidsuitvoer.
+- `TURTLEFIN_HWDEC=no`: softwaredecodering (standaard hardware, `drm-copy` op de Raspberry Pi) · `TURTLEFIN_AO=alsa`: geluidsuitvoer.
 - `TURTLEFIN_LIBMPV=pad`: andere locatie van libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: meldt trage beelden.
 - De weergave moet OpenGL zijn (automatisch gekozen): met `SLINT_BACKEND=winit-software` is er geen video.
 
