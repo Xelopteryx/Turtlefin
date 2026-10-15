@@ -327,9 +327,11 @@ already merged into `main`: they can be deleted. Tags: `v0.9.0`, `v0.9.1` (publi
    `session.json` copied from another Windows PC can no longer be read: the account asks for its password again.
 6. Tearing under Xorg without a compositor (bare Openbox): use a compositor (picom `--backend egl --vsync`).
    Turtlefin holds 60 fps.
-7. Linux ARM: HEVC decoded by the Pi's chip (`drm-copy`, measured with plain mpv on 15 October 2026, not yet
-   in Turtlefin on a real server video); H.264 stays in software (no decoder on the Pi 5), fine at 1080p.
-   `TURTLEFIN_HWDEC=no` to go back to software.
+7. Linux ARM: HEVC decoded by the Pi's chip (`drm-copy`, checked in Turtlefin on 15 October 2026 with a 4K
+   HEVC episode from the server: ~0.15 core instead of ~0.8, correct picture); H.264 stays in software (no
+   decoder on the Pi 5), fine at 1440p. `TURTLEFIN_HWDEC=no` to go back to software.
+   The Pi (Wi-Fi) only gets 3 to 5 Mbit/s from the server: 4K (~22 Mbit/s) stops to buffer. Turtlefin always
+   plays the original file (no transcoding, no maximum bitrate): room for improvement.
 8. Micro-pauses (~40 ms) measured only with rendering forced to full speed, on each frame of a header GIF and when
    the logo joins; cause not found, invisible in normal use.
 9. Memory (measured on the Pi on October 14, 2026, 3 h 48 film): ~215 MB on the login screen, ~465 MB after a
