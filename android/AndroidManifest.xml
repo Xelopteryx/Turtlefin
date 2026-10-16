@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Turtlefin pour Android : NativeActivity (pas de code Java à nous ; Slint charge son petit
-     assistant Java en mémoire). Écran en paysage : l'interface est pensée pour la télé et le PC. -->
+     assistant Java en mémoire). Portrait comme paysage (selon le verrouillage de la rotation) ; la
+     lecture d'une vidéo passe en paysage (android/src/entry.rs, lock_landscape). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.xelopteryx.turtlefin">
 
@@ -27,7 +28,7 @@
             android:name="android.app.NativeActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="fullUser"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|uiMode|density|navigation">
             <meta-data android:name="android.app.lib_name" android:value="turtlefin" />

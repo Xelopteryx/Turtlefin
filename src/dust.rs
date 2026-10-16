@@ -174,6 +174,11 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
 /// blocs sont posés (1 Paramètres, 2 démarrage), sous la liste.
 pub fn dissolve(u: &AppWindow, layer: i32) {
     finish(u);
+    // Android : pas d'effet (sur un petit écran, les barres sur de petites étiquettes font brouillon,
+    // et la capture d'écran de Skia n'y est pas fiable) ; la langue change directement (reform).
+    if cfg!(target_os = "android") {
+        return;
+    }
     // Les textes sont repérés une fois l'écran posé : la liste vient de s'ouvrir, et ce qu'elle
     // change dessous s'anime encore (la ligne choisie perd son léger agrandissement…). Repérés
     // trop tôt, ces textes se décaleraient ensuite hors de leurs blocs.

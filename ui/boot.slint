@@ -417,11 +417,20 @@ export component BootLogo inherits Rectangle {
             property <int> fit: max(3, floor((parent.height - 160px * root.k) / self.row-h));
             property <int> shown: min(root.langs.length, self.fit);
             property <int> first: max(0, min(root.langs.length - self.shown, root.lang-sel - self.shown + 2));
+            // Au doigt : la liste suit le glissement (défilement libre) ; une touche la recale.
+            property <length> max-off: max(0px, (root.langs.length - self.shown) * self.row-h);
+            property <bool> free;
+            property <length> free-off;
+            property <length> off: self.free ? self.free-off : self.first * self.row-h;
+            property <int> sel-now: root.lang-sel;
+            changed sel-now => {
+                self.free = false;
+            }
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2 + (1 - root.lang-p) * 40px * root.k;
             opacity: root.lang-p;
             transform-scale: 0.92 + 0.08 * root.lang-p;
-            width: 420px * root.k;
+            width: min(420px * root.k, parent.width - 32px * root.k);
             height: 80px * root.k + self.shown * self.row-h;
             border-radius: 18px * root.k;
             background: Theme.glass;
@@ -441,6 +450,16 @@ export component BootLogo inherits Rectangle {
                 y: 64px * root.k;
                 height: parent.shown * parent.row-h;
                 clip: true;
+                TouchArea {
+                    scroll-event(e) => {
+                        if (e.delta-y == 0 || lang-box.max-off <= 0) {
+                            return EventResult.reject;
+                        }
+                        lang-box.free-off = max(0px, min(lang-box.max-off, lang-box.off - e.delta-y));
+                        lang-box.free = true;
+                        return EventResult.accept;
+                    }
+                }
                 // Cases des langues : elles arrivent en cascade (glissent et apparaissent l'une après l'autre).
                 for l[i] in root.langs: Rectangle {
                     property <float> e: 0;
@@ -449,8 +468,8 @@ export component BootLogo inherits Rectangle {
                     }
                     animate e { duration: Motion.language ? 360ms : 0ms; delay: Motion.language ? 120ms + min(i, 10) * 45ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                     x: 16px * root.k + (1 - self.e) * 36px * root.k;
-                    y: (i - lang-box.first) * lang-box.row-h;
-                    animate y { duration: Motion.language ? 160ms : 0ms; easing: ease-out; }
+                    y: i * lang-box.row-h - lang-box.off;
+                    animate y { duration: Motion.language && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
                     width: parent.width - 32px * root.k;
                     height: 48px * root.k;
                     border-radius: 12px * root.k;
@@ -459,7 +478,7 @@ export component BootLogo inherits Rectangle {
                 // Surbrillance : elle glisse jusqu'à la langue choisie (petit rebond), comme dans les menus.
                 Rectangle {
                     x: 16px * root.k;
-                    y: (root.lang-sel - lang-box.first) * lang-box.row-h;
+                    y: root.lang-sel * lang-box.row-h - lang-box.off;
                     animate y { duration: Motion.language ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                     width: parent.width - 32px * root.k;
                     height: 48px * root.k;
@@ -475,8 +494,8 @@ export component BootLogo inherits Rectangle {
                     animate e { duration: Motion.language ? 360ms : 0ms; delay: Motion.language ? 120ms + min(i, 10) * 45ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                     property <bool> on: i == root.lang-sel;
                     x: 16px * root.k + (1 - self.e) * 36px * root.k;
-                    y: (i - lang-box.first) * lang-box.row-h;
-                    animate y { duration: Motion.language ? 160ms : 0ms; easing: ease-out; }
+                    y: i * lang-box.row-h - lang-box.off;
+                    animate y { duration: Motion.language && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
                     width: parent.width - 32px * root.k;
                     height: 48px * root.k;
                     Text {

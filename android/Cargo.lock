@@ -3755,6 +3755,7 @@ dependencies = [
  "i-slint-backend-android-activity",
  "if-addrs",
  "image",
+ "jni 0.21.1",
  "libloading",
  "ndk-context",
  "reqwest",

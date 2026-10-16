@@ -437,6 +437,18 @@ export component PlayerView inherits Rectangle {
     // Commandes visibles quand le doigt s'est posé : le toucher les inverse (le simple contact les
     // affiche déjà, voir la zone de la vidéo).
     property <bool> osd-at-press;
+    // Au doigt : un toucher attend un instant (un second toucher en fait un double : recul ou avance
+    // de 10 s selon le côté) ; seul, il montre ou cache les commandes.
+    property <bool> tap-wait;
+    property <bool> tap-osd;
+    // Retour visuel du double toucher : -1 recul, 1 avance ; seek-n relance l'animation.
+    property <int> seek-side;
+    property <int> seek-n;
+    property <duration> seek-t0;
+    changed seek-n => {
+        self.seek-t0 = animation-tick();
+    }
+    property <float> seek-q: root.seek-n > 0 ? clamp((animation-tick() - root.seek-t0) / 700ms, 0, 1) : 1;
     // Carte « Épisode suivant » et « Passer l'intro » : apparition et disparition en fondu.
     property <float> next-p: root.up-mode == "next" && root.menu == "" ? 1 : 0;
     animate next-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
@@ -490,7 +502,9 @@ export component PlayerView inherits Rectangle {
         root.command("volume:" + root.volume);
     }
     property <int> menu-sel: 0;
-    property <int> menu-rows: 8;
+    // Lignes visibles du menu (Audio, Sous-titres, Qualité) : 8 au plus, moins sur un petit écran (le
+    // menu tient entre le haut de l'écran et le panneau des commandes ; le reste défile).
+    property <int> menu-rows: max(3, min(8, floor((root.height - 160px * root.k - 3 * root.m - 90px * root.k) / (46px * root.k))));
     property <int> menu-top: max(0, root.menu-sel - root.menu-rows + 1);
     property <[TrackData]> menu-items: root.menu-last == "audio" ? root.audio-tracks
         : root.menu-last == "sub" ? root.sub-tracks : root.quality-tracks;
@@ -673,11 +687,19 @@ export component PlayerView inherits Rectangle {
                 root.menu = "";
                 root.show();
             } else if (Nav.touch) {
-                // Au doigt (téléphone, tablette) : un toucher montre ou cache les commandes, comme ailleurs.
-                if (root.osd-at-press) {
-                    root.hide();
+                if (root.tap-wait) {
+                    // Second toucher : recul ou avance de 10 s selon le côté touché.
+                    root.tap-wait = false;
+                    root.seek-side = self.mouse-x < self.width / 2 ? -1 : 1;
+                    root.command(root.seek-side < 0 ? "seek:-10" : "seek:10");
+                    root.seek-n += 1;
+                    if (root.tap-osd) {
+                        root.show();
+                    }
                 } else {
-                    root.show();
+                    // Premier toucher : décidé à la fin de l'attente (voir le minuteur dessous).
+                    root.tap-wait = true;
+                    root.tap-osd = root.osd-at-press;
                 }
             } else {
                 root.command("pause");
@@ -685,7 +707,43 @@ export component PlayerView inherits Rectangle {
             }
         }
         double-clicked => {
-            root.toggle-fullscreen();
+            if (!Nav.touch) {
+                root.toggle-fullscreen();
+            }
+        }
+    }
+
+    // Toucher seul (pas suivi d'un second) : montre ou cache les commandes, comme ailleurs.
+    Timer {
+        interval: 260ms;
+        running: root.tap-wait;
+        triggered => {
+            root.tap-wait = false;
+            if (root.tap-osd) {
+                root.hide();
+            } else {
+                root.show();
+            }
+        }
+    }
+
+    // Double toucher : « ‹‹ 10 s » ou « 10 s ›› » s'efface du côté touché.
+    if root.seek-q < 1: Rectangle {
+        x: root.seek-side < 0 ? parent.width * 0.18 - self.width / 2 : parent.width * 0.82 - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        width: 150px * root.k;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: #00000080;
+        opacity: 1 - root.seek-q * root.seek-q;
+        transform-scale: 0.85 + 0.25 * root.seek-q;
+        Text {
+            text: root.seek-side < 0 ? "‹‹ 10 s" : "10 s ››";
+            color: Theme.player-ink;
+            font-size: 22px * root.k;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
         }
     }
 

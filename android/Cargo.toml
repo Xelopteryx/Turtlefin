@@ -23,6 +23,8 @@ slint = { version = "~1.18", default-features = false, features = ["std", "compa
 i-slint-backend-android-activity = { version = "=1.18.1", features = ["aa-06", "native-activity"] }
 # Machine virtuelle Java : donnée à FFmpeg (décodage matériel MediaCodec, son AudioTrack).
 ndk-context = "0.1"
+# Appels Java : orientation de l'écran pendant la lecture (setRequestedOrientation).
+jni = "0.21"
 libloading = "0.8"
 glow = "0.17"
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }

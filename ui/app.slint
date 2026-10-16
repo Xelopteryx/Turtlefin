@@ -1381,6 +1381,8 @@ component HeaderRight inherits Rectangle {
     in property <string> clock;
     in property <bool> offline;
     in property <int> party-count;
+    // Portrait (téléphone tenu droit) : pas d'heure (la barre d'Android l'affiche), moins de marge.
+    in property <bool> narrow;
     // Téléchargement en cours : pastille avec flèche, pourcentage et jauge (ambre : en pause).
     in property <string> dl-text;
     in property <float> dl-p;
@@ -1412,8 +1414,8 @@ component HeaderRight inherits Rectangle {
     in property <float> me-pop: 1;
     hr-lay := HorizontalLayout {
         alignment: end;
-        spacing: 12px * root.k;
-        padding-right: 32px * root.k;
+        spacing: (root.narrow ? 6px : 12px) * root.k;
+        padding-right: (root.narrow ? 14px : 32px) * root.k;
         padding-top: (root.height - 44px * root.k) / 2;
         padding-bottom: (root.height - 44px * root.k) / 2;
 
@@ -1561,7 +1563,7 @@ component HeaderRight inherits Rectangle {
                 visible: fi == root.avatar-idx;
             }
         }
-        if Prefs.clock: Text {
+        if Prefs.clock && !root.narrow: Text {
             text: root.clock;
             // Police nommée : l'heure ne dépend pas de la langue, l'effet de changement de langue
             // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
@@ -2630,7 +2632,12 @@ export component AppWindow inherits Window {
     // Entrée / sortie de l'interface TV : tout grandit ou rétrécit en douceur.
     animate k { duration: Motion.pages ? 380ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     property <length> card-w: root.tv-mode ? 230px : 170px;
-    property <length> header-h: 72px * root.k;
+    // Portrait (fenêtre plus haute que large : téléphone tenu droit) : en-tête sur deux lignes
+    // (menu, nom et icônes, puis les onglets dessous) ; les pages se calent sur header-h.
+    property <bool> narrow: self.height > self.width;
+    property <length> header-row: 72px * root.k;
+    // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
+    property <length> header-h: root.narrow && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
     property <int> tab-count: root.has-requests ? 3 : 2;
 
     // Passage d'une rangée à l'autre : carte la plus proche à l'écran (voir Rows).
@@ -2651,14 +2658,19 @@ export component AppWindow inherits Window {
     // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
     property <bool> show-home: root.screen != "home";
     // Retour visible aussi dans une sous-page sans pile (choix de l'avatar) : il la ferme.
-    property <bool> sub-back: root.screen == "settings" && root.av-open;
+    // Retour interne aux Paramètres : choix d'avatar ouvert, ou catégorie ouverte en portrait.
+    property <bool> sub-back: root.screen == "settings" && (root.av-open || (root.narrow && root.set-in));
     property <bool> back-ok: root.can-back || root.sub-back;
     property <int> nav-n: 1 + (root.back-ok ? 1 : 0) + (root.show-home ? 1 : 0);
 
     function nav-activate(i: int) {
         root.h-focus = false;
         if (i == 0 && root.sub-back) {
-            root.av-open = false;
+            if (root.av-open) {
+                root.av-open = false;
+            } else {
+                root.set-in = false;
+            }
         } else if (i == 0 && root.can-back) {
             root.back-anim();
         } else if (i == root.nav-n - 1) {
@@ -2792,13 +2804,17 @@ export component AppWindow inherits Window {
         }
     }
 
-    property <length> poster-w: 200px * root.k;
-    property <length> col-x: 64px + root.poster-w;
+    property <length> poster-w: (root.narrow ? 120px : 200px) * root.k;
+    property <length> col-x: (root.narrow ? 28px : 64px) + root.poster-w;
+    // Portrait : boutons, pastilles et résumé sous l'affiche (pleine largeur, à partir de d-low-x).
+    property <length> d-low: root.narrow ? root.poster-w * 1.5 + 24px - 112px * root.k : 0px;
+    property <length> d-low-x: root.narrow ? 16px : root.col-x;
+    property <length> d-low-w: root.narrow ? root.width - 32px : root.info-w;
     property <float> child-ratio: root.detail.children-landscape ? 0.5625 : 1.5;
     property <length> child-card-w: (root.detail.children-landscape ? 240px : 120px) * root.k;
     property <length> next-w: 260px * root.k;
     // Haut de la rangée d'enfants, et des rangées du bas (sous les enfants s'il y en a).
-    property <length> d-children-y: 24px + 316px * root.k + 16px;
+    property <length> d-children-y: 24px + 316px * root.k + 16px + root.d-low;
     property <length> d-extra-y: root.d-children-y
         + (root.child-items.length > 0 ? root.child-card-w * root.child-ratio + 132px * root.k : 0px);
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
@@ -2809,7 +2825,7 @@ export component AppWindow inherits Window {
         : root.d-zone == 2 ? max(0px, root.d-children-y - 140px * root.k) : 0px;
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
-    property <bool> show-next: root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
+    property <bool> show-next: !root.narrow && root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
     // Fond : image du média sélectionné, décor du thème, barre de verre de l'en-tête (voir Backdrop).
@@ -2820,7 +2836,7 @@ export component AppWindow inherits Window {
         bg-mix: root.bg-mix;
         bg-vis: root.bg-vis;
         po: root.po;
-        d-fade: root.header-h + 24px + 316px * root.k - root.d-view-y;
+        d-fade: root.header-h + 24px + 316px * root.k + root.d-low - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";
@@ -2859,7 +2875,8 @@ export component AppWindow inherits Window {
     // Pendant la lecture, aucun écran n'est instancié sous la vidéo : rien à redessiner à chaque
     // image, et le clavier va au lecteur.
     if root.screen == "login" && !root.playing: lg := Rectangle {
-        property <length> u: min(self.height / 720px, self.width / 1280px) * 1px;
+        // Mise à l'échelle sur 1280 x 720 (paysage) ou 720 x 1280 (portrait, téléphone tenu droit).
+        property <length> u: (self.height > self.width ? min(self.height / 1280px, self.width / 560px) : min(self.height / 720px, self.width / 1280px)) * 1px;
         property <length> tile: 150 * self.u;
         property <int> n: root.login-tiles.length;
         property <int> last-tile;              // tuile d'où l'on est descendu vers les boutons
@@ -3608,7 +3625,8 @@ export component AppWindow inherits Window {
 
             NavBar {
                 x: 0px;
-                width: parent.width / 3;
+                height: root.header-row;
+                width: root.narrow ? parent.width - root.right-w : parent.width / 3;
                 k: root.k;
                 can-back: false;
                 show-home: false;
@@ -3621,12 +3639,14 @@ export component AppWindow inherits Window {
             }
 
             // Onglets au centre, mais jamais sur le nom ni sur les icônes de droite (fenêtre étroite).
+            // Portrait : seconde ligne, centrés.
             HorizontalLayout {
                 property <length> lo: 250px * root.k;
                 property <length> hi: parent.width - (root.dl-pill != "" ? 480px : 345px) * root.k;
                 width: self.preferred-width;
-                height: parent.height;
-                x: max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
+                y: root.narrow ? root.header-row - 10px * root.k : 0px;
+                height: root.narrow ? 54px * root.k : parent.height;
+                x: root.narrow ? (parent.width - self.width) / 2 : max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
                 spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
                 // Position réelle des onglets, pour le cadre de la visite guidée.
                 init => {
@@ -3674,8 +3694,9 @@ export component AppWindow inherits Window {
 
             HeaderRight {
                 width: parent.width;
-                height: parent.height;
+                height: root.header-row;
                 k: root.k;
+                narrow: root.narrow;
                 sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
                 party-on: root.sp-active;
                 party-count: root.sp-count;
@@ -4923,7 +4944,7 @@ export component AppWindow inherits Window {
 
         // Poster (portrait)
         Rectangle {
-            x: 32px - root.po * (root.poster-w + 64px);
+            x: (root.narrow ? 16px : 32px) - root.po * (root.poster-w + 64px);
             y: 24px;
             width: root.poster-w;
             height: root.poster-w * 1.5;
@@ -5005,10 +5026,10 @@ export component AppWindow inherits Window {
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
-            x: root.col-x + (dt.btns-w - dt.icons-w) / 2 + root.po-right;
+            x: root.d-low-x + (dt.btns-w - dt.icons-w) / 2 + root.po-right;
             opacity: root.sw-icons ? root.sw-e : 1;
-            y: 24px + 118px * root.k;
-            width: root.info-w;
+            y: 24px + 118px * root.k + root.d-low;
+            width: root.d-low-w;
             height: 40px * root.k;
             spacing: dt.btn-gap;
             alignment: start;
@@ -5034,9 +5055,9 @@ export component AppWindow inherits Window {
         chips-row := HorizontalLayout {
             opacity: root.sw-chips ? root.sw-e : 1;
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
-            x: root.col-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2 + root.po-right;
-            y: 24px + 166px * root.k;
-            width: root.info-w;
+            x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2 + root.po-right;
+            y: 24px + 166px * root.k + root.d-low;
+            width: root.d-low-w;
             height: 30px * root.k;
             spacing: dt.btn-gap;
             alignment: start;
@@ -5062,7 +5083,7 @@ export component AppWindow inherits Window {
         // Année · classification · durée · note
         Text {
             x: root.col-x + root.po-right;
-            y: 24px + 202px * root.k - dt.lift;
+            y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
             opacity: root.sw-misc ? root.sw-e : 1;
             width: root.info-w;
             height: 24px * root.k;
@@ -5075,10 +5096,10 @@ export component AppWindow inherits Window {
 
         // Résumé (bloc « verre » cliquable)
         if root.detail.overview != "": Rectangle {
-            x: root.col-x + root.po-right;
-            y: 24px + 232px * root.k - dt.lift;
+            x: root.d-low-x + root.po-right;
+            y: 24px + 232px * root.k - dt.lift + root.d-low - (root.narrow ? 30px * root.k : 0px);
             opacity: root.sw-ov ? root.sw-e : 1;
-            width: root.info-w;
+            width: root.d-low-w;
             height: 80px * root.k;
             border-radius: 14px;
             background: !root.h-focus && root.d-zone == 1 ? Theme.fg.with-alpha(0.24) : Theme.fg.with-alpha(0.13);
@@ -6217,7 +6238,13 @@ export component AppWindow inherits Window {
 
         property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "motion", "about"];
         property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
-        property <length> left-w: 260px * root.k;
+        // Portrait (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
+        // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
+        // set-in (sélection dans les lignes) dit laquelle est affichée.
+        property <bool> one: root.narrow;
+        property <float> one-p: self.one && root.set-in ? 1 : 0;
+        animate one-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        property <length> left-w: self.one ? self.width - 32px * root.k : 260px * root.k;
 
         // Choix de l'avatar : catégories à gauche (s'il y en a plusieurs), grille qui défile à droite.
         property <bool> av-multi: root.av-groups.length > 1;
@@ -6519,7 +6546,9 @@ export component AppWindow inherits Window {
             y: 56px * root.k;
             height: parent.height - self.y;
             width: sets.left-w + 8px * root.k;
-            x: 0px;
+            x: -sets.one-p * parent.width;
+            opacity: 1 - sets.one-p;
+            visible: sets.one-p < 0.99;
             clip: true;
             TouchArea {
                 scroll-event(e) => {
@@ -6581,7 +6610,11 @@ export component AppWindow inherits Window {
                             root.settings-category();
                             sets.rows-in();
                         }
-                        root.set-in = false;
+                        // Portrait : la catégorie touchée s'ouvre en plein écran.
+                        root.set-in = sets.one;
+                        if (sets.one) {
+                            sets.rows-in();
+                        }
                     }
                 }
             }
@@ -6591,7 +6624,7 @@ export component AppWindow inherits Window {
             x: 32px * root.k;
             y: 8px * root.k;
             height: 44px * root.k;
-            text: Tr.t(Tr.k, "Paramètres");
+            text: sets.one && root.set-in ? sets.cats[root.set-cat] : Tr.t(Tr.k, "Paramètres");
             color: Theme.text;
             font-size: 28px * root.k;
             font-weight: 700;
@@ -6618,9 +6651,10 @@ export component AppWindow inherits Window {
             sets.set-scroll = 0px;
         }
         set-panel := Rectangle {
-            x: sets.left-w + 32px * root.k - sets.pad;
+            x: sets.one ? 16px * root.k - sets.pad + (1 - sets.one-p) * parent.width : sets.left-w + 32px * root.k - sets.pad;
             y: 64px * root.k - sets.pad;
-            width: parent.width - self.x - 32px * root.k + sets.pad;
+            visible: !sets.one || sets.one-p > 0.01;
+            width: sets.one ? parent.width - 32px * root.k + 2 * sets.pad : parent.width - self.x - 32px * root.k + sets.pad;
             height: parent.height - self.y - 24px * root.k;
             clip: true;
             init => {
@@ -7514,8 +7548,9 @@ export component AppWindow inherits Window {
         x: parent.width / 2;
         y: 0px;
         width: parent.width / 2;
-        height: root.header-h;
+        height: root.header-row;
         k: root.k;
+        narrow: root.narrow;
         sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
         party-on: root.sp-active;
         party-count: root.sp-count;
@@ -8060,7 +8095,7 @@ export component AppWindow inherits Window {
         bg-mix: root.bg-mix;
         bg-vis: root.bg-vis;
         po: root.po;
-        d-fade: root.header-h + 24px + 316px * root.k - root.d-view-y;
+        d-fade: root.header-h + 24px + 316px * root.k + root.d-low - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";

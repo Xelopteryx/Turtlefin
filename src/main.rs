@@ -4808,6 +4808,8 @@ async fn play_flow_with(
     let _ = ui.upgrade_in_event_loop(|u| {
         u.set_toast("".into());
         u.set_playing(true);
+        #[cfg(target_os = "android")]
+        android_entry::lock_landscape(true);
     });
 
     let result: anyhow::Result<player::Exit> = async {
@@ -4838,6 +4840,8 @@ async fn play_flow_with(
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_playing(false);
+        #[cfg(target_os = "android")]
+        android_entry::lock_landscape(false);
         u.set_p_up_mode("".into());
         if go_home_after {
             go_home(&app2);

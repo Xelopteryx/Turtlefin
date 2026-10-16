@@ -58,6 +58,26 @@ fn env_from_property() {
     }
 }
 
+/// Lecture : écran tenu en paysage (dans un sens ou l'autre, selon le capteur) ; hors lecture,
+/// l'orientation revient au manifeste (portrait ou paysage, selon le verrouillage de la rotation).
+pub fn lock_landscape(on: bool) {
+    // ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE / SCREEN_ORIENTATION_UNSPECIFIED.
+    let value = if on { 6 } else { -1 };
+    let ctx = ndk_context::android_context();
+    // SAFETY : machine virtuelle et activité fournies par android-activity, valables toute la vie
+    // du processus (référence globale : jamais libérée ici).
+    let result = (|| -> jni::errors::Result<()> {
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+        let mut env = vm.attach_current_thread()?;
+        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        env.call_method(&activity, "setRequestedOrientation", "(I)V", &[jni::objects::JValue::Int(value)])?;
+        Ok(())
+    })();
+    if let Err(e) = result {
+        eprintln!("turtlefin : orientation de l'écran : {e}");
+    }
+}
+
 #[no_mangle]
 fn android_main(a: slint::android::AndroidApp) {
     stderr_to_logcat();
