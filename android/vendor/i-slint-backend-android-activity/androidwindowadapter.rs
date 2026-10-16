@@ -236,6 +236,9 @@ impl AndroidWindowAdapter {
                         .unwrap_or_else(|e| print_jni_error(&self.app, e));
                 }
             }
+            // Turtlefin : fenêtre détruite (écran éteint, appli en arrière-plan) : le rendu est libéré
+            // tant que la surface est encore valable, et ceux qui dessinent dedans (vidéo) sont prévenus.
+            PollEvent::Main(MainEvent::TerminateWindow { .. }) => self.renderer.suspend()?,
             PollEvent::Main(
                 MainEvent::WindowResized { .. } | MainEvent::ContentRectChanged { .. },
             ) => self.resize()?,

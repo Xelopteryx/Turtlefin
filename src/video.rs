@@ -7,6 +7,7 @@
 
 use std::ffi::{c_void, CStr};
 use std::num::NonZeroU32;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use glow::HasContext;
@@ -41,6 +42,9 @@ struct Target {
     w: u32,
     h: u32,
 }
+
+/// Dernier lecteur pour lequel un rendu a été créé (voir before_rendering).
+static LAST_RENDERED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 struct State {
     gl: glow::Context,
@@ -116,6 +120,13 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 state = Some(State { gl, render: None, target: None });
             }
             slint::RenderingState::BeforeRendering => {
+                // Rendu recréé sans nouveau « RenderingSetup » (Skia sous Android, après une fenêtre
+                // détruite : écran éteint) : l'état est refait ici, le rendu de la vidéo avec.
+                if state.is_none() {
+                    // SAFETY : le contexte OpenGL de la fenêtre est courant pendant ce rappel.
+                    let gl = unsafe { glow::Context::from_loader_function_cstr(|s| get_proc_address(s)) };
+                    state = Some(State { gl, render: None, target: None });
+                }
                 if let (Some(st), Some(ui)) = (state.as_mut(), weak.upgrade()) {
                     before_rendering(st, &ui, *get_proc_address);
                 }
@@ -159,8 +170,19 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
                     }
                 });
             });
+            // Rendu refait pour le même lecteur (fenêtre recréée : écran éteint puis rallumé sous
+            // Android) : mpv a perdu sa sortie vidéo avec l'ancien rendu ; la piste vidéo est coupée
+            // puis remise pour qu'il la recrée sur le nouveau.
+            let again = LAST_RENDERED.swap(id, Ordering::Relaxed) == id;
+            let player = m.clone();
             match mpv::Render::new(m, gpa, on_frame) {
-                Ok(r) => st.render = Some((id, r)),
+                Ok(r) => {
+                    st.render = Some((id, r));
+                    if again {
+                        let _ = player.set_property("vid", "no");
+                        let _ = player.set_property("vid", "auto");
+                    }
+                }
                 Err(e) => eprintln!("turtlefin : {e}"),
             }
             // Prêt (ou en échec : la lecture continue alors sans image plutôt que d'attendre).

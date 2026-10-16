@@ -5106,14 +5106,17 @@ impl Swipe {
                     if !self.edge {
                         u.global::<Nav>().set_drag(true);
                         // Le début du geste (le seuil) compte aussi : le contenu part de sous le doigt.
-                        scroll_at(u, p, if self.horizontal { dx } else { dy }, self.horizontal);
+                        // Lecture : seul l'horizontal défile (bandeau des épisodes) ; le vertical est un geste.
+                        if !u.get_playing() || self.horizontal {
+                            scroll_at(u, p, if self.horizontal { dx } else { dy }, self.horizontal);
+                        }
                         return true;
                     }
                 }
                 if self.edge {
                     return true; // geste depuis le bord : décidé au lâcher
                 }
-                if !u.get_playing() {
+                if !u.get_playing() || self.horizontal {
                     let d = if self.horizontal { p.0 - prev.0 } else { p.1 - prev.1 };
                     scroll_at(u, p, d, self.horizontal);
                 }
@@ -5129,6 +5132,15 @@ impl Swipe {
                         if v.abs() > 300.0 * s {
                             self.fling(u, self.last, v, self.horizontal);
                         }
+                    }
+                }
+                // Lecture : glissement vertical net vers le haut (épisodes de la saison) ou le bas (les refermer,
+                // ou cacher les commandes), reçu par le lecteur (swipe-n / swipe-dir).
+                if self.active && phase == TouchPhase::Ended && u.get_playing() && !self.horizontal && !self.edge {
+                    let dy = self.last.1 - self.start.1;
+                    if dy.abs() > 60.0 * s {
+                        u.set_p_swipe_dir(if dy < 0.0 { -1 } else { 1 });
+                        u.set_p_swipe_n(u.get_p_swipe_n() + 1);
                     }
                 }
                 if !FLING.with(|f| f.borrow().is_some()) {

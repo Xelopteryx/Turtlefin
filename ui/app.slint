@@ -2501,6 +2501,9 @@ export component AppWindow inherits Window {
     in property <[TrackData]> audio-tracks;
     in property <int> audio-current;
     // Débits maximaux proposés par le bouton Qualité du lecteur (vide : fichier local, pas de choix).
+    // Glissement vertical du doigt sur la vidéo (Rust, voir Swipe) : compteur et sens.
+    in property <int> p-swipe-n;
+    in property <int> p-swipe-dir;
     in property <[TrackData]> p-quality;
     in property <int> p-quality-current;
     in property <[TrackData]> sub-tracks;
@@ -8030,6 +8033,8 @@ export component AppWindow inherits Window {
         bg: root.p-bg;
         has-bg: root.p-has-bg;
         party: root.sp-active ? root.sp-name : "";
+        swipe-n: root.p-swipe-n;
+        swipe-dir: root.p-swipe-dir;
         command(c) => {
             root.player-cmd(c);
         }

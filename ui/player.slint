@@ -162,7 +162,7 @@ component PlayerButton inherits Rectangle {
     callback clicked();
 
     // Sélection au clavier (au bureau : seulement après une touche de navigation, voir Nav) ou survol.
-    property <bool> lit: root.enabled && ((Nav.kb ? (root.focused) : area.has-hover && !Nav.touch));
+    property <bool> lit: root.enabled && ((Nav.kb ? (root.focused) : area.has-hover && !Nav.touch) || area.pressed);
     property <duration> t0;
     property <bool> anim;
     changed press => {
@@ -241,6 +241,9 @@ component PlayerButton inherits Rectangle {
     area := TouchArea {
         enabled: root.enabled;
         clicked => {
+            // Le bouton s'enfonce aussi au toucher et à la souris (pas seulement au clavier).
+            root.t0 = animation-tick();
+            root.anim = true;
             root.clicked();
         }
     }
@@ -412,6 +415,33 @@ export component PlayerView inherits Rectangle {
     in property <image> bg;
     in property <bool> has-bg;
     in property <string> party; // watch party en cours (nom), vide sinon
+    // Glissement du doigt sur la vidéo (Rust, voir Swipe) : compteur et sens (-1 vers le haut, 1 vers le bas).
+    in property <int> swipe-n;
+    in property <int> swipe-dir;
+    changed swipe-n => {
+        if (root.swipe-dir < 0) {
+            // Vers le haut : épisodes de la saison (avec les commandes).
+            if (root.episodes.length > 0) {
+                root.menu = "";
+                root.zone = 5;
+                root.ep-sel = root.ep-current;
+            }
+            root.show();
+        } else if (root.zone == 5) {
+            root.zone = 2;
+            root.show();
+        } else {
+            root.hide();
+        }
+    }
+    // Commandes visibles quand le doigt s'est posé : le toucher les inverse (le simple contact les
+    // affiche déjà, voir la zone de la vidéo).
+    property <bool> osd-at-press;
+    // Carte « Épisode suivant » et « Passer l'intro » : apparition et disparition en fondu.
+    property <float> next-p: root.up-mode == "next" && root.menu == "" ? 1 : 0;
+    animate next-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
+    property <float> skip-p: root.skip-intro && root.up-mode == "" ? 1 : 0;
+    animate skip-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "quality:8000", "stop"
     callback toggle-fullscreen();
@@ -633,13 +663,18 @@ export component PlayerView inherits Rectangle {
         changed mouse-y => {
             root.show();
         }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                root.osd-at-press = root.osd;
+            }
+        }
         clicked => {
             if (root.menu != "") {
                 root.menu = "";
                 root.show();
             } else if (Nav.touch) {
                 // Au doigt (téléphone, tablette) : un toucher montre ou cache les commandes, comme ailleurs.
-                if (root.osd) {
+                if (root.osd-at-press) {
                     root.hide();
                 } else {
                     root.show();
@@ -1375,9 +1410,29 @@ export component PlayerView inherits Rectangle {
         property <length> gap: 16px * root.k;
         // Marge intérieure : la carte agrandie (sélection) n'est pas coupée sur les bords.
         property <length> pad: 16px * root.k;
-        property <length> strip-x: min(0px, max(self.width - root.episodes.length * (self.cw + self.gap) + self.gap - 2 * self.pad,
-            self.width / 2 - (self.pad + root.ep-sel * (self.cw + self.gap) + self.cw / 2)));
-        animate strip-x { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
+        property <length> strip-min: min(0px, self.width - root.episodes.length * (self.cw + self.gap) + self.gap - 2 * self.pad);
+        property <length> sel-x: max(self.strip-min, min(0px, self.width / 2 - (self.pad + root.ep-sel * (self.cw + self.gap) + self.cw / 2)));
+        // Au doigt : le bandeau suit le glissement (défilement libre) ; une touche le recentre.
+        property <bool> free;
+        property <length> free-x;
+        property <int> sel-now: root.ep-sel;
+        changed sel-now => {
+            self.free = false;
+        }
+        property <length> strip-x: self.free ? self.free-x : self.sel-x;
+        animate strip-x { duration: Motion.player && !Nav.drag ? 220ms : 0ms; easing: ease-out; }
+        TouchArea {
+            scroll-event(e) => {
+                let d = e.delta-x != 0 ? e.delta-x : e.delta-y;
+                if (d == 0) {
+                    return EventResult.reject;
+                }
+                parent.free-x = max(parent.strip-min, min(0px, (parent.free ? parent.free-x : parent.sel-x) + d));
+                parent.free = true;
+                root.show();
+                return EventResult.accept;
+            }
+        }
 
         for e[i] in root.episodes: EpisodeCard {
             x: parent.strip-x + parent.pad + i * (parent.cw + parent.gap);
@@ -1397,9 +1452,10 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Passer l'intro
-    if root.skip-intro && root.up-mode == "": Rectangle {
-        x: parent.width - self.width - root.m;
+    if root.skip-p > 0.01: Rectangle {
+        x: parent.width - self.width - root.m + (1 - root.skip-p) * 30px * root.k;
         y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
+        opacity: root.skip-p;
         width: 190px * root.k;
         height: 48px * root.k;
 
@@ -1417,8 +1473,9 @@ export component PlayerView inherits Rectangle {
 
     // ------------------------------------------------------------ Épisode suivant (générique)
     // Cachée tant qu'un menu Audio / Sous-titres est ouvert (elle le recouvrait).
-    if root.up-mode == "next" && root.menu == "": Rectangle {
-        x: parent.width - self.width - root.m;
+    if root.next-p > 0.01: Rectangle {
+        x: parent.width - self.width - root.m + (1 - root.next-p) * 40px * root.k;
+        opacity: root.next-p;
         y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
         animate y { duration: Motion.player ? 160ms : 0ms; easing: ease-out; }
         width: 340px * root.k;
