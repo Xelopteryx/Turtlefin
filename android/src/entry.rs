@@ -58,18 +58,26 @@ fn env_from_property() {
     }
 }
 
+/// Activité Android (référence globale de NativeActivity) : `setRequestedOrientation` est une méthode
+/// de l'activité, pas du contexte d'application que donne ndk-context.
+static ACTIVITY: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
 /// Lecture : écran tenu en paysage (dans un sens ou l'autre, selon le capteur) ; hors lecture,
 /// l'orientation revient au manifeste (portrait ou paysage, selon le verrouillage de la rotation).
 pub fn lock_landscape(on: bool) {
     // ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE / SCREEN_ORIENTATION_UNSPECIFIED.
     let value = if on { 6 } else { -1 };
     let ctx = ndk_context::android_context();
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
+    if act.is_null() {
+        return;
+    }
     // SAFETY : machine virtuelle et activité fournies par android-activity, valables toute la vie
     // du processus (référence globale : jamais libérée ici).
     let result = (|| -> jni::errors::Result<()> {
         let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
         let mut env = vm.attach_current_thread()?;
-        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        let activity = unsafe { jni::objects::JObject::from_raw(act.cast()) };
         env.call_method(&activity, "setRequestedOrientation", "(I)V", &[jni::objects::JValue::Int(value)])?;
         Ok(())
     })();
@@ -82,6 +90,7 @@ pub fn lock_landscape(on: bool) {
 fn android_main(a: slint::android::AndroidApp) {
     stderr_to_logcat();
     env_from_property();
+    ACTIVITY.store(a.activity_as_ptr(), std::sync::atomic::Ordering::Relaxed);
     std::panic::set_hook(Box::new(|p| eprintln!("turtlefin : PANIQUE {p}")));
     // Dossiers de l'application : configuration et cache en mémoire interne (privée), téléchargements
     // en mémoire externe propre à l'appli (plus de place, pas d'autorisation à demander).

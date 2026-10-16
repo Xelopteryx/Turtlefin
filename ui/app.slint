@@ -6700,7 +6700,10 @@ export component AppWindow inherits Window {
                     padding: sets.pad;
 
                     for r[i] in root.set-rows: set-row-box := Rectangle {
-                        height: r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k;
+                        // Portrait : la pastille d'un choix passe sous le libellé (ligne plus haute).
+                        property <bool> stack: sets.one && r.kind == "choice";
+                        height: (r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k)
+                            + (self.stack ? 44px * root.k : 0px);
                         // Ligne choisie au clavier : on fait défiler pour qu'elle reste visible.
                         property <bool> is-sel: root.set-in && i == root.set-sel;
                         changed is-sel => {
@@ -6750,8 +6753,12 @@ export component AppWindow inherits Window {
                         }
                         VerticalLayout {
                             x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
-                            // Place à droite seulement pour une valeur, un choix ou un interrupteur.
-                            width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") ? 20px * root.k : 280px * root.k);
+                            y: 0px;
+                            height: parent.height - (set-row-box.stack ? 44px * root.k : 0px);
+                            // Place à droite seulement pour une valeur, un choix ou un interrupteur (portrait :
+                            // juste la place de l'interrupteur ou de la valeur, le choix est dessous).
+                            width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") || set-row-box.stack ? 20px * root.k
+                                : sets.one && r.kind == "toggle" ? 90px * root.k : sets.one ? 130px * root.k : 280px * root.k);
                             alignment: center;
                             spacing: 3px * root.k;
                             if r.label != "": Text {
@@ -6773,8 +6780,8 @@ export component AppWindow inherits Window {
                         }
                         // Choix : valeur actuelle dans une pastille, flèche vers la liste.
                         if r.kind == "choice": Rectangle {
-                            x: parent.width - self.width - 18px * root.k;
-                            y: (parent.height - self.height) / 2;
+                            x: set-row-box.stack ? 20px * root.k : parent.width - self.width - 18px * root.k;
+                            y: set-row-box.stack ? parent.height - self.height - 12px * root.k : (parent.height - self.height) / 2;
                             // Largeur animée ; le texte est calé sur le bord droit (fixe), il ne bouge pas.
                             width: val-t.preferred-width + 48px * root.k;
                             animate width { duration: Motion.panels ? 420ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
@@ -6808,8 +6815,8 @@ export component AppWindow inherits Window {
                         }
                         // Action avec une valeur (taille du cache, « Modifier »...)
                         if r.kind == "action" && r.value != "": Text {
-                            x: parent.width - 260px * root.k;
-                            width: 240px * root.k;
+                            x: parent.width - (sets.one ? 130px : 260px) * root.k;
+                            width: (sets.one ? 110px : 240px) * root.k;
                             height: parent.height;
                             text: r.value;
                             color: ((set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
@@ -7531,7 +7538,9 @@ export component AppWindow inherits Window {
     // ses boutons (accueil, watch party, hasard, recherche, compte) n'auraient rien à ouvrir.
     if root.bar-screen && !root.playing && (root.signed-in || root.offline): NavBar {
         y: 0px;
-        width: parent.width;
+        // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait).
+        x: 0px;
+        width: parent.width - root.right-w;
         k: root.k;
         can-back: root.back-ok;
         show-home: true;
@@ -7563,6 +7572,12 @@ export component AppWindow inherits Window {
         dl-text: root.dl-pill;
         dl-p: root.dl-p;
         dl-paused: root.dl-paused;
+        init => {
+            root.right-w = self.used-w;
+        }
+        changed used-w => {
+            root.right-w = self.used-w;
+        }
         activate(i) => {
             root.right-activate(i);
         }
