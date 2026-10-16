@@ -3931,6 +3931,16 @@ export component AppWindow inherits Window {
 
         // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
         property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
+        // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
+        property <float> in-e: 0;
+        init => {
+            self.in-e = 1;
+        }
+        animate in-e { duration: Motion.pages ? 620ms : 0ms; delay: Motion.pages ? 40ms : 0ms; easing: ease-out; }
+        pure function step(i: int) -> float {
+            let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
+            return 1 - (1 - x) * (1 - x);
+        }
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -3982,13 +3992,14 @@ export component AppWindow inherits Window {
         }
 
         VerticalLayout {
-            x: 64px * root.k;
+            x: 64px * root.k - (1 - party.step(0)) * 48px * root.k;
             width: min(parent.width - 128px * root.k, 760px * root.k);
             alignment: start;
             spacing: 14px * root.k;
 
             // (Le titre « Watch party » est déjà dans la barre du haut.)
             Text {
+                opacity: party.step(0);
                 text: root.sp-active
                     ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
                     : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
@@ -3998,6 +4009,7 @@ export component AppWindow inherits Window {
             }
             // Le groupe : état, ce qu'il regarde, participants.
             if root.sp-active: Rectangle {
+                opacity: party.step(1);
                 height: party-card.preferred-height;
                 border-radius: 16px * root.k;
                 background: Theme.fg.with-alpha(0.07);
@@ -4074,12 +4086,14 @@ export component AppWindow inherits Window {
                 }
             }
             if !root.sp-active && root.sp-groups.length > 0: Text {
+                opacity: party.step(1);
                 text: Tr.t(Tr.k, "REJOINDRE");
                 color: Theme.muted;
                 font-size: 12px * root.k;
                 font-weight: 700;
             }
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
+                opacity: party.step(2 + i);
                 height: 56px * root.k;
                 border-radius: 12px * root.k;
                 background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
@@ -4101,6 +4115,7 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 alignment: start;
                 height: 46px * root.k;
+                opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
                 ActionButton {
                     text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
                     font: 16px * root.k;
