@@ -2089,6 +2089,7 @@ export component AppWindow inherits Window {
 
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
+        root.party-pop = false;
         root.drop-keyboard();
         root.tour-ev(6);
         if (root.fly-phase == 1 || root.fly-phase == 2) {
@@ -2450,6 +2451,22 @@ export component AppWindow inherits Window {
     in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
     in-out property <int> sp-sel;
+    // Panneau de la watch party ouvert (voir open_party), et son apparition.
+    in-out property <bool> party-pop;
+    property <float> party-p: root.party-pop && !root.playing ? 1 : 0;
+    animate party-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Entrée du menu choisie : la watch party s'ouvre en panneau (sans changer de page).
+    function menu-go(action: string) {
+        if (action == "party") {
+            root.menu-action("party");
+        } else {
+            root.nav-out("menu", action);
+        }
+    }
+    function close-party() {
+        root.party-pop = false;
+        root.refocus += 1;
+    }
 
     // Recherche
     in-out property <string> search-text;
@@ -3923,210 +3940,6 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Watch party
-    if root.screen == "party" && !root.playing: party := Rectangle {
-        // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
-        height: parent.height - root.header-h;
-
-        // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
-        property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
-        // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
-        property <float> in-e: 0;
-        init => {
-            self.in-e = 1;
-        }
-        animate in-e { duration: Motion.pages ? 620ms : 0ms; delay: Motion.pages ? 40ms : 0ms; easing: ease-out; }
-        pure function step(i: int) -> float {
-            let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
-            return 1 - (1 - x) * (1 - x);
-        }
-
-        FocusScope {
-            property <int> tick: root.refocus;
-            changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            init => {
-                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            key-pressed(event) => {
-                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
-                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
-                    return EventResult.accept;
-                }
-                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
-                if (root.loading && event.text == Key.Escape) {
-                    root.cancel-open();
-                    return EventResult.accept;
-                }
-                if (root.nav-key(event.text)) {
-                    return EventResult.accept;
-                }
-                if (event.text == Key.UpArrow) {
-                    if (root.sp-sel == 0) {
-                        root.nav-enter();
-                    } else {
-                        root.sp-sel -= 1;
-                    }
-                } else if (event.text == Key.DownArrow) {
-                    root.sp-sel = min(party.n - 1, root.sp-sel + 1);
-                } else if (event.text == Key.Return) {
-                    if (root.sp-active) {
-                        root.party-action("leave");
-                    } else if (root.sp-sel < root.sp-groups.length) {
-                        root.party-action(root.sp-groups[root.sp-sel].action);
-                    } else {
-                        root.party-action("create");
-                    }
-                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.nav-out("go-home", "");
-                }
-                return EventResult.accept;
-            }
-        }
-
-        VerticalLayout {
-            x: 64px * root.k - (1 - party.step(0)) * 48px * root.k;
-            width: min(parent.width - 128px * root.k, 760px * root.k);
-            alignment: start;
-            spacing: 14px * root.k;
-
-            // (Le titre « Watch party » est déjà dans la barre du haut.)
-            Text {
-                opacity: party.step(0);
-                text: root.sp-active
-                    ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
-                    : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
-                color: Theme.muted;
-                font-size: 15px * root.k;
-                wrap: word-wrap;
-            }
-            // Le groupe : état, ce qu'il regarde, participants.
-            if root.sp-active: Rectangle {
-                opacity: party.step(1);
-                height: party-card.preferred-height;
-                border-radius: 16px * root.k;
-                background: Theme.fg.with-alpha(0.07);
-                border-width: 1px;
-                border-color: Theme.glass-border;
-                party-card := VerticalLayout {
-                    padding: 20px * root.k;
-                    spacing: 10px * root.k;
-                    HorizontalLayout {
-                        spacing: 10px * root.k;
-                        alignment: start;
-                        Rectangle {
-                            y: (parent.height - self.height) / 2;
-                            width: 10px * root.k;
-                            height: self.width;
-                            border-radius: self.width / 2;
-                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? Theme.ok : root.sp-state == Tr.t(Tr.k, "En pause") ? Theme.warn : Theme.accent2;
-                        }
-                        Text {
-                            text: root.sp-state;
-                            color: Theme.fg;
-                            font-size: 16px * root.k;
-                            font-weight: 700;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Text {
-                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
-                        color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
-                        font-size: 16px * root.k;
-                        font-weight: 600;
-                        wrap: word-wrap;
-                    }
-                    Text {
-                        text: Tr.p(Tr.k, "{n} participant", "{n} participants", root.sp-count);
-                        color: Theme.muted;
-                        font-size: 13px * root.k;
-                        font-weight: 700;
-                    }
-                    HorizontalLayout {
-                        spacing: 8px * root.k;
-                        alignment: start;
-                        height: 32px * root.k;
-                        for who[wi] in root.sp-list: Rectangle {
-                            width: who-t.preferred-width + 44px * root.k;
-                            border-radius: self.height / 2;
-                            background: Theme.fg.with-alpha(0.1);
-                            Rectangle {
-                                x: 4px * root.k;
-                                y: 4px * root.k;
-                                width: parent.height - 8px * root.k;
-                                height: self.width;
-                                border-radius: self.width / 2;
-                                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-                                Gloss { r: parent.border-radius; strength: 0.8; }
-                                Text {
-                                    text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
-                                    color: Theme.on-accent;
-                                    font-size: 12px * root.k;
-                                    font-weight: 700;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
-                            who-t := Text {
-                                x: parent.height + 2px * root.k;
-                                text: who;
-                                color: Theme.fg;
-                                font-size: 14px * root.k;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-                }
-            }
-            if !root.sp-active && root.sp-groups.length > 0: Text {
-                opacity: party.step(1);
-                text: Tr.t(Tr.k, "REJOINDRE");
-                color: Theme.muted;
-                font-size: 12px * root.k;
-                font-weight: 700;
-            }
-            for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
-                opacity: party.step(2 + i);
-                height: 56px * root.k;
-                border-radius: 12px * root.k;
-                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
-                Gloss { r: parent.border-radius; strength: 0.8; }
-                Text {
-                    x: 20px * root.k;
-                    height: parent.height;
-                    text: g.label;
-                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
-                    font-size: 16px * root.k;
-                    vertical-alignment: center;
-                }
-                g-area := TouchArea {
-                    clicked => {
-                        root.party-action(g.action);
-                    }
-                }
-            }
-            HorizontalLayout {
-                alignment: start;
-                height: 46px * root.k;
-                opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
-                ActionButton {
-                    text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
-                    font: 16px * root.k;
-                    focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
-                    clicked => {
-                        root.party-action(root.sp-active ? "leave" : "create");
-                    }
-                }
-            }
-        }
-    }
 
     // ------------------------------------------------------------ Recherche
     if root.screen == "search" && !root.playing: srch := Rectangle {
@@ -7624,6 +7437,244 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Watch party : panneau qui descend sous son icône, en haut à droite (toucher à côté, Échap ou
+    // Retour le referment). Contenu : le groupe en cours, ou les groupes à rejoindre et « Créer ».
+    if root.party-p > 0.01 && !root.playing: Rectangle {
+        background: Theme.scrim.with-alpha(0.35 * root.party-p);
+        TouchArea {
+            clicked => {
+                root.close-party();
+            }
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+    party := Rectangle {
+        width: min(460px * root.k, parent.width - 32px * root.k);
+        height: party-col.preferred-height + 40px * root.k;
+        x: parent.width - self.width - 16px * root.k;
+        y: root.header-row - 6px * root.k - (1 - root.party-p) * 18px * root.k;
+        opacity: root.party-p;
+        border-radius: 18px * root.k;
+        background: Theme.glass;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        drop-shadow-blur: 24px * root.k;
+        drop-shadow-color: #00000080;
+        Gloss { r: parent.border-radius; strength: 0.45; }
+        // Le panneau garde les touchers (ils ne ferment pas).
+        TouchArea {
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+
+        // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
+        property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
+        // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
+        property <float> in-e: 0;
+        init => {
+            self.in-e = 1;
+        }
+        animate in-e { duration: Motion.panels ? 520ms : 0ms; delay: Motion.panels ? 60ms : 0ms; easing: ease-out; }
+        pure function step(i: int) -> float {
+            let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
+            return 1 - (1 - x) * (1 - x);
+        }
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            init => {
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            key-pressed(event) => {
+                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
+                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
+                if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    if (root.sp-sel == 0) {
+                        root.close-party();
+                    } else {
+                        root.sp-sel -= 1;
+                    }
+                } else if (event.text == Key.DownArrow) {
+                    root.sp-sel = min(party.n - 1, root.sp-sel + 1);
+                } else if (event.text == Key.Return) {
+                    if (root.sp-active) {
+                        root.party-action("leave");
+                    } else if (root.sp-sel < root.sp-groups.length) {
+                        root.party-action(root.sp-groups[root.sp-sel].action);
+                    } else {
+                        root.party-action("create");
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.close-party();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        party-col := VerticalLayout {
+            x: 20px * root.k + (1 - party.step(0)) * 24px * root.k;
+            y: 20px * root.k;
+            width: parent.width - 40px * root.k;
+            alignment: start;
+            spacing: 14px * root.k;
+
+            Text {
+                text: Tr.t(Tr.k, "Watch party");
+                color: Theme.fg;
+                font-size: 20px * root.k;
+                font-weight: 700;
+            }
+            Text {
+                opacity: party.step(0);
+                text: root.sp-active
+                    ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
+                    : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
+                color: Theme.muted;
+                font-size: 15px * root.k;
+                wrap: word-wrap;
+            }
+            // Le groupe : état, ce qu'il regarde, participants.
+            if root.sp-active: Rectangle {
+                opacity: party.step(1);
+                height: party-card.preferred-height;
+                border-radius: 16px * root.k;
+                background: Theme.fg.with-alpha(0.07);
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                party-card := VerticalLayout {
+                    padding: 20px * root.k;
+                    spacing: 10px * root.k;
+                    HorizontalLayout {
+                        spacing: 10px * root.k;
+                        alignment: start;
+                        Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            width: 10px * root.k;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? Theme.ok : root.sp-state == Tr.t(Tr.k, "En pause") ? Theme.warn : Theme.accent2;
+                        }
+                        Text {
+                            text: root.sp-state;
+                            color: Theme.fg;
+                            font-size: 16px * root.k;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Text {
+                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
+                        color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
+                        font-size: 16px * root.k;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: Tr.p(Tr.k, "{n} participant", "{n} participants", root.sp-count);
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px * root.k;
+                        alignment: start;
+                        height: 32px * root.k;
+                        for who[wi] in root.sp-list: Rectangle {
+                            width: who-t.preferred-width + 44px * root.k;
+                            border-radius: self.height / 2;
+                            background: Theme.fg.with-alpha(0.1);
+                            Rectangle {
+                                x: 4px * root.k;
+                                y: 4px * root.k;
+                                width: parent.height - 8px * root.k;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                                Gloss { r: parent.border-radius; strength: 0.8; }
+                                Text {
+                                    text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
+                                    color: Theme.on-accent;
+                                    font-size: 12px * root.k;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            who-t := Text {
+                                x: parent.height + 2px * root.k;
+                                text: who;
+                                color: Theme.fg;
+                                font-size: 14px * root.k;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+            if !root.sp-active && root.sp-groups.length > 0: Text {
+                opacity: party.step(1);
+                text: Tr.t(Tr.k, "REJOINDRE");
+                color: Theme.muted;
+                font-size: 12px * root.k;
+                font-weight: 700;
+            }
+            for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
+                opacity: party.step(2 + i);
+                height: 56px * root.k;
+                border-radius: 12px * root.k;
+                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                Gloss { r: parent.border-radius; strength: 0.8; }
+                Text {
+                    x: 20px * root.k;
+                    height: parent.height;
+                    text: g.label;
+                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
+                    font-size: 16px * root.k;
+                    vertical-alignment: center;
+                }
+                g-area := TouchArea {
+                    clicked => {
+                        root.party-action(g.action);
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                height: 46px * root.k;
+                opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
+                ActionButton {
+                    text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
+                    font: 16px * root.k;
+                    focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
+                    clicked => {
+                        root.party-action(root.sp-active ? "leave" : "create");
+                    }
+                }
+            }
+        }
+    }
+    }
+
     // ------------------------------------------------------------ Menu latéral
     // Ouverture : le menu glisse vers la droite ; fermeture (ou choix) : il repart vers la gauche.
     // Défilement libre (doigt, molette) : la page ne suit plus la sélection mais ce décalage ; une
@@ -7735,7 +7786,7 @@ export component AppWindow inherits Window {
                             return EventResult.accept;
                         }
                         root.close-menu();
-                        root.nav-out("menu", root.menu-entries[root.menu-sel].action);
+                        root.menu-go(root.menu-entries[root.menu-sel].action);
                     } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.RightArrow) {
                         root.close-menu();
                     }
@@ -7846,7 +7897,7 @@ export component AppWindow inherits Window {
                         clicked => {
                             root.menu-sel = i;
                             root.close-menu();
-                            root.nav-out("menu", e.action);
+                            root.menu-go(e.action);
                         }
                     }
                 }
