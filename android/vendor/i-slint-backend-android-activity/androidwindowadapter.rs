@@ -704,15 +704,15 @@ fn button_for_event(
     return PointerEventButton::Other;
 }
 
-/// Turtlefin : échelle de l'interface. Elle est pensée pour au moins ~1280 x 600 points (télé, PC) :
-/// sur un téléphone, la densité d'Android (x2,6 et plus) n'en laisserait que ~900 x 400. On garde donc
-/// au moins cette surface, sans jamais agrandir au-delà de la densité d'Android (ni sous x1).
+/// Turtlefin : échelle de l'interface. Au moins ~960 x 432 points (l'interface tient encore, et reste
+/// lisible un téléphone en main : ~1280 x 600 était trop petit), sans jamais agrandir au-delà de la
+/// densité d'Android (ni sous x1). Tablettes : leur densité (plus de place).
 fn ui_scale(app: &AndroidApp, size: PhysicalSize) -> f32 {
     let density = app.config().density().map(|dpi| dpi as f32 / 160.0).unwrap_or(1.0);
     if size.width == 0 || size.height == 0 {
         return density;
     }
-    let fit = (size.width as f32 / 1280.0).min(size.height as f32 / 600.0);
+    let fit = (size.width as f32 / 960.0).min(size.height as f32 / 432.0);
     fit.min(density).max(1.0)
 }
 
