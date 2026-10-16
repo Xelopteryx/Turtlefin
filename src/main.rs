@@ -5111,19 +5111,17 @@ impl Swipe {
                         u.global::<Nav>().set_drag(true);
                         // Le début du geste (le seuil) compte aussi : le contenu part de sous le doigt.
                         // Lecture : seul l'horizontal défile (bandeau des épisodes) ; le vertical est un geste.
-                        if !u.get_playing() || self.horizontal {
-                            scroll_at(u, p, if self.horizontal { dx } else { dy }, self.horizontal);
-                        }
+                        // Lecture : le vertical défile aussi (menus Audio, Sous-titres, Qualité) ; hors
+                        // d'un menu, le lecteur l'ignore et en fait un geste (épisodes, voir plus bas).
+                        scroll_at(u, p, if self.horizontal { dx } else { dy }, self.horizontal);
                         return true;
                     }
                 }
                 if self.edge {
                     return true; // geste depuis le bord : décidé au lâcher
                 }
-                if !u.get_playing() || self.horizontal {
-                    let d = if self.horizontal { p.0 - prev.0 } else { p.1 - prev.1 };
-                    scroll_at(u, p, d, self.horizontal);
-                }
+                let d = if self.horizontal { p.0 - prev.0 } else { p.1 - prev.1 };
+                scroll_at(u, p, d, self.horizontal);
                 true
             }
             TouchPhase::Ended | TouchPhase::Cancelled if self.id == Some(id) => {
