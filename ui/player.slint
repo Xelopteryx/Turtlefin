@@ -681,11 +681,17 @@ export component PlayerView inherits Rectangle {
     // Souris sur la vidéo : affiche les commandes ; clic = pause ; double-clic = plein écran.
     TouchArea {
         mouse-cursor: root.osd ? MouseCursor.default : MouseCursor.none;
+        // Souris qui bouge : les commandes apparaissent. Pas au doigt : le doigt qui se pose compte aussi
+        // comme un mouvement (avant l'appui), et le toucher suivant les aurait aussitôt cachées.
         changed mouse-x => {
-            root.show();
+            if (!Nav.touch) {
+                root.show();
+            }
         }
         changed mouse-y => {
-            root.show();
+            if (!Nav.touch) {
+                root.show();
+            }
         }
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {
@@ -762,7 +768,7 @@ export component PlayerView inherits Rectangle {
         running: root.osd;
         triggered => {
             root.idle += 1;
-            if (root.idle >= 3 && !root.paused && root.menu == "" && !root.dragging && root.zone != 5) {
+            if (root.idle >= (Nav.touch ? 5 : 3) && !root.paused && root.menu == "" && !root.dragging && root.zone != 5) {
                 root.hide();
             }
         }
