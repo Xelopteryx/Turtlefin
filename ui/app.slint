@@ -4661,6 +4661,15 @@ export component AppWindow inherits Window {
         // Les boutons à icône masqués de la ligne des pastilles comptent encore un espacement chacun.
         property <length> chips-w: max(0px, chips-row.preferred-width - root.detail.icon-count * self.btn-gap);
         property <length> btns-w: max(self.icons-w, self.chips-w);
+        // Portrait : pastilles plus larges que l'écran -> elles défilent au doigt (ou suivent la sélection).
+        property <length> chips-over: root.narrow ? max(0px, dt.chips-w - root.d-low-w) : 0px;
+        property <length> chips-free-x;
+        property <bool> chips-free;
+        property <length> chips-x: dt.chips-free ? dt.chips-free-x : 0px;
+        property <int> d-btn-now: root.d-button;
+        changed d-btn-now => {
+            dt.chips-free = false;
+        }
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
         transform-scale: 0.96 + 0.04 * root.page-e;
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
@@ -5026,7 +5035,7 @@ export component AppWindow inherits Window {
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
-            x: root.d-low-x + (dt.btns-w - dt.icons-w) / 2 + root.po-right;
+            x: root.d-low-x + (root.narrow ? 0px : (dt.btns-w - dt.icons-w) / 2) + root.po-right;
             opacity: root.sw-icons ? root.sw-e : 1;
             y: 24px + 118px * root.k + root.d-low;
             width: root.d-low-w;
@@ -5052,10 +5061,24 @@ export component AppWindow inherits Window {
             }
         }
         // … puis pastilles compactes (saison, série, langue audio, sous-titres).
+        if dt.chips-over > 0px: TouchArea {
+            x: root.d-low-x;
+            y: 24px + 166px * root.k + root.d-low;
+            width: root.d-low-w;
+            height: 30px * root.k;
+            scroll-event(e) => {
+                if (e.delta-x == 0) {
+                    return EventResult.reject;
+                }
+                dt.chips-free-x = max(-dt.chips-over, min(0px, dt.chips-x + e.delta-x));
+                dt.chips-free = true;
+                return EventResult.accept;
+            }
+        }
         chips-row := HorizontalLayout {
             opacity: root.sw-chips ? root.sw-e : 1;
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
-            x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (dt.btns-w - dt.chips-w) / 2 + root.po-right;
+            x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : (dt.btns-w - dt.chips-w) / 2) + root.po-right;
             y: 24px + 166px * root.k + root.d-low;
             width: root.d-low-w;
             height: 30px * root.k;
@@ -6185,6 +6208,9 @@ export component AppWindow inherits Window {
         if root.dl-sections.length == 0: Text {
             text: root.offline ? Tr.t(Tr.k, "Aucun téléchargement : rien à regarder hors ligne.")
                 : Tr.t(Tr.k, "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.");
+            x: 24px * root.k;
+            width: parent.width - 48px * root.k;
+            wrap: word-wrap;
             color: Theme.muted;
             font-size: 18px * root.k;
             horizontal-alignment: center;

@@ -492,6 +492,7 @@ export component PlayerView inherits Rectangle {
     // Dernier menu ouvert : son contenu reste affiché pendant qu'il disparaît.
     property <string> menu-last: "audio";
     changed menu => {
+        root.menu-free = false;
         if (root.menu != "") {
             root.menu-last = root.menu;
         }
@@ -511,7 +512,10 @@ export component PlayerView inherits Rectangle {
     // Lignes visibles du menu (Audio, Sous-titres, Qualité) : 8 au plus, moins sur un petit écran (le
     // menu tient entre le haut de l'écran et le panneau des commandes ; le reste défile).
     property <int> menu-rows: max(3, min(8, floor((root.height - 160px * root.k - 3 * root.m - 90px * root.k) / (46px * root.k))));
-    property <int> menu-top: max(0, root.menu-sel - root.menu-rows + 1);
+    // Première ligne affichée : suit la sélection (clavier), ou le doigt (défilement libre).
+    property <bool> menu-free;
+    property <int> menu-free-top;
+    property <int> menu-top: root.menu-free ? root.menu-free-top : max(0, root.menu-sel - root.menu-rows + 1);
     property <[TrackData]> menu-items: root.menu-last == "audio" ? root.audio-tracks
         : root.menu-last == "sub" ? root.sub-tracks : root.quality-tracks;
     property <bool> dragging;
@@ -850,6 +854,7 @@ export component PlayerView inherits Rectangle {
 
             // Menu des pistes ouvert : il prend les flèches.
             if (root.menu != "") {
+                root.menu-free = false;
                 if (event.text == Key.UpArrow) {
                     root.menu-sel = max(0, root.menu-sel - 1);
                 } else if (event.text == Key.DownArrow) {
@@ -1268,7 +1273,15 @@ export component PlayerView inherits Rectangle {
                     let steps = root.menu-acc > 0 ? floor(root.menu-acc / row) : -floor(-root.menu-acc / row);
                     if (steps != 0) {
                         root.menu-acc -= steps * row;
-                        root.menu-sel = max(0, min(root.menu-items.length - 1, root.menu-sel - steps));
+                        if (Nav.drag) {
+                            // Doigt : la liste défile, le choix ne change pas (un toucher choisit).
+                            let top = root.menu-free ? root.menu-free-top : root.menu-top;
+                            root.menu-free-top = max(0, min(root.menu-items.length - root.menu-rows, top - steps));
+                            root.menu-free = true;
+                        } else {
+                            root.menu-free = false;
+                            root.menu-sel = max(0, min(root.menu-items.length - 1, root.menu-sel - steps));
+                        }
                     }
                     root.show();
                     return EventResult.accept;
