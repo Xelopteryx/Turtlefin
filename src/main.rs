@@ -4932,7 +4932,10 @@ fn install_f11(app: &Arc<App>) {
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 swipe.mouse = (position.x, position.y);
-                if let Some(u) = weak.upgrade() {
+                // Pointeur que X fait suivre au doigt (écran tactile vu aussi comme une souris) : pas
+                // un vrai mouvement de souris, le mode tactile reste.
+                let from_finger = swipe.last_finger.is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(500));
+                if let (Some(u), false) = (weak.upgrade(), from_finger) {
                     if u.global::<Nav>().get_touch() {
                         u.global::<Nav>().set_touch(false);
                     }
@@ -5035,6 +5038,8 @@ struct Swipe {
     edge: bool,
     /// Dernière position de la souris (les clics de winit n'en donnent pas).
     mouse: (f64, f64),
+    /// Dernier événement du doigt (voir CursorMoved dans install_f11).
+    last_finger: Option<std::time::Instant>,
 }
 
 thread_local! {
@@ -5065,6 +5070,7 @@ impl Swipe {
         }
         // Le tactile n'a pas de sélection visible, et le survol n'y met rien en avant.
         if finger {
+            self.last_finger = Some(std::time::Instant::now());
             if u.global::<Nav>().get_kb() {
                 u.global::<Nav>().set_kb(false);
             }
@@ -5083,8 +5089,8 @@ impl Swipe {
                     self.id = None;
                     return false;
                 }
-                let mouse = self.mouse;
-                *self = Swipe { id: Some(id), start: p, last: p, t_last: Some(std::time::Instant::now()), edge: finger && p.0 < 24.0 * s, mouse, ..Default::default() };
+                let (mouse, last_finger) = (self.mouse, self.last_finger);
+                *self = Swipe { id: Some(id), start: p, last: p, t_last: Some(std::time::Instant::now()), edge: finger && p.0 < 24.0 * s, mouse, last_finger, ..Default::default() };
                 false
             }
             TouchPhase::Moved if self.id == Some(id) => {
