@@ -1714,3 +1714,15 @@ msgstr "Jakość: {}"
 
 msgid "{} Mbit/s"
 msgstr "{} Mbit/s"
+
+msgid "Installer"
+msgstr "Zainstaluj"
+
+msgid "Mot de passe administrateur"
+msgstr "Hasło administratora"
+
+msgid "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré."
+msgstr "Aktualizacja jest instalowana jako administrator (sudo). Hasło nie jest zapisywane."
+
+msgid "Mot de passe refusé (ou compte sans droits administrateur)."
+msgstr "Hasło odrzucone (lub konto bez uprawnień administratora)."

@@ -8,7 +8,9 @@
 //!   - Windows installé : l'installeur, relancé en silence dans le même dossier ;
 //!   - Windows portable : l'archive, dont les fichiers remplacent ceux du dossier ;
 //!   - Linux AppImage : le nouveau fichier AppImage remplace l'ancien ;
-//!   - Linux paquet .deb : le paquet, installé avec `pkexec apt-get` (mot de passe demandé).
+//!   - Linux paquet .deb : le paquet, installé avec `apt-get` en administrateur : `sudo` s'il ne
+//!     demande rien (Raspberry Pi), sinon `pkexec` sur un bureau complet, sinon mot de passe demandé
+//!     par Turtlefin lui-même (session sans agent polkit : Openbox, XeLauncher), voir `deb_auth`.
 
 use crate::i18n::{tr, trf};
 use std::path::{Path, PathBuf};
@@ -411,9 +413,77 @@ pub fn launch_args() -> Vec<String> {
     saved.map(|t| t.lines().filter(|l| !l.is_empty()).map(str::to_string).collect()).unwrap_or_default()
 }
 
+/// Paquet .deb : comment obtenir les droits administrateur pour l'installer.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DebAuth {
+    /// `sudo` sans mot de passe (Raspberry Pi OS par défaut).
+    Sudo,
+    /// `pkexec` : le bureau (GNOME, KDE...) demande lui-même le mot de passe.
+    Pkexec,
+    /// Ni l'un ni l'autre (session Openbox / XeLauncher) : Turtlefin demande le mot de passe et le
+    /// donne à `sudo` (jamais enregistré).
+    Password,
+}
+
+fn quiet_ok(cmd: &mut Command) -> bool {
+    use std::process::Stdio;
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+}
+
+pub fn deb_auth() -> DebAuth {
+    if quiet_ok(Command::new("sudo").args(["-n", "true"])) {
+        return DebAuth::Sudo;
+    }
+    let pkexec = quiet_ok(Command::new("sh").args(["-c", "command -v pkexec"]));
+    // pkexec sans agent polkit (pas de bureau complet) échoue sans rien demander.
+    let desktop = std::env::var_os("XDG_CURRENT_DESKTOP").is_some_and(|d| !d.is_empty());
+    let agent = quiet_ok(Command::new("pgrep").args(["-f", "polkit.*agent|lxpolkit|polkit-gnome|polkit-kde|xfce-polkit|mate-polkit|lxqt-policykit"]));
+    if pkexec && (desktop || agent) {
+        DebAuth::Pkexec
+    } else {
+        DebAuth::Password
+    }
+}
+
+/// La mise à jour prête (paquet .deb) demande un mot de passe à Turtlefin.
+pub fn needs_password() -> bool {
+    kind() == Kind::Deb && PENDING.lock().unwrap().is_some() && deb_auth() == DebAuth::Password
+}
+
+/// Vérifie le mot de passe administrateur (sudo) sans rien lancer : sinon Turtlefin se fermerait pour
+/// une installation vouée à l'échec.
+pub fn check_password(password: &str) -> bool {
+    use std::io::Write;
+    use std::process::Stdio;
+    // -k : sans ticket déjà valable ; -S : mot de passe lu sur l'entrée ; -p "" : pas d'invite ; -v : vérification.
+    let Ok(mut child) = Command::new("sudo")
+        .args(["-k", "-S", "-p", "", "-v"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(format!("{password}\n").as_bytes());
+    }
+    child.wait().is_ok_and(|s| s.success())
+}
+
 /// Relance l'application (nouvelle version) avec les mêmes options, en appliquant d'abord le
 /// fichier en attente (installeur Windows, paquet .deb).
 pub fn restart() {
+    restart_with(None);
+}
+
+/// Comme `restart`, avec le mot de passe administrateur demandé par Turtlefin (paquet .deb, voir
+/// `DebAuth::Password`) : donné à `sudo` sur son entrée, jamais écrit ni passé en argument.
+pub fn restart_with_password(password: String) {
+    restart_with(Some(password));
+}
+
+fn restart_with(password: Option<String>) {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let pending = PENDING.lock().unwrap().take();
     let ok = match (kind(), pending) {
@@ -436,15 +506,31 @@ pub fn restart() {
             cmd.arg(format!("/DIR={}", dir.display()));
             cmd.spawn().is_ok()
         }
-        // Paquet : installé avec les droits administrateur (pkexec demande le mot de passe), puis relance.
+        // Paquet : installé avec les droits administrateur (voir DebAuth), puis relance.
         (Kind::Deb, Some(deb)) => {
+            use std::io::Write;
             // Chemin et options passés en paramètres du script (« $1 », « $@ ») : jamais interprétés.
-            Command::new("sh")
-                .args(["-c", r#"deb="$1"; shift; pkexec apt-get install -y --allow-downgrades "$deb" && exec turtlefin "$@""#, "sh"])
-                .arg(&deb)
-                .args(&args)
-                .spawn()
-                .is_ok()
+            // Installation sans question (fichiers de configuration modifiés : gardés).
+            let apt = r#"env DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades -o Dpkg::Options::=--force-confold "$deb""#;
+            let script = match (&password, deb_auth()) {
+                (Some(_), _) => format!(r#"deb="$1"; shift; sudo -S -p "" {apt} && exec turtlefin "$@""#),
+                (None, DebAuth::Sudo) => format!(r#"deb="$1"; shift; sudo -n {apt} && exec turtlefin "$@""#),
+                (None, _) => format!(r#"deb="$1"; shift; pkexec {apt} && exec turtlefin "$@""#),
+            };
+            let mut cmd = Command::new("sh");
+            cmd.args(["-c", &script, "sh"]).arg(&deb).args(&args);
+            if password.is_some() {
+                cmd.stdin(std::process::Stdio::piped());
+            }
+            match cmd.spawn() {
+                Ok(mut child) => {
+                    if let (Some(pw), Some(mut stdin)) = (&password, child.stdin.take()) {
+                        let _ = stdin.write_all(format!("{pw}\n").as_bytes());
+                    }
+                    true
+                }
+                Err(_) => false,
+            }
         }
         (Kind::AppImage, _) => match std::env::var_os("APPIMAGE") {
             Some(p) => Command::new(p).args(&args).spawn().is_ok(),

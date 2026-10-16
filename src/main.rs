@@ -2930,6 +2930,18 @@ fn update_action(app: &Arc<App>) {
         });
     };
     if state == "ready" {
+        // Paquet .deb sans sudo direct ni agent polkit (Openbox, XeLauncher) : Turtlefin demande le
+        // mot de passe administrateur (boîte de saisie des adresses, voir addr_save).
+        if update::needs_password() {
+            if let Some(u) = app.ui().upgrade() {
+                u.set_addr_text("".into());
+                u.set_addr_err("".into());
+                u.set_addr_busy(false);
+                u.set_addr_field(0);
+                u.set_addr_edit(3);
+            }
+            return;
+        }
         update::restart();
         return;
     }
@@ -3604,6 +3616,28 @@ fn repick_server(app: &Arc<App>) {
 /// Adresse saisie dans Paramètres > Réseau (1 principale, 2 secours) : vérifiée (http et https si
 /// rien n'est précisé), elle doit mener au même serveur. Vide : l'adresse de secours est retirée.
 fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    // Mot de passe administrateur (mise à jour .deb) : vérifié avant de fermer Turtlefin, jamais
+    // enregistré ni écrit dans le journal.
+    if which == 3 {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_addr_busy(true);
+            u.set_addr_err("".into());
+        }
+        let a = app.clone();
+        std::thread::spawn(move || {
+            let ok = update::check_password(&text);
+            let _ = a.ui().upgrade_in_event_loop(move |u| {
+                u.set_addr_busy(false);
+                if ok {
+                    u.set_addr_edit(0);
+                    update::restart_with_password(text);
+                } else {
+                    u.set_addr_err(tr("Mot de passe refusé (ou compte sans droits administrateur).").into());
+                }
+            });
+        });
+        return;
+    }
     let text = text.trim().trim_end_matches('/').to_string();
     let fail = |a: &Arc<App>, msg: String| {
         let _ = a.ui().upgrade_in_event_loop(move |u| {

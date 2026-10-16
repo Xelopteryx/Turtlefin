@@ -1708,3 +1708,15 @@ msgstr "Kwaliteit: {}"
 
 msgid "{} Mbit/s"
 msgstr "{} Mbit/s"
+
+msgid "Installer"
+msgstr "Installeren"
+
+msgid "Mot de passe administrateur"
+msgstr "Beheerderswachtwoord"
+
+msgid "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré."
+msgstr "De update wordt als beheerder geïnstalleerd (sudo). Het wachtwoord wordt niet bewaard."
+
+msgid "Mot de passe refusé (ou compte sans droits administrateur)."
+msgstr "Wachtwoord geweigerd (of account zonder beheerdersrechten)."

@@ -1708,3 +1708,15 @@ msgstr "Qualidade: {}"
 
 msgid "{} Mbit/s"
 msgstr "{} Mbit/s"
+
+msgid "Installer"
+msgstr "Instalar"
+
+msgid "Mot de passe administrateur"
+msgstr "Palavra-passe de administrador"
+
+msgid "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré."
+msgstr "A atualização é instalada como administrador (sudo). A palavra-passe não é guardada."
+
+msgid "Mot de passe refusé (ou compte sans droits administrateur)."
+msgstr "Palavra-passe recusada (ou conta sem direitos de administrador)."

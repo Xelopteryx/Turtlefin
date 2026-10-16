@@ -2374,6 +2374,7 @@ export component AppWindow inherits Window {
     in property <bool> addr-busy;
     in-out property <bool> addr-osk;
     in-out property <int> addr-field;       // 0 champ · 1 Enregistrer · 2 Annuler
+    // addr-edit : 1 adresse principale · 2 de secours · 3 mot de passe administrateur (mise à jour .deb)
     callback addr-save(int, string);
     // Fenêtre fermée : la page des paramètres reprend le clavier.
     changed addr-edit => {
@@ -7371,13 +7372,15 @@ export component AppWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: root.addr-edit == 1 ? Tr.t(Tr.k, "Adresse principale") : Tr.t(Tr.k, "Adresse de secours");
+                        text: root.addr-edit == 1 ? Tr.t(Tr.k, "Adresse principale") : root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
+                            : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
                     Text {
                         text: root.addr-edit == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
+                            : root.addr-edit == 3 ? Tr.t(Tr.k, "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré.")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
@@ -7388,10 +7391,11 @@ export component AppWindow inherits Window {
                     }
                     addr-f := Field {
                         k: root.k;
-                        label: Tr.t(Tr.k, "Adresse du serveur");
-                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : "10.8.0.5:8096";
+                        label: root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe") : Tr.t(Tr.k, "Adresse du serveur");
+                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : root.addr-edit == 3 ? "" : "10.8.0.5:8096";
+                        password: root.addr-edit == 3;
                         text <=> root.addr-text;
-                        shown: root.addr-text;
+                        shown: root.addr-edit == 3 ? root.mask(root.addr-text) : root.addr-text;
                         tv: root.tv-mode;
                         selected: root.tv-mode && !root.addr-osk && root.addr-field == 0;
                         editing: root.addr-osk;
@@ -7423,7 +7427,7 @@ export component AppWindow inherits Window {
                             }
                         }
                         ActionButton {
-                            text: root.addr-busy ? Tr.t(Tr.k, "Vérification…") : Tr.t(Tr.k, "Enregistrer");
+                            text: root.addr-busy ? Tr.t(Tr.k, "Vérification…") : root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : Tr.t(Tr.k, "Enregistrer");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
@@ -7442,7 +7446,7 @@ export component AppWindow inherits Window {
                 k: root.k;
                 active: root.addr-osk;
                 text: root.addr-text;
-                ok-label: Tr.t(Tr.k, "Enregistrer");
+                ok-label: root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : Tr.t(Tr.k, "Enregistrer");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
