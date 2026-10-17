@@ -1720,3 +1720,84 @@ msgstr "Das Update wird als Administrator installiert (sudo). Das Passwort wird 
 
 msgid "Mot de passe refusé (ou compte sans droits administrateur)."
 msgstr "Passwort abgelehnt (oder Konto ohne Administratorrechte)."
+
+msgid "Bon"
+msgstr "Gut"
+
+msgid "C'est le mot de passe actuel : choisis-en un autre."
+msgstr "Das ist dein aktuelles Passwort: wähle ein anderes."
+
+msgid "Changement du mot de passe…"
+msgstr "Passwort wird geändert…"
+
+msgid "Changement…"
+msgstr "Wird geändert…"
+
+msgid "Changer le mot de passe"
+msgstr "Passwort ändern"
+
+msgid "Correct"
+msgstr "Ausreichend"
+
+msgid "Entre ton mot de passe actuel."
+msgstr "Gib dein aktuelles Passwort ein."
+
+msgid "Faible"
+msgstr "Schwach"
+
+msgid "Identiques"
+msgstr "Stimmen überein"
+
+msgid "Le mot de passe de ce compte sur le serveur."
+msgstr "Das Passwort dieses Kontos auf dem Server."
+
+msgid "Le mot de passe n'a pas été changé : {}."
+msgstr "Das Passwort wurde nicht geändert: {}."
+
+msgid "Les deux saisies ne sont pas identiques."
+msgstr "Die beiden Eingaben stimmen nicht überein."
+
+msgid "Mot de passe actuel"
+msgstr "Aktuelles Passwort"
+
+msgid "Mot de passe actuel incorrect."
+msgstr "Das aktuelle Passwort ist falsch."
+
+msgid "Mot de passe changé."
+msgstr "Passwort geändert."
+
+msgid "Nouveau mot de passe"
+msgstr "Neues Passwort"
+
+msgid "Nouveau mot de passe, encore une fois"
+msgstr "Neues Passwort, noch einmal"
+
+msgid "Pas encore identiques"
+msgstr "Stimmen noch nicht überein"
+
+msgid "Solide"
+msgstr "Stark"
+
+msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
+msgstr "Dein Passwort ist zu einfach: ändere es (Kontobild → Passwort ändern)."
+
+msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
+msgstr "Dein Passwort ist zu einfach: jeder könnte dieses Konto öffnen. Ändere es."
+
+msgid "Trop court : 8 caractères au moins."
+msgstr "Zu kurz: mindestens 8 Zeichen."
+
+msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
+msgstr "Zu leicht zu erraten (häufiges Wort, Folge oder dein Name). Mach es länger oder mische Buchstaben, Ziffern und Zeichen."
+
+msgid "Trop simple"
+msgstr "Zu einfach"
+
+msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
+msgstr "Schritt 1 von 3 · Dein aktuelles Passwort, um zu bestätigen, dass du es bist."
+
+msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
+msgstr "Schritt 2 von 3 · Mindestens 8 Zeichen. Ein kurzer Satz („Regen-auf-dem-Meer“) ist leicht zu merken und bleibt sicher."
+
+msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
+msgstr "Schritt 3 von 3 · Gib das neue Passwort noch einmal ein."

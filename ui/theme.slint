@@ -165,6 +165,19 @@ export global Kb {
     out property <length> lift: root.top > 0 && root.field-bottom > 0 ? max(0px, root.field-bottom + 16px - root.top) : 0px;
 }
 
+// Mot de passe trop simple (« 12345 »…) : le chemin jusqu'à « Changer le mot de passe » clignote en
+// rouge (photo du compte, Paramètres, catégorie Compte, la ligne elle-même). Le clignotement vient
+// par salves (`live`, posé par un minuteur de AppWindow) : entre deux salves l'anneau reste rouge
+// fixe et rien ne se redessine (le Pi ne calcule pas une animation sans fin).
+export global Alert {
+    in-out property <bool> weak-pw;
+    in-out property <bool> live;
+    // 0 -> 1 -> 0 toutes les 900 ms pendant une salve ; 0,45 entre deux salves.
+    out property <float> blink: !root.weak-pw ? 0 : root.live && Motion.select
+        ? (1 - cos(mod(animation-tick() / 1ms, 900) / 900 * 360deg)) / 2 : 0.45;
+    out property <color> red: #ff3b3b;
+}
+
 export global Nav {
     in-out property <bool> kb: true;
     // Doigt (ou lancer) en train de faire défiler une page : les défilements ne sont pas animés
@@ -173,4 +186,49 @@ export global Nav {
     // Dernier pointeur : le doigt (écran tactile). Le survol ne met alors rien en avant (un doigt
     // posé pour faire défiler n'est pas un choix) ; la souris le rend.
     in-out property <bool> touch;
+}
+
+// Affiche pas encore là (ou absente du serveur) : dégradé du thème, pellicule et titre, à la place
+// d'un rectangle vide. L'image arrive ensuite en fondu par-dessus.
+export component Placeholder inherits Rectangle {
+    in property <string> title;
+    in property <float> k: 1.0;
+    clip: true;
+    background: @linear-gradient(140deg, Theme.ph1 0%, Theme.ph2 100%);
+    // Lumière douce en haut à gauche (pas d'animation : rien à redessiner sur le Pi).
+    Rectangle {
+        background: @radial-gradient(circle, Theme.accent2.with-alpha(0.16) 0%, Theme.accent2.with-alpha(0) 70%);
+        width: parent.width * 1.4;
+        height: self.width;
+        x: -parent.width * 0.5;
+        y: -self.height * 0.55;
+    }
+    property <length> ic: min(root.width, root.height) * 0.3;
+    Path {
+        width: root.ic;
+        height: root.ic * 0.8;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2 - (root.title != "" ? root.ic * 0.35 : 0px);
+        viewbox-width: 30;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: Theme.fg.with-alpha(0.32);
+        stroke-width: max(1.5px, 2px * root.k);
+        // Pellicule : cadre, deux rangées de perforations, image au centre.
+        commands: "M 2 2 L 28 2 L 28 22 L 2 22 Z M 7 2 L 7 22 M 23 2 L 23 22 M 2 7 L 7 7 M 2 12 L 7 12 M 2 17 L 7 17 M 23 7 L 28 7 M 23 12 L 28 12 M 23 17 L 28 17 M 12 9 L 18 12 L 12 15 Z";
+    }
+    if root.title != "" && root.height > 90px: Text {
+        x: 10px * root.k;
+        width: parent.width - 20px * root.k;
+        y: parent.height / 2 + root.ic * 0.25;
+        height: parent.height / 2 - root.ic * 0.25 - 8px * root.k;
+        text: root.title;
+        color: Theme.fg.with-alpha(0.6);
+        font-size: max(11px, min(15px * root.k, parent.width / 11));
+        font-weight: 600;
+        wrap: word-wrap;
+        overflow: elide;
+        horizontal-alignment: center;
+        vertical-alignment: top;
+    }
 }

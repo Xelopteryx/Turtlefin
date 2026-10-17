@@ -16,6 +16,7 @@ mod downloads;
 mod dust;
 mod i18n;
 mod mpv;
+mod password;
 mod paths;
 mod player;
 mod syncplay;
@@ -187,6 +188,10 @@ struct App {
     home_stale: AtomicBool,
     /// Compte quitté par « Changer de compte » : Retour sur « Qui regarde ? » le rouvre.
     prev_account: Mutex<Option<String>>,
+    /// Changer le mot de passe : saisies des étapes 1 et 2, le temps de finir (jamais sur le disque,
+    /// effacées à la fermeture de la fenêtre).
+    pw_cur: Mutex<String>,
+    pw_new: Mutex<String>,
     /// Comptes publics du serveur (nom, identifiant) vus à la dernière ouverture de la connexion.
     login_pub: Mutex<Vec<(String, String)>>,
     /// Type du média de la fiche (« Movie », « Episode »...) : texte de la liste des pistes.
@@ -919,13 +924,18 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
         return;
     }
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
-        Ok(client) => start_session(app, client).await,
+        Ok(client) => {
+            // Seul le verdict est gardé (voir password.rs), jamais le mot de passe.
+            let weak = password::is_weak(&user, &pw);
+            start_session(app, client, Some(weak)).await
+        }
         Err(e) => show_login_error(&app.ui(), format!("{}", human_err(&e))),
     }
 }
 
 /// Session ouverte (mot de passe ou compte enregistré) : session et compte enregistrés, accueil.
-async fn start_session(app: Arc<App>, client: api::Client) {
+/// `weak` : verdict sur le mot de passe tapé (None : compte enregistré, le verdict d'avant reste).
+async fn start_session(app: Arc<App>, client: api::Client, weak: Option<bool>) {
     {
         {
             let old = config::load();
@@ -954,13 +964,21 @@ async fn start_session(app: Arc<App>, client: api::Client) {
             }
             saved.server_id = server_id.clone();
             config::save(&saved);
+            let weak = weak.unwrap_or_else(|| config::weak_pw(&client.user_id));
             config::save_account(config::Account {
                 server_id,
                 user_id: client.user_id.clone(),
                 user_name: client.user_name.clone(),
                 token: client.token.clone(),
+                weak_pw: weak,
             });
-            load_home(app, client).await;
+            let _ = app.ui().upgrade_in_event_loop(move |u| u.global::<Alert>().set_weak_pw(weak));
+            load_home(app.clone(), client).await;
+            if weak {
+                let _ = app.ui().upgrade_in_event_loop(|u| {
+                    u.set_toast(tr("Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe).").into());
+                });
+            }
         }
     }
 }
@@ -1123,7 +1141,7 @@ fn login_pick(app: &Arc<App>, action: String) {
             Err(e) => return show_login_error(&app2.ui(), format!("{}", human_err(&e))),
         };
         match client.user_config().await {
-            Ok(_) => start_session(app2, client).await,
+            Ok(_) => start_session(app2, client, None).await,
             // Serveur injoignable (réseau, serveur arrêté) : le compte reste enregistré.
             Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() => {
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
@@ -1180,6 +1198,7 @@ fn end_session(app: &Arc<App>, forget: bool) {
     *app.client.lock().unwrap() = None;
     if let Some(u) = app.ui().upgrade() {
         u.set_signed_in(false);
+        u.global::<Alert>().set_weak_pw(false);
     }
     app.bg_hash.store(0, Ordering::SeqCst);
     app.bg_id.lock().unwrap().clear();
@@ -2623,6 +2642,16 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             } else {
                 v.push(row("info", "", tr("Photo de profil : aucun avatar proposé par le serveur (extension GetAvatar absente ou vide)."), String::new(), "info", false));
             }
+            // Mot de passe : seulement en ligne (le serveur le change).
+            if !srv.is_empty() {
+                let weak = app.ui().upgrade().is_some_and(|u| u.global::<Alert>().get_weak_pw());
+                let hint = if weak {
+                    tr("Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le.")
+                } else {
+                    tr("Le mot de passe de ce compte sur le serveur.")
+                };
+                v.push(row("password", tr("Changer le mot de passe"), hint, tr("Changer").into(), "action", false));
+            }
             let p = config::ui_prefs();
             // Hors ligne (pas de client) : le compte de la session enregistrée.
             let me = app.client().map(|c| c.user_id).unwrap_or_else(|| saved.user_id.clone());
@@ -3502,6 +3531,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         }
         "server" => open_servers(app),
         "avatar" => open_avatar_picker(app),
+        "password" => open_password(app),
         "addr_main" | "addr_backup" => {
             let saved = config::load();
             if let Some(u) = app.ui().upgrade() {
@@ -3617,7 +3647,99 @@ fn repick_server(app: &Arc<App>) {
 
 /// Adresse saisie dans Paramètres > Réseau (1 principale, 2 secours) : vérifiée (http et https si
 /// rien n'est précisé), elle doit mener au même serveur. Vide : l'adresse de secours est retirée.
+/// Paramètres → Compte → Changer le mot de passe : fenêtre en trois étapes (voir pw_step).
+fn open_password(app: &Arc<App>) {
+    app.pw_cur.lock().unwrap().clear();
+    app.pw_new.lock().unwrap().clear();
+    if let Some(u) = app.ui().upgrade() {
+        u.set_addr_text("".into());
+        u.set_addr_err("".into());
+        u.set_addr_osk(false);
+        u.set_addr_field(0);
+        u.set_addr_edit(4);
+    }
+}
+
+/// Une étape du changement de mot de passe : 4 actuel → 5 nouveau (refusé s'il est trop simple)
+/// → 6 confirmation, puis envoi au serveur. Mot de passe actuel refusé : retour à l'étape 1.
+fn pw_step(app: &Arc<App>, which: i32, text: String) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let user = app.client().map(|c| c.user_name).unwrap_or_default();
+    let next = |u: &AppWindow, step: i32| {
+        u.set_addr_err("".into());
+        u.set_addr_text("".into());
+        u.set_addr_field(0);
+        u.set_addr_edit(step);
+    };
+    match which {
+        4 => {
+            if text.is_empty() {
+                u.set_addr_err(tr("Entre ton mot de passe actuel.").into());
+                return;
+            }
+            *app.pw_cur.lock().unwrap() = text;
+            next(&u, 5);
+        }
+        5 => {
+            if text == *app.pw_cur.lock().unwrap() {
+                u.set_addr_err(tr("C'est le mot de passe actuel : choisis-en un autre.").into());
+            } else if text.chars().count() < 8 {
+                u.set_addr_err(tr("Trop court : 8 caractères au moins.").into());
+            } else if password::is_weak(&user, &text) {
+                u.set_addr_err(tr("Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes.").into());
+            } else {
+                *app.pw_new.lock().unwrap() = text;
+                next(&u, 6);
+            }
+        }
+        6 => {
+            let new = app.pw_new.lock().unwrap().clone();
+            if text != new {
+                u.set_addr_err(tr("Les deux saisies ne sont pas identiques.").into());
+                return;
+            }
+            let Some(client) = app.client() else { return };
+            let cur = app.pw_cur.lock().unwrap().clone();
+            u.set_addr_busy(true);
+            u.set_addr_err("".into());
+            let a = app.clone();
+            app.rt.spawn(async move {
+                let r = client.change_password(&cur, &new).await;
+                let uid = client.user_id.clone();
+                let _ = a.ui().upgrade_in_event_loop({
+                    let a = a.clone();
+                    move |u| {
+                        u.set_addr_busy(false);
+                        match r {
+                            Ok(()) => {
+                                config::set_weak_pw(&uid, false);
+                                u.global::<Alert>().set_weak_pw(false);
+                                u.set_addr_edit(0);
+                                u.set_toast(tr("Mot de passe changé.").into());
+                                refresh_settings(&a);
+                            }
+                            Err(e) if e.downcast_ref::<api::WrongPassword>().is_some() => {
+                                a.pw_cur.lock().unwrap().clear();
+                                u.set_addr_text("".into());
+                                u.set_addr_field(0);
+                                u.set_addr_edit(4);
+                                u.set_addr_err(tr("Mot de passe actuel incorrect.").into());
+                            }
+                            Err(e) => u.set_addr_err(trf("Le mot de passe n'a pas été changé : {}.", &[&human_err(&e)]).into()),
+                        }
+                    }
+                });
+            });
+        }
+        _ => {}
+    }
+}
+
 fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    if which >= 4 {
+        pw_step(app, which, text);
+        return;
+    }
     // Mot de passe administrateur (mise à jour .deb) : vérifié avant de fermer Turtlefin, jamais
     // enregistré ni écrit dans le journal.
     if which == 3 {
@@ -4020,8 +4142,13 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
         }
     }
     e.push((tr("Compte").into(), String::new(), true));
-    for (label, action) in [(tr("Changer de compte"), "switch"), (tr("Sélectionner un serveur"), "server"), (tr("Se déconnecter"), "logout")] {
-        if offline && action == "logout" {
+    for (label, action) in [
+        (tr("Changer de compte"), "switch"),
+        (tr("Changer le mot de passe"), "password"),
+        (tr("Sélectionner un serveur"), "server"),
+        (tr("Se déconnecter"), "logout"),
+    ] {
+        if offline && (action == "logout" || action == "password") {
             continue;
         }
         e.push((label.into(), action.into(), false));
@@ -5427,6 +5554,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
         playing: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         prev_account: Mutex::new(None),
+        pw_cur: Mutex::new(String::new()),
+        pw_new: Mutex::new(String::new()),
         login_pub: Mutex::new(Vec::new()),
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
@@ -5671,6 +5800,22 @@ pub(crate) fn main() -> anyhow::Result<()> {
         let app = app.clone();
         move |which, text| addr_save(&app, which, text.to_string())
     });
+    // Fenêtre fermée : les mots de passe saisis sont oubliés.
+    ui.on_addr_closed({
+        let app = app.clone();
+        move || {
+            app.pw_cur.lock().unwrap().clear();
+            app.pw_new.lock().unwrap().clear();
+        }
+    });
+    ui.on_pw_score({
+        let app = app.clone();
+        move |t| password::score(&app.client().map(|c| c.user_name).unwrap_or_default(), &t) as i32
+    });
+    ui.on_pw_same({
+        let app = app.clone();
+        move |t| !t.is_empty() && *app.pw_new.lock().unwrap() == t.as_str()
+    });
 
     // Rangées horizontales (voir `global Rows`) : défilement propre à chaque rangée, qui n'avance
     // que lorsque la sélection atteint l'avant-dernière carte visible ; changement de rangée vers la
@@ -5818,6 +5963,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 push_detail(&app, id.to_string());
             } else if a == "settings" {
                 open_settings(&app);
+            } else if a == "password" {
+                open_settings(&app);
+                open_password(&app);
             } else if a == "downloads" {
                 open_downloads(&app);
             } else if a == "party" {

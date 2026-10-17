@@ -1720,3 +1720,84 @@ msgstr "De update wordt als beheerder geïnstalleerd (sudo). Het wachtwoord word
 
 msgid "Mot de passe refusé (ou compte sans droits administrateur)."
 msgstr "Wachtwoord geweigerd (of account zonder beheerdersrechten)."
+
+msgid "Bon"
+msgstr "Goed"
+
+msgid "C'est le mot de passe actuel : choisis-en un autre."
+msgstr "Dat is je huidige wachtwoord: kies een ander."
+
+msgid "Changement du mot de passe…"
+msgstr "Wachtwoord wordt gewijzigd…"
+
+msgid "Changement…"
+msgstr "Wijzigen…"
+
+msgid "Changer le mot de passe"
+msgstr "Wachtwoord wijzigen"
+
+msgid "Correct"
+msgstr "Redelijk"
+
+msgid "Entre ton mot de passe actuel."
+msgstr "Voer je huidige wachtwoord in."
+
+msgid "Faible"
+msgstr "Zwak"
+
+msgid "Identiques"
+msgstr "Komen overeen"
+
+msgid "Le mot de passe de ce compte sur le serveur."
+msgstr "Het wachtwoord van dit account op de server."
+
+msgid "Le mot de passe n'a pas été changé : {}."
+msgstr "Het wachtwoord is niet gewijzigd: {}."
+
+msgid "Les deux saisies ne sont pas identiques."
+msgstr "De twee invoeren komen niet overeen."
+
+msgid "Mot de passe actuel"
+msgstr "Huidig wachtwoord"
+
+msgid "Mot de passe actuel incorrect."
+msgstr "Huidig wachtwoord is onjuist."
+
+msgid "Mot de passe changé."
+msgstr "Wachtwoord gewijzigd."
+
+msgid "Nouveau mot de passe"
+msgstr "Nieuw wachtwoord"
+
+msgid "Nouveau mot de passe, encore une fois"
+msgstr "Nieuw wachtwoord, nog een keer"
+
+msgid "Pas encore identiques"
+msgstr "Komen nog niet overeen"
+
+msgid "Solide"
+msgstr "Sterk"
+
+msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
+msgstr "Je wachtwoord is te eenvoudig: wijzig het (accountfoto → Wachtwoord wijzigen)."
+
+msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
+msgstr "Je wachtwoord is te eenvoudig: iedereen kan dit account openen. Wijzig het."
+
+msgid "Trop court : 8 caractères au moins."
+msgstr "Te kort: minstens 8 tekens."
+
+msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
+msgstr "Te makkelijk te raden (veelgebruikt woord, reeks of je naam). Maak het langer of mix letters, cijfers en tekens."
+
+msgid "Trop simple"
+msgstr "Te eenvoudig"
+
+msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
+msgstr "Stap 1 van 3 · Je huidige wachtwoord, om te bevestigen dat jij het bent."
+
+msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
+msgstr "Stap 2 van 3 · Minstens 8 tekens. Een korte zin (‘regen-op-de-zee’) onthoud je makkelijk en blijft sterk."
+
+msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
+msgstr "Stap 3 van 3 · Typ het nieuwe wachtwoord nog een keer."

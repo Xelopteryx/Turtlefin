@@ -1720,3 +1720,84 @@ msgstr "The update is installed as administrator (sudo). The password is not sav
 
 msgid "Mot de passe refusé (ou compte sans droits administrateur)."
 msgstr "Password refused (or account without administrator rights)."
+
+msgid "Bon"
+msgstr "Good"
+
+msgid "C'est le mot de passe actuel : choisis-en un autre."
+msgstr "That's your current password: pick another one."
+
+msgid "Changement du mot de passe…"
+msgstr "Changing the password…"
+
+msgid "Changement…"
+msgstr "Changing…"
+
+msgid "Changer le mot de passe"
+msgstr "Change password"
+
+msgid "Correct"
+msgstr "Fair"
+
+msgid "Entre ton mot de passe actuel."
+msgstr "Enter your current password."
+
+msgid "Faible"
+msgstr "Weak"
+
+msgid "Identiques"
+msgstr "They match"
+
+msgid "Le mot de passe de ce compte sur le serveur."
+msgstr "This account's password on the server."
+
+msgid "Le mot de passe n'a pas été changé : {}."
+msgstr "The password was not changed: {}."
+
+msgid "Les deux saisies ne sont pas identiques."
+msgstr "The two entries don't match."
+
+msgid "Mot de passe actuel"
+msgstr "Current password"
+
+msgid "Mot de passe actuel incorrect."
+msgstr "Current password is incorrect."
+
+msgid "Mot de passe changé."
+msgstr "Password changed."
+
+msgid "Nouveau mot de passe"
+msgstr "New password"
+
+msgid "Nouveau mot de passe, encore une fois"
+msgstr "New password, once more"
+
+msgid "Pas encore identiques"
+msgstr "Not matching yet"
+
+msgid "Solide"
+msgstr "Strong"
+
+msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
+msgstr "Your password is too simple: change it (account picture → Change password)."
+
+msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
+msgstr "Your password is too simple: anyone could open this account. Change it."
+
+msgid "Trop court : 8 caractères au moins."
+msgstr "Too short: at least 8 characters."
+
+msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
+msgstr "Too easy to guess (common word, sequence, or your name). Make it longer or mix letters, digits and symbols."
+
+msgid "Trop simple"
+msgstr "Too simple"
+
+msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
+msgstr "Step 1 of 3 · Your current password, to confirm it's really you."
+
+msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
+msgstr "Step 2 of 3 · At least 8 characters. A short phrase (“rain-on-the-sea”) is easy to remember and stays strong."
+
+msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
+msgstr "Step 3 of 3 · Type the new password again."

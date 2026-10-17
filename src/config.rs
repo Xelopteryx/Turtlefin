@@ -310,6 +310,9 @@ pub struct Account {
     pub user_name: String,
     #[serde(with = "secret")]
     pub token: String,
+    /// Mot de passe jugé trop simple à la dernière connexion (voir password.rs) : l'interface demande
+    /// de le changer. Seul ce verdict est gardé, jamais le mot de passe.
+    pub weak_pw: bool,
 }
 
 fn accounts_path() -> Option<PathBuf> {
@@ -341,6 +344,23 @@ pub fn save_account(a: Account) {
     list.insert(0, a);
     list.truncate(MAX_ACCOUNTS);
     save_accounts(&list);
+}
+
+/// Verdict « mot de passe trop simple » d'un compte enregistré.
+pub fn weak_pw(user_id: &str) -> bool {
+    accounts().iter().any(|a| a.user_id == user_id && a.weak_pw)
+}
+
+pub fn set_weak_pw(user_id: &str, weak: bool) {
+    let mut list = accounts();
+    let mut changed = false;
+    for a in list.iter_mut().filter(|a| a.user_id == user_id && a.weak_pw != weak) {
+        a.weak_pw = weak;
+        changed = true;
+    }
+    if changed {
+        save_accounts(&list);
+    }
 }
 
 pub fn forget_account(user_id: &str) {

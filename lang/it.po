@@ -1720,3 +1720,84 @@ msgstr "L'aggiornamento si installa come amministratore (sudo). La password non 
 
 msgid "Mot de passe refusé (ou compte sans droits administrateur)."
 msgstr "Password rifiutata (o account senza diritti di amministratore)."
+
+msgid "Bon"
+msgstr "Buona"
+
+msgid "C'est le mot de passe actuel : choisis-en un autre."
+msgstr "È la tua password attuale: scegline un'altra."
+
+msgid "Changement du mot de passe…"
+msgstr "Modifica della password…"
+
+msgid "Changement…"
+msgstr "Modifica…"
+
+msgid "Changer le mot de passe"
+msgstr "Cambia password"
+
+msgid "Correct"
+msgstr "Discreta"
+
+msgid "Entre ton mot de passe actuel."
+msgstr "Inserisci la tua password attuale."
+
+msgid "Faible"
+msgstr "Debole"
+
+msgid "Identiques"
+msgstr "Coincidono"
+
+msgid "Le mot de passe de ce compte sur le serveur."
+msgstr "La password di questo account sul server."
+
+msgid "Le mot de passe n'a pas été changé : {}."
+msgstr "La password non è stata cambiata: {}."
+
+msgid "Les deux saisies ne sont pas identiques."
+msgstr "I due inserimenti non coincidono."
+
+msgid "Mot de passe actuel"
+msgstr "Password attuale"
+
+msgid "Mot de passe actuel incorrect."
+msgstr "La password attuale non è corretta."
+
+msgid "Mot de passe changé."
+msgstr "Password cambiata."
+
+msgid "Nouveau mot de passe"
+msgstr "Nuova password"
+
+msgid "Nouveau mot de passe, encore une fois"
+msgstr "Nuova password, ancora una volta"
+
+msgid "Pas encore identiques"
+msgstr "Non coincidono ancora"
+
+msgid "Solide"
+msgstr "Forte"
+
+msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
+msgstr "La tua password è troppo semplice: cambiala (foto dell'account → Cambia password)."
+
+msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
+msgstr "La tua password è troppo semplice: chiunque potrebbe aprire questo account. Cambiala."
+
+msgid "Trop court : 8 caractères au moins."
+msgstr "Troppo corta: almeno 8 caratteri."
+
+msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
+msgstr "Troppo facile da indovinare (parola comune, sequenza o il tuo nome). Allungala o mescola lettere, cifre e simboli."
+
+msgid "Trop simple"
+msgstr "Troppo semplice"
+
+msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
+msgstr "Passo 1 di 3 · La tua password attuale, per confermare che sei proprio tu."
+
+msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
+msgstr "Passo 2 di 3 · Almeno 8 caratteri. Una breve frase («pioggia-sul-mare») si ricorda bene ed è sicura."
+
+msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
+msgstr "Passo 3 di 3 · Digita di nuovo la nuova password."

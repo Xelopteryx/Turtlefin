@@ -18,6 +18,17 @@ impl std::fmt::Display for Unauthorized {
 }
 impl std::error::Error for Unauthorized {}
 
+/// Changement de mot de passe : le mot de passe actuel est refusé (403).
+#[derive(Debug)]
+pub struct WrongPassword;
+
+impl std::fmt::Display for WrongPassword {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", tr("Mot de passe actuel incorrect."))
+    }
+}
+impl std::error::Error for WrongPassword {}
+
 /// Taille d'image demandée au serveur.
 #[derive(Clone, Copy, Debug)]
 pub enum Size {
@@ -1635,6 +1646,34 @@ impl Client {
             st.index,
             fmt
         ))
+    }
+
+    /// Change le mot de passe du compte. Erreur `WrongPassword` : mot de passe actuel refusé (403).
+    /// Serveurs récents : `/Users/Password?userId=` ; plus anciens : `/Users/{id}/Password`.
+    pub async fn change_password(&self, current: &str, new: &str) -> Result<()> {
+        let body = serde_json::json!({ "CurrentPw": current, "NewPw": new, "ResetPassword": false });
+        let mut last = 0;
+        for url in [
+            format!("{}/Users/Password?userId={}", self.server, seg(&self.user_id)),
+            format!("{}/Users/{}/Password", self.server, seg(&self.user_id)),
+        ] {
+            let resp = self
+                .http
+                .post(url)
+                .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+                .json(&body)
+                .send()
+                .await?;
+            match resp.status().as_u16() {
+                c if (200..300).contains(&c) => return Ok(()),
+                401 => return Err(Unauthorized.into()),
+                403 => return Err(WrongPassword.into()),
+                // Adresse inconnue de ce serveur : l'autre forme.
+                c @ (404 | 405) => last = c,
+                c => return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&c]))),
+            }
+        }
+        Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&last])))
     }
 
     /// Rapport de lecture au serveur : "/Sessions/Playing", ".../Progress" ou ".../Stopped".

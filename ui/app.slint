@@ -10,7 +10,7 @@ import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
@@ -21,7 +21,7 @@ export { OskKeys }
 import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
 
-export { CardData, Prefs, Tr, Motion, Theme, Nav }
+export { CardData, Prefs, Tr, Motion, Theme, Nav, Alert }
 
 export { TrackData, DustLine, Str, LxItem }
 
@@ -300,7 +300,15 @@ component CardArt inherits Rectangle {
 
     border-top-left-radius: Theme.radius;
     border-top-right-radius: Theme.radius;
-    background: root.data.has-image || root.badges-only ? transparent : @linear-gradient(130deg, #2b2142 0%, #10283a 100%);
+    background: transparent;
+    // Affiche en attente (ou absente) : voir Placeholder. Elle reste dessous pendant le fondu.
+    if root.img-a < 1 && !root.badges-only: Placeholder {
+        // Vignette large : le titre est déjà écrit sous la carte.
+        title: root.height > root.width ? root.data.title : "";
+        k: root.k;
+        border-top-left-radius: Theme.radius;
+        border-top-right-radius: Theme.radius;
+    }
 
     // Image arrivée après la carte : elle apparaît en fondu (déjà là à la création : tout de suite).
     property <float> img-a: root.data.has-image ? 1 : 0;
@@ -872,6 +880,55 @@ component NavIcon inherits Rectangle {
         stroke-line-cap: round;
         stroke-line-join: round;
         commands: "M 12 3 A 9 9 0 1 1 11.99 3 Z M 12 11 L 12 17 M 12 7.5 L 12 7.6";
+    }
+}
+
+// Mot de passe trop simple (voir Alert) : anneau rouge autour d'une photo ronde, qui respire, et
+// une onde qui s'en échappe à chaque battement. À poser en dernier enfant de la photo.
+component AlertRing inherits Rectangle {
+    in property <float> k: 1.0;
+    in property <length> gap: 3px;
+    visible: Alert.weak-pw;
+    property <float> b: Alert.blink;
+    Rectangle {
+        width: parent.width + 2 * root.gap * root.k + 12px * root.k * root.b;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        border-width: 2px * root.k * (1 - root.b);
+        border-color: Alert.red.with-alpha(0.6 * root.b);
+    }
+    Rectangle {
+        width: parent.width + 2 * root.gap * root.k;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        border-width: (2.5px + 1.5px * root.b) * root.k;
+        border-color: Alert.red.with-alpha(0.55 + 0.45 * root.b);
+    }
+}
+
+// Pastille « ! » rouge (mot de passe trop simple) : sur l'élément qui mène au changement.
+component AlertBadge inherits Rectangle {
+    in property <float> k: 1.0;
+    visible: Alert.weak-pw;
+    width: 18px * root.k;
+    height: self.width;
+    border-radius: self.width / 2;
+    background: Alert.red;
+    transform-scale: 1 + 0.18 * Alert.blink;
+    drop-shadow-blur: 8px * root.k * Alert.blink;
+    drop-shadow-color: Alert.red;
+    Text {
+        text: "!";
+        color: white;
+        font-family: "Montserrat";
+        font-size: 13px * root.k;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
     }
 }
 
@@ -1561,6 +1618,12 @@ component HeaderRight inherits Rectangle {
                 source: f;
                 image-fit: fill;
                 visible: fi == root.avatar-idx;
+            }
+            AlertRing { k: root.k; gap: -1px; }
+            AlertBadge {
+                k: root.k;
+                x: parent.width - self.width + 5px * root.k;
+                y: -5px * root.k;
             }
         }
         if Prefs.clock && !root.narrow: Text {
@@ -2378,12 +2441,34 @@ export component AppWindow inherits Window {
     in-out property <bool> addr-osk;
     in-out property <int> addr-field;       // 0 champ · 1 Enregistrer · 2 Annuler
     // addr-edit : 1 adresse principale · 2 de secours · 3 mot de passe administrateur (mise à jour .deb)
+    // · 4, 5, 6 : changer le mot de passe du compte (actuel, nouveau, confirmation).
     callback addr-save(int, string);
+    callback addr-closed();
+    // Solidité d'un mot de passe tapé (0 trop simple … 4 solide, voir password.rs).
+    pure callback pw-score(string) -> int;
+    // Étape 3 : la saisie est-elle le nouveau mot de passe de l'étape 2 ?
+    pure callback pw-same(string) -> bool;
     // Fenêtre fermée : la page des paramètres reprend le clavier.
     changed addr-edit => {
         if (root.addr-edit == 0) {
             root.drop-keyboard();
             root.refocus += 1;
+            root.addr-closed();
+        }
+    }
+    // Changer le mot de passe : l'erreur s'efface dès qu'on retape (pas quand le champ est vidé
+    // par le passage à une autre étape, qui peut poser sa propre erreur).
+    changed addr-text => {
+        if (root.addr-edit >= 4 && root.addr-text != "") {
+            root.addr-err = "";
+        }
+    }
+    // Mot de passe trop simple : salves de clignotement (1,8 s toutes les 6 s), voir Alert.
+    Timer {
+        interval: Alert.live ? 1800ms : 4200ms;
+        running: Alert.weak-pw && !root.playing;
+        triggered => {
+            Alert.live = !Alert.live;
         }
     }
     changed manual-open => {
@@ -2718,7 +2803,7 @@ export component AppWindow inherits Window {
         return action == "home" ? "home" : action == "requests" ? "requests" : action == "downloads" ? "downloads"
             : action == "party" ? "party" : action == "switch" ? "profile" : action == "server" ? "server"
             : action == "logout" ? "logout" : action == "settings" ? "settings" : action == "quit" ? "quit"
-            : "library";
+            : action == "password" ? "profile" : "library";
     }
 
     function open-menu() {
@@ -4787,7 +4872,12 @@ export component AppWindow inherits Window {
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
             visible: !root.hero-covers || root.hero-seerr || root.hero-big;
-            background: root.detail.has-poster || root.d-poster-swap ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
+            background: transparent;
+            if !root.detail.has-poster && !root.d-poster-swap: Placeholder {
+                title: root.detail.title;
+                k: root.k;
+                border-radius: Theme.radius;
+            }
 
             // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu.
             if root.d-poster-swap: Image {
@@ -5010,7 +5100,11 @@ export component AppWindow inherits Window {
                 y: 24px * root.k;
                 height: root.next-w * 0.5625;
                 border-radius: Theme.radius;
-                background: root.detail.has-next-image ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
+                background: transparent;
+                if !root.detail.has-next-image: Placeholder {
+                    k: root.k;
+                    border-radius: Theme.radius;
+                }
 
                 // Image déjà recadrée et arrondie (voir Card).
                 if root.detail.has-next-image: Image {
@@ -6457,6 +6551,11 @@ export component AppWindow inherits Window {
                     font-weight: i == root.set-cat ? 700 : 500;
                     vertical-alignment: center;
                 }
+                if i == 0: AlertBadge {
+                    k: root.k;
+                    x: parent.width - self.width - 12px * root.k;
+                    y: (parent.height - self.height) / 2;
+                }
                 cat-area := TouchArea {
                     clicked => {
                         if (root.set-cat != i) {
@@ -6577,11 +6676,22 @@ export component AppWindow inherits Window {
                             : r.kind == "profile" ? Theme.fg.with-alpha(0.05)
                             : r.kind == "action" && (self.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                             : self.sel ? Theme.fg.with-alpha(0.18) : (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.fg.with-alpha(0.12) : Theme.fg.with-alpha(0.07);
-                        border-width: self.sel && r.kind != "action" ? 2px : 0px;
-                        border-color: Theme.accent2;
+                        property <bool> alert: r.key == "password" && Alert.weak-pw;
+                        border-width: self.alert ? (2px + 1.5px * Alert.blink) * root.k : self.sel && r.kind != "action" ? 2px : 0px;
+                        border-color: self.alert ? Alert.red.with-alpha(0.5 + 0.5 * Alert.blink) : Theme.accent2;
                         transform-scale: self.sel ? 1.015 : 1.0;
                         animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
+                        // Mot de passe trop simple : onde rouge qui s'écarte de la ligne à chaque battement.
+                        if self.alert: Rectangle {
+                            x: -6px * root.k * Alert.blink;
+                            y: -6px * root.k * Alert.blink;
+                            width: parent.width + 12px * root.k * Alert.blink;
+                            height: parent.height + 12px * root.k * Alert.blink;
+                            border-radius: parent.border-radius + 6px * root.k * Alert.blink;
+                            border-width: 2px * root.k;
+                            border-color: Alert.red.with-alpha(0.55 * Alert.blink * (1 - Alert.blink) * 4);
+                        }
                         // Compte : avatar et nom
                         if r.kind == "profile": Rectangle {
                             x: 18px * root.k;
@@ -6604,6 +6714,7 @@ export component AppWindow inherits Window {
                                 image-fit: fill;
                                 visible: fi == root.avatar-idx;
                             }
+                            AlertRing { k: root.k; gap: 4px; }
                         }
                         VerticalLayout {
                             x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
@@ -6624,7 +6735,7 @@ export component AppWindow inherits Window {
                             }
                             if r.hint != "": Text {
                                 text: r.hint;
-                                color: set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
+                                color: set-row.alert && !set-row.sel && !(row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.danger-text : set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
                                 font-size: 13px * root.k;
                                 wrap: word-wrap;
                                 // Trois lignes au plus : un texte trop long finit par « … » au lieu de déborder.
@@ -7187,7 +7298,9 @@ export component AppWindow inherits Window {
             }
 
             property <length> dw: min(self.width - 64px * root.k, 620px * root.k);
-            property <length> dh: 290px * root.k;
+            // Changer le mot de passe : jauge de solidité (étape 2) ou accord des deux saisies (étape 3).
+            property <length> dh: root.addr-edit >= 4 ? pw-col.preferred-height : 290px * root.k;
+            animate dh { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
             adlg := FocusScope {
                 x: (parent.width - parent.dw) / 2;
                 y: (1 - sets.adk-p) * (parent.height - parent.dh) / 2 + sets.adk-p * 20px * root.k
@@ -7195,6 +7308,26 @@ export component AppWindow inherits Window {
                 width: parent.dw;
                 height: parent.dh;
                 focus-on-click: root.tv-mode;
+                property <bool> pw: root.addr-edit >= 4;
+                // Passage d'une étape à l'autre : le contenu arrive de la droite.
+                property <int> step: root.addr-edit;
+                property <bool> step-live;
+                property <duration> step-t0;
+                property <float> step-e: !self.step-live ? 1 : 1 - pow(1 - clamp((animation-tick() - self.step-t0) / 340ms, 0, 1), 3);
+                changed step => {
+                    if (self.step >= 5 && Motion.panels) {
+                        self.step-t0 = animation-tick();
+                        self.step-live = true;
+                    }
+                }
+                Timer {
+                    interval: 360ms;
+                    running: parent.step-live;
+                    triggered => {
+                        parent.step-live = false;
+                    }
+                }
+                property <int> score: root.addr-edit == 5 && root.addr-text != "" ? root.pw-score(root.addr-text) : -1;
                 init => {
                     self.focus();
                 }
@@ -7264,13 +7397,30 @@ export component AppWindow inherits Window {
                     border-color: Theme.glass-border;
                     Gloss { r: parent.border-radius; strength: 0.45; }
                 }
-                VerticalLayout {
+                // Étapes du changement de mot de passe : trois points, l'étape en cours s'allonge.
+                if adlg.pw: HorizontalLayout {
+                    x: parent.width - self.preferred-width - 26px * root.k;
+                    y: 34px * root.k;
+                    height: 8px * root.k;
+                    spacing: 6px * root.k;
+                    for d[di] in 3: Rectangle {
+                        width: (di == root.addr-edit - 4 ? 24px : 8px) * root.k;
+                        animate width { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                        border-radius: 4px * root.k;
+                        background: di <= root.addr-edit - 4 ? @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.2);
+                    }
+                }
+                Rectangle {
+                  x: (1 - adlg.step-e) * 40px * root.k;
+                  opacity: 0.2 + 0.8 * adlg.step-e;
+                  pw-col := VerticalLayout {
                     padding: 26px * root.k;
                     spacing: 6px * root.k;
                     alignment: start;
 
                     Text {
                         text: root.addr-edit == 1 ? Tr.t(Tr.k, "Adresse principale") : root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
+                            : root.addr-edit >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
                             : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
                         font-size: 22px * root.k;
@@ -7279,6 +7429,9 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.addr-edit == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
                             : root.addr-edit == 3 ? Tr.t(Tr.k, "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré.")
+                            : root.addr-edit == 4 ? Tr.t(Tr.k, "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi.")
+                            : root.addr-edit == 5 ? Tr.t(Tr.k, "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide.")
+                            : root.addr-edit == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
@@ -7289,11 +7442,13 @@ export component AppWindow inherits Window {
                     }
                     addr-f := Field {
                         k: root.k;
-                        label: root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe") : Tr.t(Tr.k, "Adresse du serveur");
-                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : root.addr-edit == 3 ? "" : "10.8.0.5:8096";
-                        password: root.addr-edit == 3;
+                        label: root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe") : root.addr-edit == 4 ? Tr.t(Tr.k, "Mot de passe actuel")
+                            : root.addr-edit == 5 ? Tr.t(Tr.k, "Nouveau mot de passe") : root.addr-edit == 6 ? Tr.t(Tr.k, "Nouveau mot de passe, encore une fois")
+                            : Tr.t(Tr.k, "Adresse du serveur");
+                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : root.addr-edit >= 3 ? "" : "10.8.0.5:8096";
+                        password: root.addr-edit >= 3;
                         text <=> root.addr-text;
-                        shown: root.addr-edit == 3 ? root.mask(root.addr-text) : root.addr-text;
+                        shown: root.addr-edit >= 3 ? root.mask(root.addr-text) : root.addr-text;
                         tv: root.tv-mode;
                         selected: root.tv-mode && !root.addr-osk && root.addr-field == 0;
                         editing: root.addr-osk;
@@ -7311,6 +7466,67 @@ export component AppWindow inherits Window {
                             root.addr-osk = true;
                         }
                     }
+                    // Étape 2 : jauge de solidité (quatre segments qui se remplissent et changent de couleur).
+                    if root.addr-edit == 5: HorizontalLayout {
+                        height: 34px * root.k;
+                        spacing: 6px * root.k;
+                        property <int> fill: adlg.score < 0 ? 0 : max(1, adlg.score);
+                        property <color> gauge: adlg.score <= 0 ? Alert.red : adlg.score == 1 ? #ff8a3b : adlg.score == 2 ? Theme.warn : adlg.score == 3 ? #a3e635 : Theme.ok;
+                        for g[gi] in 4: Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            height: (gi < parent.fill ? 8px : 6px) * root.k;
+                            animate height { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            border-radius: 4px * root.k;
+                            background: gi < parent.fill ? parent.gauge : Theme.fg.with-alpha(0.14);
+                            animate background { duration: Motion.select ? 260ms : 0ms; }
+                        }
+                        Text {
+                            width: 120px * root.k;
+                            text: adlg.score < 0 ? "" : adlg.score == 0 ? Tr.t(Tr.k, "Trop simple") : adlg.score == 1 ? Tr.t(Tr.k, "Faible")
+                                : adlg.score == 2 ? Tr.t(Tr.k, "Correct") : adlg.score == 3 ? Tr.t(Tr.k, "Bon") : Tr.t(Tr.k, "Solide");
+                            color: parent.gauge;
+                            font-size: 14px * root.k;
+                            font-weight: 700;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                    }
+                    // Étape 3 : les deux saisies concordent-elles ?
+                    if root.addr-edit == 6: HorizontalLayout {
+                        height: 26px * root.k;
+                        spacing: 8px * root.k;
+                        alignment: start;
+                        property <bool> same: root.addr-text != "" && root.pw-same(root.addr-text);
+                        Rectangle {
+                            width: 18px * root.k;
+                            height: self.width;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: self.width / 2;
+                            background: parent.same ? Theme.ok : Theme.fg.with-alpha(0.14);
+                            animate background { duration: Motion.select ? 220ms : 0ms; }
+                            transform-scale: parent.same ? 1 : 0.8;
+                            animate transform-scale { duration: Motion.select ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                            if parent.same: Path {
+                                width: 12px * root.k;
+                                height: 12px * root.k;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                viewbox-width: 16;
+                                viewbox-height: 16;
+                                fill: transparent;
+                                stroke: white;
+                                stroke-width: 2.4px * root.k;
+                                commands: "M 2.5 8.5 L 6.5 12.5 L 13.5 3.5";
+                            }
+                        }
+                        Text {
+                            text: parent.same ? Tr.t(Tr.k, "Identiques") : Tr.t(Tr.k, "Pas encore identiques");
+                            color: parent.same ? Theme.ok : Theme.muted;
+                            font-size: 14px * root.k;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
                     HorizontalLayout {
                         alignment: end;
                         spacing: 14px * root.k;
@@ -7325,7 +7541,9 @@ export component AppWindow inherits Window {
                             }
                         }
                         ActionButton {
-                            text: root.addr-busy ? Tr.t(Tr.k, "Vérification…") : root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : Tr.t(Tr.k, "Enregistrer");
+                            text: root.addr-busy ? (root.addr-edit == 6 ? Tr.t(Tr.k, "Changement…") : Tr.t(Tr.k, "Vérification…"))
+                                : root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : root.addr-edit == 4 || root.addr-edit == 5 ? Tr.t(Tr.k, "Suivant")
+                                : root.addr-edit == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
@@ -7333,6 +7551,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
+                  }
                 }
             }
 
@@ -7344,7 +7563,8 @@ export component AppWindow inherits Window {
                 k: root.k;
                 active: root.addr-osk;
                 text: root.addr-text;
-                ok-label: root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : Tr.t(Tr.k, "Enregistrer");
+                ok-label: root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : root.addr-edit == 4 || root.addr-edit == 5 ? Tr.t(Tr.k, "Suivant")
+                    : root.addr-edit == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
@@ -7369,7 +7589,7 @@ export component AppWindow inherits Window {
                 y: parent.height - self.height - 28px * root.k;
                 k: root.k;
                 max-w: parent.width - 80px * root.k;
-                text: Tr.t(Tr.k, "Vérification de l'adresse…");
+                text: root.addr-edit == 6 ? Tr.t(Tr.k, "Changement du mot de passe…") : Tr.t(Tr.k, "Vérification de l'adresse…");
             }
         }
 
@@ -7863,6 +8083,12 @@ export component AppWindow inherits Window {
                         height: self.preferred-height;
                     }
 
+                    // Mot de passe trop simple : pastille qui bat sur le chemin du changement.
+                    if !e.header && (e.action == "settings" || e.action == "password") && e.action != root.here: AlertBadge {
+                        k: root.k;
+                        x: parent.width - self.width - 10px * root.k;
+                        y: (parent.height - self.height) / 2;
+                    }
                     // Vous êtes ici : trait d'accent à gauche et point à droite.
                     if !e.header && e.action == root.here: Rectangle {
                         x: 0px;
