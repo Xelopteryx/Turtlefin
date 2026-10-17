@@ -163,11 +163,26 @@ pub fn set_system_volume(percent: i32) {
     });
 }
 
+/// Modèle du téléphone (android.os.Build.MODEL).
+fn build_model() -> Option<String> {
+    let ctx = ndk_context::android_context();
+    // SAFETY : machine virtuelle fournie par android-activity, valable toute la vie du processus.
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.ok()?;
+    let mut env = vm.attach_current_thread().ok()?;
+    let v = env.get_static_field("android/os/Build", "MODEL", "Ljava/lang/String;").ok()?.l().ok()?;
+    let s: String = env.get_string(&jni::objects::JString::from(v)).ok()?.into();
+    Some(s)
+}
+
 #[no_mangle]
 fn android_main(a: slint::android::AndroidApp) {
     stderr_to_logcat();
     env_from_property();
     ACTIVITY.store(a.activity_as_ptr(), std::sync::atomic::Ordering::Relaxed);
+    // Nom de l'appareil (Diffuser : « Redmi Note 12 Pro »…), lu dans android.os.Build.MODEL.
+    if let Some(model) = build_model() {
+        std::env::set_var("TURTLEFIN_DEVICE_NAME", model);
+    }
     std::panic::set_hook(Box::new(|p| eprintln!("turtlefin : PANIQUE {p}")));
     // Dossiers de l'application : configuration et cache en mémoire interne (privée), téléchargements
     // en mémoire externe propre à l'appli (plus de place, pas d'autorisation à demander).

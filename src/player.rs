@@ -689,20 +689,19 @@ pub async fn play(
                         }
                     }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
-                    "volume" => {
-                        let v = arg.parse::<u32>().unwrap_or(100).min(100);
-                        #[cfg(target_os = "android")]
-                        {
-                            crate::android_entry::set_system_volume(v as i32);
-                            Ok(())
-                        }
-                        #[cfg(not(target_os = "android"))]
-                        {
-                            let mut p = crate::config::ui_prefs();
-                            p.volume = v;
-                            crate::config::save_ui_prefs(&p);
-                            player.set_property("volume", &v.to_string())
-                        }
+                    "volume" => apply_volume(&player, arg.parse::<u32>().unwrap_or(100).min(100)),
+                    // Télécommande : volume par pas, ou coupé / rétabli.
+                    "volume-step" | "volume-mute" => {
+                        let now = volume_shown();
+                        let v = if verb == "volume-mute" { if now > 0 { 0 } else { 50 } } else { (now + arg.parse::<i32>().unwrap_or(0)).clamp(0, 100) };
+                        let _ = ui.upgrade_in_event_loop(move |u| u.set_p_volume(v));
+                        apply_volume(&player, v as u32)
+                    }
+                    // Télécommande : pause ou reprise imposée, saut à une position.
+                    "pause-set" => player.set_property("pause", if arg == "yes" { "yes" } else { "no" }),
+                    "seek-abs" => {
+                        let t = arg.parse::<f64>().ok().filter(|t| t.is_finite()).unwrap_or(cur.pos).max(0.0);
+                        player.command(&["seek", &format!("{t:.3}"), "absolute"])
                     }
                     // Barre du volume ouverte : Android relit le volume du téléphone (touches de volume).
                     "volume-poll" => {
@@ -1191,6 +1190,23 @@ async fn load(
         reported_stop: false,
         transcode,
     })
+}
+
+/// Volume choisi (0 à 100) : celui du téléphone sur Android, sinon celui de Turtlefin (gardé).
+fn apply_volume(player: &Mpv, v: u32) -> Result<()> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = player;
+        crate::android_entry::set_system_volume(v as i32);
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let mut p = crate::config::ui_prefs();
+        p.volume = v;
+        crate::config::save_ui_prefs(&p);
+        player.set_property("volume", &v.to_string())
+    }
 }
 
 /// Volume donné à mpv : celui de Turtlefin (bureau), 100 % sur Android (voir « volume »).

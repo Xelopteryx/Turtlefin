@@ -222,6 +222,18 @@ pub struct CardInfo {
     pub deck: bool,
 }
 
+/// Appareil pilotable du compte (voir Client::remote_targets).
+#[derive(Clone, Debug, Default)]
+pub struct RemoteTarget {
+    pub session: String,
+    pub device: String,
+    pub client: String,
+    pub now_playing: String,
+    pub paused: bool,
+    pub position: f64,
+    pub duration: f64,
+}
+
 /// (id de l'élément portant l'image, étiquette de version de l'image)
 pub type ImageRef = (String, Option<String>);
 
@@ -696,10 +708,39 @@ pub fn normalize_server(s: &str) -> String {
     }
 }
 
+/// Nom de l'appareil montré aux autres applis du compte (Diffuser, tableau de bord du serveur) : nom
+/// de la machine (Prometheus, Mjollnir…), sinon le système. Lettres, chiffres, espaces et tirets
+/// seulement (il passe dans un en-tête HTTP).
+pub fn device_name() -> &'static str {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| {
+        let raw = if let Ok(n) = std::env::var("TURTLEFIN_DEVICE_NAME") {
+            n
+        } else if cfg!(windows) {
+            std::env::var("COMPUTERNAME").unwrap_or_default()
+        } else if cfg!(target_os = "android") {
+            String::from("Android")
+        } else {
+            std::fs::read_to_string("/etc/hostname").unwrap_or_default()
+        };
+        let clean: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == ' ' || *c == '-' || *c == '_').take(40).collect();
+        if clean.is_empty() {
+            std::env::consts::OS.to_string()
+        } else {
+            // « PROMETHEUS » -> « Prometheus » (Windows met le nom en majuscules).
+            let mut c = clean.to_lowercase().chars().collect::<Vec<_>>();
+            if let Some(f) = c.first_mut() {
+                *f = f.to_ascii_uppercase();
+            }
+            c.into_iter().collect()
+        }
+    })
+}
+
 fn auth_header(device_id: &str, token: Option<&str>) -> String {
     let mut h = format!(
         "MediaBrowser Client=\"Turtlefin\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\"",
-        std::env::consts::OS,
+        device_name(),
         device_id,
         env!("CARGO_PKG_VERSION")
     );
@@ -1655,6 +1696,101 @@ impl Client {
             st.index,
             fmt
         ))
+    }
+
+    // -----------------------------------------------------------------------
+    // Télécommande : cette appli se déclare pilotable ; une autre appli du compte (un téléphone) liste
+    // les appareils pilotables et leur envoie des commandes (le serveur les relaie par WebSocket).
+    // -----------------------------------------------------------------------
+
+    /// Cette session accepte d'être pilotée (touches, lecture, volume, messages).
+    pub async fn set_capabilities(&self) -> Result<()> {
+        let body = serde_json::json!({
+            "PlayableMediaTypes": ["Video"],
+            "SupportedCommands": ["MoveUp", "MoveDown", "MoveLeft", "MoveRight", "Select", "Back", "GoHome",
+                "VolumeUp", "VolumeDown", "SetVolume", "ToggleMute", "DisplayMessage"],
+            "SupportsMediaControl": true,
+            "SupportsPersistentIdentifier": true,
+        });
+        let resp = self
+            .http
+            .post(format!("{}/Sessions/Capabilities/Full", self.server))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&body)
+            .send()
+            .await?;
+        match resp.status().as_u16() {
+            401 => Err(Unauthorized.into()),
+            c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&c]))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Appareils du compte que cette appli peut piloter (sauf elle-même) : (session, nom de
+    /// l'appareil, appli, titre en cours, en pause).
+    pub async fn remote_targets(&self) -> Result<Vec<RemoteTarget>> {
+        let v: serde_json::Value = self
+            .get("/Sessions", &[("controllableByUserId", &self.user_id), ("activeWithinSeconds", "960")])
+            .await?;
+        let mut out = Vec::new();
+        for s in v.as_array().into_iter().flatten() {
+            if s["DeviceId"].as_str() == Some(self.device_id.as_str()) || !s["SupportsRemoteControl"].as_bool().unwrap_or(false) {
+                continue;
+            }
+            let (Some(id), Some(device)) = (s["Id"].as_str(), s["DeviceName"].as_str()) else { continue };
+            let np = &s["NowPlayingItem"];
+            let now = match (np["SeriesName"].as_str(), np["Name"].as_str()) {
+                (Some(series), Some(name)) => format!("{series} · {name}"),
+                (None, Some(name)) => name.to_string(),
+                _ => String::new(),
+            };
+            out.push(RemoteTarget {
+                session: id.to_string(),
+                device: device.chars().take(60).collect(),
+                client: s["Client"].as_str().unwrap_or("").chars().take(40).collect(),
+                now_playing: now.chars().take(120).collect(),
+                paused: s["PlayState"]["IsPaused"].as_bool().unwrap_or(false),
+                position: s["PlayState"]["PositionTicks"].as_f64().unwrap_or(0.0) / 1e7,
+                duration: np["RunTimeTicks"].as_f64().unwrap_or(0.0) / 1e7,
+            });
+        }
+        Ok(out)
+    }
+
+    async fn post_empty(&self, path: &str, body: Option<serde_json::Value>) -> Result<()> {
+        let mut req = self.http.post(format!("{}{}", self.server, path)).header("Authorization", auth_header(&self.device_id, Some(&self.token)));
+        if let Some(b) = body {
+            req = req.json(&b);
+        }
+        let resp = req.send().await?;
+        match resp.status().as_u16() {
+            401 => Err(Unauthorized.into()),
+            c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&c]))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Commande générale à un appareil : MoveUp, Select, Back, GoHome, VolumeUp…
+    pub async fn remote_command(&self, session: &str, name: &str) -> Result<()> {
+        self.post_empty(&format!("/Sessions/{}/Command", seg(session)), Some(serde_json::json!({ "Name": name, "Arguments": {} }))).await
+    }
+
+    /// Commande de lecture : PlayPause, Stop, NextTrack, PreviousTrack, Seek (avec la position).
+    pub async fn remote_playstate(&self, session: &str, command: &str, seek_secs: Option<f64>) -> Result<()> {
+        let mut path = format!("/Sessions/{}/Playing/{}", seg(session), seg(command));
+        if let Some(t) = seek_secs {
+            path.push_str(&format!("?seekPositionTicks={}", (t.max(0.0) * 1e7) as i64));
+        }
+        self.post_empty(&path, None).await
+    }
+
+    /// Lire un élément sur l'appareil (à cette position, sinon là où il en était).
+    pub async fn remote_play(&self, session: &str, item_id: &str, start_secs: Option<f64>) -> Result<()> {
+        let mut path = format!("/Sessions/{}/Playing?playCommand=PlayNow&itemIds={}", seg(session), seg(item_id));
+        if let Some(t) = start_secs {
+            path.push_str(&format!("&startPositionTicks={}", (t.max(0.0) * 1e7) as i64));
+        }
+        self.post_empty(&path, None).await
     }
 
     /// Change le mot de passe du compte. Erreur `WrongPassword` : mot de passe actuel refusé (403).

@@ -50,6 +50,24 @@ pub enum Event {
     /// Lancer ce média (file du groupe), à cette position, en attente de la reprise commune.
     Play { item_id: String, start: f64 },
     Command(Cmd),
+    /// Télécommande : une autre appli Jellyfin (Turtlefin sur un téléphone, par exemple) pilote celle-ci.
+    Remote(Remote),
+}
+
+/// Commande de télécommande reçue du serveur.
+#[derive(Clone, Debug)]
+pub enum Remote {
+    /// Touche : "up", "down", "left", "right", "ok", "back", "home".
+    Key(&'static str),
+    /// Volume : valeur (0 à 100) ou pas (+5 / -5).
+    Volume(i32),
+    VolumeStep(i32),
+    Mute,
+    Message(String),
+    /// Lecture : "playpause", "pause", "unpause", "stop", "next", "prev", "ff", "rew", ou "seek" (secondes).
+    Playstate(&'static str, f64),
+    /// Lire cet élément (à cette position, sinon là où il en était).
+    Play { item_id: String, start: Option<f64> },
 }
 
 fn ticks(secs: f64) -> i64 {
@@ -108,6 +126,10 @@ async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedS
     cfg.max_message_size = Some(2 << 20);
     cfg.max_frame_size = Some(2 << 20);
     let (ws, _) = tokio_tungstenite::connect_async_with_config(req, Some(cfg), false).await?;
+    // Cette appli se pilote à distance (télécommande depuis un téléphone, voir remote).
+    if let Err(e) = client.set_capabilities().await {
+        eprintln!("turtlefin : télécommande indisponible ({e})");
+    }
     let (mut write, mut read) = ws.split();
     let mut keepalive = tokio::time::interval(Duration::from_secs(30));
     loop {
@@ -127,6 +149,11 @@ async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedS
                     }
                     "SyncPlayGroupUpdate" => group_update(state, tx, &v["Data"]),
                     "SyncPlayCommand" => command(state, tx, &v["Data"]),
+                    "GeneralCommand" | "Playstate" | "Play" => {
+                        if let Some(r) = remote(v["MessageType"].as_str().unwrap_or(""), &v["Data"]) {
+                            let _ = tx.send(Event::Remote(r));
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -134,6 +161,61 @@ async fn run(client: &Client, state: &Shared, tx: &tokio::sync::mpsc::UnboundedS
                 write.send(tokio_tungstenite::tungstenite::Message::Text(json!({ "MessageType": "KeepAlive" }).to_string().into())).await?;
             }
         }
+    }
+}
+
+/// Message de télécommande du serveur -> commande (inconnue : ignorée).
+fn remote(kind: &str, d: &Value) -> Option<Remote> {
+    match kind {
+        "GeneralCommand" => {
+            let args = &d["Arguments"];
+            Some(match d["Name"].as_str()? {
+                "MoveUp" => Remote::Key("up"),
+                "MoveDown" => Remote::Key("down"),
+                "MoveLeft" => Remote::Key("left"),
+                "MoveRight" => Remote::Key("right"),
+                "Select" => Remote::Key("ok"),
+                "Back" => Remote::Key("back"),
+                "GoHome" => Remote::Key("home"),
+                "VolumeUp" => Remote::VolumeStep(5),
+                "VolumeDown" => Remote::VolumeStep(-5),
+                "ToggleMute" | "Mute" | "Unmute" => Remote::Mute,
+                "SetVolume" => Remote::Volume(args["Volume"].as_str().and_then(|v| v.parse().ok()).or(args["Volume"].as_i64().map(|v| v as i32))?.clamp(0, 100)),
+                "DisplayMessage" => {
+                    let head = args["Header"].as_str().unwrap_or("");
+                    let text = args["Text"].as_str().unwrap_or("");
+                    let msg: String = if head.is_empty() { text.to_string() } else { format!("{head} : {text}") };
+                    Remote::Message(msg.chars().take(200).collect())
+                }
+                _ => return None,
+            })
+        }
+        "Playstate" => {
+            let secs = d["SeekPositionTicks"].as_f64().unwrap_or(0.0) / 1e7;
+            let c = match d["Command"].as_str()? {
+                "PlayPause" => "playpause",
+                "Pause" => "pause",
+                "Unpause" => "unpause",
+                "Stop" => "stop",
+                "NextTrack" => "next",
+                "PreviousTrack" => "prev",
+                "FastForward" => "ff",
+                "Rewind" => "rew",
+                "Seek" => "seek",
+                _ => return None,
+            };
+            Some(Remote::Playstate(c, if secs.is_finite() { secs.max(0.0) } else { 0.0 }))
+        }
+        "Play" => {
+            let item_id = d["ItemIds"].as_array()?.first()?.as_str()?.to_string();
+            // Identifiant du serveur : lettres et chiffres seulement.
+            if item_id.is_empty() || item_id.len() > 64 || !item_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                return None;
+            }
+            let start = d["StartPositionTicks"].as_f64().map(|t| t / 1e7).filter(|s| s.is_finite() && *s >= 0.0);
+            Some(Remote::Play { item_id, start })
+        }
+        _ => None,
     }
 }
 

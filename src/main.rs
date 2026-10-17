@@ -4,6 +4,7 @@
 
 mod api;
 mod boot;
+mod cast;
 #[cfg(windows)]
 mod winfull;
 // Android : point d'entrée (android_main), voir android/.
@@ -223,6 +224,12 @@ struct App {
     lx_dir: Mutex<std::path::PathBuf>,
     /// Bibliothèque en cours d'ouverture : titre, et ouverte depuis l'accueil (posés avec sa première page).
     lib_title: Mutex<(String, bool)>,
+    /// Diffuser : appareil piloté (voir cast_pick), télés DLNA trouvées, état relu régulièrement.
+    cast: Mutex<Option<CastTarget>>,
+    dlna_found: Mutex<Vec<cast::Renderer>>,
+    cast_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Télé DLNA : (en pause, position, durée, volume) à la dernière lecture de son état.
+    dlna_state: Mutex<(bool, f64, f64, u32)>,
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
     lx_mode: Mutex<&'static str>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
@@ -1838,10 +1845,327 @@ fn start_syncplay(app: &Arc<App>, client: &api::Client) {
                         let _ = tx.send(msg);
                     }
                 }
+                syncplay::Event::Remote(r) => remote_received(&app2, r),
             }
         }
     });
     *conn = Some((client.token.clone(), ws, events));
+}
+
+/// Télécommande : commande reçue d'une autre appli du compte (un téléphone qui pilote cet écran).
+fn remote_received(app: &Arc<App>, r: syncplay::Remote) {
+    use slint::platform::Key;
+    use syncplay::Remote;
+    let player = app.player_tx.lock().unwrap().clone();
+    let to_player = |msg: String| {
+        if let Some(tx) = &player {
+            let _ = tx.send(msg);
+        }
+    };
+    match r {
+        Remote::Key(k) => {
+            let a = app.clone();
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                // Sélection visible, comme à la télécommande.
+                u.global::<Nav>().set_kb(true);
+                u.global::<Nav>().set_touch(false);
+                match k {
+                    "up" => key(&u, Key::UpArrow),
+                    "down" => key(&u, Key::DownArrow),
+                    "left" => key(&u, Key::LeftArrow),
+                    "right" => key(&u, Key::RightArrow),
+                    "ok" => key(&u, Key::Return),
+                    "back" => key(&u, Key::Escape),
+                    _ => {
+                        if !u.get_playing() {
+                            u.invoke_menu_action("home".into());
+                        }
+                        let _ = &a;
+                    }
+                }
+            });
+        }
+        Remote::Volume(v) => to_player(format!("volume:{v}")),
+        Remote::VolumeStep(d) => to_player(format!("volume-step:{d}")),
+        Remote::Mute => to_player("volume-mute:".into()),
+        Remote::Message(m) => {
+            let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(m.into()));
+        }
+        Remote::Playstate(c, secs) => to_player(match c {
+            "playpause" => "pause:".into(),
+            "pause" => "pause-set:yes".into(),
+            "unpause" => "pause-set:no".into(),
+            "stop" => "stop:".into(),
+            "next" => "episode:1".into(),
+            "prev" => "episode:-1".into(),
+            "ff" => "seek:30".into(),
+            "rew" => "seek:-10".into(),
+            _ => format!("seek-abs:{secs}"),
+        }),
+        Remote::Play { item_id, start } => match player {
+            Some(tx) => {
+                let _ = tx.send(format!("sp-load:{item_id}@{}", start.unwrap_or(0.0)));
+            }
+            None => {
+                let a = app.clone();
+                app.rt.spawn(async move {
+                    match start {
+                        Some(s) => play_flow_group(a, item_id, s).await,
+                        None => play_flow(a, Some(item_id), None).await,
+                    }
+                });
+            }
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Diffuser : télécommande d'une autre appli Jellyfin du compte, ou vidéo envoyée à une télé DLNA
+// ---------------------------------------------------------------------------
+#[derive(Clone)]
+enum CastTarget {
+    /// Session Jellyfin (Turtlefin sur un Pi, une Android TV, ou une autre appli Jellyfin).
+    Jf { session: String, name: String },
+    Dlna(cast::Renderer),
+}
+
+impl CastTarget {
+    fn name(&self) -> String {
+        match self {
+            CastTarget::Jf { name, .. } => name.clone(),
+            CastTarget::Dlna(r) => r.name.clone(),
+        }
+    }
+}
+
+fn fmt_clock(secs: f64) -> String {
+    let s = secs.max(0.0) as u64;
+    if s >= 3600 { format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60) } else { format!("{}:{:02}", s / 60, s % 60) }
+}
+
+/// Panneau « Diffuser » ouvert : appareils du compte et télés DLNA du réseau.
+fn cast_refresh(app: &Arc<App>) {
+    let Some(client) = app.client() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_cast_busy(true);
+    }
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let (jf, dlna) = tokio::join!(client.remote_targets(), cast::discover(std::time::Duration::from_millis(2500)));
+        let mut items: Vec<CastItem> = Vec::new();
+        for t in jf.unwrap_or_default() {
+            let sub = if t.now_playing.is_empty() { t.client.clone() } else { format!("{} · {}", t.client, t.now_playing) };
+            items.push(CastItem { id: format!("jf:{}", t.session).into(), name: t.device.into(), sub: sub.into(), kind: "jf".into() });
+        }
+        for (i, r) in dlna.iter().enumerate() {
+            items.push(CastItem { id: format!("dlna:{i}").into(), name: r.name.clone().into(), sub: tr("Télé DLNA : la vidéo y est envoyée").into(), kind: "dlna".into() });
+        }
+        *a.dlna_found.lock().unwrap() = dlna;
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_cast_items(ModelRc::new(VecModel::from(items)));
+            u.set_cast_busy(false);
+        });
+    });
+}
+
+/// Appareil choisi : il devient la cible (télécommande ouverte ; DLNA : la fiche ouverte y est lue).
+fn cast_pick(app: &Arc<App>, id: &str) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let target = if let Some(session) = id.strip_prefix("jf:") {
+        let name = (0..u.get_cast_items().row_count())
+            .filter_map(|i| u.get_cast_items().row_data(i))
+            .find(|c| c.id.as_str() == id)
+            .map(|c| c.name.to_string())
+            .unwrap_or_default();
+        CastTarget::Jf { session: session.to_string(), name }
+    } else if let Some(n) = id.strip_prefix("dlna:").and_then(|n| n.parse::<usize>().ok()) {
+        match app.dlna_found.lock().unwrap().get(n).cloned() {
+            Some(r) => CastTarget::Dlna(r),
+            None => return,
+        }
+    } else {
+        return;
+    };
+    let dlna = matches!(target, CastTarget::Dlna(_));
+    u.set_cast_target(target.name().into());
+    u.set_cast_on(true);
+    u.set_remote_kind(if dlna { "dlna".into() } else { "jf".into() });
+    u.set_remote_now("".into());
+    u.set_remote_time("".into());
+    u.set_remote_pos(0.0);
+    u.set_remote_sel(if dlna { 9 } else { 2 });
+    u.set_cast_pop(false);
+    u.set_remote_open(true);
+    *app.cast.lock().unwrap() = Some(target);
+    // Fiche ouverte : bouton « Lire sur … » ; DLNA : la fiche ouverte y est lue tout de suite.
+    let detail_id = (u.get_screen().as_str() == "detail").then(|| u.get_detail().id.to_string()).filter(|i| !i.is_empty());
+    refresh_detail_buttons(app);
+    if dlna {
+        if let Some(id) = detail_id {
+            cast_play_item(app, id);
+        }
+    }
+    start_cast_poll(app);
+}
+
+fn cast_stop(app: &Arc<App>) {
+    *app.cast.lock().unwrap() = None;
+    if let Some(h) = app.cast_poll.lock().unwrap().take() {
+        h.abort();
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_cast_on(false);
+        u.set_cast_target("".into());
+        u.set_remote_open(false);
+        u.set_cast_pop(false);
+    }
+    refresh_detail_buttons(app);
+}
+
+/// Fiche affichée : bouton « Lire sur … » ajouté ou retiré selon l'appareil piloté.
+fn refresh_detail_buttons(app: &Arc<App>) {
+    let Some(u) = app.ui().upgrade() else { return };
+    if u.get_screen().as_str() != "detail" {
+        return;
+    }
+    let mut d = u.get_detail();
+    let mut list: Vec<ButtonData> = (0..d.buttons.row_count()).filter_map(|i| d.buttons.row_data(i)).filter(|b| b.action.as_str() != "cast-play").collect();
+    let kind = app.detail_kind.lock().unwrap().clone();
+    if let Some(t) = app.cast.lock().unwrap().as_ref() {
+        if matches!(kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
+            let at = list.iter().take_while(|b| b.label.is_empty()).count();
+            list.insert(at, ButtonData { label: trf("Lire sur {}", &[&t.name()]).into(), action: "cast-play".into(), ..Default::default() });
+        }
+    }
+    d.buttons = ModelRc::new(VecModel::from(list));
+    u.set_detail(d);
+}
+
+/// Lire un élément sur l'appareil piloté (série / saison : l'épisode à suivre).
+fn cast_play_item(app: &Arc<App>, id: String) {
+    let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let res: anyhow::Result<String> = async {
+            let item = resolve_playable(&client, client.item(&id).await?).await?;
+            let start = item.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).filter(|s| *s > 5.0);
+            match &target {
+                CastTarget::Jf { session, .. } => client.remote_play(session, &item.id, start).await?,
+                CastTarget::Dlna(r) => {
+                    // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le
+                    // fait Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
+                    let url = format!("{}/Videos/{}/stream?static=true&api_key={}", client.server, api::seg(&item.id), client.token);
+                    let (title, _) = item.titles();
+                    cast::play_url(r, &url, &title).await?;
+                    if let Some(s) = start {
+                        let _ = cast::control(r, "seek", s).await;
+                    }
+                }
+            }
+            Ok(item.titles().0)
+        }
+        .await;
+        let msg = match res {
+            Ok(t) => trf("Lecture sur {} : {}", &[&target.name(), &t]),
+            Err(e) => trf("Impossible de lire sur {} : {}", &[&target.name(), &human_err(&e)]),
+        };
+        let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+    });
+}
+
+/// État de l'appareil piloté (titre, pause, avancement), relu toutes les 2 s tant qu'il est piloté.
+fn start_cast_poll(app: &Arc<App>) {
+    if let Some(h) = app.cast_poll.lock().unwrap().take() {
+        h.abort();
+    }
+    let a = app.clone();
+    let h = app.rt.spawn(async move {
+        loop {
+            let Some(target) = a.cast.lock().unwrap().clone() else { return };
+            let state: Option<(String, bool, f64, f64)> = match &target {
+                CastTarget::Jf { session, .. } => match a.client() {
+                    Some(c) => c.remote_targets().await.ok().and_then(|l| l.into_iter().find(|t| &t.session == session)).map(|t| (t.now_playing, t.paused, t.position, t.duration)),
+                    None => None,
+                },
+                CastTarget::Dlna(r) => cast::status(r).await.map(|(paused, pos, dur, vol)| {
+                    *a.dlna_state.lock().unwrap() = (paused, pos, dur, vol.unwrap_or(a.dlna_state.lock().unwrap().3));
+                    (String::new(), paused, pos, dur)
+                }),
+            };
+            if let Some((now, paused, pos, dur)) = state {
+                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                    if !now.is_empty() || u.get_remote_kind().as_str() == "jf" {
+                        u.set_remote_now(now.into());
+                    }
+                    u.set_remote_paused(paused);
+                    u.set_remote_pos(if dur > 0.0 { (pos / dur) as f32 } else { 0.0 });
+                    u.set_remote_time(if dur > 0.0 { format!("{} / {}", fmt_clock(pos), fmt_clock(dur)).into() } else { "".into() });
+                });
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    });
+    *app.cast_poll.lock().unwrap() = Some(h);
+}
+
+/// Bouton de la télécommande.
+fn remote_cmd(app: &Arc<App>, c: &str) {
+    let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
+    let c = c.to_string();
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let res = match &target {
+            CastTarget::Jf { session, .. } => {
+                let general = match c.as_str() {
+                    "up" => Some("MoveUp"),
+                    "down" => Some("MoveDown"),
+                    "left" => Some("MoveLeft"),
+                    "right" => Some("MoveRight"),
+                    "ok" => Some("Select"),
+                    "back" => Some("Back"),
+                    "home" => Some("GoHome"),
+                    "vol+" => Some("VolumeUp"),
+                    "vol-" => Some("VolumeDown"),
+                    "mute" => Some("ToggleMute"),
+                    _ => None,
+                };
+                match general {
+                    Some(name) => client.remote_command(session, name).await,
+                    None => {
+                        let play = match c.as_str() {
+                            "playpause" => "PlayPause",
+                            "stop" => "Stop",
+                            "next" => "NextTrack",
+                            "prev" => "PreviousTrack",
+                            "ff" => "FastForward",
+                            _ => "Rewind",
+                        };
+                        client.remote_playstate(session, play, None).await
+                    }
+                }
+            }
+            CastTarget::Dlna(r) => {
+                let (paused, pos, _dur, vol) = *a.dlna_state.lock().unwrap();
+                let r2 = r.clone();
+                match c.as_str() {
+                    "playpause" => cast::control(&r2, if paused { "play" } else { "pause" }, 0.0).await,
+                    "stop" => cast::control(&r2, "stop", 0.0).await,
+                    "ff" => cast::control(&r2, "seek", pos + 30.0).await,
+                    "rew" => cast::control(&r2, "seek", (pos - 10.0).max(0.0)).await,
+                    "vol+" | "vol-" | "mute" => {
+                        let v = match c.as_str() { "vol+" => (vol + 5).min(100), "vol-" => vol.saturating_sub(5), _ => 0 };
+                        a.dlna_state.lock().unwrap().3 = v;
+                        cast::control(&r2, "vol", v as f64).await
+                    }
+                    _ => Ok(()),
+                }
+            }
+        };
+        if let Err(e) = res {
+            let msg = trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]);
+            let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+    });
 }
 
 /// Fin de session : la connexion de la watch party du compte est fermée.
@@ -4729,6 +5053,13 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             buttons.push((trf("Sous-titres : {}", &[&label]), "pick-sub".into(), String::new(), false));
         }
     }
+    // Appareil piloté (Diffuser) : « Lire sur … », première pastille (après les boutons à icône).
+    if let Some(t) = app.cast.lock().unwrap().as_ref() {
+        if matches!(item.kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
+            let at = buttons.iter().take_while(|b| b.0.is_empty()).count();
+            buttons.insert(at, (trf("Lire sur {}", &[&t.name()]), "cast-play".into(), String::new(), false));
+        }
+    }
     *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
     *app.detail_kind.lock().unwrap() = item.kind.clone();
     if downloads::exists(&item.id) {
@@ -5315,6 +5646,24 @@ fn install_f11(app: &Arc<App>) {
                 }
                 return EventResult::PreventDefault;
             }
+            // Télécommandes (télé en HDMI-CEC, télécommandes multimédia) : OK, Retour / Sortie et
+            // Lecture / Pause donnés comme Entrée, Échap et Espace (les touches de Turtlefin).
+            use winit::keyboard::{Key, NamedKey};
+            let mapped = match &event.logical_key {
+                Key::Named(NamedKey::Select) => Some(slint::platform::Key::Return),
+                Key::Named(NamedKey::BrowserBack | NamedKey::GoBack | NamedKey::Exit) => Some(slint::platform::Key::Escape),
+                Key::Named(NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause) => Some(slint::platform::Key::Space),
+                _ => None,
+            };
+            if let (Some(k), Some(u)) = (mapped, weak.upgrade()) {
+                let text: slint::SharedString = k.into();
+                if event.state == winit::event::ElementState::Pressed {
+                    u.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text });
+                } else {
+                    u.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+                }
+                return EventResult::PreventDefault;
+            }
         }
         EventResult::Propagate
     });
@@ -5823,6 +6172,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
         lib_title: Mutex::new((String::new(), true)),
+        cast: Mutex::new(None),
+        dlna_found: Mutex::new(Vec::new()),
+        cast_poll: Mutex::new(None),
+        dlna_state: Mutex::new((false, 0.0, 0.0, 30)),
         lx_paths: Mutex::new(Vec::new()),
         lx_mode: Mutex::new("lang"),
         home_keep: Mutex::new(None),
@@ -6376,6 +6729,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
                     let a2 = app.clone();
                     app.rt.spawn(async move { play_flow(a2, Some(id), None).await });
                 }
+            } else if a == "cast-play" {
+                if let Some(id) = app.stack.lock().unwrap().last().cloned() {
+                    cast_play_item(&app, id);
+                }
             } else if a == "pick-audio" || a == "pick-sub" {
                 open_track_picker(&app, if a == "pick-audio" { "audio" } else { "sub" });
             } else if a == "fav" || a == "played" {
@@ -6388,6 +6745,23 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 push_detail(&app, id.to_string());
             }
         }
+    });
+
+    ui.on_cast_refresh({
+        let app = app.clone();
+        move || cast_refresh(&app)
+    });
+    ui.on_cast_pick({
+        let app = app.clone();
+        move |id| cast_pick(&app, id.as_str())
+    });
+    ui.on_cast_stop({
+        let app = app.clone();
+        move || cast_stop(&app)
+    });
+    ui.on_remote_cmd({
+        let app = app.clone();
+        move |c| remote_cmd(&app, c.as_str())
     });
 
     ui.on_player_cmd({
