@@ -5775,8 +5775,15 @@ impl Swipe {
                 }
                 // Lecture : doigt posé sur la barre de temps ou de volume : il la règle (pas de geste).
                 if u.get_playing() {
-                    let (x, y) = ((p.0 / s) as f32, (p.1 / s) as f32 - u.get_chrome_top());
+                    let (x, y) = ((p.0 / s) as f32 - u.get_p_ox(), (p.1 / s) as f32 - u.get_p_oy());
                     let inside = |rx: f32, ry: f32, rw: f32, rh: f32| rw > 0.0 && x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+                    if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() {
+                        eprintln!(
+                            "turtlefin : lecteur ({x:.0}, {y:.0}) temps {:.0},{:.0} {:.0}x{:.0} volume {:.0},{:.0} {:.0}x{:.0}",
+                            u.get_p_hit_sx(), u.get_p_hit_sy(), u.get_p_hit_sw(), u.get_p_hit_sh(),
+                            u.get_p_hit_vx(), u.get_p_hit_vy(), u.get_p_hit_vw(), u.get_p_hit_vh()
+                        );
+                    }
                     if inside(u.get_p_hit_sx(), u.get_p_hit_sy(), u.get_p_hit_sw(), u.get_p_hit_sh())
                         || inside(u.get_p_hit_vx(), u.get_p_hit_vy(), u.get_p_hit_vw(), u.get_p_hit_vh())
                     {
@@ -6051,6 +6058,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
     STILL_GIFS.store(saved.still_gifs, Ordering::Relaxed);
     NO_BACKDROP.store(saved.no_backdrop, Ordering::Relaxed);
     let ui = AppWindow::new()?;
+    if cfg!(target_os = "android") && !android_tv() {
+        ui.global::<Nav>().set_phone(true);
+    }
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
         // Découpe du texte tapé (ui/typed.slint) : tout sauf les n derniers caractères, et le k-ième en partant de la fin.

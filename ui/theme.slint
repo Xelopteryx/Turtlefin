@@ -190,6 +190,8 @@ export global Nav {
     // Dernier pointeur : le doigt (écran tactile). Le survol ne met alors rien en avant (un doigt
     // posé pour faire défiler n'est pas un choix) ; la souris le rend.
     in-out property <bool> touch;
+    // Téléphone ou tablette Android (pas Android TV) : barre de navigation du système par-dessus l'appli.
+    in-out property <bool> phone;
 }
 
 // Affiche pas encore là (ou absente du serveur) : dégradé du thème, pellicule et titre, à la place

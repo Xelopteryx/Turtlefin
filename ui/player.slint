@@ -538,6 +538,19 @@ export component PlayerView inherits Rectangle {
     changed c-sy => {
         root.hit-sy = root.c-sy;
     }
+    // Valeurs de départ : le parent (<=>) impose les siennes (0), et une valeur qui ne change jamais
+    // (hauteurs) ne passerait pas par les « changed ».
+    init => {
+        root.hit-sx = root.c-sx;
+        root.hit-sy = root.c-sy;
+        root.hit-sw = root.c-sw;
+        root.hit-sh = root.c-sh;
+        root.hit-vx = root.c-vx;
+        root.hit-vy = root.c-vy;
+        root.hit-vw = root.c-vw;
+        root.hit-vh = root.c-vh;
+        root.sub-margin();
+    }
     property <length> c-sw: root.osd ? root.width - 4 * root.m : 0px;
     in-out property <length> hit-sw: root.c-sw;
     changed c-sw => {
@@ -589,9 +602,6 @@ export component PlayerView inherits Rectangle {
         root.command("sub-margin:" + (root.osd ? round((160px * root.k + 2 * root.m) / root.height * 720) : 22));
     }
     changed osd => {
-        root.sub-margin();
-    }
-    init => {
         root.sub-margin();
     }
 
@@ -1490,7 +1500,10 @@ export component PlayerView inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 height: vbar.track;
                 border-radius: self.height / 2;
-                background: Theme.player-ink.with-alpha(0.2);
+                // Partie vide bien visible (au doigt, on doit voir où toucher).
+                background: Theme.player-ink.with-alpha(0.3);
+                border-width: 1px;
+                border-color: Theme.player-ink.with-alpha(0.25);
             }
             Rectangle {
                 x: 0px;

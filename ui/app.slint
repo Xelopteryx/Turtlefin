@@ -1582,13 +1582,16 @@ component RemotePad inherits Rectangle {
     in-out property <int> sel: 2;
     callback cmd(string);
     callback close();
-    border-radius: 24px * root.k;
-    background: Theme.panel;
-    border-width: 1px;
+    // Hauteur du contenu (le parent s'y ajuste).
+    out property <length> want-h: pad-col.preferred-height;
+    border-radius: (Theme.win7 ? 8px : 24px) * root.k;
+    background: Theme.win7 ? transparent : Theme.panel;
+    border-width: Theme.win7 ? 0px : 1px;
     border-color: Theme.glass-border;
     drop-shadow-blur: 30px * root.k;
     drop-shadow-color: #000000a0;
-    Gloss { r: parent.border-radius; strength: 0.45; }
+    Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+    WinFrame { r: parent.border-radius; k: root.k; }
     property <[string]> codes: ["up", "left", "ok", "right", "down", "back", "home", "prev", "rew", "playpause", "ff", "next", "vol-", "mute", "vol+", "close"];
     function press(i: int) {
         if (i == 15) {
@@ -1621,7 +1624,7 @@ component RemotePad inherits Rectangle {
             return EventResult.accept;
         }
     }
-    VerticalLayout {
+    pad-col := VerticalLayout {
         padding: 22px * root.k;
         spacing: 14px * root.k;
         alignment: start;
@@ -2072,6 +2075,8 @@ component NavBar inherits Rectangle {
         font-weight: 700;
         vertical-alignment: center;
         overflow: elide;
+        // Le nom de l'appli coupé (« Turtl… », téléphone) : plutôt rien.
+        visible: root.title != "Turtlefin" || self.width >= self.preferred-width;
     }
 }
 
@@ -2447,6 +2452,9 @@ export component AppWindow inherits Window {
     in-out property <string> user-name;
     in-out property <string> error-text;
     in-out property <string> toast;
+    // Coin du lecteur dans la fenêtre (cadre de Windows 7, barres d'Android) : zones touchées, en Rust.
+    out property <length> p-ox: max(root.safe-area-insets.left, Nav.phone && root.width > root.height ? 48px : 0px);
+    out property <length> p-oy: root.chrome-top + root.safe-area-insets.top;
     // Connexion
     in-out property <string> login-mode: "pick"; // "pick" (tuiles) | "form" (identifiant, mot de passe)
     in property <[CardData]> login-tiles;
@@ -8528,9 +8536,10 @@ export component AppWindow inherits Window {
         }
     }
     if root.bar-screen && !root.playing && (root.signed-in || root.offline): HeaderRight {
-        x: parent.width / 2;
+        // Téléphone tenu droit : la moitié de l'écran ne suffit pas aux cinq icônes (alignées à droite).
+        x: root.narrow ? 0px : parent.width / 2;
         y: root.chrome-top;
-        width: parent.width / 2;
+        width: root.narrow ? parent.width : parent.width / 2;
         height: 72px * root.k;
         k: root.k;
         narrow: root.narrow;
@@ -8685,11 +8694,12 @@ export component AppWindow inherits Window {
         }
         RemotePad {
             width: min(parent.width - 24px * root.k, 440px * root.k);
-            height: min(parent.height - 24px * root.k, 680px * root.k);
+            // Ajustée au contenu ; un écran trop bas réduit l'ensemble (k).
+            height: min(parent.height - 24px * root.k, self.want-h);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2 + (1 - root.remote-p) * (root.remote-open ? 60px : -40px) * root.k;
             opacity: root.remote-p;
-            k: min(root.k, self.height / 680px);
+            k: min(root.k, (parent.height - 24px * root.k) / 600px);
             name: root.cast-target;
             now: root.remote-now;
             paused: root.remote-paused;
@@ -9415,10 +9425,21 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Lecture
-    if root.playing: PlayerView {
+    // Marges du lecteur (barres d'Android) : noires, comme le fond de la vidéo.
+    if root.playing: Rectangle {
         y: root.chrome-top;
-        width: parent.width;
         height: parent.height - root.chrome-top;
+        background: black;
+    }
+    if root.playing: PlayerView {
+        // Android : hors des barres du système. En paysage, la barre de navigation passe sur le côté
+        // (gauche ou droite selon le sens), par-dessus l'appli, sans que le système le signale : marge
+        // de sa largeur des deux côtés (la vidéo, en 16/9, a la place).
+        property <length> side: Nav.phone && parent.width > parent.height ? 48px : 0px;
+        x: max(root.safe-area-insets.left, self.side);
+        y: root.chrome-top + root.safe-area-insets.top;
+        width: parent.width - max(root.safe-area-insets.left, self.side) - max(root.safe-area-insets.right, self.side);
+        height: parent.height - root.chrome-top - root.safe-area-insets.top - root.safe-area-insets.bottom;
         hit-sx <=> root.p-hit-sx;
         hit-sy <=> root.p-hit-sy;
         hit-sw <=> root.p-hit-sw;
@@ -9623,7 +9644,8 @@ export component AppWindow inherits Window {
     if root.toast-on && root.screen != "login": Rectangle {
         x: (parent.width - self.width) / 2;
         // Pendant la lecture : en haut (les commandes sont en bas).
-        y: root.playing ? 24px * root.k : parent.height - self.height - 24px * root.k;
+        // Android : au-dessus de la barre de navigation (boutons du système dessinés sur l'appli).
+        y: root.playing ? 24px * root.k + root.safe-area-insets.top : parent.height - self.height - 24px * root.k - max(root.safe-area-insets.bottom, Nav.phone && root.height > root.width ? 48px : 0px);
         width: min(parent.width - 64px * root.k, toast-text.preferred-width + 40px * root.k);
         height: toast-text.preferred-height + 20px * root.k;
         border-radius: 12px * root.k;

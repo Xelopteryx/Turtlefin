@@ -163,12 +163,41 @@ pub fn set_system_volume(percent: i32) {
     });
 }
 
-/// Modèle du téléphone (android.os.Build.MODEL).
+/// Nom du téléphone : celui choisi dans les réglages (« Galaxy A12 », Settings.Global.device_name),
+/// sinon le modèle (android.os.Build.MODEL, « SM-A127F »).
 fn build_model() -> Option<String> {
     let ctx = ndk_context::android_context();
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
     // SAFETY : machine virtuelle fournie par android-activity, valable toute la vie du processus.
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.ok()?;
     let mut env = vm.attach_current_thread().ok()?;
+    if !act.is_null() {
+        // SAFETY : comme lock_landscape.
+        let activity = unsafe { jni::objects::JObject::from_raw(act.cast()) };
+        let named = env.with_local_frame(8, |env| -> jni::errors::Result<Option<String>> {
+            let cr = env.call_method(&activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])?.l()?;
+            let key = env.new_string("device_name")?;
+            let v = env
+                .call_static_method(
+                    "android/provider/Settings$Global",
+                    "getString",
+                    "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;",
+                    &[(&cr).into(), (&key).into()],
+                )?
+                .l()?;
+            if v.is_null() {
+                return Ok(None);
+            }
+            Ok(Some(env.get_string(&jni::objects::JString::from(v))?.into()))
+        });
+        match named {
+            Ok(Some(n)) if !n.trim().is_empty() => return Some(n),
+            Err(_) => {
+                let _ = env.exception_clear();
+            }
+            _ => {}
+        }
+    }
     let v = env.get_static_field("android/os/Build", "MODEL", "Ljava/lang/String;").ok()?.l().ok()?;
     let s: String = env.get_string(&jni::objects::JString::from(v)).ok()?.into();
     Some(s)

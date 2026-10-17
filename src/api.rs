@@ -723,9 +723,13 @@ pub fn device_name() -> &'static str {
         } else {
             std::fs::read_to_string("/etc/hostname").unwrap_or_default()
         };
-        let clean: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == ' ' || *c == '-' || *c == '_').take(40).collect();
+        // Lettres de toutes langues (« A12 de Clément ») : l'en-tête les encode (voir auth_header).
+        let clean: String = raw.trim().chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '\'')).take(40).collect();
         if clean.is_empty() {
             std::env::consts::OS.to_string()
+        } else if clean.chars().any(|c| c.is_lowercase() || c.is_ascii_digit()) {
+            // Déjà en casse voulue, ou référence de modèle (« SM-A127F ») : telle quelle.
+            clean
         } else {
             // « PROMETHEUS » -> « Prometheus » (Windows met le nom en majuscules).
             let mut c = clean.to_lowercase().chars().collect::<Vec<_>>();
@@ -737,10 +741,24 @@ pub fn device_name() -> &'static str {
     })
 }
 
+/// Encodage des valeurs de l'en-tête (comme encodeURIComponent, ce que fait l'appli web de Jellyfin ;
+/// le serveur décode) : un en-tête HTTP ne porte que de l'ASCII.
+fn header_value(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 fn auth_header(device_id: &str, token: Option<&str>) -> String {
     let mut h = format!(
         "MediaBrowser Client=\"Turtlefin\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\"",
-        device_name(),
+        header_value(device_name()),
         device_id,
         env!("CARGO_PKG_VERSION")
     );
@@ -1730,11 +1748,16 @@ impl Client {
     /// l'appareil, appli, titre en cours, en pause).
     pub async fn remote_targets(&self) -> Result<Vec<RemoteTarget>> {
         let v: serde_json::Value = self
-            .get("/Sessions", &[("controllableByUserId", &self.user_id), ("activeWithinSeconds", "960")])
+            .get("/Sessions", &[("controllableByUserId", &self.user_id)])
             .await?;
         let mut out = Vec::new();
         for s in v.as_array().into_iter().flatten() {
-            if s["DeviceId"].as_str() == Some(self.device_id.as_str()) || !s["SupportsRemoteControl"].as_bool().unwrap_or(false) {
+            // Pas de limite d'activité (« activeWithinSeconds ») : une télé restée sur l'accueil ne fait
+            // aucune requête, seul son WebSocket vit. Pilotable = connexion ouverte (IsActive).
+            if s["DeviceId"].as_str() == Some(self.device_id.as_str())
+                || !s["SupportsRemoteControl"].as_bool().unwrap_or(false)
+                || s["IsActive"].as_bool() == Some(false)
+            {
                 continue;
             }
             let (Some(id), Some(device)) = (s["Id"].as_str(), s["DeviceName"].as_str()) else { continue };
