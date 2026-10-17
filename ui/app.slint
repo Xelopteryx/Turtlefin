@@ -1138,35 +1138,47 @@ component WinFrame inherits Rectangle {
     }
 }
 
-// Bouton de la barre de titre de Windows 7 : verre (réduire, agrandir) ou rouge (fermer).
+// Bouton de la barre de titre de Windows 7 (valeurs du projet 7.css, licence MIT : voir
+// icons/win7/LICENSE.txt) : verre en deux moitiés ; survol : bleu, lueur cyan qui monte du bas ;
+// fermer : rouge, lueur jaune au survol.
 component CaptionButton inherits Rectangle {
     in property <string> kind; // "min" · "max" · "restore" · "close"
     callback clicked();
     property <bool> hot: area.has-hover;
     property <bool> red: root.kind == "close";
-    height: 20px;
-    background: area.pressed ? (root.red ? @linear-gradient(180deg, #d98b78 0%, #b8452c 45%, #8e1d08 55%, #b43a1f 100%)
-            : @linear-gradient(180deg, #9bc2e6 0%, #5f93c6 45%, #2d5f96 55%, #4f86bf 100%))
-        : root.hot ? (root.red ? @linear-gradient(180deg, #ffc4b4 0%, #f2826a 45%, #e0381b 55%, #f5714f 100%)
-            : @linear-gradient(180deg, #e6f4ff 0%, #b5dcfa 45%, #6fb4ec 55%, #a6d6fa 100%))
-        : (root.red ? @linear-gradient(180deg, #f0b6a6 0%, #dc7a63 45%, #c42f15 55%, #d9583a 100%)
-            : @linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(220, 235, 250, 0.35) 45%, rgba(120, 160, 205, 0.35) 55%, rgba(180, 210, 240, 0.45) 100%));
-    drop-shadow-blur: root.hot ? 8px : 0px;
-    drop-shadow-color: root.red ? #ff6a3d : #7fd0ff;
-    Path {
-        width: 12px;
-        height: 10px;
+    height: 19px;
+    // Fond : rouge pour fermer, sinon verre clair.
+    background: root.red ? (area.pressed ? @linear-gradient(180deg, #d1a894 0%, #b67562 25%, #b67562 50%, #7d0d01 50%, #7d0d01 100%)
+            : root.hot ? @linear-gradient(180deg, #fb9d8b 0%, #ee6d56 25%, #ee6d56 50%, #d42809 50%, #d42809 100%)
+            : @linear-gradient(180deg, #e0a197e5 0%, #cf796a 25%, #cf796a 50%, #d54f36 50%, #d54f36 100%))
+        : area.pressed ? @linear-gradient(180deg, #86a7bc 0%, #86a7bc 50%, #092747 50%, #092747 100%)
+        : root.hot ? @linear-gradient(180deg, #b6d9ee 0%, #b6d9ee 50%, #1a6ca1 50%, #1a6ca1 100%)
+        : transparent;
+    drop-shadow-blur: root.hot ? 7px : 0px;
+    drop-shadow-color: root.red ? #e68e75 : #5dc4f0;
+    // Lueur qui monte du bas (cyan, ou jaune pour fermer) au survol et à l'appui.
+    if root.hot || area.pressed: Rectangle {
+        background: @radial-gradient(circle, (root.red ? (area.pressed ? #dcc03f : #f4e676) : (area.pressed ? #0bfdfa : #2aceda)) 0%, #00000000 65%);
+        width: parent.width * 1.3;
+        height: parent.height * 1.3;
         x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        viewbox-width: 12;
-        viewbox-height: 10;
-        fill: transparent;
-        stroke: white;
-        stroke-width: root.kind == "close" ? 2.2px : 1.8px;
-        commands: root.kind == "close" ? "M 1.5 1 L 10.5 9 M 10.5 1 L 1.5 9"
-            : root.kind == "min" ? "M 2 8 L 10 8"
-            : root.kind == "max" ? "M 2 1.5 L 10 1.5 L 10 8.5 L 2 8.5 Z M 2 3 L 10 3"
-            : "M 4 1 L 11 1 L 11 6 M 1 3.5 L 8 3.5 L 8 9 L 1 9 Z M 1 4.8 L 8 4.8";
+        y: parent.height * 0.45;
+    }
+    // Reflet de verre : moitié haute claire, moitié basse un peu sombre.
+    Rectangle {
+        background: @linear-gradient(180deg, #ffffff80 0%, #ffffff4d 45%, #0000001a 50%, #0000001a 75%, #ffffff80 100%);
+    }
+    // Liseré clair intérieur.
+    Rectangle {
+        border-width: 1px;
+        border-color: #ffffffaa;
+    }
+    Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2 + (root.kind == "min" ? 3px : 0px);
+        source: root.kind == "close" ? @image-url("icons/win7/close.png") : root.kind == "min" ? @image-url("icons/win7/minimize.png")
+            : root.kind == "max" ? @image-url("icons/win7/maximize.png") : @image-url("icons/win7/restore.png");
+        image-rendering: pixelated;
     }
     area := TouchArea {
         clicked => {
@@ -1175,109 +1187,146 @@ component CaptionButton inherits Rectangle {
     }
 }
 
-// Cadre de fenêtre de Windows 7 (Frutiger Aero en fenêtre) : bords de verre épais, barre de titre
-// avec l'icône et le nom, boutons réduire / agrandir en verre et fermer rouge, accrochés au haut de
-// la barre. La barre de titre déplace la fenêtre (double-clic : agrandir) ; les bords la
+// Verre de Windows 7 (valeurs de 7.css) : bleu #4580c4 à demi transparent (Windows floute ce qu'il y a
+// derrière, voir winfull::set_blur), voile clair puis sombre de gauche à droite, éclats clairs aux
+// coins du haut, rayures en biais. Dessiné à la taille de la fenêtre ; les bandes du cadre en montrent
+// chacune leur part (voir GlassStrip).
+component GlassLayers inherits Rectangle {
+    background: #4580c48c;
+    Rectangle {
+        background: @linear-gradient(90deg, #ffffff66 0%, #0000001a 50%, #ffffff33 100%);
+    }
+    Rectangle {
+        background: @linear-gradient(54deg, #00000022 0%, #00000022 4%, #66666611 6%, #00000022 8%, #00000022 10%,
+            #00000000 12%, #00000022 15%, #00000022 16%, #aaaaaa11 17%, #aaaaaa11 18%, #00000022 23%, #00000022 24%,
+            #bbbbbb22 25%, #bbbbbb22 26%, #00000022 31%, #00000022 33%, #00000022 34%, #bbbbbb22 36%, #bbbbbb22 40%,
+            #00000022 41%, #bbbbbb22 44%, #bbbbbb22 47%, #00000022 48%, #00000022 50.5%, #00000000 53%,
+            #00000022 56%, #bbbbbb22 57%, #bbbbbb22 63%, #00000022 67%, #00000022 69%, #bbbbbb22 70%, #00000022 74%,
+            #bbbbbb22 75%, #bbbbbb22 79%, #00000022 80%, #00000022 84%, #aaaaaa22 85%, #aaaaaa22 86%, #00000022 87%, #bbbbbb11 90%);
+    }
+    // Éclats clairs des coins du haut.
+    Rectangle {
+        x: -60px;
+        y: -60px;
+        width: 220px;
+        height: 220px;
+        background: @radial-gradient(circle, #ffffff66 0%, #ffffff40 40%, #ffffff00 70%);
+    }
+    Rectangle {
+        x: parent.width - 160px;
+        y: -60px;
+        width: 220px;
+        height: 220px;
+        background: @radial-gradient(circle, #ffffff66 0%, #ffffff40 40%, #ffffff00 70%);
+    }
+}
+
+// Une bande du cadre : sa part du verre (la couche fait toute la fenêtre, décalée).
+component GlassStrip inherits Rectangle {
+    in property <length> win-w;
+    in property <length> win-h;
+    clip: true;
+    GlassLayers {
+        x: -root.x;
+        y: -root.y;
+        width: root.win-w;
+        height: root.win-h;
+    }
+}
+
+// Fenêtre de Windows 7 (Frutiger Aero en fenêtre) : cadre de verre flou et transparent, barre de titre
+// (icône, nom avec son halo clair), boutons réduire / agrandir / fermer accrochés au haut, contour
+// de la zone de l'interface. La barre déplace la fenêtre (double-clic : agrandir) ; les bords la
 // redimensionnent. Dessiné par-dessus l'interface (qui commence sous la barre, voir chrome-top).
 component WinCaption inherits Rectangle {
     in property <bool> win-maxed;
     in property <length> bar: 30px;
+    in property <length> b: 8px;
     callback drag();
     callback resize(string);
     callback minimize();
     callback maximize();
     callback close();
-    property <length> b: root.win-maxed ? 0px : 8px;
-    // Verre du cadre : clair et bleuté, plus clair en haut, avec reflets en biais.
-    property <brush> glass: @linear-gradient(180deg, #d6e8f8 0%, #bcd6ee 25%, #a9c8e6 100%);
-    // Barre de titre
-    Rectangle {
-        y: 0px;
-        height: root.bar;
-        background: root.glass;
-        border-top-left-radius: root.win-maxed ? 0px : 7px;
-        border-top-right-radius: root.win-maxed ? 0px : 7px;
-        clip: true;
-        Rectangle {
-            background: @linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 20%,
-                rgba(255, 255, 255, 0.45) 21%, rgba(255, 255, 255, 0.15) 32%, rgba(255, 255, 255, 0) 33%,
-                rgba(255, 255, 255, 0) 64%, rgba(255, 255, 255, 0.30) 65%, rgba(255, 255, 255, 0.08) 72%, rgba(255, 255, 255, 0) 73%);
-        }
-        Image {
-            x: root.b + 2px;
-            y: (parent.height - self.height) / 2 + 1px;
-            width: 16px;
-            height: 16px;
-            source: @image-url("../packaging/icons/turtlefin-64.png");
-        }
-        Text {
-            x: root.b + 24px;
-            height: parent.height;
-            text: "Turtlefin";
-            color: #0b1b33;
-            font-family: "Selawik";
-            font-size: 12px;
-            vertical-alignment: center;
-        }
-        // La barre déplace la fenêtre ; double-clic : agrandir / restaurer.
-        TouchArea {
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
-                    root.drag();
-                }
-            }
-            double-clicked => {
-                root.maximize();
-            }
-        }
-    }
-    // Bords gauche, droit et bas (verre), liseré sombre dehors, clair dedans, et contour de la zone
-    // de l'interface.
+    // Verre : barre de titre, côtés, bas.
+    GlassStrip { x: 0px; y: 0px; width: root.width; height: root.bar; win-w: root.width; win-h: root.height;
+        border-top-left-radius: root.win-maxed ? 0px : 6px; border-top-right-radius: root.win-maxed ? 0px : 6px; }
+    if root.b > 0: GlassStrip { x: 0px; y: root.bar; width: root.b; height: root.height - root.bar; win-w: root.width; win-h: root.height; }
+    if root.b > 0: GlassStrip { x: root.width - root.b; y: root.bar; width: root.b; height: root.height - root.bar; win-w: root.width; win-h: root.height; }
+    if root.b > 0: GlassStrip { x: root.b; y: root.height - root.b; width: root.width - 2 * root.b; height: root.b; win-w: root.width; win-h: root.height;
+        border-bottom-left-radius: 0px; }
+    // Contour de la fenêtre : sombre dehors, clair dedans.
     if !root.win-maxed: Rectangle {
-        x: 0px;
-        y: root.bar;
-        width: root.b;
-        height: parent.height - root.bar;
-        background: root.glass;
-    }
-    if !root.win-maxed: Rectangle {
-        x: parent.width - root.b;
-        y: root.bar;
-        width: root.b;
-        height: parent.height - root.bar;
-        background: root.glass;
-    }
-    if !root.win-maxed: Rectangle {
-        y: parent.height - root.b;
-        height: root.b;
-        background: root.glass;
-    }
-    if !root.win-maxed: Rectangle {
-        border-radius: 7px;
+        border-radius: 6px;
         border-width: 1px;
-        border-color: rgba(0, 10, 30, 0.75);
+        border-color: #000000b3;
     }
     if !root.win-maxed: Rectangle {
         x: 1px;
         y: 1px;
         width: parent.width - 2px;
         height: parent.height - 2px;
-        border-radius: 6px;
+        border-radius: 5px;
         border-width: 1px;
-        border-color: rgba(255, 255, 255, 0.7);
+        border-color: #ffffffaa;
     }
+    // Contour de la zone de l'interface : liseré sombre, entouré d'un liseré clair.
     Rectangle {
-        x: root.b - 1px;
-        y: root.bar - 1px;
-        width: parent.width - 2 * root.b + 2px;
-        height: parent.height - root.bar - root.b + 2px;
+        x: root.b - 2px;
+        y: root.bar - 2px;
+        width: parent.width - 2 * root.b + 4px;
+        height: parent.height - root.bar - root.b + 4px;
         border-width: 1px;
-        border-color: rgba(40, 70, 110, 0.85);
+        border-color: #ffffff99;
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            border-width: 1px;
+            border-color: #000000b3;
+        }
+    }
+    // Barre de titre : déplacer, double-clic pour agrandir.
+    TouchArea {
+        height: root.bar;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                root.drag();
+            }
+        }
+        double-clicked => {
+            root.maximize();
+        }
+    }
+    Image {
+        x: root.b + 2px;
+        y: (root.bar - self.height) / 2 + 1px;
+        width: 16px;
+        height: 16px;
+        source: @image-url("../packaging/icons/turtlefin-64.png");
+    }
+    // Nom : noir, sur un halo clair et flou (comme le titre des fenêtres de Windows 7).
+    Rectangle {
+        x: root.b + 14px;
+        y: (root.bar - self.height) / 2 + 1px;
+        width: title.preferred-width + 28px;
+        height: 30px;
+        background: @radial-gradient(circle, #ffffffb0 0%, #ffffff70 35%, #ffffff00 70%);
+    }
+    title := Text {
+        x: root.b + 28px;
+        y: 0px;
+        height: root.bar + 2px;
+        text: "Turtlefin";
+        color: #000000;
+        font-family: "Selawik";
+        font-size: 12px;
+        vertical-alignment: center;
     }
     // Poignées : côtés et coins.
     if !root.win-maxed: TouchArea {
         y: 0px;
-        height: 5px;
+        height: 4px;
         mouse-cursor: ns-resize;
         pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("n"); } }
     }
@@ -1323,15 +1372,28 @@ component WinCaption inherits Rectangle {
         mouse-cursor: nesw-resize;
         pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("sw"); } }
     }
-    // Boutons, groupés comme sous Windows 7 (accrochés au haut, coins du bas arrondis).
+    if !root.win-maxed: TouchArea {
+        width: 6px;
+        height: 14px;
+        x: parent.width - 6px;
+        y: 0px;
+        mouse-cursor: nesw-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("ne"); } }
+    }
+    // Boutons : accrochés au haut de la barre, coins du bas arrondis, séparés par un trait sombre,
+    // liseré clair autour.
     Rectangle {
         x: parent.width - self.width - root.b - 2px;
         y: root.win-maxed ? 0px : 1px;
-        width: 27px + 27px + 48px + 2px;
+        width: 29px + 29px + 48px + 4px;
         height: 20px;
         border-bottom-left-radius: 5px;
         border-bottom-right-radius: 5px;
-        background: rgba(0, 10, 30, 0.7);
+        background: #ffffff33;
+        border-width: 1px;
+        border-color: #000000b3;
+        drop-shadow-blur: 1px;
+        drop-shadow-color: #ffffffaa;
         clip: true;
         HorizontalLayout {
             padding-left: 1px;
@@ -1339,30 +1401,23 @@ component WinCaption inherits Rectangle {
             padding-bottom: 1px;
             spacing: 0px;
             CaptionButton {
-                width: 27px;
+                width: 29px;
                 kind: "min";
                 clicked => { root.minimize(); }
             }
+            Rectangle { width: 1px; background: #000000b3; }
             CaptionButton {
-                width: 27px;
+                width: 29px;
                 kind: root.win-maxed ? "restore" : "max";
                 clicked => { root.maximize(); }
             }
+            Rectangle { width: 1px; background: #000000b3; }
             CaptionButton {
                 width: 48px;
                 kind: "close";
                 clicked => { root.close(); }
             }
         }
-    }
-    // Coin en haut à droite : poignée (au-dessus des boutons, à leur droite).
-    if !root.win-maxed: TouchArea {
-        width: root.b + 2px;
-        height: 14px;
-        x: parent.width - root.b - 2px;
-        y: 0px;
-        mouse-cursor: nesw-resize;
-        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("ne"); } }
     }
 }
 
@@ -1689,6 +1744,7 @@ component OverviewPanel inherits Rectangle {
             x: parent.width - self.width - 22px;
             y: parent.height - self.height - 18px * root.k;
             height: 44px * root.k;
+            width: self.preferred-width;
             text: Tr.t(Tr.k, "Retour");
             font: 16px * root.k;
             focused: true;
@@ -2112,7 +2168,9 @@ export component AppWindow inherits Window {
         root.rot-anim = Motion.pages;
     }
     no-frame: root.frameless || root.chrome;
-    background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
+    // Fenêtre façon Windows 7 : fenêtre transparente, le fond n'est peint que dans la zone de
+    // l'interface (le cadre montre le bureau flouté, voir WinCaption).
+    background: root.chrome ? transparent : @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
     // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
     default-font-family: Theme.aero-font ? (root.dust-blank ? "Turtlefin Blank Aero" : "Selawik")
         : root.dust-blank ? "Turtlefin Blank" : "Montserrat";
@@ -3149,6 +3207,7 @@ export component AppWindow inherits Window {
     }
     // Fenêtre façon Windows 7 (voir WinCaption) : barre de titre au-dessus de l'interface, qui descend d'autant.
     out property <length> chrome-top: root.chrome ? 30px : 0px;
+    property <length> chrome-side: root.chrome && !root.win-maxed ? 8px : 0px;
     property <length> header-row: 72px * root.k + root.chrome-top;
     // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
     property <length> header-h: root.narrow && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
@@ -3351,7 +3410,19 @@ export component AppWindow inherits Window {
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
     // Fond : image du média sélectionné, décor du thème, barre de verre de l'en-tête (voir Backdrop).
+    if root.chrome: Rectangle {
+        x: root.chrome-side;
+        y: root.chrome-top;
+        width: root.width - 2 * root.chrome-side;
+        height: root.height - root.chrome-top - root.chrome-side;
+        background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
+    }
     if !root.playing: Backdrop {
+        x: root.chrome-side;
+        y: root.chrome-top;
+        width: root.width - 2 * root.chrome-side;
+        height: root.height - root.chrome-top - root.chrome-side;
+        clip: root.chrome;
         a: 1;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
@@ -9943,6 +10014,7 @@ export component AppWindow inherits Window {
     if root.chrome: WinCaption {
         win-maxed: root.win-maxed;
         bar: root.chrome-top;
+        b: root.chrome-side;
         drag => {
             root.win-drag();
         }

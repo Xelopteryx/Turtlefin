@@ -156,3 +156,49 @@ pub fn keep_alive_while_moving(tick: impl Fn() + 'static) {
     let prev = unsafe { SetWindowLongPtrW(h, GWLP_WNDPROC, move_proc as *const () as usize as isize) };
     PREV_PROC.store(prev, std::sync::atomic::Ordering::Relaxed);
 }
+
+/// Verre flou de Windows 7 sous Windows 10 / 11 : ce qui est derrière la fenêtre est flouté par le
+/// gestionnaire de fenêtres là où Turtlefin peint en semi-transparent (cadre de la fenêtre façon
+/// Windows 7, voir WinCaption dans app.slint). API non documentée mais stable depuis Windows 10
+/// (SetWindowCompositionAttribute, WCA_ACCENT_POLICY) ; sans effet si elle manque.
+pub fn set_blur(hwnd: *mut c_void, on: bool) {
+    #[repr(C)]
+    struct AccentPolicy {
+        state: u32,
+        flags: u32,
+        gradient: u32,
+        animation: u32,
+    }
+    #[repr(C)]
+    struct Data {
+        attrib: u32,
+        data: *mut c_void,
+        size: usize,
+    }
+    type SetWca = unsafe extern "system" fn(Hwnd, *mut Data) -> i32;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetModuleHandleW(name: *const u16) -> *mut c_void;
+        fn GetProcAddress(m: *mut c_void, name: *const u8) -> *mut c_void;
+    }
+    const ACCENT_DISABLED: u32 = 0;
+    const ACCENT_ENABLE_BLURBEHIND: u32 = 3;
+    const WCA_ACCENT_POLICY: u32 = 19;
+    let user32: Vec<u16> = "user32.dll\0".encode_utf16().collect();
+    // SAFETY : fonction cherchée dans user32 (déjà chargée) ; structure à la disposition attendue,
+    // valable pendant l'appel ; fenêtre de ce processus.
+    unsafe {
+        let m = GetModuleHandleW(user32.as_ptr());
+        if m.is_null() {
+            return;
+        }
+        let f = GetProcAddress(m, b"SetWindowCompositionAttribute\0".as_ptr());
+        if f.is_null() {
+            return;
+        }
+        let set: SetWca = std::mem::transmute(f);
+        let mut accent = AccentPolicy { state: if on { ACCENT_ENABLE_BLURBEHIND } else { ACCENT_DISABLED }, flags: 0, gradient: 0, animation: 0 };
+        let mut data = Data { attrib: WCA_ACCENT_POLICY, data: (&mut accent as *mut AccentPolicy).cast(), size: std::mem::size_of::<AccentPolicy>() };
+        set(hwnd, &mut data);
+    }
+}

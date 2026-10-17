@@ -1413,6 +1413,25 @@ async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Resu
     Ok(sections)
 }
 
+/// Interface TV basculée : hauteur et position des rangées déjà affichées recalculées pour la nouvelle
+/// taille (sinon, après le passage TV -> bureau, de grands trous entre les rangées ; dans l'autre sens,
+/// des rangées qui se chevauchent).
+fn relayout_rows(u: &AppWindow, tv: bool) {
+    let k = if tv { 1.4_f32 } else { 1.0 };
+    let card_w = if tv { 230.0_f32 } else { 170.0 };
+    let row_h = |landscape: bool| 132.0 * k + if landscape { card_w * 1.5 * 0.5625 } else { card_w * 1.5 };
+    for model in [u.get_sections(), u.get_dl_sections(), u.get_search_sections(), u.get_detail_rows()] {
+        let mut y = 0.0_f32;
+        for i in 0..model.row_count() {
+            let Some(mut row) = model.row_data(i) else { continue };
+            row.y_px = y;
+            row.h_px = row_h(row.landscape);
+            y += row.h_px;
+            model.set_row_data(i, row);
+        }
+    }
+}
+
 /// Affiche des rangées de cartes et lance le chargement de leurs images.
 fn present_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>) {
     present_rows(app, client, sections, false);
@@ -3537,6 +3556,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             app.tv_flag.store(on, Ordering::Relaxed);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tv_mode(on);
+                relayout_rows(&u, on);
                 // Mode tablette (Android) : au doigt, pas de sélection de télécommande affichée.
                 u.global::<Nav>().set_kb(on && (!cfg!(target_os = "android") || android_tv()));
             }
@@ -5097,8 +5117,11 @@ fn set_full(app: &Arc<App>, on: bool) {
     if let Some(u) = app.ui().upgrade() {
         update_chrome(&u);
         set_tv_window(&u, on);
-        // Une fois la fenêtre à sa nouvelle taille : la page arrive de nouveau (zoom, voile).
+        // Une fois la fenêtre à sa nouvelle taille : la page arrive de nouveau (zoom, voile). Windows :
+        // c'est la fenêtre elle-même qui grandit ou rétrécit (voir animate_window).
+        #[cfg(not(windows))]
         let weak = u.as_weak();
+        #[cfg(not(windows))]
         slint::Timer::single_shot(std::time::Duration::from_millis(160), move || {
             if let Some(u) = weak.upgrade() {
                 u.invoke_screen_changed();
@@ -5116,6 +5139,19 @@ fn update_chrome(u: &AppWindow) {
     let on = !cfg!(target_os = "android") && u.global::<Theme>().get_win7() && !FULL_NOW.load(Ordering::Relaxed) && !u.get_tv_mode();
     if u.get_chrome() != on {
         u.set_chrome(on);
+    }
+    // Verre flou derrière le cadre (Windows 10 / 11).
+    #[cfg(windows)]
+    {
+        use slint::winit_030::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        use slint::winit_030::WinitWindowAccessor;
+        u.window().with_winit_window(|w| {
+            if let Ok(h) = w.window_handle() {
+                if let RawWindowHandle::Win32(h) = h.as_raw() {
+                    winfull::set_blur(h.hwnd.get() as *mut std::ffi::c_void, on);
+                }
+            }
+        });
     }
 }
 
@@ -5550,8 +5586,8 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
             let Some(u) = weak.upgrade() else { return };
             if on {
                 // Un pixel de plus en bas : plus pris pour un plein écran (le pixel est hors écran).
-                u.window().set_position(slint::PhysicalPosition::new(mx, my));
-                u.window().set_size(slint::PhysicalSize::new(mw as u32, mh as u32 + 1));
+                // La fenêtre grandit jusqu'à couvrir l'écran (sans bords dès le départ).
+                animate_window(&u, (mx, my, mw, mh + 1), Box::new(|_| {}));
                 // L'écran peut changer de définition (télé, bureau à distance) : on suit toutes les 3 s.
                 let weak = u.as_weak();
                 let watch = slint::Timer::default();
@@ -5567,13 +5603,52 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
             } else {
                 TV_WATCH.with(|w| *w.borrow_mut() = None);
                 let s = u.window().scale_factor();
-                // Zone utile ; le cadre (≈ 40 px) s'y ajoute, d'où la marge.
+                // Zone utile ; le cadre (≈ 40 px) s'y ajoute, d'où la marge. Fenêtre façon Windows 7
+                // (cadre dessiné par Turtlefin) : pas de cadre du système autour.
+                let chrome = u.get_chrome();
+                let (fw, fh) = if chrome { (0, 0) } else { (16, 40) };
                 let (cw, ch) = (((1280.0 * s) as i32).min(ww - 16), ((720.0 * s) as i32).min(wh - 48));
-                u.window().set_size(slint::PhysicalSize::new(cw as u32, ch as u32));
-                u.window().set_position(slint::PhysicalPosition::new(wx + (ww - cw - 16) / 2, wy + (wh - ch - 40) / 2));
+                let target = (wx + (ww - cw - fw) / 2, wy + (wh - ch - fh) / 2, cw, ch);
+                // La fenêtre rétrécit jusqu'à sa place, puis retrouve son cadre.
+                u.set_frameless(true);
+                animate_window(&u, target, Box::new(move |u| u.set_frameless(false)));
             }
         });
     });
+}
+
+thread_local! {
+    /// Fenêtre en train de grandir / rétrécir (plein écran) : minuterie des étapes.
+    static WIN_ANIM: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Fenêtre menée de sa place actuelle à `to` (x, y, largeur, hauteur, pixels physiques) en 280 ms,
+/// en ralentissant ; `done` à l'arrivée.
+fn animate_window(u: &AppWindow, to: (i32, i32, i32, i32), done: Box<dyn FnOnce(&AppWindow)>) {
+    let (p, sz) = (u.window().position(), u.window().size());
+    let from = (p.x, p.y, sz.width as i32, sz.height as i32);
+    let t0 = std::time::Instant::now();
+    let weak = u.as_weak();
+    let done = std::cell::RefCell::new(Some(done));
+    let place = |u: &AppWindow, r: (i32, i32, i32, i32)| {
+        u.window().set_position(slint::PhysicalPosition::new(r.0, r.1));
+        u.window().set_size(slint::PhysicalSize::new(r.2.max(1) as u32, r.3.max(1) as u32));
+    };
+    let anim = slint::Timer::default();
+    anim.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(12), move || {
+        let Some(u) = weak.upgrade() else { return };
+        let t = (t0.elapsed().as_secs_f32() / 0.28).min(1.0);
+        let e = 1.0 - (1.0 - t).powi(3);
+        let lerp = |a: i32, b: i32| a + ((b - a) as f32 * e).round() as i32;
+        place(&u, (lerp(from.0, to.0), lerp(from.1, to.1), lerp(from.2, to.2), lerp(from.3, to.3)));
+        if t >= 1.0 {
+            if let Some(d) = done.borrow_mut().take() {
+                d(&u);
+            }
+            WIN_ANIM.with(|w| *w.borrow_mut() = None);
+        }
+    });
+    WIN_ANIM.with(|w| *w.borrow_mut() = Some(anim));
 }
 
 fn open_console() {
