@@ -8622,7 +8622,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des appareils…")
                         : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau.")
-                        : Tr.t(Tr.k, "Choisis un appareil : ce téléphone devient sa télécommande, et « Lire sur » apparaît sur les fiches.");
+                        : Tr.t(Tr.k, "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches.");
                     color: Theme.muted;
                     font-size: 13px * root.k;
                     wrap: word-wrap;

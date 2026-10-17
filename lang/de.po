@@ -1801,3 +1801,45 @@ msgstr "Schritt 2 von 3 · Mindestens 8 Zeichen. Ein kurzer Satz („Regen-auf-d
 
 msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
 msgstr "Schritt 3 von 3 · Gib das neue Passwort noch einmal ein."
+
+msgid "Arrêter de piloter {}"
+msgstr "{} nicht mehr steuern"
+
+msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
+msgstr "Kein Gerät. Öffne Turtlefin (oder eine Jellyfin-App) auf dem Fernseher mit demselben Konto oder schalte einen DLNA-fähigen Fernseher in diesem Netzwerk ein."
+
+msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
+msgstr "Wähle ein Gerät: Turtlefin wird zu seiner Fernbedienung, und „Abspielen auf“ erscheint auf den Detailseiten."
+
+msgid "Diffuser"
+msgstr "Übertragen"
+
+msgid "Grands éléments, pour une tablette ou un grand écran."
+msgstr "Große Elemente, für ein Tablet oder einen großen Bildschirm."
+
+msgid "Impossible de lire sur {} : {}"
+msgstr "Abspielen auf {} nicht möglich: {}"
+
+msgid "Lecture sur {} : {}"
+msgstr "Wiedergabe auf {}: {}"
+
+msgid "Lire sur {}"
+msgstr "Abspielen auf {}"
+
+msgid "Mode tablette"
+msgstr "Tablet-Modus"
+
+msgid "Recherche des appareils…"
+msgstr "Geräte werden gesucht…"
+
+msgid "Rien en lecture"
+msgstr "Keine Wiedergabe"
+
+msgid "Télé DLNA : la vidéo y est envoyée"
+msgstr "DLNA-Fernseher: das Video wird dorthin gesendet"
+
+msgid "Télécommande · {}"
+msgstr "Fernbedienung · {}"
+
+msgid "{} ne répond pas : {}"
+msgstr "{} antwortet nicht: {}"
