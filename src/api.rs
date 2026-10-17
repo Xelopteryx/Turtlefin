@@ -1751,6 +1751,11 @@ impl Client {
 
     /// Image hors Jellyfin (adresse complète), avec le même cache disque.
     async fn image_url(&self, url: &str) -> Result<Vec<u8>> {
+        // Affiches TMDB seulement : une adresse venue du serveur ne fait pas envoyer de requête à un
+        // autre appareil du réseau (box, imprimante, page d'administration...).
+        if !url.starts_with("https://image.tmdb.org/") || url.contains(['@', '\\']) {
+            return Err(anyhow!("image {url} : adresse refusée"));
+        }
         // Nom de fichier stable tiré de l'adresse (pas besoin d'un vrai hachage cryptographique).
         let key: String = url.chars().filter(|c| c.is_ascii_alphanumeric()).rev().take(48).collect();
         let cache = image_cache_path(&key, "Url", None, "orig");

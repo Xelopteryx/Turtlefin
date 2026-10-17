@@ -86,6 +86,58 @@ pub fn lock_landscape(on: bool) {
     }
 }
 
+/// Volume « média » d'Android (STREAM_MUSIC) : celui des touches du téléphone. Le lecteur de Turtlefin
+/// règle celui-ci (mpv reste à 100 %), pour qu'un seul volume existe sur le téléphone.
+fn with_audio_manager<T>(f: impl FnOnce(&mut jni::JNIEnv, &jni::objects::JObject) -> jni::errors::Result<T>) -> Option<T> {
+    let ctx = ndk_context::android_context();
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
+    if act.is_null() {
+        return None;
+    }
+    // SAFETY : comme lock_landscape (machine virtuelle et activité valables toute la vie du processus).
+    let result = (|| -> jni::errors::Result<T> {
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+        let mut env = vm.attach_current_thread()?;
+        let activity = unsafe { jni::objects::JObject::from_raw(act.cast()) };
+        env.with_local_frame(8, |env| {
+            let name = env.new_string("audio")?;
+            let am = env
+                .call_method(&activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&name).into()])?
+                .l()?;
+            f(env, &am)
+        })
+    })();
+    match result {
+        Ok(v) => Some(v),
+        Err(e) => {
+            eprintln!("turtlefin : volume d'Android : {e}");
+            None
+        }
+    }
+}
+
+const STREAM_MUSIC: i32 = 3;
+
+/// Volume média actuel, de 0 à 100.
+pub fn system_volume() -> Option<i32> {
+    with_audio_manager(|env, am| {
+        let max = env.call_method(am, "getStreamMaxVolume", "(I)I", &[STREAM_MUSIC.into()])?.i()?;
+        let cur = env.call_method(am, "getStreamVolume", "(I)I", &[STREAM_MUSIC.into()])?.i()?;
+        Ok(if max > 0 { (cur * 100 + max / 2) / max } else { 100 })
+    })
+}
+
+/// Règle le volume média (0 à 100, arrondi au cran d'Android le plus proche), sans la fenêtre de
+/// volume d'Android (la barre de Turtlefin est à l'écran).
+pub fn set_system_volume(percent: i32) {
+    with_audio_manager(|env, am| {
+        let max = env.call_method(am, "getStreamMaxVolume", "(I)I", &[STREAM_MUSIC.into()])?.i()?;
+        let step = (percent.clamp(0, 100) * max + 50) / 100;
+        env.call_method(am, "setStreamVolume", "(III)V", &[STREAM_MUSIC.into(), step.into(), 0.into()])?;
+        Ok(())
+    });
+}
+
 #[no_mangle]
 fn android_main(a: slint::android::AndroidApp) {
     stderr_to_logcat();

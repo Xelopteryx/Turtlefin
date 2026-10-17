@@ -1,11 +1,14 @@
 # Fabrique l'APK de Turtlefin pour Android.
-#   powershell -ExecutionPolicy Bypass -File android\build-apk.ps1 [-Abi arm64-v8a,x86_64] [-Keystore cle.jks]
+#   powershell -ExecutionPolicy Bypass -File android\build-apk.ps1 [-Abi arm64-v8a,x86_64] [-Name arm64] [-Keystore cle.jks]
+# Architectures : arm64-v8a (telephones 64 bits), armeabi-v7a (telephones 32 bits), x86_64 et x86 (emulateurs).
 # Il faut : Android Studio (SDK, Java), le NDK (Android Studio > SDK Manager > NDK), Rust avec les cibles
-# Android (rustup target add aarch64-linux-android x86_64-linux-android) et cargo-ndk (cargo install cargo-ndk).
-# Resultat : target\dist\Turtlefin-<version>-android.apk (signe avec la cle de debogage d'Android Studio
-# sans -Keystore).
+# Android (rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+# i686-linux-android) et cargo-ndk (cargo install cargo-ndk).
+# Resultat : target\dist\Turtlefin-<version>-android[-<Name>].apk (signe avec la cle de debogage
+# d'Android Studio sans -Keystore).
 param(
     [string[]]$Abi = @("arm64-v8a", "x86_64"),
+    [string]$Name = "",
     [string]$Keystore = "",
     [string]$KeystorePass = "android",
     [string]$WorkDir = "$env:LOCALAPPDATA\turtlefin-android"
@@ -31,7 +34,7 @@ $env:RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
 
 # 1. Turtlefin (une bibliotheque par architecture).
-$targets = @{ "arm64-v8a" = "aarch64-linux-android"; "x86_64" = "x86_64-linux-android" }
+$targets = @{ "arm64-v8a" = "aarch64-linux-android"; "armeabi-v7a" = "armv7-linux-androideabi"; "x86_64" = "x86_64-linux-android"; "x86" = "i686-linux-android" }
 Push-Location $PSScriptRoot
 try {
     $ndkArgs = @()
@@ -85,7 +88,8 @@ try {
 if ($LASTEXITCODE -ne 0) { throw "zipalign" }
 if (-not $Keystore) { $Keystore = "$env:USERPROFILE\.android\debug.keystore" }
 New-Item -ItemType Directory -Force "$root\target\dist" | Out-Null
-$out = "$root\target\dist\Turtlefin-$version-android.apk"
+$suffix = if ($Name) { "-$Name" } else { "" }
+$out = "$root\target\dist\Turtlefin-$version-android$suffix.apk"
 & "$tools\apksigner.bat" sign --ks $Keystore --ks-pass "pass:$KeystorePass" --out $out "$build\aligned.apk"
 if ($LASTEXITCODE -ne 0) { throw "apksigner" }
 Write-Host "APK : $out"

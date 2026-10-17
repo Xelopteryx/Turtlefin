@@ -58,6 +58,16 @@ struct Cli {
     no_intro: bool,
 }
 
+/// Lancé en borne (`--kiosk`, Xelauncher) : voir external_ok.
+static KIOSK: AtomicBool = AtomicBool::new(false);
+
+/// Ouvrir un programme du système (navigateur pour le créateur de thèmes, explorateur de fichiers)
+/// est permis au bureau seulement : ni en borne, ni en interface TV. Sinon, depuis la télécommande,
+/// un navigateur ou un explorateur de fichiers donnerait accès à tout l'appareil, hors de Turtlefin.
+fn external_ok(u: &AppWindow) -> bool {
+    !KIOSK.load(Ordering::Relaxed) && !u.get_tv_mode() && !cfg!(target_os = "android")
+}
+
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
     let mut cli = Cli { user: None, pass: None, server: None, tv: None, fullscreen: false, test_video: None, play: None, no_intro: false };
@@ -74,6 +84,8 @@ fn parse_cli() -> Cli {
             }
             "--desktop" => cli.tv = Some(false),
             "--fullscreen" => cli.fullscreen = true,
+            // Borne (Xelauncher) : jamais de programme extérieur (navigateur, explorateur de fichiers).
+            "--kiosk" => KIOSK.store(true, Ordering::Relaxed),
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
@@ -2609,6 +2621,15 @@ fn cache_size() -> u64 {
 /// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
 /// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Animations · 6 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
+    let mut rows = settings_rows_all(app, cat);
+    // Créateur de thèmes (navigateur) : au bureau seulement (voir external_ok).
+    if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
+        rows.retain(|r| r.key != "themecreate");
+    }
+    rows
+}
+
+fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let row = |key: &str, label: &str, hint: &str, value: String, kind: &str, on: bool| SettingRow {
         key: key.into(),
         label: label.into(),
@@ -3346,6 +3367,9 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             }
         }
         "themecreate" => {
+            if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
+                return;
+            }
             // Thème intégré en cours : le créateur part de lui (?preset=…).
             let key = config::ui_prefs().theme;
             let res = theme::write_creator().and_then(|path| {
@@ -3862,6 +3886,10 @@ fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
 /// Affiche un dossier ; `select` : élément à choisir (sinon le premier).
 fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::Path>) {
     let Some(root) = lx_root(app) else { return };
+    // Jamais au-dessus du dossier des langues / thèmes / presets.
+    if !dir.starts_with(&root) {
+        return;
+    }
     let mode = *app.lx_mode.lock().unwrap();
     let presets = mode == "preset";
     let themes = mode == "theme";
@@ -3927,7 +3955,7 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         u.set_lx_sel(sel);
         u.set_lx_place(place.into());
         u.set_lx_hint(hint.into());
-        u.set_lx_can_folder(!u.get_tv_mode());
+        u.set_lx_can_folder(external_ok(&u));
         u.set_lx_title(if presets { tr("Importer un preset") } else if themes { tr("Importer un thème") } else { tr("Ajouter une langue") }.into());
         u.set_lx_can_template(!presets && !themes);
         u.set_lx_tick(u.get_lx_tick() + 1);
@@ -4011,6 +4039,9 @@ fn lx_button(app: &Arc<App>, b: &str) {
             Err(e) => u.set_toast(trf("Impossible de créer le modèle : {}", &[&e]).into()),
         },
         "folder" => {
+            if !external_ok(&u) {
+                return;
+            }
             let dir = app.lx_dir.lock().unwrap().clone();
             let prog = if cfg!(windows) { "explorer" } else if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
             if paths::quiet_command(prog).arg(&dir).spawn().is_err() {
@@ -4031,6 +4062,10 @@ fn browse_themes(dir: &std::path::Path) -> Vec<i18n::Entry> {
     for p in entries {
         let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         if fname.starts_with('.') {
+            continue;
+        }
+        // Lien symbolique : ignoré (il mènerait hors du dossier).
+        if p.is_symlink() {
             continue;
         }
         if p.is_dir() {
@@ -4094,6 +4129,10 @@ fn browse_presets(dir: &std::path::Path) -> Vec<i18n::Entry> {
     for p in entries {
         let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         if fname.starts_with('.') {
+            continue;
+        }
+        // Lien symbolique : ignoré (il mènerait hors du dossier).
+        if p.is_symlink() {
             continue;
         }
         if p.is_dir() {

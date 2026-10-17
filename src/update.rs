@@ -188,8 +188,16 @@ async fn check_release() -> Result<Option<(String, Vec<String>)>> {
 /// Nom du fichier publié qui convient à cette installation.
 fn asset_name(version: &str) -> Result<String> {
     let win = if cfg!(target_arch = "x86") { "x86" } else { "x64" };
-    let linux = if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" };
-    let deb = if cfg!(target_arch = "aarch64") { "arm64" } else { "amd64" };
+    // Linux 32 bits : Raspberry Pi OS 32 bits (armhf) et vieux PC (i386).
+    let (linux, deb) = if cfg!(target_arch = "aarch64") {
+        ("aarch64", "arm64")
+    } else if cfg!(target_arch = "arm") {
+        ("armhf", "armhf")
+    } else if cfg!(target_arch = "x86") {
+        ("i686", "i386")
+    } else {
+        ("x86_64", "amd64")
+    };
     Ok(match kind() {
         Kind::WinInstalled => format!("Turtlefin-{version}-windows-{win}-setup.exe"),
         Kind::WinPortable => format!("Turtlefin-{version}-windows-{win}-portable.zip"),
@@ -303,7 +311,8 @@ async fn download(name: &str, dest: &Path, step: &impl Fn(&str)) -> Result<()> {
     file.flush().await?;
     drop(file);
     let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
-    if digest.as_deref().is_some_and(|d| d != got) {
+    // Empreinte absente de la réponse de GitHub : rien pour vérifier le fichier, il est refusé aussi.
+    if digest.as_deref() != Some(got.as_str()) {
         let _ = tokio::fs::remove_file(&tmp).await;
         return Err(anyhow!("{}", tr("fichier téléchargé abîmé ou modifié (empreinte différente) : mise à jour annulée")));
     }

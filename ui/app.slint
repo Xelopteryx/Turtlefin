@@ -2874,6 +2874,25 @@ export component AppWindow inherits Window {
     // Portrait (fenêtre plus haute que large : téléphone tenu droit) : en-tête sur deux lignes
     // (menu, nom et icônes, puis les onglets dessous) ; les pages se calent sur header-h.
     property <bool> narrow: self.height > self.width;
+    // Téléphone tourné (portrait <-> paysage) : la page arrive de nouveau (zoom léger, glissement)
+    // au lieu de sauter d'une mise en page à l'autre, sous un voile qui s'efface (voir rot-veil).
+    changed narrow => {
+        if (!root.playing) {
+            root.page-enter();
+            root.rot-t0 = animation-tick();
+            root.rot-anim = Motion.pages;
+        }
+    }
+    property <bool> rot-anim;
+    property <duration> rot-t0;
+    property <float> rot-veil: root.rot-anim ? 1 - clamp((animation-tick() - root.rot-t0) / 380ms, 0, 1) : 0;
+    Timer {
+        interval: 420ms;
+        running: root.rot-anim;
+        triggered => {
+            root.rot-anim = false;
+        }
+    }
     property <length> header-row: 72px * root.k;
     // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
     property <length> header-h: root.narrow && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
@@ -9612,5 +9631,11 @@ export component AppWindow inherits Window {
         if (root.dust-cloud && root.ch-key != "language") {
             root.dust-cancel();
         }
+    }
+
+    // Téléphone tourné : voile du fond qui s'efface pendant que la nouvelle mise en page arrive.
+    if root.rot-veil > 0.01: Rectangle {
+        background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
+        opacity: 0.85 * root.rot-veil;
     }
 }

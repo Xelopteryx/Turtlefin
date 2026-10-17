@@ -80,6 +80,10 @@ fn po_files(dir: &std::path::Path, depth: u32, out: &mut Vec<PathBuf>) {
     let mut entries: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
     entries.sort();
     for p in entries {
+        // Lien symbolique : ignoré (il mènerait hors du dossier).
+        if p.is_symlink() {
+            continue;
+        }
         if p.is_dir() {
             if depth > 0 {
                 po_files(&p, depth - 1, out);
@@ -136,6 +140,10 @@ pub fn browse(dir: &std::path::Path) -> Vec<Entry> {
     for p in entries {
         let fname = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         if fname.starts_with('.') {
+            continue;
+        }
+        // Lien symbolique : ignoré (il mènerait hors du dossier).
+        if p.is_symlink() {
             continue;
         }
         if p.is_dir() {

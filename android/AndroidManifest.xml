@@ -16,7 +16,10 @@
     <!-- Recherche des serveurs Jellyfin du réseau local (diffusion UDP). -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
+    <!-- allowBackup : pas de sauvegarde (Google, transfert vers un autre téléphone) des données de
+         l'appli : elles contiennent les jetons de connexion aux serveurs. -->
     <application
+        android:allowBackup="false"
         android:label="Turtlefin"
         android:icon="@mipmap/ic_launcher"
         android:banner="@mipmap/ic_launcher"

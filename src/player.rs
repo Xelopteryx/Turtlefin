@@ -83,8 +83,9 @@ fn new_player() -> Result<Arc<Mpv>> {
     m.set_option("hwdec", &hwdec_mode());
     // Le lecteur reste ouvert entre deux épisodes ; on ne lit ni mpv.conf ni les scripts de l'utilisateur.
     m.set_option("idle", "yes");
-    // Volume de Turtlefin seulement (gardé d'une vidéo à l'autre).
-    m.set_option("volume", &crate::config::ui_prefs().volume.min(100).to_string());
+    // Volume de Turtlefin seulement (gardé d'une vidéo à l'autre). Android : mpv à 100 %, la barre du
+    // lecteur règle le volume « média » du téléphone (un seul volume, celui des touches).
+    m.set_option("volume", &app_volume().to_string());
     m.set_option("keep-open", "no");
     m.set_option("config", "no");
     m.set_option("terminal", "no");
@@ -687,10 +688,30 @@ pub async fn play(
                     "sub-margin" => player.set_property("sub-margin-y", arg),
                     "volume" => {
                         let v = arg.parse::<u32>().unwrap_or(100).min(100);
-                        let mut p = crate::config::ui_prefs();
-                        p.volume = v;
-                        crate::config::save_ui_prefs(&p);
-                        player.set_property("volume", &v.to_string())
+                        #[cfg(target_os = "android")]
+                        {
+                            crate::android_entry::set_system_volume(v as i32);
+                            Ok(())
+                        }
+                        #[cfg(not(target_os = "android"))]
+                        {
+                            let mut p = crate::config::ui_prefs();
+                            p.volume = v;
+                            crate::config::save_ui_prefs(&p);
+                            player.set_property("volume", &v.to_string())
+                        }
+                    }
+                    // Barre du volume ouverte : Android relit le volume du téléphone (touches de volume).
+                    "volume-poll" => {
+                        #[cfg(target_os = "android")]
+                        if let Some(v) = crate::android_entry::system_volume() {
+                            let _ = ui.upgrade_in_event_loop(move |u| {
+                                if u.get_p_volume() != v {
+                                    u.set_p_volume(v);
+                                }
+                            });
+                        }
+                        Ok(())
                     }
                     // Changement de piste pendant la lecture : retenu pour la série / le film.
                     "aid" | "sid" => {
@@ -1127,6 +1148,7 @@ async fn load(
     let has_next = neighbour(episodes, item.as_ref(), 1).is_some();
     // Bouton Qualité : seulement pour un flux du serveur (pas un fichier téléchargé ni une source distante).
     let quality = item.is_some() && client.is_some_and(|c| url.starts_with(&c.server));
+    let shown_volume = volume_shown();
     let _ = ui.upgrade_in_event_loop(move |u| {
         let (list, i) = if quality { quality_tracks() } else { (Vec::new(), 0) };
         u.set_p_quality(ModelRc::new(VecModel::from(list)));
@@ -1140,7 +1162,7 @@ async fn load(
         u.set_p_pos_text("".into());
         u.set_p_dur_text("".into());
         u.set_p_end_text("".into());
-        u.set_p_volume(crate::config::ui_prefs().volume.min(100) as i32);
+        u.set_p_volume(shown_volume);
         u.set_p_chapters(ModelRc::default());
         u.set_p_chapter_count(0);
     });
@@ -1165,6 +1187,24 @@ async fn load(
         reported_stop: false,
         transcode,
     })
+}
+
+/// Volume donné à mpv : celui de Turtlefin (bureau), 100 % sur Android (voir « volume »).
+fn app_volume() -> u32 {
+    if cfg!(target_os = "android") {
+        100
+    } else {
+        crate::config::ui_prefs().volume.min(100)
+    }
+}
+
+/// Volume montré par la barre du lecteur : celui du téléphone sur Android.
+fn volume_shown() -> i32 {
+    #[cfg(target_os = "android")]
+    if let Some(v) = crate::android_entry::system_volume() {
+        return v;
+    }
+    app_volume() as i32
 }
 
 /// Piste audio à garder dans un flux converti (il n'en contient qu'une) : langue préférée de la
