@@ -221,6 +221,8 @@ struct App {
     detail_kind: Mutex<String>,
     /// Explorateur des langues : dossier affiché et chemins de ses éléments (même ordre que la liste).
     lx_dir: Mutex<std::path::PathBuf>,
+    /// Bibliothèque en cours d'ouverture : titre, et ouverte depuis l'accueil (posés avec sa première page).
+    lib_title: Mutex<(String, bool)>,
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
     lx_mode: Mutex<&'static str>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
@@ -2170,21 +2172,13 @@ fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
     *app.library.lock().unwrap() = Some((lib.id.clone(), lib.collection_type.clone(), 0, 0));
     let at_root = app.stack.lock().unwrap().len() <= 1;
     let title = lib.name.clone();
+    *app.lib_title.lock().unwrap() = (title, at_root);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
-        u.set_lib_title(title.into());
-        u.set_lib_free(false);
-        u.set_lib_items(ModelRc::new(VecModel::<CardData>::default()));
-        u.set_lib_total(0);
-        u.set_l_sel(0);
         u.set_h_focus(false);
-        u.set_at_lib_root(at_root);
-        // Retour depuis une fiche : la page n'apparaît qu'une fois la carte d'origine rechargée
-        // (sinon la grille défilerait depuis le haut jusqu'à elle).
-        if back_to.is_some() {
-            begin_loading(&u);
-        } else {
-            show_screen(&u, "library");
-        }
+        // La page n'apparaît qu'avec ses premières affiches (avant : page vide, puis tout arrivait) ;
+        // au retour d'une fiche, une fois la carte d'origine rechargée (sinon la grille défilerait
+        // depuis le haut jusqu'à elle). D'ici là, la page d'où l'on vient reste affichée.
+        begin_loading(&u);
     });
     load_library_page(app, client, back_to);
 }
@@ -2205,7 +2199,14 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
             Ok(p) => p,
             Err(e) => {
                 let msg = trf("Bibliothèque illisible : {}", &[&human_err(&e)]);
-                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                let first = loaded == 0;
+                let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                    // Première page refusée : on reste sur la page d'où l'on vient.
+                    if first {
+                        u.invoke_open_failed();
+                    }
+                    u.set_toast(msg.into());
+                });
                 return;
             }
         };
@@ -2226,7 +2227,18 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
             .enumerate()
             .filter_map(|(i, c)| ImageJob::for_card(0, loaded as usize + i, c, false))
             .collect();
+        let fresh = (loaded == 0).then(|| app2.lib_title.lock().unwrap().clone());
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            // Première page : la grille (et son titre) change maintenant, pas avant (l'ancienne reste
+            // affichée pendant le chargement).
+            if let Some((title, at_root)) = fresh {
+                u.set_lib_title(title.into());
+                u.set_lib_free(false);
+                u.set_lib_items(ModelRc::new(VecModel::<CardData>::default()));
+                u.set_lib_total(0);
+                u.set_l_sel(0);
+                u.set_at_lib_root(at_root);
+            }
             let model = u.get_lib_items();
             if let Some(vm) = model.as_any().downcast_ref::<VecModel<CardData>>() {
                 for c in &cards {
@@ -2245,13 +2257,15 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                 }
             }
             u.set_lib_total(total as i32);
-            // Première page : les lignes arrivent en cascade.
-            if loaded == 0 && select.is_none() {
-                u.invoke_page_enter();
-            }
             if let Some(sel) = select {
                 u.set_l_sel(sel.min(u.get_lib_items().row_count().saturating_sub(1)) as i32);
+            }
+            // Première page : la page arrive, remplie (les lignes en cascade).
+            if loaded == 0 {
                 show_screen(&u, "library");
+                if select.is_none() {
+                    u.invoke_page_enter();
+                }
             }
         });
         let card_w = if app2.tv() { 230.0 } else { 170.0 };
@@ -5727,6 +5741,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         login_pub: Mutex::new(Vec::new()),
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
+        lib_title: Mutex::new((String::new(), true)),
         lx_paths: Mutex::new(Vec::new()),
         lx_mode: Mutex::new("lang"),
         home_keep: Mutex::new(None),

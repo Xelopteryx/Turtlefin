@@ -3334,9 +3334,17 @@ export component AppWindow inherits Window {
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
     // Défilement affiché de la fiche : celui de la sélection, ou le défilement libre (doigt, molette).
     property <length> d-view-y: root.d-free ? root.d-free-y : root.d-scroll;
-    property <length> d-scroll: root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
-        ? max(0px, root.d-extra-y + root.detail-rows[root.d-zone - 4].y-px * 1px - 40px * root.k)
-        : root.d-zone == 2 ? max(0px, root.d-children-y - 140px * root.k) : 0px;
+    // Jamais plus loin que le bas de la fiche : quand tout tient à l'écran (grand écran, peu de
+    // saisons), choisir une rangée ne fait rien défiler.
+    property <length> d-rows-h: root.detail-rows.length > 0
+        ? (root.detail-rows[root.detail-rows.length - 1].y-px + root.detail-rows[root.detail-rows.length - 1].h-px) * 1px : 0px;
+    property <length> d-max: max(0px, root.d-extra-y + root.d-rows-h + 24px * root.k - root.height + root.header-h);
+    // Rangée choisie déjà entièrement visible en haut de la fiche : pas de défilement.
+    property <length> d-view-h: root.height - root.header-h;
+    property <length> d-scroll: min(root.d-max, root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
+        ? (root.d-extra-y + (root.detail-rows[root.d-zone - 4].y-px + root.detail-rows[root.d-zone - 4].h-px) * 1px <= root.d-view-h ? 0px
+            : max(0px, root.d-extra-y + root.detail-rows[root.d-zone - 4].y-px * 1px - 40px * root.k))
+        : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k)) : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
     property <bool> show-next: !root.narrow && root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
