@@ -386,10 +386,14 @@ impl Item {
 
         let (img_id, img_tag) = match (is_episode, &self.series_id) {
             (true, Some(sid)) => (Some(sid.clone()), self.series_primary_image_tag.clone()),
-            _ => {
-                let tag = self.primary_tag();
-                (tag.as_ref().map(|_| self.id.clone()), tag)
-            }
+            _ => match (self.primary_tag(), &self.series_id) {
+                (Some(tag), _) => (Some(self.id.clone()), Some(tag)),
+                // Saison sans affiche (découpage maison absent de TMDB) : celle de la série.
+                (None, Some(sid)) if self.series_primary_image_tag.is_some() => {
+                    (Some(sid.clone()), self.series_primary_image_tag.clone())
+                }
+                (None, _) => (None, None),
+            },
         };
 
         CardInfo {
