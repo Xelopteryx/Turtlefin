@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion, Gloss, Sheen, Nav } from "theme.slint";
+import { Theme, Tr, Motion, Gloss, Sheen, Nav, Placeholder } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -282,7 +282,11 @@ component EpisodeCard inherits Rectangle {
         border-top-left-radius: Theme.radius;
         border-top-right-radius: Theme.radius;
         clip: true;
-        background: root.data.has-image ? transparent : @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
+        background: transparent;
+        if !root.data.has-image: Placeholder {
+            title: root.data.title;
+            k: root.k;
+        }
         if root.data.has-image: Image {
             width: parent.width;
             height: parent.height;
@@ -1397,10 +1401,19 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Volume
-    // Barre horizontale : ← → (5 %) ou souris. Volume de Turtlefin seulement.
+    // Barre horizontale : ← → (5 %), souris ou doigt. Bureau : volume de Turtlefin ; Android : volume
+    // « média » du téléphone (celui des touches), relu tant que la barre est ouverte.
+    Timer {
+        interval: 400ms;
+        running: root.vol-p > 0.5;
+        triggered => {
+            root.command("volume-poll");
+        }
+    }
     if root.osd && root.vol-p > 0.01: Rectangle {
-        width: 420px * root.k;
-        height: 76px * root.k;
+        // Au doigt : plus large (dans la limite de l'écran), plus haute, la barre se prend partout.
+        width: min(parent.width - 2 * root.m, (Nav.touch ? 520px : 420px) * root.k);
+        height: (Nav.touch ? 96px : 76px) * root.k;
         x: parent.width - self.width - root.m;
         y: parent.height - root.m - 160px * root.k - self.height - 16px * root.k + (1 - root.vol-p) * 24px * root.k;
         opacity: root.vol-p;
@@ -1428,27 +1441,30 @@ export component PlayerView inherits Rectangle {
             x: 66px * root.k;
             y: (parent.height - self.height) / 2;
             width: parent.width - 66px * root.k - 90px * root.k;
-            height: 28px * root.k;
+            height: (Nav.touch ? 56px : 28px) * root.k;
+            property <length> track: (Nav.touch ? 12px : 8px) * root.k;
             Rectangle {
                 y: (parent.height - self.height) / 2;
-                height: 8px * root.k;
+                height: vbar.track;
                 border-radius: self.height / 2;
                 background: Theme.player-ink.with-alpha(0.2);
             }
             Rectangle {
                 x: 0px;
                 y: (parent.height - self.height) / 2;
-                width: max(8px * root.k, parent.width * root.volume / 100);
-                animate width { duration: Motion.player ? 120ms : 0ms; easing: ease-out; }
-                height: 8px * root.k;
+                width: max(vbar.track, parent.width * root.volume / 100);
+                animate width { duration: Motion.player && !vtouch.pressed ? 120ms : 0ms; easing: ease-out; }
+                height: vbar.track;
                 border-radius: self.height / 2;
                 background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
             }
             Rectangle {
-                width: 22px * root.k;
+                // Bouton qui grossit sous le doigt.
+                width: (vtouch.pressed ? 32px : Nav.touch ? 28px : 22px) * root.k;
+                animate width { duration: Motion.player ? 160ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 height: self.width;
                 x: parent.width * root.volume / 100 - self.width / 2;
-                animate x { duration: Motion.player ? 120ms : 0ms; easing: ease-out; }
+                animate x { duration: Motion.player && !vtouch.pressed ? 120ms : 0ms; easing: ease-out; }
                 y: (parent.height - self.height) / 2;
                 border-radius: self.width / 2;
                 background: Theme.player-ink;

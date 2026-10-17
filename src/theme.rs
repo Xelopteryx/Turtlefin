@@ -75,6 +75,11 @@ pub struct ThemeDef {
     pub boot: String,
     /// Logo (icône, démarrage) : « » carapace en dégradé, « orb » orbe de verre.
     pub logo: String,
+    /// Police de l'interface : « » Montserrat, « selawik » (proche de Segoe UI, celle de Windows 7).
+    pub font: String,
+    /// Fenêtres façon Windows 7 : cadre de verre épais, bouton fermer rouge brillant, boutons
+    /// rectangulaires, barre du haut en verre fumé comme la barre des tâches.
+    pub win7: bool,
 }
 
 impl Default for ThemeDef {
@@ -130,6 +135,8 @@ pub fn turtlefin() -> ThemeDef {
         streaks: false,
         boot: String::new(),
         logo: String::new(),
+        font: String::new(),
+        win7: false,
     }
 }
 
@@ -229,6 +236,8 @@ fn aero() -> ThemeDef {
         streaks: true,
         boot: s("aero"),
         logo: s("orb"),
+        font: s("selawik"),
+        win7: true,
         ..turtlefin()
     }
 }
@@ -342,6 +351,8 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_streaks(t.streaks);
     th.set_boot_style(if t.boot == "aero" { 1 } else { 0 });
     th.set_logo_style(if t.logo == "orb" { 1 } else { 0 });
+    th.set_aero_font(t.font == "selawik");
+    th.set_win7(t.win7);
     window_icon(u, t);
 }
 

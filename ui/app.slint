@@ -9,6 +9,13 @@ import "fonts/TurtlefinBlank-Regular.ttf";
 import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
+// Thème Frutiger Aero : Selawik (licence OFL, voir fonts/Selawik-OFL.txt) et sa copie vide.
+import "fonts/Selawik-Regular.ttf";
+import "fonts/Selawik-SemiBold.ttf";
+import "fonts/Selawik-Bold.ttf";
+import "fonts/TurtlefinBlankAero-Regular.ttf";
+import "fonts/TurtlefinBlankAero-SemiBold.ttf";
+import "fonts/TurtlefinBlankAero-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder } from "theme.slint";
 import { AeroSky } from "sky.slint";
@@ -924,7 +931,7 @@ component AlertBadge inherits Rectangle {
     Text {
         text: "!";
         color: white;
-        font-family: "Montserrat";
+        font-family: Theme.aero-font ? "Selawik" : "Montserrat";
         font-size: 13px * root.k;
         font-weight: 800;
         horizontal-alignment: center;
@@ -942,18 +949,22 @@ component HeaderIcon inherits Rectangle {
 
     width: 44px * root.k;
     height: 44px * root.k;
-    border-radius: self.height / 2;
+    // Windows 7 : bouton de la barre des tâches (carré de verre, lueur qui monte du bas au survol).
+    border-radius: Theme.win7 ? 5px * root.k : self.height / 2;
     // Sélection au clavier montrée seulement si Nav.kb (au bureau, la souris la cache).
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
-    transform-scale: (root.lit ? 1.12 : 1.0) * root.pop;
+    transform-scale: (root.lit ? (Theme.win7 ? 1.04 : 1.12) : 1.0) * root.pop;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-    border-width: root.on && !root.lit ? 2px * root.k : 0px;
-    border-color: Theme.accent2;
+    background: Theme.win7 ? (root.lit ? @linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.12) 48%, rgba(70, 170, 255, 0.35) 52%, rgba(120, 210, 255, 0.75) 100%) : transparent)
+        : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+    border-width: Theme.win7 && root.lit ? 1px : root.on && !root.lit ? 2px * root.k : 0px;
+    border-color: Theme.win7 && root.lit ? rgba(255, 255, 255, 0.7) : Theme.accent2;
+    drop-shadow-blur: Theme.win7 && root.lit ? 12px * root.k : 0px;
+    drop-shadow-color: #59c2ffaa;
     property <color> ink: root.lit ? Theme.on-accent : Theme.fg;
     Gloss {
         r: parent.border-radius;
-        visible: Theme.gloss > 0 && root.lit;
+        visible: Theme.gloss > 0 && root.lit && !Theme.win7;
     }
 
     if root.icon == "search": Path {
@@ -1052,6 +1063,102 @@ component HeaderIcon inherits Rectangle {
 }
 
 // Bouton de la fiche : dégradé violet -> bleu au focus/survol (comme .mainDetailButtons).
+// Thème à `Theme.win7` : cadre de fenêtre de Windows 7 (bord de verre bleuté de 7 px, liserés
+// sombre dehors et clair dedans, reflets en biais) autour d'une zone intérieure plus sombre. À poser
+// en premier enfant d'un panneau ; rien sans `Theme.win7`.
+component WinFrame inherits Rectangle {
+    in property <length> r: 8px;
+    in property <float> k: 1.0;
+    visible: Theme.win7;
+    border-radius: root.r;
+    background: @linear-gradient(180deg, rgba(178, 216, 248, 0.62) 0%, rgba(120, 175, 230, 0.52) 22%, rgba(78, 138, 205, 0.5) 100%);
+    border-width: 1px;
+    border-color: rgba(0, 10, 30, 0.75);
+    // Liseré clair intérieur du cadre.
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: root.r - 1px;
+        border-width: 1px;
+        border-color: rgba(255, 255, 255, 0.55);
+    }
+    // Reflets en biais sur le verre du cadre.
+    Rectangle {
+        border-radius: root.r;
+        clip: true;
+        background: @linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 18%,
+            rgba(255, 255, 255, 0.22) 19%, rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0) 31%,
+            rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.16) 63%, rgba(255, 255, 255, 0.05) 70%, rgba(255, 255, 255, 0) 71%);
+    }
+    // Zone intérieure (le contenu de la fenêtre).
+    Rectangle {
+        x: 7px * root.k;
+        y: 7px * root.k;
+        width: parent.width - 14px * root.k;
+        height: parent.height - 14px * root.k;
+        border-radius: 3px * root.k;
+        background: @linear-gradient(180deg, rgba(10, 30, 58, 0.9) 0%, rgba(6, 20, 42, 0.93) 100%);
+        border-width: 1px;
+        border-color: rgba(0, 0, 0, 0.55);
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            border-radius: parent.border-radius;
+            border-width: 1px;
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+    }
+}
+
+// Bouton fermer de Windows 7 (rouge brillant, croix blanche), accroché au bord haut d'une fenêtre,
+// à droite. Seulement avec `Theme.win7`.
+component WinClose inherits Rectangle {
+    in property <float> k: 1.0;
+    callback clicked();
+    visible: Theme.win7;
+    width: 46px * root.k;
+    height: 21px * root.k;
+    border-bottom-left-radius: 5px * root.k;
+    border-bottom-right-radius: 5px * root.k;
+    property <bool> hot: area.has-hover && !Nav.touch;
+    background: area.pressed ? @linear-gradient(180deg, #d98b78 0%, #c45a43 45%, #9c2410 55%, #b8391d 100%)
+        : root.hot ? @linear-gradient(180deg, #ffc4b4 0%, #f2826a 45%, #e0381b 55%, #f5714f 100%)
+        : @linear-gradient(180deg, #f0b6a6 0%, #dc7a63 45%, #c42f15 55%, #d9583a 100%);
+    border-width: 1px;
+    border-color: #3d0d06;
+    drop-shadow-blur: root.hot ? 10px * root.k : 0px;
+    drop-shadow-color: #ff6a3d;
+    Rectangle {
+        x: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 1px;
+        border-bottom-left-radius: parent.border-bottom-left-radius;
+        border-bottom-right-radius: parent.border-bottom-right-radius;
+        border-width: 1px;
+        border-color: rgba(255, 255, 255, 0.45);
+    }
+    Path {
+        width: 12px * root.k;
+        height: 10px * root.k;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-width: 12;
+        viewbox-height: 10;
+        stroke: white;
+        stroke-width: 2.4px * root.k;
+        commands: "M 1.5 1 L 10.5 9 M 10.5 1 L 1.5 9";
+    }
+    area := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 component ActionButton inherits Rectangle {
     in property <string> text;
     in property <bool> focused;
@@ -1061,24 +1168,40 @@ component ActionButton inherits Rectangle {
     preferred-width: label.preferred-width + 40px;
     // Thèmes brillants (Frutiger Aero) : bulle de verre teintée d'accent, en relief (contour clair,
     // ombre colorée, reflet), plutôt qu'un bouton plat.
-    property <bool> bubble: Theme.gloss > 0;
-    border-radius: root.bubble ? self.height / 2 : 10px;
+    property <bool> bubble: Theme.gloss > 0 && !Theme.win7;
+    // Windows 7 : bouton rectangulaire aux coins à peine arrondis (verre fumé ; choisi : bleu
+    // lumineux, comme le survol d'un bouton de Windows 7).
+    border-radius: Theme.win7 ? 4px : root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond.
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
-    transform-scale: root.lit ? 1.07 : 1.0;
+    transform-scale: root.lit ? (Theme.win7 ? 1.03 : 1.07) : 1.0;
     animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
     // pleine, brillante et lumineuse (sinon on ne voyait pas laquelle était choisie).
-    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+    background: Theme.win7 ? (root.lit
+            ? @linear-gradient(180deg, #8fd8ff 0%, #45a8ee 47%, #1670c8 53%, #2f95e6 100%)
+            : @linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.12) 47%, rgba(0, 10, 30, 0.22) 53%, rgba(0, 10, 30, 0.36) 100%))
+        : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.16) 0%, Theme.accent1.with-alpha(0.22) 100%)
         : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
-    border-width: root.bubble ? 1px : 0px;
-    border-color: root.lit ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.28);
-    drop-shadow-blur: root.bubble && root.lit ? 16px : 0px;
+    border-width: root.bubble || Theme.win7 ? 1px : 0px;
+    border-color: Theme.win7 ? (root.lit ? #0b3d7a : rgba(0, 8, 24, 0.7)) : root.lit ? rgba(255, 255, 255, 0.7) : rgba(255, 255, 255, 0.28);
+    drop-shadow-blur: (root.bubble || Theme.win7) && root.lit ? 16px : 0px;
     drop-shadow-offset-y: root.bubble && root.lit ? 3px : 0px;
-    drop-shadow-color: Theme.accent2.with-alpha(0.55);
+    drop-shadow-color: Theme.win7 ? #6fd0ffcc : Theme.accent2.with-alpha(0.55);
+    // Windows 7 : liseré clair intérieur.
+    if Theme.win7: Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: 3px;
+        border-width: 1px;
+        border-color: rgba(255, 255, 255, root.lit ? 0.7 : 0.32);
+    }
     Gloss {
         r: parent.border-radius;
+        visible: Theme.gloss > 0 && !Theme.win7;
         strength: root.bubble ? (root.lit ? 1.3 : 0.55) : 1.0;
     }
 
@@ -1296,11 +1419,12 @@ component OverviewPanel inherits Rectangle {
         height: min(parent.height - 96px, parent.height * 0.8);
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        border-radius: 16px;
-        background: Theme.panel;
-        border-width: 1px;
+        border-radius: (Theme.win7 ? 8px : 16px);
+        background: Theme.win7 ? transparent : Theme.panel;
+        border-width: Theme.win7 ? 0px : 1px;
         border-color: Theme.fg.with-alpha(0.14);
-        Gloss { r: parent.border-radius; strength: 0.45; }
+        Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+        WinFrame { r: parent.border-radius; k: 1.0; }
 
         // Absorbe les clics à l'intérieur du panneau (sinon ils fermeraient le panneau). La molette
         // fait défiler le texte (pas la page dessous).
@@ -1308,6 +1432,15 @@ component OverviewPanel inherits Rectangle {
             scroll-event(e) => {
                 root.scroll-by(-e.delta-y);
                 return EventResult.accept;
+            }
+        }
+        // Windows 7 : bouton fermer rouge, accroché au bord haut.
+        WinClose {
+            k: 1.0;
+            x: parent.width - self.width - 12px;
+            y: 1px;
+            clicked => {
+                root.close();
             }
         }
 
@@ -1630,7 +1763,7 @@ component HeaderRight inherits Rectangle {
             text: root.clock;
             // Police nommée : l'heure ne dépend pas de la langue, l'effet de changement de langue
             // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
-            font-family: "Montserrat";
+            font-family: Theme.aero-font ? "Selawik" : "Montserrat";
             color: Theme.text;
             font-size: 18px * root.k;
             font-weight: 500;
@@ -1711,7 +1844,10 @@ component Backdrop inherits Rectangle {
         y: 0px;
         height: root.header-h;
         opacity: root.a;
-        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
+        // Windows 7 : verre fumé plus sombre, comme la barre des tâches.
+        background: Theme.win7 ? @linear-gradient(180deg, rgba(150, 190, 230, 0.34) 0%, rgba(60, 100, 150, 0.36) 49%,
+                rgba(4, 16, 36, 0.62) 50%, rgba(2, 10, 26, 0.72) 100%)
+            : @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
             rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
         Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
         Rectangle { y: parent.height - 2px; height: 1px; background: rgba(0, 0, 0, 0.35); }
@@ -1739,7 +1875,8 @@ export component AppWindow inherits Window {
     no-frame: root.frameless;
     background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
     // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
-    default-font-family: root.dust-blank ? "Turtlefin Blank" : "Montserrat";
+    default-font-family: Theme.aero-font ? (root.dust-blank ? "Turtlefin Blank Aero" : "Selawik")
+        : root.dust-blank ? "Turtlefin Blank" : "Montserrat";
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
@@ -3513,11 +3650,12 @@ export component AppWindow inherits Window {
             }
 
             Rectangle {
-                border-radius: 20 * lg.u;
-                background: Theme.glass;
-                border-width: 1px;
+                border-radius: Theme.win7 ? 8 * lg.u : 20 * lg.u;
+                background: Theme.win7 ? transparent : Theme.glass;
+                border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
-                Gloss { r: parent.border-radius; strength: 0.45; }
+                Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                WinFrame { r: parent.border-radius; k: root.k; }
                 drop-shadow-blur: 0px;
             }
 
@@ -5224,15 +5362,25 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 480px * root.k;
                 height: 70px * root.k + root.tp-items.length * 44px * root.k;
-                border-radius: 16px;
-                background: Theme.glass;
-                border-width: 1px;
+                border-radius: (Theme.win7 ? 8px : 16px);
+                background: Theme.win7 ? transparent : Theme.glass;
+                border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
-                Gloss { r: parent.border-radius; strength: 0.45; }
+                Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                WinFrame { r: parent.border-radius; k: root.k; }
                 TouchArea {
                     // La molette ne fait pas défiler la page dessous.
                     scroll-event(e) => {
                         return EventResult.accept;
+                    }
+                }
+                // Windows 7 : bouton fermer rouge, accroché au bord haut.
+                WinClose {
+                    k: root.k;
+                    x: parent.width - self.width - 12px * root.k;
+                    y: 1px;
+                    clicked => {
+                        root.tp-kind = "";
                     }
                 }
                 Text {
@@ -5769,11 +5917,12 @@ export component AppWindow inherits Window {
                 }
 
                 Rectangle {
-                    border-radius: 20px * root.k;
-                    background: Theme.glass;
-                    border-width: 1px;
+                    border-radius: (Theme.win7 ? 8px : 20px) * root.k;
+                    background: Theme.win7 ? transparent : Theme.glass;
+                    border-width: Theme.win7 ? 0px : 1px;
                     border-color: Theme.glass-border;
-                    Gloss { r: parent.border-radius; strength: 0.45; }
+                    Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                    WinFrame { r: parent.border-radius; k: root.k; }
                 }
                 VerticalLayout {
                     padding: 26px * root.k;
@@ -5933,11 +6082,12 @@ export component AppWindow inherits Window {
             choice := Rectangle {
                 width: 600px * root.k;
                 height: 190px * root.k;
-                border-radius: 16px;
-                background: Theme.glass;
-                border-width: 1px;
+                border-radius: (Theme.win7 ? 8px : 16px);
+                background: Theme.win7 ? transparent : Theme.glass;
+                border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
-                Gloss { r: parent.border-radius; strength: 0.45; }
+                Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                WinFrame { r: parent.border-radius; k: root.k; }
 
                 property <int> pick: 0;
 
@@ -6863,15 +7013,25 @@ export component AppWindow inherits Window {
                 y: (parent.height - self.height) / 2;
                 width: 380px * root.k;
                 height: 70px * root.k + parent.rows * parent.row-h + 12px * root.k;
-                border-radius: 18px * root.k;
-                background: Theme.glass;
-                border-width: 1px;
+                border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+                background: Theme.win7 ? transparent : Theme.glass;
+                border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
-                Gloss { r: parent.border-radius; strength: 0.45; }
+                Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                WinFrame { r: parent.border-radius; k: root.k; }
                 TouchArea {
                     // La molette ne fait pas défiler la page dessous.
                     scroll-event(e) => {
                         return EventResult.accept;
+                    }
+                }
+                // Windows 7 : bouton fermer rouge, accroché au bord haut.
+                WinClose {
+                    k: root.k;
+                    x: parent.width - self.width - 12px * root.k;
+                    y: 1px;
+                    clicked => {
+                        root.ch-key = "";
                     }
                 }
                 // Titre (barre blanche au choix d'une langue, voir ch-title-cover). État gardé hors de
@@ -6895,14 +7055,14 @@ export component AppWindow inherits Window {
                     property <length> pad: 4px * root.k;
                     property <length> th: 22px * root.k;
                     // Mesures seulement (invisibles).
-                    old-t := Text { visible: false; text: root.ch-title-old; font-family: "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
-                    new-t := Text { visible: false; text: root.ch-title; font-family: "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
+                    old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.aero-font ? "Selawik" : "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
+                    new-t := Text { visible: false; text: root.ch-title; font-family: Theme.aero-font ? "Selawik" : "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
                     Text {
                         x: ch-head.bx;
                         height: parent.height;
                         // L'ancien titre tant qu'il n'est pas recouvert.
                         text: ch-head.live && ch-head.p1 < 1 ? root.ch-title-old : root.ch-title;
-                        font-family: "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
+                        font-family: Theme.aero-font ? "Selawik" : "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
                         color: Theme.fg;
                         font-size: 18px * root.k;
                         font-weight: 700;
@@ -6945,7 +7105,7 @@ export component AppWindow inherits Window {
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
-                            font-family: "Montserrat";
+                            font-family: Theme.aero-font ? "Selawik" : "Montserrat";
                             color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
@@ -7391,11 +7551,21 @@ export component AppWindow inherits Window {
                 }
 
                 Rectangle {
-                    border-radius: 20px * root.k;
-                    background: Theme.glass;
-                    border-width: 1px;
+                    border-radius: (Theme.win7 ? 8px : 20px) * root.k;
+                    background: Theme.win7 ? transparent : Theme.glass;
+                    border-width: Theme.win7 ? 0px : 1px;
                     border-color: Theme.glass-border;
-                    Gloss { r: parent.border-radius; strength: 0.45; }
+                    Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                    WinFrame { r: parent.border-radius; k: root.k; }
+                }
+                // Windows 7 : bouton fermer rouge, accroché au bord haut.
+                WinClose {
+                    k: root.k;
+                    x: parent.width - self.width - 12px * root.k;
+                    y: 1px;
+                    clicked => {
+                        root.addr-close();
+                    }
                 }
                 // Étapes du changement de mot de passe : trois points, l'étape en cours s'allonge.
                 if adlg.pw: HorizontalLayout {
@@ -7675,17 +7845,27 @@ export component AppWindow inherits Window {
         x: parent.width - self.width - 16px * root.k;
         y: root.header-row - 6px * root.k - (1 - root.party-p) * 18px * root.k;
         opacity: root.party-p;
-        border-radius: 18px * root.k;
-        background: Theme.glass;
-        border-width: 1px;
+        border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+        background: Theme.win7 ? transparent : Theme.glass;
+        border-width: Theme.win7 ? 0px : 1px;
         border-color: Theme.glass-border;
         drop-shadow-blur: 24px * root.k;
         drop-shadow-color: #00000080;
-        Gloss { r: parent.border-radius; strength: 0.45; }
+        Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+        WinFrame { r: parent.border-radius; k: root.k; }
         // Le panneau garde les touchers (ils ne ferment pas).
         TouchArea {
             scroll-event(e) => {
                 return EventResult.accept;
+            }
+        }
+        // Windows 7 : bouton fermer rouge, accroché au bord haut.
+        WinClose {
+            k: root.k;
+            x: parent.width - self.width - 12px * root.k;
+            y: 1px;
+            clicked => {
+                root.close-party();
             }
         }
 
@@ -8033,7 +8213,7 @@ export component AppWindow inherits Window {
                 // Surbrillance de l'entrée choisie : elle glisse d'une entrée à l'autre. À l'ouverture,
                 // elle est déjà sur la page en cours (pas de glissement depuis l'entrée d'avant).
                 Rectangle {
-                    x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - root.menu-sel * 0.045, 0, 1)) * 90px * root.k;
+                    x: 14px * root.k - (1 - clamp(root.menu-p * max(1.7, 1 + root.menu-entries.length * 0.045) - root.menu-sel * 0.045, 0, 1)) * 90px * root.k;
                     y: root.menu-sel * drawer.row-h - drawer.scroll;
                     animate y { duration: Motion.menu && root.menu-open && root.menu-p > 0.05 ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                     opacity: root.menu-lit ? 1 : 0;
@@ -8047,7 +8227,9 @@ export component AppWindow inherits Window {
 
                 for e[i] in root.menu-entries: Rectangle {
                     // Entrées en cascade : chacune arrive un peu après la précédente.
-                    x: 14px * root.k - (1 - clamp(root.menu-p * 1.7 - i * 0.045, 0, 1)) * 90px * root.k;
+                    // Cascade : la dernière entrée arrive aussi à sa place quand le menu est ouvert (avant, au-delà
+                    // de ~15 entrées, les dernières restaient décalées vers la gauche).
+                    x: 14px * root.k - (1 - clamp(root.menu-p * max(1.7, 1 + root.menu-entries.length * 0.045) - i * 0.045, 0, 1)) * 90px * root.k;
                     y: i * drawer.row-h - drawer.scroll;
                     width: parent.width - 28px * root.k;
                     height: drawer.row-h - 4px * root.k;
