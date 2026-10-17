@@ -5972,6 +5972,7 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
     });
 }
 
+#[cfg(windows)]
 thread_local! {
     /// Fenêtre en train de grandir / rétrécir (plein écran) : minuterie des étapes.
     static WIN_ANIM: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
@@ -5979,6 +5980,7 @@ thread_local! {
 
 /// Fenêtre menée de sa place actuelle à `to` (x, y, largeur, hauteur, pixels physiques) en 280 ms,
 /// en ralentissant ; `done` à l'arrivée.
+#[cfg(windows)]
 fn animate_window(u: &AppWindow, to: (i32, i32, i32, i32), done: Box<dyn FnOnce(&AppWindow)>) {
     let (p, sz) = (u.window().position(), u.window().size());
     let from = (p.x, p.y, sz.width as i32, sz.height as i32);

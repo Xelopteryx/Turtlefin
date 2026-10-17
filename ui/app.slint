@@ -1213,7 +1213,7 @@ component CaptionButton inherits Rectangle {
 // coins du haut, rayures en biais. Dessiné à la taille de la fenêtre ; les bandes du cadre en montrent
 // chacune leur part (voir GlassStrip).
 component GlassLayers inherits Rectangle {
-    background: #4580c48c;
+    background: #4580c4b0;
     Rectangle {
         background: @linear-gradient(90deg, #ffffff66 0%, #0000001a 50%, #ffffff33 100%);
     }
@@ -3541,7 +3541,10 @@ export component AppWindow inherits Window {
     property <length> chrome-side: root.chrome && !root.win-maxed ? 8px : 0px;
     property <length> header-row: 72px * root.k + root.chrome-top;
     // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
-    property <length> header-h: root.narrow && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
+    // En-tête de l'accueil sur deux lignes (onglets dessous) : portrait, ou onglets qui ne tiennent pas
+    // entre le nom et les icônes de droite (petit écran en grands éléments, par exemple).
+    property <bool> two-line: root.narrow || root.width - root.right-w - 16px * root.k - 250px * root.k < root.tabs-w;
+    property <length> header-h: root.two-line && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
     property <int> tab-count: root.has-requests ? 3 : 2;
 
     // Passage d'une rangée à l'autre : carte la plus proche à l'écran (voir Rows).
@@ -4554,7 +4557,7 @@ export component AppWindow inherits Window {
                 x: 0px;
                 y: root.chrome-top;
                 height: 72px * root.k;
-                width: root.narrow ? parent.width - root.right-w : parent.width / 3;
+                width: root.two-line ? parent.width - root.right-w : parent.width / 3;
                 k: root.k;
                 can-back: false;
                 show-home: false;
@@ -4572,9 +4575,9 @@ export component AppWindow inherits Window {
                 property <length> lo: 250px * root.k;
                 property <length> hi: parent.width - root.right-w - 16px * root.k;
                 width: self.preferred-width;
-                y: root.narrow ? root.header-row - 10px * root.k : root.chrome-top;
-                height: root.narrow ? 54px * root.k : 72px * root.k;
-                x: root.narrow ? (parent.width - self.width) / 2 : max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
+                y: root.two-line ? root.header-row - 10px * root.k : root.chrome-top;
+                height: root.two-line ? 54px * root.k : 72px * root.k;
+                x: root.two-line ? (parent.width - self.width) / 2 : max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
                 spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
                 // Position réelle des onglets, pour le cadre de la visite guidée.
                 init => {

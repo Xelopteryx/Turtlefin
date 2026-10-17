@@ -17,6 +17,8 @@ param(
     [string]$WorkDir = "$env:LOCALAPPDATA\turtlefin-android"
 )
 $ErrorActionPreference = "Stop"
+# "-Abi a,b" passe une seule chaine avec powershell -File : on la decoupe.
+$Abi = @($Abi | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $root = Split-Path $PSScriptRoot -Parent
 $version = (Select-String -Path "$PSScriptRoot\Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 
