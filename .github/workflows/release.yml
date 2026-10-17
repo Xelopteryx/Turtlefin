@@ -1,5 +1,6 @@
 # Publication d'une version : compile Turtlefin pour Windows (x64, x86) et Linux (x86_64,
-# aarch64), fabrique les paquets et les attache à une publication GitHub.
+# aarch64, et en 32 bits armhf et i386), fabrique les paquets et les attache à une publication
+# GitHub. Les APK Android (arm64, armv7) sont signés hors de GitHub et ajoutés ensuite.
 #
 # Déclenchement : pousser une étiquette de version, par exemple
 #   git tag -a v0.9.2 -m "Nouveautés, une par ligne" && git push origin v0.9.2
@@ -11,6 +12,7 @@
 #   Turtlefin-<v>-windows-x86-setup.exe   Turtlefin-<v>-windows-x86-portable.zip
 #   Turtlefin-<v>-linux-x86_64.AppImage   turtlefin_<v>_amd64.deb
 #   Turtlefin-<v>-linux-aarch64.AppImage  turtlefin_<v>_arm64.deb
+#   turtlefin_<v>_armhf.deb (Raspberry Pi OS 32 bits)   turtlefin_<v>_i386.deb (PC 32 bits)
 name: Publication
 
 on:
@@ -104,8 +106,66 @@ jobs:
             target/*.AppImage
             target/*.deb
 
+  # Linux 32 bits : compilation croisée dans Debian 12 (bibliothèques armhf / i386 du système, comme
+  # sur Raspberry Pi OS 32 bits et Debian i386). Paquet .deb seulement.
+  linux32:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - deb: armhf
+            target: armv7-unknown-linux-gnueabihf
+            multiarch: arm-linux-gnueabihf
+            cc: arm-linux-gnueabihf
+          - deb: i386
+            target: i686-unknown-linux-gnu
+            multiarch: i386-linux-gnu
+            cc: i686-linux-gnu
+    runs-on: ubuntu-latest
+    container: debian:12
+    env:
+      TURTLEFIN_DIST: release
+    steps:
+      - name: Outils et bibliothèques ${{ matrix.deb }}
+        run: |
+          dpkg --add-architecture ${{ matrix.deb }}
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl build-essential pkg-config file dpkg-dev \
+            crossbuild-essential-${{ matrix.deb }} \
+            libfontconfig1-dev:${{ matrix.deb }} libxkbcommon-dev:${{ matrix.deb }} libxkbcommon-x11-dev:${{ matrix.deb }} \
+            libx11-dev:${{ matrix.deb }} libxcb1-dev:${{ matrix.deb }} libgl1-mesa-dev:${{ matrix.deb }} \
+            libegl1-mesa-dev:${{ matrix.deb }} libwayland-dev:${{ matrix.deb }} libmpv-dev:${{ matrix.deb }}
+          git config --global --add safe.directory '*'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.deb }}
+      - name: Compilation croisée
+        run: |
+          T=$(echo "${{ matrix.target }}" | tr 'a-z-' 'A-Z_')
+          t=$(echo "${{ matrix.target }}" | tr '-' '_')
+          export CARGO_TARGET_${T}_LINKER=${{ matrix.cc }}-gcc
+          export CC_${t}=${{ matrix.cc }}-gcc CXX_${t}=${{ matrix.cc }}-g++ AR_${t}=${{ matrix.cc }}-ar
+          export PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_SYSROOT_DIR=/
+          export PKG_CONFIG_LIBDIR=/usr/lib/${{ matrix.multiarch }}/pkgconfig:/usr/share/pkgconfig
+          cargo build --release --target ${{ matrix.target }}
+          file target/${{ matrix.target }}/release/turtlefin
+      - name: Paquet .deb
+        run: |
+          cargo install cargo-deb --locked
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          cargo deb --no-build --no-strip --target ${{ matrix.target }} --output "target/turtlefin_${VERSION}_${{ matrix.deb }}.deb"
+          dpkg-deb --info "target/turtlefin_${VERSION}_${{ matrix.deb }}.deb" | grep -E "Architecture|Depends"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-${{ matrix.deb }}
+          path: target/*.deb
+
   publish:
-    needs: [windows, linux]
+    needs: [windows, linux, linux32]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

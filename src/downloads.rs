@@ -461,7 +461,7 @@ fn relocate(old: &Entry, library: &str, item: &crate::api::Item) -> Option<Entry
     std::fs::create_dir_all(&dir).ok()?;
     if let Some(other) = read_entry(&dir.join(format!("{base}.json"))).filter(|o| o.id != old.id) {
         let _ = other;
-        base = format!("{base} [{}]", &old.id[..old.id.len().min(8)]);
+        base = format!("{base} [{}]", old.id.chars().take(8).collect::<String>());
     }
     let src = old.dir();
     let ext = Path::new(&old.media).extension().map(|x| x.to_string_lossy().into_owned()).unwrap_or_else(|| "mkv".into());
@@ -654,7 +654,7 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     tokio::fs::create_dir_all(&dir).await?;
     // Deux éléments du même nom (même série en double sur le serveur…) : le second est distingué.
     if read_entry(&dir.join(format!("{base}.json"))).is_some_and(|o| o.id != item.id) {
-        base = format!("{base} [{}]", &item.id[..item.id.len().min(8)]);
+        base = format!("{base} [{}]", item.id.chars().take(8).collect::<String>());
     }
 
     // Sous-titres externes (jeton dans l'en-tête, comme pour le média).

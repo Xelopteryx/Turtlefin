@@ -9,6 +9,9 @@
 param(
     [string[]]$Abi = @("arm64-v8a", "x86_64"),
     [string]$Name = "",
+    # -Release : cle de publication (%USERPROFILE%\.android\turtlefin-release.jks, mot de passe chiffre
+    # par DPAPI dans turtlefin-release.pass.dpapi, lisible du seul compte Windows qui l'a cree).
+    [switch]$Release,
     [string]$Keystore = "",
     [string]$KeystorePass = "android",
     [string]$WorkDir = "$env:LOCALAPPDATA\turtlefin-android"
@@ -86,10 +89,19 @@ try {
 # 5. Alignement puis signature.
 & "$tools\zipalign.exe" -p -f 4 "$build\base.apk" "$build\aligned.apk"
 if ($LASTEXITCODE -ne 0) { throw "zipalign" }
+if ($Release) {
+    Add-Type -AssemblyName System.Security
+    $Keystore = "$env:USERPROFILE\.android\turtlefin-release.jks"
+    $enc = [IO.File]::ReadAllBytes("$env:USERPROFILE\.android\turtlefin-release.pass.dpapi")
+    $KeystorePass = [Text.Encoding]::UTF8.GetString([System.Security.Cryptography.ProtectedData]::Unprotect($enc, $null, 'CurrentUser'))
+}
 if (-not $Keystore) { $Keystore = "$env:USERPROFILE\.android\debug.keystore" }
 New-Item -ItemType Directory -Force "$root\target\dist" | Out-Null
 $suffix = if ($Name) { "-$Name" } else { "" }
 $out = "$root\target\dist\Turtlefin-$version-android$suffix.apk"
-& "$tools\apksigner.bat" sign --ks $Keystore --ks-pass "pass:$KeystorePass" --out $out "$build\aligned.apk"
+# Mot de passe par une variable d'environnement (pas en argument, visible dans la liste des processus).
+$env:TF_KS_PASS = $KeystorePass
+& "$tools\apksigner.bat" sign --ks $Keystore --ks-pass env:TF_KS_PASS --out $out "$build\aligned.apk"
+$env:TF_KS_PASS = ""
 if ($LASTEXITCODE -ne 0) { throw "apksigner" }
 Write-Host "APK : $out"

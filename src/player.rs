@@ -606,6 +606,9 @@ pub async fn play(
                     "sp-unpause" => {
                         let (pos, delay) = arg.split_once(':').unwrap_or((arg, "0"));
                         let (pos, delay) = (pos.parse::<f64>().unwrap_or(cur.pos), delay.parse::<f64>().unwrap_or(0.0));
+                        // Valeurs venues du serveur : bornées (« inf » ou « NaN » feraient planter l'attente).
+                        let pos = if pos.is_finite() { pos.max(0.0) } else { cur.pos };
+                        let delay = if delay.is_finite() { delay.clamp(-30.0, 10.0) } else { 0.0 };
                         // En retard : on rattrape ; en avance : on attend l'instant commun.
                         let at = pos + (-delay).max(0.0);
                         if (at - cur.pos).abs() > 0.5 {
@@ -1226,8 +1229,12 @@ fn push_time(ui: &slint::Weak<AppWindow>, cur: &Current) {
     let (pos, dur) = (cur.pos, cur.dur);
     let progress = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) as f32 } else { 0.0 };
     let end = if dur > 0.0 {
-        let left = chrono::Duration::milliseconds(((dur - pos).max(0.0) * 1000.0) as i64);
-        trf("Fin à {}", &[&(chrono::Local::now() + left).format("%H:%M")])
+        // Durée absurde (fichier abîmé ou piégé) : pas d'heure de fin plutôt qu'un débordement.
+        let left = chrono::Duration::milliseconds(((dur - pos).clamp(0.0, 1e9) * 1000.0) as i64);
+        match chrono::Local::now().checked_add_signed(left) {
+            Some(t) => trf("Fin à {}", &[&t.format("%H:%M")]),
+            None => String::new(),
+        }
     } else {
         String::new()
     };
