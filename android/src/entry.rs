@@ -116,6 +116,31 @@ fn with_audio_manager<T>(f: impl FnOnce(&mut jni::JNIEnv, &jni::objects::JObject
     }
 }
 
+/// Android TV (ou boîtier sans écran tactile) : interface TV, pilotée à la télécommande. Un téléphone
+/// ou une tablette restent en interface tactile (le réglage « Interface TV » n'y est pas proposé).
+pub fn is_tv() -> bool {
+    let ctx = ndk_context::android_context();
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
+    if act.is_null() {
+        return false;
+    }
+    // SAFETY : comme lock_landscape.
+    let result = (|| -> jni::errors::Result<bool> {
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+        let mut env = vm.attach_current_thread()?;
+        let activity = unsafe { jni::objects::JObject::from_raw(act.cast()) };
+        env.with_local_frame(8, |env| {
+            let pm = env.call_method(&activity, "getPackageManager", "()Landroid/content/pm/PackageManager;", &[])?.l()?;
+            let mut has = |name: &str| -> jni::errors::Result<bool> {
+                let s = env.new_string(name)?;
+                env.call_method(&pm, "hasSystemFeature", "(Ljava/lang/String;)Z", &[(&s).into()])?.z()
+            };
+            Ok(has("android.software.leanback")? || !has("android.hardware.touchscreen")?)
+        })
+    })();
+    result.unwrap_or(false)
+}
+
 const STREAM_MUSIC: i32 = 3;
 
 /// Volume média actuel, de 0 à 100.

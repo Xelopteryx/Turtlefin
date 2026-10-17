@@ -58,6 +58,17 @@ struct Cli {
     no_intro: bool,
 }
 
+/// Android TV (ou boîtier sans écran tactile) : interface TV imposée. Faux ailleurs.
+fn android_tv() -> bool {
+    #[cfg(target_os = "android")]
+    {
+        static TV: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *TV.get_or_init(android_entry::is_tv)
+    }
+    #[cfg(not(target_os = "android"))]
+    false
+}
+
 /// Lancé en borne (`--kiosk`, Xelauncher) : voir external_ok.
 static KIOSK: AtomicBool = AtomicBool::new(false);
 
@@ -2506,6 +2517,7 @@ fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    update_chrome(u);
     // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
     thread_local! { static SHORTCUTS: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
     let t = theme::find(&p.theme, &p.themes);
@@ -2622,6 +2634,19 @@ fn cache_size() -> u64 {
 /// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Animations · 6 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let mut rows = settings_rows_all(app, cat);
+    // Android : ni plein écran (une appli y est toujours en plein écran), ni dossiers de langues,
+    // thèmes ou presets (inaccessibles aux autres applis du téléphone), ni « Fermer » (le bouton
+    // Retour d'Android ferme). L'interface TV y devient le « Mode tablette » (grands éléments) ;
+    // sur Android TV elle est imposée.
+    if cfg!(target_os = "android") {
+        let tv_box = android_tv();
+        rows.retain(|r| !matches!(r.key.as_str(), "fullscreen" | "addlang" | "themeimport" | "themeexport" | "animexport" | "animimport" | "quit")
+            && !(tv_box && r.key == "tvmode"));
+        for r in rows.iter_mut().filter(|r| r.key == "tvmode") {
+            r.label = tr("Mode tablette").into();
+            r.hint = tr("Grands éléments, pour une tablette ou un grand écran.").into();
+        }
+    }
     // Créateur de thèmes (navigateur) : au bureau seulement (voir external_ok).
     if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
         rows.retain(|r| r.key != "themecreate");
@@ -3498,7 +3523,8 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             app.tv_flag.store(on, Ordering::Relaxed);
             if let Some(u) = app.ui().upgrade() {
                 u.set_tv_mode(on);
-                u.global::<Nav>().set_kb(on);
+                // Mode tablette (Android) : au doigt, pas de sélection de télécommande affichée.
+                u.global::<Nav>().set_kb(on && (!cfg!(target_os = "android") || android_tv()));
             }
             // Interface TV retirée : la fenêtre reste comme elle est (plein écran compris), et ce choix
             // devient le réglage « Plein écran » (avant, elle repartait sur l'ancien réglage).
@@ -3509,6 +3535,9 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 config::save_ui_prefs(&p);
             }
             set_full(app, full);
+            if let Some(u) = app.ui().upgrade() {
+                update_chrome(&u);
+            }
             refresh_settings(app);
         }
         "fullscreen" => toggle_full(app),
@@ -4194,6 +4223,10 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
     }
     e.push((tr("Application").into(), String::new(), true));
     for (label, action) in [(tr("Paramètres"), "settings"), (tr("Fermer Turtlefin"), "quit")] {
+        // Android : le bouton Retour ferme l'appli.
+        if cfg!(target_os = "android") && action == "quit" {
+            continue;
+        }
         e.push((label.into(), action.into(), false));
     }
     let _ = app.ui().upgrade_in_event_loop(move |u| {
@@ -5046,9 +5079,87 @@ fn set_full(app: &Arc<App>, on: bool) {
     if app.full_flag.swap(on, Ordering::Relaxed) == on {
         return;
     }
+    FULL_NOW.store(on, Ordering::Relaxed);
     if let Some(u) = app.ui().upgrade() {
+        update_chrome(&u);
         set_tv_window(&u, on);
+        // Une fois la fenêtre à sa nouvelle taille : la page arrive de nouveau (zoom, voile).
+        let weak = u.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(160), move || {
+            if let Some(u) = weak.upgrade() {
+                u.invoke_screen_changed();
+            }
+        });
     }
+}
+
+/// Plein écran en ce moment (pour le cadre de fenêtre, voir update_chrome).
+static FULL_NOW: AtomicBool = AtomicBool::new(false);
+
+/// Frutiger Aero (thème à `win7`) en fenêtre, au bureau : fenêtre sans bordure du système, cadre et
+/// boutons de Windows 7 dessinés par Turtlefin (WinCaption, app.slint). Sinon, la bordure du système.
+fn update_chrome(u: &AppWindow) {
+    let on = !cfg!(target_os = "android") && u.global::<Theme>().get_win7() && !FULL_NOW.load(Ordering::Relaxed) && !u.get_tv_mode();
+    if u.get_chrome() != on {
+        u.set_chrome(on);
+    }
+}
+
+/// Boutons et bords du cadre de Windows 7 : déplacer, redimensionner, réduire, agrandir, fermer.
+#[cfg(not(target_os = "android"))]
+fn install_chrome(u: &AppWindow) {
+    use slint::winit_030::{winit::window::ResizeDirection, WinitWindowAccessor};
+    u.on_win_drag({
+        let w = u.as_weak();
+        move || {
+            if let Some(u) = w.upgrade() {
+                u.window().with_winit_window(|w| {
+                    let _ = w.drag_window();
+                });
+            }
+        }
+    });
+    u.on_win_resize({
+        let w = u.as_weak();
+        move |d| {
+            let dir = match d.as_str() {
+                "n" => ResizeDirection::North,
+                "s" => ResizeDirection::South,
+                "e" => ResizeDirection::East,
+                "w" => ResizeDirection::West,
+                "ne" => ResizeDirection::NorthEast,
+                "nw" => ResizeDirection::NorthWest,
+                "se" => ResizeDirection::SouthEast,
+                _ => ResizeDirection::SouthWest,
+            };
+            if let Some(u) = w.upgrade() {
+                u.window().with_winit_window(|w| {
+                    let _ = w.drag_resize_window(dir);
+                });
+            }
+        }
+    });
+    u.on_win_min({
+        let w = u.as_weak();
+        move || {
+            if let Some(u) = w.upgrade() {
+                u.window().with_winit_window(|w| w.set_minimized(true));
+            }
+        }
+    });
+    u.on_win_max({
+        let w = u.as_weak();
+        move || {
+            if let Some(u) = w.upgrade() {
+                let max = !u.get_win_maxed();
+                u.window().set_maximized(max);
+                u.set_win_maxed(max);
+            }
+        }
+    });
+    u.on_win_close(|| {
+        let _ = slint::quit_event_loop();
+    });
 }
 
 /// F11 ou réglage « Plein écran » : bascule. Hors interface TV, le choix est gardé pour les
@@ -5256,6 +5367,17 @@ impl Swipe {
                 if !finger && (u.get_playing() || u.get_screen() == "login") {
                     self.id = None;
                     return false;
+                }
+                // Lecture : doigt posé sur la barre de temps ou de volume : il la règle (pas de geste).
+                if u.get_playing() {
+                    let (x, y) = ((p.0 / s) as f32, (p.1 / s) as f32 - u.get_chrome_top());
+                    let inside = |rx: f32, ry: f32, rw: f32, rh: f32| rw > 0.0 && x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+                    if inside(u.get_p_hit_sx(), u.get_p_hit_sy(), u.get_p_hit_sw(), u.get_p_hit_sh())
+                        || inside(u.get_p_hit_vx(), u.get_p_hit_vy(), u.get_p_hit_vw(), u.get_p_hit_vh())
+                    {
+                        self.id = None;
+                        return false;
+                    }
                 }
                 let (mouse, last_finger) = (self.mouse, self.last_finger);
                 *self = Swipe { id: Some(id), start: p, last: p, t_last: Some(std::time::Instant::now()), edge: finger && p.0 < 24.0 * s, mouse, last_finger, ..Default::default() };
@@ -5531,9 +5653,13 @@ pub(crate) fn main() -> anyhow::Result<()> {
     if !prefs.language.is_empty() {
         i18n::set_language(&prefs.language);
     }
+    // Android : interface TV imposée sur Android TV ; ailleurs, le « Mode tablette » (même réglage).
+    #[cfg(target_os = "android")]
+    let tv = android_tv() || prefs.tv;
+    #[cfg(not(target_os = "android"))]
     let tv = cli.tv.unwrap_or(prefs.tv);
     ui.set_tv_mode(tv);
-    ui.global::<Nav>().set_kb(tv);
+    ui.global::<Nav>().set_kb(tv && (!cfg!(target_os = "android") || android_tv()));
     let full = tv || prefs.fullscreen || cli.fullscreen;
     if full {
         set_tv_window(&ui, true);
@@ -5551,7 +5677,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
         gen: AtomicU64::new(0),
         device_id: saved.device_id.clone(),
         tv_flag: AtomicBool::new(tv),
-        full_flag: AtomicBool::new(full),
+        full_flag: AtomicBool::new({
+            FULL_NOW.store(full, Ordering::Relaxed);
+            full
+        }),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
         library: Mutex::new(None),
@@ -6207,6 +6336,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
         slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
             #[cfg(not(target_os = "android"))]
             install_f11(&app);
+            #[cfg(not(target_os = "android"))]
+            if let Some(u) = app.ui().upgrade() {
+                install_chrome(&u);
+                update_chrome(&u);
+            }
             #[cfg(target_os = "android")]
             install_touch(&app);
             // Icône du thème : la fenêtre existe maintenant.

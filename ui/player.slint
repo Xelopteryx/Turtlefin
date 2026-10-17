@@ -525,6 +525,49 @@ export component PlayerView inherits Rectangle {
     property <bool> dragging;
     property <float> drag-frac;
     property <length> m: 24px * root.k;
+    // Barres réglables au doigt (temps, volume) : un doigt qui s'y pose les règle au lieu de faire un
+    // geste sur la vidéo (voir Swipe, main.rs). Mêmes calculs que le panneau et la barre de volume
+    // (rectangles en pixels logiques, largeur nulle : barre absente).
+    property <length> c-sx: root.osd ? 2 * root.m : 0px;
+    in-out property <length> hit-sx: root.c-sx;
+    changed c-sx => {
+        root.hit-sx = root.c-sx;
+    }
+    property <length> c-sy: root.height - 160px * root.k - root.m - root.ep-p * root.ep-h + 40px * root.k - 10px * root.k;
+    in-out property <length> hit-sy: root.c-sy;
+    changed c-sy => {
+        root.hit-sy = root.c-sy;
+    }
+    property <length> c-sw: root.osd ? root.width - 4 * root.m : 0px;
+    in-out property <length> hit-sw: root.c-sw;
+    changed c-sw => {
+        root.hit-sw = root.c-sw;
+    }
+    property <length> c-sh: 48px * root.k;
+    in-out property <length> hit-sh: root.c-sh;
+    changed c-sh => {
+        root.hit-sh = root.c-sh;
+    }
+    property <length> c-vw: root.osd && root.vol-p > 0.5 ? min(root.width - 2 * root.m, (Nav.touch ? 520px : 420px) * root.k) : 0px;
+    in-out property <length> hit-vw: root.c-vw;
+    changed c-vw => {
+        root.hit-vw = root.c-vw;
+    }
+    property <length> c-vh: (Nav.touch ? 96px : 76px) * root.k;
+    in-out property <length> hit-vh: root.c-vh;
+    changed c-vh => {
+        root.hit-vh = root.c-vh;
+    }
+    property <length> c-vx: root.width - root.c-vw - root.m;
+    in-out property <length> hit-vx: root.c-vx;
+    changed c-vx => {
+        root.hit-vx = root.c-vx;
+    }
+    property <length> c-vy: root.height - root.m - 160px * root.k - root.c-vh - 16px * root.k;
+    in-out property <length> hit-vy: root.c-vy;
+    changed c-vy => {
+        root.hit-vy = root.c-vy;
+    }
     property <int> ep-sel: 0;
     property <int> up-sel: 0;    // carte suivante : 0 lire · 1 continuer ; suggestions : 0 vidéo / accueil · 1..3
     property <bool> mini: root.up-mode == "pick";

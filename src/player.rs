@@ -882,7 +882,8 @@ pub async fn play(
     // Arrêt du lecteur : le thread d'événements se termine, puis l'interface libère le rendu
     // au prochain affichage, ce qui détruit le lecteur (et rend sa mémoire).
     let _ = player.command(&["quit"]);
-    let _ = video::attach(&ui, None);
+    // Rendu détaché tout de suite ; l'avis de fin (Receiver) ne sert pas ici.
+    drop(video::attach(&ui, None));
     result
 }
 

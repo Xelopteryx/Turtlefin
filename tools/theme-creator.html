@@ -160,7 +160,7 @@ const BASE = {
   panel: "#0b1520f5", card: "#00000033", card_focus: "#00000080", placeholder1: "#2b2142", placeholder2: "#10283a",
   scrim: "#000000", danger: "#ff6b6b", danger_text: "#ff8a8a", ok: "#4ade80", warn: "#f59e0b",
   card_border: "#00000000", glow: "#00a4db40", sheen: 0, player_bar: "#181820d9", player_ink: "#ffffff", player_orb: false,
-  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "", logo: "",
+  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "", logo: "", font: "", win7: false,
 };
 const PRESETS = {
   turtlefin: { ...BASE },
@@ -176,7 +176,7 @@ const PRESETS = {
     glass_border: "#ffffff73", panel: "#0d2c58eb", card: "#ffffff1a", card_focus: "#ffffff38", card_border: "#ffffff4d",
     glow: "#7fd0ffb3", sheen: 0.6, player_bar: "#08121fd9", player_ink: "#ffffff", player_orb: true, placeholder1: "#1f5aa8",
     placeholder2: "#0d2f66", scrim: "#000814", danger: "#ff6b6b", danger_text: "#ffb0b0", ok: "#7ee08a", warn: "#ffc04d",
-    veil: 1.5, radius: 8, gloss: 1.0, scenery: "harmony", header_glass: true, edge: "#ffffff73", streaks: true, boot: "aero", logo: "orb" },
+    veil: 1.5, radius: 8, gloss: 1.0, scenery: "harmony", header_glass: true, edge: "#ffffff73", streaks: true, boot: "aero", logo: "orb", font: "selawik", win7: true },
   vert: { ...BASE, name: "Turtlefin vert", bg: "#02140f", bg_mid: "#031b14", bg_end: "#04211a", accent1: "#1f9d5c",
     accent2: "#52c96b", glass: "#0d1f19e0", glass_border: "#ffffff21", panel: "#072019f5", placeholder1: "#173a2a",
     placeholder2: "#0f2c33", ok: "#86efac" },
@@ -201,7 +201,8 @@ const TXT = {
     edge: "Liseré des éléments brillants", streaks: "Reflets en biais sur le verre", header_glass: "Barre de verre en haut",
     scenery: "Décor du fond", sc_none: "Aucun", sc_sky: "Ciel, herbe et bulles", sc_harmony: "Harmony (Windows 7)",
     boot: "Animation de démarrage", bt_logo: "Logo qui se relie", bt_aero: "Billes de verre (Aero)",
-    logo: "Logo (icône, démarrage)", lg_shell: "Carapace en dégradé", lg_orb: "Orbe de verre (Windows 7)", },
+    logo: "Logo (icône, démarrage)", lg_shell: "Carapace en dégradé", lg_orb: "Orbe de verre (Windows 7)",
+    font: "Police", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", win7: "Fenêtres façon Windows 7", },
   en: { sub: "— create your Turtlefin theme", import: "Import…", export: "Save the .tftheme",
     howto: "To use it: save the file, put it in the “Turtlefin Themes” folder (Documents), then in Turtlefin: Settings → Display → Import a theme.",
     start: "Start: ", g_general: "General", g_bg: "Background", g_ink: "Text and icons", g_acc: "Accents", g_surf: "Surfaces",
@@ -219,7 +220,8 @@ const TXT = {
     edge: "Rim of glossy elements", streaks: "Slanted glass reflections", header_glass: "Glass bar at the top",
     scenery: "Background scenery", sc_none: "None", sc_sky: "Sky, grass and bubbles", sc_harmony: "Harmony (Windows 7)",
     boot: "Startup animation", bt_logo: "Joining logo", bt_aero: "Glass orbs (Aero)",
-    logo: "Logo (icon, startup)", lg_shell: "Gradient shell", lg_orb: "Glass orb (Windows 7)", },
+    logo: "Logo (icon, startup)", lg_shell: "Gradient shell", lg_orb: "Glass orb (Windows 7)",
+    font: "Font", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", win7: "Windows 7 style windows", },
 };
 let L = (navigator.language || "fr").startsWith("fr") ? "fr" : "en";
 const t = k => TXT[L][k] || k;
@@ -276,7 +278,9 @@ function build() {
     <div class="row"><label for="f-player_orb">${t("player_orb")}</label><input type="checkbox" id="f-player_orb"></div>
     <div class="row"><label for="f-scenery">${t("scenery")}</label><select id="f-scenery"><option value="">${t("sc_none")}</option><option value="sky">${t("sc_sky")}</option><option value="harmony">${t("sc_harmony")}</option></select></div>
     <div class="row"><label for="f-boot">${t("boot")}</label><select id="f-boot"><option value="">${t("bt_logo")}</option><option value="aero">${t("bt_aero")}</option></select></div>
-    <div class="row"><label for="f-logo">${t("logo")}</label><select id="f-logo"><option value="">${t("lg_shell")}</option><option value="orb">${t("lg_orb")}</option></select></div></fieldset>`;
+    <div class="row"><label for="f-logo">${t("logo")}</label><select id="f-logo"><option value="">${t("lg_shell")}</option><option value="orb">${t("lg_orb")}</option></select></div>
+    <div class="row"><label for="f-font">${t("font")}</label><select id="f-font"><option value="">${t("ft_m")}</option><option value="selawik">${t("ft_s")}</option></select></div>
+    <div class="row"><label for="f-win7">${t("win7")}</label><input type="checkbox" id="f-win7"></div></fieldset>`;
   box.innerHTML = h;
   // Liaisons
   const $ = id => document.getElementById(id);
@@ -292,10 +296,11 @@ function build() {
   $("f-radius").oninput = e => { theme.radius = +e.target.value; render(); };
   $("f-gloss").oninput = e => { theme.gloss = e.target.value / 100; render(); };
   $("f-sheen").oninput = e => { theme.sheen = e.target.value / 100; render(); };
-  for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
+  for (const k of ["streaks", "header_glass", "player_orb", "win7"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
   $("f-scenery").onchange = e => { theme.scenery = e.target.value; theme.bubbles = false; render(); };
   $("f-boot").onchange = e => { theme.boot = e.target.value; render(); };
   $("f-logo").onchange = e => { theme.logo = e.target.value; render(); };
+  $("f-font").onchange = e => { theme.font = e.target.value; render(); };
   {
     const k = "edge", sync = c => { theme[k] = fmt(c); render(); };
     $("c-" + k).oninput = e => { const c = parse(e.target.value), o = parse(theme[k]) || { a: 1 }; c.a = o.a; sync(c); };
@@ -319,10 +324,11 @@ function fill() {
   $("f-radius").value = theme.radius ?? 10;
   $("f-gloss").value = Math.round((theme.gloss || 0) * 100);
   $("f-sheen").value = Math.round((theme.sheen || 0) * 100);
-  for (const k of ["streaks", "header_glass", "player_orb"]) $("f-" + k).checked = !!theme[k];
+  for (const k of ["streaks", "header_glass", "player_orb", "win7"]) $("f-" + k).checked = !!theme[k];
   $("f-scenery").value = theme.scenery || (theme.bubbles ? "sky" : "");
   $("f-boot").value = theme.boot || "";
   $("f-logo").value = theme.logo || "";
+  $("f-font").value = theme.font || "";
   { const c = parse(theme.edge) || { r: 255, g: 255, b: 255, a: 0 };
     $("c-edge").value = "#" + hex2(c.r) + hex2(c.g) + hex2(c.b); $("a-edge").value = Math.round(c.a * 100); $("x-edge").value = fmt(c); }
   render();
@@ -356,6 +362,7 @@ function render() {
   pv.classList.toggle("bubbles", scen === "sky");
   pv.classList.toggle("harmony", scen === "harmony");
   pv.classList.toggle("hglass", !!theme.header_glass);
+  pv.style.fontFamily = theme.font === "selawik" ? '"Segoe UI", Selawik, system-ui, sans-serif' : "";
   S("cborder", rgba(T("card_border"))); S("glow", rgba(T("glow"))); S("sheen", (theme.sheen || 0).toFixed(2));
   S("edge", g > 0 ? rgba(parse(theme.edge) || { r: 0, g: 0, b: 0, a: 0 }) : "transparent");
   S("pbar", rgba(T("player_bar"))); S("pink", rgba(T("player_ink")));

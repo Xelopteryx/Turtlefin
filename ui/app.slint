@@ -505,12 +505,17 @@ component Card inherits Rectangle {
     transform-scale: root.lit ? 1.06 : 1.0;
     animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     border-radius: Theme.radius;
-    background: root.lit ? Theme.card-focus : Theme.card;
+    // Windows 7 : corps en verre (clair en haut, plus sombre en bas), double liseré, et choisie :
+    // teinte bleue lumineuse comme la sélection de l'Explorateur.
+    background: Theme.win7 ? (root.lit
+            ? @linear-gradient(180deg, rgba(150, 215, 255, 0.55) 0%, rgba(70, 160, 240, 0.45) 55%, rgba(30, 110, 210, 0.55) 100%)
+            : @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(0, 12, 34, 0.32) 100%))
+        : root.lit ? Theme.card-focus : Theme.card;
     // Contour et lueur de la carte choisie, selon le thème (transparents par défaut).
     border-width: 1px;
-    border-color: Theme.card-border;
-    drop-shadow-blur: root.lit ? 22px * root.k : 0px;
-    drop-shadow-color: Theme.glow;
+    border-color: Theme.win7 ? rgba(0, 8, 26, 0.85) : Theme.card-border;
+    drop-shadow-blur: root.lit ? (Theme.win7 ? 28px : 22px) * root.k : Theme.win7 ? 8px * root.k : 0px;
+    drop-shadow-color: Theme.win7 ? (root.lit ? #6fd2ffd0 : #00000070) : Theme.glow;
 
     CardArt {
         y: 0px;
@@ -525,6 +530,25 @@ component Card inherits Rectangle {
         height: root.img-h;
         r: Theme.radius;
         on: root.lit;
+    }
+
+    // Windows 7 : reflet brillant sur le haut de l'affiche, liseré clair intérieur, et choisie : cadre
+    // bleu lumineux (double, comme la sélection de Windows 7).
+    if Theme.win7 && (Hero.hide-id == "" || root.data.id != Hero.hide-id): Rectangle {
+        y: 0px;
+        height: root.img-h * 0.48;
+        border-top-left-radius: Theme.radius;
+        border-top-right-radius: Theme.radius;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, root.lit ? 0.30 : 0.20) 0%, rgba(255, 255, 255, 0.04) 100%);
+    }
+    if Theme.win7: Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: Theme.radius - 1px;
+        border-width: root.lit ? 2px * root.k : 1px;
+        border-color: root.lit ? #9ee0ff : rgba(255, 255, 255, 0.42);
     }
 
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
@@ -1114,48 +1138,231 @@ component WinFrame inherits Rectangle {
     }
 }
 
-// Bouton fermer de Windows 7 (rouge brillant, croix blanche), accroché au bord haut d'une fenêtre,
-// à droite. Seulement avec `Theme.win7`.
-component WinClose inherits Rectangle {
-    in property <float> k: 1.0;
+// Bouton de la barre de titre de Windows 7 : verre (réduire, agrandir) ou rouge (fermer).
+component CaptionButton inherits Rectangle {
+    in property <string> kind; // "min" · "max" · "restore" · "close"
     callback clicked();
-    visible: Theme.win7;
-    width: 46px * root.k;
-    height: 21px * root.k;
-    border-bottom-left-radius: 5px * root.k;
-    border-bottom-right-radius: 5px * root.k;
-    property <bool> hot: area.has-hover && !Nav.touch;
-    background: area.pressed ? @linear-gradient(180deg, #d98b78 0%, #c45a43 45%, #9c2410 55%, #b8391d 100%)
-        : root.hot ? @linear-gradient(180deg, #ffc4b4 0%, #f2826a 45%, #e0381b 55%, #f5714f 100%)
-        : @linear-gradient(180deg, #f0b6a6 0%, #dc7a63 45%, #c42f15 55%, #d9583a 100%);
-    border-width: 1px;
-    border-color: #3d0d06;
-    drop-shadow-blur: root.hot ? 10px * root.k : 0px;
-    drop-shadow-color: #ff6a3d;
-    Rectangle {
-        x: 1px;
-        width: parent.width - 2px;
-        height: parent.height - 1px;
-        border-bottom-left-radius: parent.border-bottom-left-radius;
-        border-bottom-right-radius: parent.border-bottom-right-radius;
-        border-width: 1px;
-        border-color: rgba(255, 255, 255, 0.45);
-    }
+    property <bool> hot: area.has-hover;
+    property <bool> red: root.kind == "close";
+    height: 20px;
+    background: area.pressed ? (root.red ? @linear-gradient(180deg, #d98b78 0%, #b8452c 45%, #8e1d08 55%, #b43a1f 100%)
+            : @linear-gradient(180deg, #9bc2e6 0%, #5f93c6 45%, #2d5f96 55%, #4f86bf 100%))
+        : root.hot ? (root.red ? @linear-gradient(180deg, #ffc4b4 0%, #f2826a 45%, #e0381b 55%, #f5714f 100%)
+            : @linear-gradient(180deg, #e6f4ff 0%, #b5dcfa 45%, #6fb4ec 55%, #a6d6fa 100%))
+        : (root.red ? @linear-gradient(180deg, #f0b6a6 0%, #dc7a63 45%, #c42f15 55%, #d9583a 100%)
+            : @linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(220, 235, 250, 0.35) 45%, rgba(120, 160, 205, 0.35) 55%, rgba(180, 210, 240, 0.45) 100%));
+    drop-shadow-blur: root.hot ? 8px : 0px;
+    drop-shadow-color: root.red ? #ff6a3d : #7fd0ff;
     Path {
-        width: 12px * root.k;
-        height: 10px * root.k;
+        width: 12px;
+        height: 10px;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         viewbox-width: 12;
         viewbox-height: 10;
+        fill: transparent;
         stroke: white;
-        stroke-width: 2.4px * root.k;
-        commands: "M 1.5 1 L 10.5 9 M 10.5 1 L 1.5 9";
+        stroke-width: root.kind == "close" ? 2.2px : 1.8px;
+        commands: root.kind == "close" ? "M 1.5 1 L 10.5 9 M 10.5 1 L 1.5 9"
+            : root.kind == "min" ? "M 2 8 L 10 8"
+            : root.kind == "max" ? "M 2 1.5 L 10 1.5 L 10 8.5 L 2 8.5 Z M 2 3 L 10 3"
+            : "M 4 1 L 11 1 L 11 6 M 1 3.5 L 8 3.5 L 8 9 L 1 9 Z M 1 4.8 L 8 4.8";
     }
     area := TouchArea {
         clicked => {
             root.clicked();
         }
+    }
+}
+
+// Cadre de fenêtre de Windows 7 (Frutiger Aero en fenêtre) : bords de verre épais, barre de titre
+// avec l'icône et le nom, boutons réduire / agrandir en verre et fermer rouge, accrochés au haut de
+// la barre. La barre de titre déplace la fenêtre (double-clic : agrandir) ; les bords la
+// redimensionnent. Dessiné par-dessus l'interface (qui commence sous la barre, voir chrome-top).
+component WinCaption inherits Rectangle {
+    in property <bool> win-maxed;
+    in property <length> bar: 30px;
+    callback drag();
+    callback resize(string);
+    callback minimize();
+    callback maximize();
+    callback close();
+    property <length> b: root.win-maxed ? 0px : 8px;
+    // Verre du cadre : clair et bleuté, plus clair en haut, avec reflets en biais.
+    property <brush> glass: @linear-gradient(180deg, #d6e8f8 0%, #bcd6ee 25%, #a9c8e6 100%);
+    // Barre de titre
+    Rectangle {
+        y: 0px;
+        height: root.bar;
+        background: root.glass;
+        border-top-left-radius: root.win-maxed ? 0px : 7px;
+        border-top-right-radius: root.win-maxed ? 0px : 7px;
+        clip: true;
+        Rectangle {
+            background: @linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 20%,
+                rgba(255, 255, 255, 0.45) 21%, rgba(255, 255, 255, 0.15) 32%, rgba(255, 255, 255, 0) 33%,
+                rgba(255, 255, 255, 0) 64%, rgba(255, 255, 255, 0.30) 65%, rgba(255, 255, 255, 0.08) 72%, rgba(255, 255, 255, 0) 73%);
+        }
+        Image {
+            x: root.b + 2px;
+            y: (parent.height - self.height) / 2 + 1px;
+            width: 16px;
+            height: 16px;
+            source: @image-url("../packaging/icons/turtlefin-64.png");
+        }
+        Text {
+            x: root.b + 24px;
+            height: parent.height;
+            text: "Turtlefin";
+            color: #0b1b33;
+            font-family: "Selawik";
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+        // La barre déplace la fenêtre ; double-clic : agrandir / restaurer.
+        TouchArea {
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                    root.drag();
+                }
+            }
+            double-clicked => {
+                root.maximize();
+            }
+        }
+    }
+    // Bords gauche, droit et bas (verre), liseré sombre dehors, clair dedans, et contour de la zone
+    // de l'interface.
+    if !root.win-maxed: Rectangle {
+        x: 0px;
+        y: root.bar;
+        width: root.b;
+        height: parent.height - root.bar;
+        background: root.glass;
+    }
+    if !root.win-maxed: Rectangle {
+        x: parent.width - root.b;
+        y: root.bar;
+        width: root.b;
+        height: parent.height - root.bar;
+        background: root.glass;
+    }
+    if !root.win-maxed: Rectangle {
+        y: parent.height - root.b;
+        height: root.b;
+        background: root.glass;
+    }
+    if !root.win-maxed: Rectangle {
+        border-radius: 7px;
+        border-width: 1px;
+        border-color: rgba(0, 10, 30, 0.75);
+    }
+    if !root.win-maxed: Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: rgba(255, 255, 255, 0.7);
+    }
+    Rectangle {
+        x: root.b - 1px;
+        y: root.bar - 1px;
+        width: parent.width - 2 * root.b + 2px;
+        height: parent.height - root.bar - root.b + 2px;
+        border-width: 1px;
+        border-color: rgba(40, 70, 110, 0.85);
+    }
+    // Poignées : côtés et coins.
+    if !root.win-maxed: TouchArea {
+        y: 0px;
+        height: 5px;
+        mouse-cursor: ns-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("n"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        y: parent.height - root.b;
+        height: root.b;
+        mouse-cursor: ns-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("s"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        x: 0px;
+        width: root.b;
+        mouse-cursor: ew-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("w"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        x: parent.width - root.b;
+        width: root.b;
+        mouse-cursor: ew-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("e"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        width: 14px;
+        height: 14px;
+        x: 0px;
+        y: 0px;
+        mouse-cursor: nwse-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("nw"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        width: 14px;
+        height: 14px;
+        x: parent.width - 14px;
+        y: parent.height - 14px;
+        mouse-cursor: nwse-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("se"); } }
+    }
+    if !root.win-maxed: TouchArea {
+        width: 14px;
+        height: 14px;
+        x: 0px;
+        y: parent.height - 14px;
+        mouse-cursor: nesw-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("sw"); } }
+    }
+    // Boutons, groupés comme sous Windows 7 (accrochés au haut, coins du bas arrondis).
+    Rectangle {
+        x: parent.width - self.width - root.b - 2px;
+        y: root.win-maxed ? 0px : 1px;
+        width: 27px + 27px + 48px + 2px;
+        height: 20px;
+        border-bottom-left-radius: 5px;
+        border-bottom-right-radius: 5px;
+        background: rgba(0, 10, 30, 0.7);
+        clip: true;
+        HorizontalLayout {
+            padding-left: 1px;
+            padding-right: 1px;
+            padding-bottom: 1px;
+            spacing: 0px;
+            CaptionButton {
+                width: 27px;
+                kind: "min";
+                clicked => { root.minimize(); }
+            }
+            CaptionButton {
+                width: 27px;
+                kind: root.win-maxed ? "restore" : "max";
+                clicked => { root.maximize(); }
+            }
+            CaptionButton {
+                width: 48px;
+                kind: "close";
+                clicked => { root.close(); }
+            }
+        }
+    }
+    // Coin en haut à droite : poignée (au-dessus des boutons, à leur droite).
+    if !root.win-maxed: TouchArea {
+        width: root.b + 2px;
+        height: 14px;
+        x: parent.width - root.b - 2px;
+        y: 0px;
+        mouse-cursor: nesw-resize;
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { root.resize("ne"); } }
     }
 }
 
@@ -1395,7 +1602,18 @@ component DetailButton inherits Rectangle {
 component OverviewPanel inherits Rectangle {
     in property <string> text;
     in property <length> font: 20px;
+    in property <float> k: 1.0;
+    // Ouverte : arrive en montant et en grossissant un peu ; fermée : repart vers le haut en fondu.
+    in property <bool> open;
     callback close();
+    property <float> p: root.open ? 1 : 0;
+    animate p { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    visible: root.p > 0.01;
+    changed open => {
+        if (root.open) {
+            root.scroll = 0px;
+        }
+    }
 
     property <length> scroll: 0px;
 
@@ -1406,7 +1624,7 @@ component OverviewPanel inherits Rectangle {
         root.scroll = 0px;
     }
 
-    background: Theme.scrim.with-alpha(0.72);
+    background: Theme.scrim.with-alpha(0.72 * root.p);
 
     TouchArea {
         clicked => {
@@ -1418,7 +1636,9 @@ component OverviewPanel inherits Rectangle {
         width: min(parent.width - 64px, 900px);
         height: min(parent.height - 96px, parent.height * 0.8);
         x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        y: (parent.height - self.height) / 2 + (1 - root.p) * (root.open ? 40px : -30px) * root.k;
+        opacity: root.p;
+        transform-scale: 0.94 + 0.06 * root.p;
         border-radius: (Theme.win7 ? 8px : 16px);
         background: Theme.win7 ? transparent : Theme.panel;
         border-width: Theme.win7 ? 0px : 1px;
@@ -1434,21 +1654,12 @@ component OverviewPanel inherits Rectangle {
                 return EventResult.accept;
             }
         }
-        // Windows 7 : bouton fermer rouge, accroché au bord haut.
-        WinClose {
-            k: 1.0;
-            x: parent.width - self.width - 12px;
-            y: 1px;
-            clicked => {
-                root.close();
-            }
-        }
 
         view := Rectangle {
             x: 28px;
             y: 24px;
             width: parent.width - 56px;
-            height: parent.height - 24px - 56px;
+            height: parent.height - 24px - 84px * root.k;
             clip: true;
 
             VerticalLayout {
@@ -1464,13 +1675,26 @@ component OverviewPanel inherits Rectangle {
             }
         }
 
-        Text {
-            y: parent.height - 38px;
-            width: parent.width;
+        // Bas de la fenêtre : aide à gauche (clavier, télécommande), bouton Retour à droite.
+        if !Nav.touch: Text {
+            x: 28px;
+            y: parent.height - 30px * root.k - 22px * root.k;
+            height: 44px * root.k;
             text: Tr.t(Tr.k, "Échap pour fermer  ·  ↑ ↓ pour défiler");
             color: Theme.muted;
-            font-size: 13px;
-            horizontal-alignment: center;
+            font-size: 13px * root.k;
+            vertical-alignment: center;
+        }
+        ActionButton {
+            x: parent.width - self.width - 22px;
+            y: parent.height - self.height - 18px * root.k;
+            height: 44px * root.k;
+            text: Tr.t(Tr.k, "Retour");
+            font: 16px * root.k;
+            focused: true;
+            clicked => {
+                root.close();
+            }
         }
     }
 }
@@ -1872,7 +2096,22 @@ export component AppWindow inherits Window {
     icon: @image-url("../packaging/icons/turtlefin-64.png");
     // Interface TV sous Windows : fenêtre sans bordure sur tout l'écran (voir set_tv_window).
     in property <bool> frameless;
-    no-frame: root.frameless;
+    // Frutiger Aero en fenêtre (bureau) : cadre et boutons de Windows 7 dessinés par Turtlefin (la
+    // fenêtre est sans bordure ; voir WinCaption). Déplacer, redimensionner, réduire, agrandir, fermer :
+    callback win-drag();
+    callback win-resize(string);           // "n", "s", "e", "w", "ne", "nw", "se", "sw"
+    callback win-min();
+    callback win-max();
+    callback win-close();
+    in property <bool> chrome;
+    in property <bool> win-maxed;
+    // Passage en plein écran ou retour en fenêtre : la page arrive de nouveau sous un voile.
+    public function screen-changed() {
+        root.page-enter();
+        root.rot-t0 = animation-tick();
+        root.rot-anim = Motion.pages;
+    }
+    no-frame: root.frameless || root.chrome;
     background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
     // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
     default-font-family: Theme.aero-font ? (root.dust-blank ? "Turtlefin Blank Aero" : "Selawik")
@@ -2586,7 +2825,13 @@ export component AppWindow inherits Window {
     // Étape 3 : la saisie est-elle le nouveau mot de passe de l'étape 2 ?
     pure callback pw-same(string) -> bool;
     // Fenêtre fermée : la page des paramètres reprend le clavier.
+    // Mode de la fenêtre gardé pendant sa disparition : titre, champ masqué et boutons ne changent
+    // pas pendant le fondu (sinon un mot de passe s'affichait en clair le temps de la sortie).
+    property <int> ad-mode;
     changed addr-edit => {
+        if (root.addr-edit > 0) {
+            root.ad-mode = root.addr-edit;
+        }
         if (root.addr-edit == 0) {
             root.drop-keyboard();
             root.refocus += 1;
@@ -2735,6 +2980,15 @@ export component AppWindow inherits Window {
     in property <string> p-dur-text;
     in property <string> p-end-text;
     in-out property <int> p-volume: 100;
+    // Barres du lecteur réglables au doigt (voir PlayerView, hit-*) : lues par Swipe (main.rs).
+    in-out property <length> p-hit-sx;
+    in-out property <length> p-hit-sy;
+    in-out property <length> p-hit-sw;
+    in-out property <length> p-hit-sh;
+    in-out property <length> p-hit-vx;
+    in-out property <length> p-hit-vy;
+    in-out property <length> p-hit-vw;
+    in-out property <length> p-hit-vh;
     in property <[float]> p-chapters;
     in property <int> p-chapter-count;
     in property <bool> p-has-prev;
@@ -2893,7 +3147,9 @@ export component AppWindow inherits Window {
             root.rot-anim = false;
         }
     }
-    property <length> header-row: 72px * root.k;
+    // Fenêtre façon Windows 7 (voir WinCaption) : barre de titre au-dessus de l'interface, qui descend d'autant.
+    out property <length> chrome-top: root.chrome ? 30px : 0px;
+    property <length> header-row: 72px * root.k + root.chrome-top;
     // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
     property <length> header-h: root.narrow && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
     property <int> tab-count: root.has-requests ? 3 : 2;
@@ -3884,7 +4140,8 @@ export component AppWindow inherits Window {
 
             NavBar {
                 x: 0px;
-                height: root.header-row;
+                y: root.chrome-top;
+                height: 72px * root.k;
                 width: root.narrow ? parent.width - root.right-w : parent.width / 3;
                 k: root.k;
                 can-back: false;
@@ -3903,8 +4160,8 @@ export component AppWindow inherits Window {
                 property <length> lo: 250px * root.k;
                 property <length> hi: parent.width - (root.dl-pill != "" ? 480px : 345px) * root.k;
                 width: self.preferred-width;
-                y: root.narrow ? root.header-row - 10px * root.k : 0px;
-                height: root.narrow ? 54px * root.k : parent.height;
+                y: root.narrow ? root.header-row - 10px * root.k : root.chrome-top;
+                height: root.narrow ? 54px * root.k : 72px * root.k;
                 x: root.narrow ? (parent.width - self.width) / 2 : max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
                 spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
                 // Position réelle des onglets, pour le cadre de la visite guidée.
@@ -3953,7 +4210,8 @@ export component AppWindow inherits Window {
 
             HeaderRight {
                 width: parent.width;
-                height: root.header-row;
+                y: root.chrome-top;
+                height: 72px * root.k;
                 k: root.k;
                 narrow: root.narrow;
                 sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
@@ -5021,6 +5279,28 @@ export component AppWindow inherits Window {
             height: parent.height + root.d-view-y;
             animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
+        // Windows 7 : cadre de verre épais autour de l'affiche (comme les jaquettes de Windows Media Center).
+        if Theme.win7 && (!root.hero-covers || root.hero-seerr || root.hero-big): Rectangle {
+            x: (root.narrow ? 16px : 32px) - root.po * (root.poster-w + 64px) - 7px;
+            y: 24px - 7px;
+            width: root.poster-w + 14px;
+            height: root.poster-w * 1.5 + 14px;
+            border-radius: Theme.radius + 5px;
+            background: @linear-gradient(180deg, rgba(185, 222, 252, 0.55) 0%, rgba(110, 168, 230, 0.42) 40%, rgba(60, 120, 200, 0.45) 100%);
+            border-width: 1px;
+            border-color: rgba(0, 8, 26, 0.8);
+            drop-shadow-blur: 18px;
+            drop-shadow-color: #00000080;
+            Rectangle {
+                x: 1px;
+                y: 1px;
+                width: parent.width - 2px;
+                height: parent.height - 2px;
+                border-radius: parent.border-radius - 1px;
+                border-width: 1px;
+                border-color: rgba(255, 255, 255, 0.6);
+            }
+        }
         // Poster (portrait)
         Rectangle {
             x: (root.narrow ? 16px : 32px) - root.po * (root.poster-w + 64px);
@@ -5393,15 +5673,6 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                 }
-                // Windows 7 : bouton fermer rouge, accroché au bord haut.
-                WinClose {
-                    k: root.k;
-                    x: parent.width - self.width - 12px * root.k;
-                    y: 1px;
-                    clicked => {
-                        root.tp-kind = "";
-                    }
-                }
                 Text {
                     x: 24px * root.k;
                     y: 16px * root.k;
@@ -5457,12 +5728,12 @@ export component AppWindow inherits Window {
         ov-panel := OverviewPanel {
             width: parent.width;
             height: parent.height;
-            visible: root.overview-open;
+            open: root.overview-open;
+            k: root.k;
             text: root.detail.overview;
             font: 20px * root.k;
             close => {
                 root.overview-open = false;
-                ov-panel.reset();
             }
         }
     }
@@ -6678,6 +6949,26 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
             }
+            // Windows 7 : la colonne est un volet de verre (comme le volet de navigation de l'Explorateur).
+            if Theme.win7: Rectangle {
+                x: 24px * root.k;
+                y: 0px;
+                width: sets.left-w - 16px * root.k;
+                height: min(parent.height - 8px * root.k, sets.cats.length * 52px * root.k + 18px * root.k);
+                border-radius: 6px * root.k;
+                background: @linear-gradient(180deg, rgba(190, 225, 252, 0.30) 0%, rgba(110, 165, 225, 0.20) 100%);
+                border-width: 1px;
+                border-color: rgba(0, 10, 30, 0.6);
+                Rectangle {
+                    x: 1px;
+                    y: 1px;
+                    width: parent.width - 2px;
+                    height: parent.height - 2px;
+                    border-radius: parent.border-radius - 1px;
+                    border-width: 1px;
+                    border-color: rgba(255, 255, 255, 0.35);
+                }
+            }
             // Catégories : la surbrillance glisse jusqu'à la catégorie choisie (dégradé quand la
             // sélection est dans la colonne, gris quand elle est dans les lignes).
             Rectangle {
@@ -6686,8 +6977,23 @@ export component AppWindow inherits Window {
                 animate y { duration: Motion.scroll && !Nav.drag ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
                 width: sets.left-w - 32px * root.k;
                 height: 46px * root.k;
-                border-radius: 10px * root.k;
-                background: Theme.fg.with-alpha(0.12);
+                border-radius: (Theme.win7 ? 4px : 10px) * root.k;
+                // Windows 7 : sélection bleue brillante de l'Explorateur (verre bleu clair, liseré).
+                background: Theme.win7 ? @linear-gradient(180deg, rgba(205, 238, 255, 0.62) 0%, rgba(140, 205, 250, 0.50) 48%, rgba(75, 160, 235, 0.55) 52%, rgba(120, 200, 255, 0.62) 100%)
+                    : Theme.fg.with-alpha(0.12);
+                border-width: Theme.win7 ? 1px : 0px;
+                border-color: #0f4f8f;
+                drop-shadow-blur: Theme.win7 ? 10px * root.k : 0px;
+                drop-shadow-color: #5cc6ff90;
+                if Theme.win7: Rectangle {
+                    x: 1px;
+                    y: 1px;
+                    width: parent.width - 2px;
+                    height: parent.height - 2px;
+                    border-radius: 3px * root.k;
+                    border-width: 1px;
+                    border-color: rgba(255, 255, 255, 0.75);
+                }
                 Rectangle {
                     border-radius: parent.border-radius;
                     background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
@@ -7042,15 +7348,6 @@ export component AppWindow inherits Window {
                     // La molette ne fait pas défiler la page dessous.
                     scroll-event(e) => {
                         return EventResult.accept;
-                    }
-                }
-                // Windows 7 : bouton fermer rouge, accroché au bord haut.
-                WinClose {
-                    k: root.k;
-                    x: parent.width - self.width - 12px * root.k;
-                    y: 1px;
-                    clicked => {
-                        root.ch-key = "";
                     }
                 }
                 // Titre (barre blanche au choix d'une langue, voir ch-title-cover). État gardé hors de
@@ -7478,18 +7775,20 @@ export component AppWindow inherits Window {
 
             property <length> dw: min(self.width - 64px * root.k, 620px * root.k);
             // Changer le mot de passe : jauge de solidité (étape 2) ou accord des deux saisies (étape 3).
-            property <length> dh: root.addr-edit >= 4 ? pw-col.preferred-height : 290px * root.k;
+            property <length> dh: root.ad-mode >= 4 ? pw-col.preferred-height : 290px * root.k;
             animate dh { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
             adlg := FocusScope {
                 x: (parent.width - parent.dw) / 2;
                 y: (1 - sets.adk-p) * (parent.height - parent.dh) / 2 + sets.adk-p * 20px * root.k
-                    + (1 - sets.ad-p) * 30px * root.k - Kb.lift;
+                    // Arrivée : monte depuis le bas ; départ : continue de monter en s'effaçant (pas l'inverse
+                    // de l'arrivée).
+                    + (1 - sets.ad-p) * (root.addr-edit > 0 ? 30px : -46px) * root.k - Kb.lift;
                 width: parent.dw;
                 height: parent.dh;
                 focus-on-click: root.tv-mode;
-                property <bool> pw: root.addr-edit >= 4;
+                property <bool> pw: root.ad-mode >= 4;
                 // Passage d'une étape à l'autre : le contenu arrive de la droite.
-                property <int> step: root.addr-edit;
+                property <int> step: root.ad-mode;
                 property <bool> step-live;
                 property <duration> step-t0;
                 property <float> step-e: !self.step-live ? 1 : 1 - pow(1 - clamp((animation-tick() - self.step-t0) / 340ms, 0, 1), 3);
@@ -7506,7 +7805,7 @@ export component AppWindow inherits Window {
                         parent.step-live = false;
                     }
                 }
-                property <int> score: root.addr-edit == 5 && root.addr-text != "" ? root.pw-score(root.addr-text) : -1;
+                property <int> score: root.ad-mode == 5 && root.addr-text != "" ? root.pw-score(root.addr-text) : -1;
                 init => {
                     self.focus();
                 }
@@ -7559,7 +7858,7 @@ export component AppWindow inherits Window {
                         if (root.addr-field == 0) {
                             root.addr-osk = true;
                         } else if (root.addr-field == 1) {
-                            root.addr-save(root.addr-edit, root.addr-text);
+                            root.addr-save(root.ad-mode, root.addr-text);
                         } else {
                             root.addr-close();
                         }
@@ -7577,15 +7876,6 @@ export component AppWindow inherits Window {
                     Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
                     WinFrame { r: parent.border-radius; k: root.k; }
                 }
-                // Windows 7 : bouton fermer rouge, accroché au bord haut.
-                WinClose {
-                    k: root.k;
-                    x: parent.width - self.width - 12px * root.k;
-                    y: 1px;
-                    clicked => {
-                        root.addr-close();
-                    }
-                }
                 // Étapes du changement de mot de passe : trois points, l'étape en cours s'allonge.
                 if adlg.pw: HorizontalLayout {
                     x: parent.width - self.preferred-width - 26px * root.k;
@@ -7593,10 +7883,10 @@ export component AppWindow inherits Window {
                     height: 8px * root.k;
                     spacing: 6px * root.k;
                     for d[di] in 3: Rectangle {
-                        width: (di == root.addr-edit - 4 ? 24px : 8px) * root.k;
+                        width: (di == root.ad-mode - 4 ? 24px : 8px) * root.k;
                         animate width { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                         border-radius: 4px * root.k;
-                        background: di <= root.addr-edit - 4 ? @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.2);
+                        background: di <= root.ad-mode - 4 ? @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.2);
                     }
                 }
                 Rectangle {
@@ -7608,19 +7898,19 @@ export component AppWindow inherits Window {
                     alignment: start;
 
                     Text {
-                        text: root.addr-edit == 1 ? Tr.t(Tr.k, "Adresse principale") : root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
-                            : root.addr-edit >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
+                        text: root.ad-mode == 1 ? Tr.t(Tr.k, "Adresse principale") : root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
+                            : root.ad-mode >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
                             : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
                         font-size: 22px * root.k;
                         font-weight: 700;
                     }
                     Text {
-                        text: root.addr-edit == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
-                            : root.addr-edit == 3 ? Tr.t(Tr.k, "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré.")
-                            : root.addr-edit == 4 ? Tr.t(Tr.k, "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi.")
-                            : root.addr-edit == 5 ? Tr.t(Tr.k, "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide.")
-                            : root.addr-edit == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
+                        text: root.ad-mode == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
+                            : root.ad-mode == 3 ? Tr.t(Tr.k, "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré.")
+                            : root.ad-mode == 4 ? Tr.t(Tr.k, "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi.")
+                            : root.ad-mode == 5 ? Tr.t(Tr.k, "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide.")
+                            : root.ad-mode == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
@@ -7631,13 +7921,13 @@ export component AppWindow inherits Window {
                     }
                     addr-f := Field {
                         k: root.k;
-                        label: root.addr-edit == 3 ? Tr.t(Tr.k, "Mot de passe") : root.addr-edit == 4 ? Tr.t(Tr.k, "Mot de passe actuel")
-                            : root.addr-edit == 5 ? Tr.t(Tr.k, "Nouveau mot de passe") : root.addr-edit == 6 ? Tr.t(Tr.k, "Nouveau mot de passe, encore une fois")
+                        label: root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe") : root.ad-mode == 4 ? Tr.t(Tr.k, "Mot de passe actuel")
+                            : root.ad-mode == 5 ? Tr.t(Tr.k, "Nouveau mot de passe") : root.ad-mode == 6 ? Tr.t(Tr.k, "Nouveau mot de passe, encore une fois")
                             : Tr.t(Tr.k, "Adresse du serveur");
-                        hint: root.addr-edit == 1 ? "192.168.1.32:8096" : root.addr-edit >= 3 ? "" : "10.8.0.5:8096";
-                        password: root.addr-edit >= 3;
+                        hint: root.ad-mode == 1 ? "192.168.1.32:8096" : root.ad-mode >= 3 ? "" : "10.8.0.5:8096";
+                        password: root.ad-mode >= 3;
                         text <=> root.addr-text;
-                        shown: root.addr-edit >= 3 ? root.mask(root.addr-text) : root.addr-text;
+                        shown: root.ad-mode >= 3 ? root.mask(root.addr-text) : root.addr-text;
                         tv: root.tv-mode;
                         selected: root.tv-mode && !root.addr-osk && root.addr-field == 0;
                         editing: root.addr-osk;
@@ -7648,7 +7938,7 @@ export component AppWindow inherits Window {
                             }
                         }
                         accepted => {
-                            root.addr-save(root.addr-edit, root.addr-text);
+                            root.addr-save(root.ad-mode, root.addr-text);
                         }
                         clicked => {
                             root.addr-field = 0;
@@ -7656,7 +7946,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     // Étape 2 : jauge de solidité (quatre segments qui se remplissent et changent de couleur).
-                    if root.addr-edit == 5: HorizontalLayout {
+                    if root.ad-mode == 5: HorizontalLayout {
                         height: 34px * root.k;
                         spacing: 6px * root.k;
                         property <int> fill: adlg.score < 0 ? 0 : max(1, adlg.score);
@@ -7681,7 +7971,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     // Étape 3 : les deux saisies concordent-elles ?
-                    if root.addr-edit == 6: HorizontalLayout {
+                    if root.ad-mode == 6: HorizontalLayout {
                         height: 26px * root.k;
                         spacing: 8px * root.k;
                         alignment: start;
@@ -7730,13 +8020,13 @@ export component AppWindow inherits Window {
                             }
                         }
                         ActionButton {
-                            text: root.addr-busy ? (root.addr-edit == 6 ? Tr.t(Tr.k, "Changement…") : Tr.t(Tr.k, "Vérification…"))
-                                : root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : root.addr-edit == 4 || root.addr-edit == 5 ? Tr.t(Tr.k, "Suivant")
-                                : root.addr-edit == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
+                            text: root.addr-busy ? (root.ad-mode == 6 ? Tr.t(Tr.k, "Changement…") : Tr.t(Tr.k, "Vérification…"))
+                                : root.ad-mode == 3 ? Tr.t(Tr.k, "Installer") : root.ad-mode == 4 || root.ad-mode == 5 ? Tr.t(Tr.k, "Suivant")
+                                : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
-                                root.addr-save(root.addr-edit, root.addr-text);
+                                root.addr-save(root.ad-mode, root.addr-text);
                             }
                         }
                     }
@@ -7752,8 +8042,8 @@ export component AppWindow inherits Window {
                 k: root.k;
                 active: root.addr-osk;
                 text: root.addr-text;
-                ok-label: root.addr-edit == 3 ? Tr.t(Tr.k, "Installer") : root.addr-edit == 4 || root.addr-edit == 5 ? Tr.t(Tr.k, "Suivant")
-                    : root.addr-edit == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
+                ok-label: root.ad-mode == 3 ? Tr.t(Tr.k, "Installer") : root.ad-mode == 4 || root.ad-mode == 5 ? Tr.t(Tr.k, "Suivant")
+                    : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
@@ -7762,7 +8052,7 @@ export component AppWindow inherits Window {
                 }
                 done => {
                     root.addr-osk = false;
-                    root.addr-save(root.addr-edit, root.addr-text);
+                    root.addr-save(root.ad-mode, root.addr-text);
                 }
                 leave-up => {
                     root.addr-osk = false;
@@ -7778,18 +8068,18 @@ export component AppWindow inherits Window {
                 y: parent.height - self.height - 28px * root.k;
                 k: root.k;
                 max-w: parent.width - 80px * root.k;
-                text: root.addr-edit == 6 ? Tr.t(Tr.k, "Changement du mot de passe…") : Tr.t(Tr.k, "Vérification de l'adresse…");
+                text: root.ad-mode == 6 ? Tr.t(Tr.k, "Changement du mot de passe…") : Tr.t(Tr.k, "Vérification de l'adresse…");
             }
         }
 
         // Nouveautés d'une mise à jour : fenêtre à part, qui défile (le texte peut être long).
         notes-p := OverviewPanel {
-            visible: root.notes-open;
+            open: root.notes-open;
+            k: root.k;
             text: root.notes-text;
             font: 17px * root.k;
             close => {
                 root.notes-open = false;
-                notes-p.reset();
             }
         }
     }
@@ -7800,7 +8090,7 @@ export component AppWindow inherits Window {
     // Sans session (premier lancement, « Changer de serveur » depuis la connexion) : pas de barre,
     // ses boutons (accueil, watch party, hasard, recherche, compte) n'auraient rien à ouvrir.
     if root.bar-screen && !root.playing && (root.signed-in || root.offline): NavBar {
-        y: 0px;
+        y: root.chrome-top;
         // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait).
         x: 0px;
         width: parent.width - root.right-w;
@@ -7818,9 +8108,9 @@ export component AppWindow inherits Window {
     }
     if root.bar-screen && !root.playing && (root.signed-in || root.offline): HeaderRight {
         x: parent.width / 2;
-        y: 0px;
+        y: root.chrome-top;
         width: parent.width / 2;
-        height: root.header-row;
+        height: 72px * root.k;
         k: root.k;
         narrow: root.narrow;
         sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
@@ -7876,15 +8166,6 @@ export component AppWindow inherits Window {
         TouchArea {
             scroll-event(e) => {
                 return EventResult.accept;
-            }
-        }
-        // Windows 7 : bouton fermer rouge, accroché au bord haut.
-        WinClose {
-            k: root.k;
-            x: parent.width - self.width - 12px * root.k;
-            y: 1px;
-            clicked => {
-                root.close-party();
             }
         }
 
@@ -8136,8 +8417,9 @@ export component AppWindow inherits Window {
 
         drawer := Rectangle {
             x: -(1 - root.menu-p) * (self.width + 8px);
+            y: root.chrome-top;
             width: 340px * root.k;
-            height: parent.height;
+            height: parent.height - root.chrome-top;
             background: Theme.panel;
             border-width: 1px;
             border-color: Theme.glass-border;
@@ -8564,8 +8846,17 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Lecture
     if root.playing: PlayerView {
+        y: root.chrome-top;
         width: parent.width;
-        height: parent.height;
+        height: parent.height - root.chrome-top;
+        hit-sx <=> root.p-hit-sx;
+        hit-sy <=> root.p-hit-sy;
+        hit-sw <=> root.p-hit-sw;
+        hit-sh <=> root.p-hit-sh;
+        hit-vx <=> root.p-hit-vx;
+        hit-vy <=> root.p-hit-vy;
+        hit-vw <=> root.p-hit-vw;
+        hit-vh <=> root.p-hit-vh;
         k: root.k;
         frame: root.video-frame;
         ready: root.p-ready;
@@ -9637,5 +9928,27 @@ export component AppWindow inherits Window {
     if root.rot-veil > 0.01: Rectangle {
         background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
         opacity: 0.85 * root.rot-veil;
+    }
+
+    // Fenêtre façon Windows 7 (Frutiger Aero, hors plein écran) : cadre de verre, poignées de
+    // redimensionnement et boutons réduire / agrandir / fermer, au-dessus de tout.
+    if root.chrome: WinCaption {
+        win-maxed: root.win-maxed;
+        bar: root.chrome-top;
+        drag => {
+            root.win-drag();
+        }
+        resize(d) => {
+            root.win-resize(d);
+        }
+        minimize => {
+            root.win-min();
+        }
+        maximize => {
+            root.win-max();
+        }
+        close => {
+            root.win-close();
+        }
     }
 }
