@@ -2277,6 +2277,40 @@ export component AppWindow inherits Window {
     property <float> hero-k: 1.0;
     property <bool> hero-wide;
     property <bool> hero-seerr;             // destination : la page Seerr
+    // Collection : l'affiche va au centre de l'écran (un paquet de cartes), puis ses films sont
+    // distribués un à un jusqu'à leur place dans la grille, comme au solitaire (voir deal-p).
+    property <bool> hero-deck;
+    property <bool> deal-anim;
+    property <duration> deal-t0;
+    // Durée de la distribution : un départ toutes les 70 ms (20 au plus), 420 ms de vol chacun.
+    property <duration> deal-len: 260ms + min(root.lib-items.length, 20) * 70ms + 420ms;
+    changed deal-anim => {
+        // Distribution finie : le paquet (l'image partagée) s'efface sur place.
+        if (!root.deal-anim && root.hero-deck && root.hero-on) {
+            root.hero-out-t0 = animation-tick();
+            root.hero-out = true;
+        }
+    }
+    Timer {
+        interval: root.deal-len;
+        running: root.deal-anim;
+        triggered => {
+            root.deal-anim = false;
+        }
+    }
+    // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
+    // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
+    property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
+    pure function deal-p(i: int) -> float {
+        if (root.deal-wait && Motion.detail) {
+            return 0;
+        }
+        if (!root.deal-anim || !Motion.detail) {
+            return 1;
+        }
+        let t = clamp((animation-tick() - root.deal-t0 - 260ms - min(i, 20) * 70ms) / 420ms, 0, 1);
+        return 1 - (1 - t) * (1 - t) * (1 - t);
+    }
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
     property <bool> hero-anim;
     property <duration> hero-t0;
@@ -2294,10 +2328,10 @@ export component AppWindow inherits Window {
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
-    property <length> hero-tx: root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : 32px;
-    property <length> hero-ty: root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.header-h + 24px;
-    property <length> hero-tw: root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
+    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : 32px;
+    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.header-h + 24px;
+    property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
@@ -2317,6 +2351,11 @@ export component AppWindow inherits Window {
         if (root.hero-ready) {
             root.kid-veil = false;
         }
+        // Collection arrivée : la distribution commence (les cartes partent du paquet).
+        if (root.hero-ready && root.hero-deck) {
+            root.deal-t0 = animation-tick();
+            root.deal-anim = true;
+        }
         if (root.hero-ready && root.hero-big && !root.hero-faded) {
             root.fade-in = false;
             root.fade-t0 = animation-tick();
@@ -2334,7 +2373,7 @@ export component AppWindow inherits Window {
         }
     }
     // Fin : l'affiche de la page (ou la carte, au retour) a pris le relais.
-    property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && (
+    property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && !(root.hero-deck && root.hero-dest) && (
         (root.hero-ready && (root.hero-big ? root.hero-faded
             : root.hero-seerr ? root.sr.has-poster || root.hero-gave-up
             : root.screen != "detail" || root.detail.has-poster || root.hero-gave-up))
@@ -2465,6 +2504,8 @@ export component AppWindow inherits Window {
             root.hero-k = Hero.k;
             root.hero-seerr = root.is-seerr(root.hero-pending);
             root.hero-wide = Hero.wide;
+            root.hero-deck = Hero.data.deck;
+            root.deal-anim = false;
             root.hero-faded = false;
             root.hero-gave-up = false;
             root.fade-anim = false;
@@ -2485,6 +2526,9 @@ export component AppWindow inherits Window {
         // Fiche quittée : l'image attend qu'elle soit partie. Page Seerr fermée au-dessus d'une fiche :
         // la fiche reste, l'image repart tout de suite vers sa carte (sinon elle restait figée).
         root.hero-from-id = root.screen == "detail" && !root.sr-open ? root.detail.id : "";
+        // Retour d'une collection : l'affiche revole normalement vers sa carte.
+        root.hero-deck = false;
+        root.deal-anim = false;
         Hero.want-id = root.hero-data.id;
         Hero.want-group = root.hero-data.group;
         root.hero-dest = false;
@@ -5935,14 +5979,19 @@ export component AppWindow inherits Window {
         Rectangle {
             clip: true;
 
-            Rectangle {
+            grid := Rectangle {
                 // La rangée sélectionnée reste vers le milieu de l'écran (défilement libre : le décalage).
                 y: root.lib-free ? -root.lib-free-y : min(0px, parent.height / 2 - (12px * root.k + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
                 animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                 for card[i] in root.lib-items: Card {
-                    x: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
-                    y: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + root.stagger(floor(i / lib.cols) - lib.sel-row + 2);
+                    // Collection : la carte part du paquet (centre de l'écran), tournée, et file à sa place.
+                    property <float> dp: root.deal-p(i);
+                    property <length> bx: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
+                    property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + root.stagger(floor(i / lib.cols) - lib.sel-row + 2);
+                    x: self.bx + (1 - self.dp) * (root.width / 2 - lib.cw / 2 - grid.absolute-position.x - self.bx);
+                    y: self.by + (1 - self.dp) * (root.height / 2 - lib.cw * 0.75 - grid.absolute-position.y - self.by);
+                    transform-rotation: (1 - self.dp) * (mod(i * 7, 5) - 2) * 7deg;
                     width: lib.cw;
                     height: lib.ch;
                     data: card;

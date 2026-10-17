@@ -1481,6 +1481,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                deck: c.deck,
                                 group: c.group.clone().into(),
                                 ..Default::default()
                             })
@@ -1617,6 +1618,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                deck: c.deck,
                                 group: c.group.clone().into(),
                                 ..Default::default()
                             })
@@ -2066,6 +2068,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 seerr: false,
                 status: 0,
                 count: 0,
+                deck: false,
                 played: false,
             })
             .collect();
@@ -2172,6 +2175,7 @@ fn card_data(c: &api::CardInfo) -> CardData {
         status: c.status,
         count: c.count,
         played: c.played,
+        deck: c.deck,
         group: c.group.clone().into(),
         ..Default::default()
     }
@@ -2271,6 +2275,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                deck: c.deck,
                         ..Default::default()
                     });
                 }
@@ -4808,6 +4813,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                                 status: c.status,
                                 count: c.count,
                                 played: c.played,
+                                deck: c.deck,
                 ..Default::default()
             })
             .collect();

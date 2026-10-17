@@ -11,5 +11,6 @@ export struct CardData {
     status: int,     // demande Seerr : 0 · 1 en attente · 2 acceptée · 3 refusée · 4 disponible · 5 échec
     count: int,      // épisodes restant à voir (séries, saisons)
     played: bool,    // vu en entier : coche en haut à droite
+    deck: bool,      // collection : ouverte en distribuant ses films comme des cartes
     group: string,   // série d'un épisode (retour de l'image partagée, voir Hero)
 }

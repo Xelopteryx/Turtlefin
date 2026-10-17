@@ -218,6 +218,8 @@ pub struct CardInfo {
     pub count: i32,
     /// Vu en entier (film, épisode, série ou saison terminée) : coche sur l'affiche.
     pub played: bool,
+    /// Collection (BoxSet) : ouverte en « distribuant » ses films (voir deal, app.slint).
+    pub deck: bool,
 }
 
 /// (id de l'élément portant l'image, étiquette de version de l'image)
@@ -321,6 +323,7 @@ impl SeerrRequest {
             },
             count: 0,
             played: false,
+            deck: false,
         }
     }
 }
@@ -422,7 +425,9 @@ impl Item {
             count: match self.kind.as_str() {
                 "Series" | "Season" => self.user_data.as_ref().and_then(|u| u.unplayed_item_count).unwrap_or(0) as i32,
                 _ => 0,
-            },            played: self.user_data.as_ref().is_some_and(|u| u.played),
+            },
+            played: self.user_data.as_ref().is_some_and(|u| u.played),
+            deck: self.kind == "BoxSet",
         }
     }
 
@@ -458,6 +463,7 @@ impl Item {
             count: 0,
             // Coche « vu » sur l'image, comme les films et les séries.
             played,
+            deck: false,
         }
     }
 
@@ -591,6 +597,7 @@ impl Item {
                 status: 0,
                 count: 0,
                 played: false,
+                deck: false,
             });
         }
         out
@@ -1213,6 +1220,7 @@ impl Client {
                 status: 0,
                 count: 0,
                 played: false,
+                deck: false,
             });
         }
         out
@@ -1520,6 +1528,7 @@ impl Client {
                 status: 0,
                 count: 0,
                 played: false,
+                deck: false,
             });
         }
         out
