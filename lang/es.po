@@ -1873,3 +1873,6 @@ msgstr "En el inicio o en una ficha"
 
 msgid "Télécommande"
 msgstr "Mando"
+
+msgid "Chromecast : la vidéo y est envoyée"
+msgstr "Chromecast: el vídeo se envía allí"

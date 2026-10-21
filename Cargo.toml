@@ -30,6 +30,10 @@ directories = "6"
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 if-addrs = "0.15.0"
+# Diffuser : recherche multidiffusée carte par carte, connexion TLS aux appareils Google Cast.
+socket2 = "0.6"
+rustls = { version = "0.23", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false }
 # Mise à jour : empreinte SHA-256 du fichier téléchargé, comparée à celle publiée par GitHub.
 sha2 = "0.10"
 

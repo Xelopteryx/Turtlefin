@@ -1879,3 +1879,6 @@ msgstr "Na stronie głównej lub karcie"
 
 msgid "Télécommande"
 msgstr "Pilot"
+
+msgid "Chromecast : la vidéo y est envoyée"
+msgstr "Chromecast: wideo jest tam wysyłane"

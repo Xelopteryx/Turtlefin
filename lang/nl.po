@@ -1873,3 +1873,6 @@ msgstr "Op het startscherm of een detailpagina"
 
 msgid "Télécommande"
 msgstr "Afstandsbediening"
+
+msgid "Chromecast : la vidéo y est envoyée"
+msgstr "Chromecast: de video wordt erheen gestuurd"

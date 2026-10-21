@@ -1682,6 +1682,58 @@ impl Client {
         }))
     }
 
+    /// Flux pour un appareil Google Cast (lecteur par défaut) : le fichier tel quel s'il le lit (MP4 ou
+    /// WebM, H.264 / VP8 / VP9, AAC / MP3 / Opus / Vorbis), sinon un flux HLS H.264 + AAC du serveur (qui
+    /// recopie ce qui est déjà compatible au lieu de le convertir). Adresse complète, jeton compris :
+    /// l'appareil la lit lui-même. Renvoie (adresse, type MIME).
+    pub async fn cast_stream(&self, item_id: &str) -> Result<(String, String)> {
+        let profile = serde_json::json!({
+            "MaxStreamingBitrate": 40_000_000u64,
+            "DirectPlayProfiles": [
+                { "Type": "Video", "Container": "mp4,m4v", "VideoCodec": "h264", "AudioCodec": "aac,mp3" },
+                { "Type": "Video", "Container": "webm", "VideoCodec": "vp8,vp9", "AudioCodec": "opus,vorbis" }
+            ],
+            "TranscodingProfiles": [{
+                "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3",
+                "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "2", "MinSegments": 1,
+                "BreakOnNonKeyFrames": true
+            }],
+        });
+        let resp = self
+            .http
+            .post(format!("{}/Items/{}/PlaybackInfo", self.server, seg(item_id)))
+            .query(&[("userId", self.user_id.as_str()), ("MaxStreamingBitrate", "40000000")])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&serde_json::json!({ "DeviceProfile": profile }))
+            .send()
+            .await?;
+        if resp.status().as_u16() == 401 {
+            return Err(Unauthorized.into());
+        }
+        let v: serde_json::Value = json_limited(resp.error_for_status()?).await?;
+        let ms = v["MediaSources"].as_array().and_then(|a| a.first()).cloned().ok_or_else(|| anyhow!("aucune source"))?;
+        let source = ms["Id"].as_str().unwrap_or(item_id);
+        if ms["SupportsDirectPlay"].as_bool() == Some(true) || ms["SupportsDirectStream"].as_bool() == Some(true) && ms["TranscodingUrl"].is_null() {
+            let container = ms["Container"].as_str().unwrap_or("mp4");
+            let mime = if container.contains("webm") { "video/webm" } else { "video/mp4" };
+            let url = format!(
+                "{}/Videos/{}/stream?static=true&MediaSourceId={}&api_key={}",
+                self.server,
+                seg(item_id),
+                seg(source),
+                seg(&self.token)
+            );
+            return Ok((url, mime.to_string()));
+        }
+        let path = ms["TranscodingUrl"].as_str().filter(|p| p.starts_with('/')).ok_or_else(|| anyhow!("conversion impossible"))?;
+        // L'adresse du serveur porte déjà le jeton (ApiKey) ; on le remet sous le nom attendu sinon.
+        let mut url = format!("{}{}", self.server, path);
+        if !url.to_ascii_lowercase().contains("api_key=") && !url.to_ascii_lowercase().contains("apikey=") {
+            url.push_str(&format!("&api_key={}", seg(&self.token)));
+        }
+        Ok((url, "application/x-mpegURL".to_string()))
+    }
+
     /// Arrête la conversion du serveur pour cette lecture (sinon elle tourne encore un moment pour rien).
     pub async fn stop_transcode(&self, play_session: &str) {
         let _ = self

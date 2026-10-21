@@ -8706,7 +8706,7 @@ export component AppWindow inherits Window {
                         x: 16px * root.k;
                         y: 8px * root.k;
                         width: parent.width - 32px * root.k;
-                        text: (c.kind == "dlna" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
+                        text: (c.kind != "jf" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
                         color: parent.lit ? Theme.on-accent : Theme.fg;
                         font-size: 16px * root.k;
                         font-weight: 700;

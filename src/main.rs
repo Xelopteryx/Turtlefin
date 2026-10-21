@@ -5,6 +5,7 @@
 mod api;
 mod boot;
 mod cast;
+mod chromecast;
 #[cfg(windows)]
 mod winfull;
 // Android : point d'entrée (android_main), voir android/.
@@ -227,6 +228,8 @@ struct App {
     /// Diffuser : appareil piloté (voir cast_pick), télés DLNA trouvées, état relu régulièrement.
     cast: Mutex<Option<CastTarget>>,
     dlna_found: Mutex<Vec<cast::Renderer>>,
+    /// Appareils Google Cast trouvés (Chromecast, Google TV, décodeurs « Chromecast intégré »).
+    gcast_found: Mutex<Vec<chromecast::Device>>,
     cast_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Télécommande (menu) : Turtlefin piloté (session, nom) et relecture de son état.
     remote: Mutex<Option<(String, String)>>,
@@ -1931,6 +1934,8 @@ enum CastTarget {
     /// Session Jellyfin (Turtlefin sur un Pi, une Android TV, ou une autre appli Jellyfin).
     Jf { session: String, name: String },
     Dlna(cast::Renderer),
+    /// Chromecast ou appareil « Chromecast intégré ».
+    Gcast(chromecast::Device),
 }
 
 impl CastTarget {
@@ -1938,6 +1943,7 @@ impl CastTarget {
         match self {
             CastTarget::Jf { name, .. } => name.clone(),
             CastTarget::Dlna(r) => r.name.clone(),
+            CastTarget::Gcast(d) => d.name.clone(),
         }
     }
 }
@@ -1953,18 +1959,26 @@ fn cast_refresh(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
         u.set_cast_busy(true);
     }
+    // Android : réponses multidiffusées des écrans reçues seulement sous verrou (voir multicast_for).
+    #[cfg(target_os = "android")]
+    android_entry::multicast_for(5);
     let a = app.clone();
     app.rt.spawn(async move {
-        let (jf, dlna) = tokio::join!(client.remote_targets(), cast::discover(std::time::Duration::from_millis(2500)));
+        let wait = std::time::Duration::from_millis(2500);
+        let (jf, dlna, gcast) = tokio::join!(client.remote_targets(), cast::discover(wait), chromecast::discover(wait));
         let mut items: Vec<CastItem> = Vec::new();
         for t in jf.unwrap_or_default() {
             let sub = if t.now_playing.is_empty() { t.client.clone() } else { format!("{} · {}", t.client, t.now_playing) };
             items.push(CastItem { id: format!("jf:{}", t.session).into(), name: t.device.into(), sub: sub.into(), kind: "jf".into() });
         }
+        for (i, d) in gcast.iter().enumerate() {
+            items.push(CastItem { id: format!("gcast:{i}").into(), name: d.name.clone().into(), sub: tr("Chromecast : la vidéo y est envoyée").into(), kind: "gcast".into() });
+        }
         for (i, r) in dlna.iter().enumerate() {
             items.push(CastItem { id: format!("dlna:{i}").into(), name: r.name.clone().into(), sub: tr("Télé DLNA : la vidéo y est envoyée").into(), kind: "dlna".into() });
         }
         *a.dlna_found.lock().unwrap() = dlna;
+        *a.gcast_found.lock().unwrap() = gcast;
         let _ = a.ui().upgrade_in_event_loop(move |u| {
             u.set_cast_items(ModelRc::new(VecModel::from(items)));
             u.set_cast_busy(false);
@@ -1988,10 +2002,16 @@ fn cast_pick(app: &Arc<App>, id: &str) {
             Some(r) => CastTarget::Dlna(r),
             None => return,
         }
+    } else if let Some(n) = id.strip_prefix("gcast:").and_then(|n| n.parse::<usize>().ok()) {
+        match app.gcast_found.lock().unwrap().get(n).cloned() {
+            Some(d) => CastTarget::Gcast(d),
+            None => return,
+        }
     } else {
         return;
     };
-    let dlna = matches!(target, CastTarget::Dlna(_));
+    // Télé DLNA ou Chromecast : l'écran lit lui-même la vidéo (la fiche ouverte y part tout de suite).
+    let dlna = matches!(target, CastTarget::Dlna(_) | CastTarget::Gcast(_));
     u.set_cast_target(target.name().into());
     u.set_cast_on(true);
     u.set_cast_now("".into());
@@ -2061,6 +2081,11 @@ fn cast_play_item(app: &Arc<App>, id: String) {
                         let _ = cast::control(r, "seek", s).await;
                     }
                 }
+                CastTarget::Gcast(d) => {
+                    let (url, mime) = client.cast_stream(&item.id).await?;
+                    let (title, _) = item.titles();
+                    chromecast::play_url(d, &url, &mime, &title, start).await?;
+                }
             }
             Ok(item.titles().0)
         }
@@ -2080,6 +2105,12 @@ async fn target_state(a: &Arc<App>, target: &CastTarget) -> Option<(String, bool
             let c = a.client()?;
             c.remote_targets().await.ok()?.into_iter().find(|t| &t.session == session).map(|t| (t.now_playing, t.paused, t.position, t.duration))
         }
+        CastTarget::Gcast(d) => chromecast::status(d).await.map(|(paused, pos, dur, vol)| {
+            let mut st = a.dlna_state.lock().unwrap();
+            let v = vol.unwrap_or(st.3);
+            *st = (paused, pos, dur, v);
+            (String::new(), paused, pos, dur)
+        }),
         CastTarget::Dlna(r) => cast::status(r).await.map(|(paused, pos, dur, vol)| {
             let mut st = a.dlna_state.lock().unwrap();
             let v = vol.unwrap_or(st.3);
@@ -2256,6 +2287,22 @@ fn send_cmd(app: &Arc<App>, target: CastTarget, c: &str) {
                         let v = match c.as_str() { "vol+" => (vol + 5).min(100), "vol-" => vol.saturating_sub(5), _ => 0 };
                         a.dlna_state.lock().unwrap().3 = v;
                         cast::control(&r2, "vol", v as f64).await
+                    }
+                    _ => Ok(()),
+                }
+            }
+            CastTarget::Gcast(d) => {
+                let (paused, pos, _dur, vol) = *a.dlna_state.lock().unwrap();
+                match c.as_str() {
+                    "playpause" => chromecast::control(d, if paused { "play" } else { "pause" }, 0.0).await,
+                    "stop" => chromecast::control(d, "stop", 0.0).await,
+                    "ff" => chromecast::control(d, "seek", pos + 30.0).await,
+                    "rew" => chromecast::control(d, "seek", (pos - 10.0).max(0.0)).await,
+                    "mute" => chromecast::control(d, "mute", 0.0).await,
+                    "vol+" | "vol-" => {
+                        let v = if c == "vol+" { (vol + 5).min(100) } else { vol.saturating_sub(5) };
+                        a.dlna_state.lock().unwrap().3 = v;
+                        chromecast::control(d, "vol", v as f64).await
                     }
                     _ => Ok(()),
                 }
@@ -6287,6 +6334,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         lib_title: Mutex::new((String::new(), true)),
         cast: Mutex::new(None),
         dlna_found: Mutex::new(Vec::new()),
+        gcast_found: Mutex::new(Vec::new()),
         cast_poll: Mutex::new(None),
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),

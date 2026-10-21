@@ -1873,3 +1873,6 @@ msgstr "Auf der Startseite oder einer Detailseite"
 
 msgid "Télécommande"
 msgstr "Fernbedienung"
+
+msgid "Chromecast : la vidéo y est envoyée"
+msgstr "Chromecast: das Video wird dorthin gesendet"

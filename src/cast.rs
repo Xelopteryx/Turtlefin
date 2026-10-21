@@ -48,23 +48,60 @@ fn clean(s: &str) -> String {
     s.chars().filter(|c| !c.is_control()).take(60).collect::<String>().replace("&amp;", "&").trim().to_string()
 }
 
+/// Adresses IPv4 de la machine sur ses réseaux locaux (cartes actives, adresse privée, hors VPN en /32) :
+/// la recherche part de chacune (sinon Windows choisit une seule carte, parfois celle d'une machine
+/// virtuelle, et rien ne répond).
+pub fn lan_ipv4s() -> Vec<Ipv4Addr> {
+    let mut out = Vec::new();
+    for itf in if_addrs::get_if_addrs().unwrap_or_default() {
+        let if_addrs::IfAddr::V4(a) = &itf.addr else { continue };
+        if a.ip.is_private() && !a.ip.is_loopback() && a.prefixlen < 31 && itf.is_oper_up() && !out.contains(&a.ip) {
+            out.push(a.ip);
+        }
+    }
+    if out.is_empty() {
+        out.push(Ipv4Addr::UNSPECIFIED);
+    }
+    out
+}
+
+/// Prise UDP liée à l'adresse `ip`, qui envoie ses messages multidiffusés par la carte de cette adresse.
+pub fn multicast_socket(ip: Ipv4Addr) -> Option<tokio::net::UdpSocket> {
+    let s = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)).ok()?;
+    if !ip.is_unspecified() {
+        s.set_multicast_if_v4(&ip).ok()?;
+    }
+    s.set_multicast_ttl_v4(2).ok()?;
+    s.bind(&SocketAddr::from((ip, 0)).into()).ok()?;
+    s.set_nonblocking(true).ok()?;
+    tokio::net::UdpSocket::from_std(s.into()).ok()
+}
+
 /// Recherche des télés DLNA pendant `wait`.
 pub async fn discover(wait: Duration) -> Vec<Renderer> {
-    let Ok(sock) = tokio::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await else { return Vec::new() };
+    let socks: Vec<_> = lan_ipv4s().into_iter().filter_map(multicast_socket).collect();
     let msg = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n\r\n";
     let to: SocketAddr = (Ipv4Addr::new(239, 255, 255, 250), 1900).into();
     for _ in 0..2 {
-        let _ = sock.send_to(msg.as_bytes(), to).await;
+        for sock in &socks {
+            let _ = sock.send_to(msg.as_bytes(), to).await;
+        }
     }
     let mut locations: Vec<(IpAddr, String)> = Vec::new();
     let end = Instant::now() + wait;
-    let mut buf = [0u8; 2048];
+    let mut bufs: Vec<[u8; 2048]> = vec![[0u8; 2048]; socks.len()];
     while let Some(left) = end.checked_duration_since(Instant::now()) {
-        let Ok(Ok((n, from))) = tokio::time::timeout(left, sock.recv_from(&mut buf)).await else { break };
+        if socks.is_empty() {
+            break;
+        }
+        let recv = futures_util::future::select_all(
+            socks.iter().zip(bufs.iter_mut()).map(|(s, b)| Box::pin(async move { s.recv_from(b).await.map(|(n, from)| (from, b[..n].to_vec())) })),
+        );
+        let Ok((Ok((from, data)), _, _)) = tokio::time::timeout(left, recv).await else { break };
         if !private(from.ip()) {
             continue;
         }
-        let text = String::from_utf8_lossy(&buf[..n]);
+        let text = String::from_utf8_lossy(&data);
         let Some(loc) = header(&text, "location") else { continue };
         // La description doit venir de l'appareil qui a répondu (pas d'une autre adresse).
         let Ok(url) = reqwest::Url::parse(loc) else { continue };

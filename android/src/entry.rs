@@ -141,6 +141,43 @@ pub fn is_tv() -> bool {
     result.unwrap_or(false)
 }
 
+/// Recherche d'écrans (DLNA, Google Cast) : Android ignore les réponses multidiffusées tant qu'aucune
+/// appli ne tient un « verrou multicast » du Wi-Fi. Il est pris pendant `secs` secondes seulement (il
+/// coûte de la batterie), dans un fil à part.
+pub fn multicast_for(secs: u64) {
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed) as usize;
+    if act == 0 {
+        return;
+    }
+    std::thread::spawn(move || {
+        let ctx = ndk_context::android_context();
+        // SAFETY : comme lock_landscape (machine virtuelle et activité valables toute la vie du processus).
+        let result = (|| -> jni::errors::Result<()> {
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(act as *mut _) };
+            env.with_local_frame(16, |env| {
+                let name = env.new_string("wifi")?;
+                let wifi = env
+                    .call_method(&activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&name).into()])?
+                    .l()?;
+                let tag = env.new_string("turtlefin")?;
+                let lock = env
+                    .call_method(&wifi, "createMulticastLock", "(Ljava/lang/String;)Landroid/net/wifi/WifiManager$MulticastLock;", &[(&tag).into()])?
+                    .l()?;
+                env.call_method(&lock, "setReferenceCounted", "(Z)V", &[false.into()])?;
+                env.call_method(&lock, "acquire", "()V", &[])?;
+                std::thread::sleep(std::time::Duration::from_secs(secs));
+                env.call_method(&lock, "release", "()V", &[])?;
+                Ok(())
+            })
+        })();
+        if let Err(e) = result {
+            eprintln!("turtlefin : verrou multicast : {e}");
+        }
+    });
+}
+
 const STREAM_MUSIC: i32 = 3;
 
 /// Volume média actuel, de 0 à 100.
