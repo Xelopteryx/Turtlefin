@@ -4009,11 +4009,26 @@ export component AppWindow inherits Window {
         }
         // Rangée des tuiles (aussi le point de départ de la photo qui s'envole au choix).
         property <length> pk-step: lg.tile + 30 * lg.u;
-        property <length> pk-row-w: lg.n * self.pk-step - 30 * lg.u;
+        // Trop de comptes pour une ligne : ils passent à la ligne (colonnes), chaque ligne centrée.
+        property <int> pk-cols: max(1, min(lg.n, floor((self.width - 80 * lg.u + 30 * lg.u) / self.pk-step)));
+        property <int> pk-rows: max(1, ceil(lg.n / self.pk-cols));
+        property <length> pk-row-h: lg.tile + 96 * lg.u;
         property <int> pk-focus: min(root.login-sel, lg.n - 1);
-        property <length> pk-row-x: self.pk-row-w <= self.width - 80 * lg.u ? (self.width - self.pk-row-w) / 2
-            : max(self.width - 40 * lg.u - self.pk-row-w, min(40 * lg.u, self.width / 2 - (self.pk-focus * self.pk-step + lg.tile / 2)));
-        animate pk-row-x { duration: Motion.login ? 260ms : 0ms; easing: ease-out; }
+        // Lignes plus hautes que l'écran : la grille défile pour garder la ligne choisie visible.
+        property <length> pk-avail: self.height - 240 * lg.u - 140 * lg.u;
+        property <length> pk-scroll: self.pk-rows * self.pk-row-h <= self.pk-avail ? 0px
+            : min(self.pk-rows * self.pk-row-h - self.pk-avail, max(0px, floor(self.pk-focus / self.pk-cols) * self.pk-row-h - self.pk-avail / 2 + self.pk-row-h / 2));
+        animate pk-scroll { duration: Motion.login ? 260ms : 0ms; easing: ease-out; }
+        pure function pk-x(i: int) -> length {
+            let row = floor(i / self.pk-cols);
+            let in-row = min(self.pk-cols, lg.n - row * self.pk-cols);
+            return (self.width - (in-row * self.pk-step - 30 * lg.u)) / 2 + Math.mod(i, self.pk-cols) * self.pk-step;
+        }
+        pure function pk-y(i: int) -> length {
+            return 240 * lg.u + floor(i / self.pk-cols) * self.pk-row-h - self.pk-scroll;
+        }
+        // Haut de la dernière ligne visible de la grille (boutons dessous).
+        property <length> pk-bottom: 240 * lg.u + min(self.pk-rows * self.pk-row-h, max(self.pk-avail, self.pk-row-h)) - self.pk-row-h;
         // Connexion en cours (photo au centre) : le reste de la page s'efface.
         opacity: root.fly-phase == 1 || root.fly-phase == 2 ? 0 : 1;
         animate opacity { duration: Motion.login ? 280ms : 0ms; easing: ease-out; }
@@ -4029,8 +4044,8 @@ export component AppWindow inherits Window {
                 root.fly-img = root.login-tiles[i].image;
                 root.fly-has-img = root.login-tiles[i].has-image;
                 root.fly-letter = root.login-tiles[i].rating;
-                root.fly-sx = lg.pk-row-x + i * lg.pk-step;
-                root.fly-sy = 240 * lg.u;
+                root.fly-sx = lg.pk-x(i);
+                root.fly-sy = lg.pk-y(i);
                 root.fly-ss = lg.tile;
                 root.fly-start(1);
             }
@@ -4128,13 +4143,18 @@ export component AppWindow inherits Window {
                             root.login-sel = min(lg.n - 1, root.login-sel + 1);
                         }
                     } else if (event.text == Key.DownArrow) {
-                        if (root.login-sel < lg.n) {
+                        // Ligne suivante de la grille, sinon les boutons.
+                        if (root.login-sel < lg.n && floor(root.login-sel / lg.pk-cols) < lg.pk-rows - 1) {
+                            root.login-sel = min(lg.n - 1, root.login-sel + lg.pk-cols);
+                        } else if (root.login-sel < lg.n) {
                             lg.last-tile = root.login-sel;
                             root.login-sel = lg.n;
                         }
                     } else if (event.text == Key.UpArrow) {
                         if (root.login-sel >= lg.n) {
                             root.login-sel = min(lg.last-tile, lg.n - 1);
+                        } else if (root.login-sel >= lg.pk-cols) {
+                            root.login-sel -= lg.pk-cols;
                         }
                     } else if (event.text == Key.Escape || event.text == Key.Backspace) {
                         if (root.login-edit) {
@@ -4255,7 +4275,6 @@ export component AppWindow inherits Window {
         if root.login-mode == "pick": Rectangle {
             // Rangée plus large que l'écran : elle défile pour garder la tuile choisie visible.
             property <length> step: lg.pk-step;
-            property <length> row-x: lg.pk-row-x;
             // Comptes enregistrés (pour « Gérer les comptes »).
             property <int> saved: lg.saved-count;
             Text {
@@ -4270,8 +4289,11 @@ export component AppWindow inherits Window {
             }
             for t[i] in root.login-tiles: tile := Rectangle {
                 // Après une suppression, les tuiles suivantes partent de leur ancienne place.
-                x: parent.row-x + i * parent.step + (lg.shift-from >= 0 && i >= lg.shift-from ? (1 - lg.sh-q) * (1 - lg.sh-q) * parent.step : 0px);
-                y: 240 * lg.u + (1 - self.e) * 50 * lg.u;
+                // Après une suppression, les tuiles suivantes partent de leur ancienne place.
+                property <length> from-x: lg.shift-from >= 0 && i >= lg.shift-from ? lg.pk-x(i + 1) - lg.pk-x(i) : 0px;
+                property <length> from-y: lg.shift-from >= 0 && i >= lg.shift-from ? lg.pk-y(i + 1) - lg.pk-y(i) : 0px;
+                x: lg.pk-x(i) + (1 - lg.sh-q) * (1 - lg.sh-q) * self.from-x;
+                y: lg.pk-y(i) + (1 - lg.sh-q) * (1 - lg.sh-q) * self.from-y + (1 - self.e) * 50 * lg.u;
                 width: lg.tile;
                 height: lg.tile + 70 * lg.u;
                 property <float> e: lg.in-e(1.5 + i);
@@ -4379,7 +4401,7 @@ export component AppWindow inherits Window {
                 }
             }
             HorizontalLayout {
-                y: 240 * lg.u + lg.tile + 110 * lg.u + (1 - lg.in-e(3)) * 30 * lg.u;
+                y: lg.pk-bottom + lg.tile + 110 * lg.u + (1 - lg.in-e(3)) * 30 * lg.u;
                 opacity: lg.in-e(3);
                 width: parent.width;
                 height: 46 * lg.u;

@@ -35,11 +35,74 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|uiMode|density|navigation">
             <meta-data android:name="android.app.lib_name" android:value="turtlefin" />
+        </activity>
+        <!-- Icône aux couleurs du thème : une entrée de lanceur par thème intégré, une seule active
+             (android/src/entry.rs, set_launcher_icon ; icônes générées par le test android_icons de
+             src/theme.rs). Thème importé : l'icône par défaut. -->
+        <activity-alias
+            android:name=".Icon_turtlefin"
+            android:targetActivity="android.app.NativeActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:banner="@mipmap/ic_launcher"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icon_sombre"
+            android:targetActivity="android.app.NativeActivity"
+            android:icon="@mipmap/ic_sombre"
+            android:banner="@mipmap/ic_sombre"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icon_clair"
+            android:targetActivity="android.app.NativeActivity"
+            android:icon="@mipmap/ic_clair"
+            android:banner="@mipmap/ic_clair"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icon_aero"
+            android:targetActivity="android.app.NativeActivity"
+            android:icon="@mipmap/ic_aero"
+            android:banner="@mipmap/ic_aero"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icon_vert"
+            android:targetActivity="android.app.NativeActivity"
+            android:icon="@mipmap/ic_vert"
+            android:banner="@mipmap/ic_vert"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

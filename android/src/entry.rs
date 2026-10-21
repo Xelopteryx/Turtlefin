@@ -178,6 +178,51 @@ pub fn multicast_for(secs: u64) {
     });
 }
 
+/// Icône du lanceur aux couleurs du thème `key` : active son entrée (activity-alias « .Icon_<key> »
+/// du manifeste) et désactive les autres, sans fermer l'appli. Rien n'est fait si c'est déjà la bonne.
+pub fn set_launcher_icon(key: &str) {
+    const KEYS: [&str; 5] = ["turtlefin", "sombre", "clair", "aero", "vert"];
+    let key = if KEYS.contains(&key) { key.to_string() } else { "turtlefin".to_string() };
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed) as usize;
+    if act == 0 {
+        return;
+    }
+    // Hors du fil de l'interface : PackageManager peut prendre un moment.
+    std::thread::spawn(move || {
+        let ctx = ndk_context::android_context();
+        // SAFETY : comme lock_landscape (machine virtuelle et activité valables toute la vie du processus).
+        let result = (|| -> jni::errors::Result<()> {
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(act as *mut _) };
+            env.with_local_frame(32, |env| {
+                let pm = env.call_method(&activity, "getPackageManager", "()Landroid/content/pm/PackageManager;", &[])?.l()?;
+                let pkg = env.call_method(&activity, "getPackageName", "()Ljava/lang/String;", &[])?.l()?;
+                let pkg_s: String = env.get_string(&jni::objects::JString::from(env.new_local_ref(&pkg)?))?.into();
+                // La nouvelle d'abord, puis les autres (jamais aucune entrée active).
+                let mut order: Vec<&str> = vec![key.as_str()];
+                order.extend(KEYS.iter().filter(|k| **k != key));
+                for k in order {
+                    let cls = env.new_string(format!("{pkg_s}.Icon_{k}"))?;
+                    let comp = env.new_object("android/content/ComponentName", "(Ljava/lang/String;Ljava/lang/String;)V", &[(&pkg).into(), (&cls).into()])?;
+                    // 1 : activée, 2 : désactivée ; 0 : celle du manifeste (seule « turtlefin » y est activée).
+                    let want = if k == key { 1 } else { 2 };
+                    let now = env.call_method(&pm, "getComponentEnabledSetting", "(Landroid/content/ComponentName;)I", &[(&comp).into()])?.i()?;
+                    let effective = if now == 0 { if k == "turtlefin" { 1 } else { 2 } } else { now };
+                    if effective != want {
+                        // DONT_KILL_APP (1) : l'appli continue.
+                        env.call_method(&pm, "setComponentEnabledSetting", "(Landroid/content/ComponentName;II)V", &[(&comp).into(), want.into(), 1.into()])?;
+                    }
+                }
+                Ok(())
+            })
+        })();
+        if let Err(e) = result {
+            eprintln!("turtlefin : icône du thème : {e}");
+        }
+    });
+}
+
 const STREAM_MUSIC: i32 = 3;
 
 /// Volume média actuel, de 0 à 100.

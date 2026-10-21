@@ -3568,6 +3568,12 @@ fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     });
     if changed {
         let key = p.theme.clone();
+        // Android : icône du lanceur aux couleurs du thème (thème importé : celle par défaut).
+        #[cfg(target_os = "android")]
+        {
+            let icon = if theme::builtin().iter().any(|(k, _)| *k == key) { key.clone() } else { "turtlefin".to_string() };
+            android_entry::set_launcher_icon(&icon);
+        }
         std::thread::spawn(move || theme::apply_shortcuts(&key, &t));
     }
     let g = u.global::<Prefs>();

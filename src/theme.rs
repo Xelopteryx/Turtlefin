@@ -373,8 +373,13 @@ pub fn write_creator() -> std::io::Result<std::path::PathBuf> {
 /// Sert d'icône à la fenêtre (barre des tâches). Dessiné 4x plus grand puis réduit (moyenne de
 /// 16 points par pixel) : les traits fins (liserés de l'orbe) ne crénèlent pas en petite taille.
 pub fn icon(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
+    icon_ss(t, n, true)
+}
+
+/// Icône rendue à 4x puis réduite (bords lisses) ; `with_bg` faux : logo seul, fond transparent.
+fn icon_ss(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     const S: u32 = 4;
-    let big = icon_raw(t, n * S);
+    let big = icon_raw(t, n * S, with_bg);
     let src = big.as_slice();
     let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
     for (i, p) in buf.make_mut_slice().iter_mut().enumerate() {
@@ -398,7 +403,7 @@ pub fn icon(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel>
     buf
 }
 
-fn icon_raw(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
+fn icon_raw(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     let d = turtlefin();
     let col = |x: &str, f: &str| parse(x).or_else(|| parse(f)).unwrap_or_default();
     let (bg1, bg2) = (col(&t.bg, &d.bg), parse(&t.bg_end).unwrap_or_else(|| col(&t.bg, &d.bg)));
@@ -468,9 +473,38 @@ fn icon_raw(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel>
                 c[ch] = c[ch] * (1.0 - w) + 255.0 * w;
             }
         }
+        if !with_bg {
+            // Logo seul (premier plan d'une icône adaptative Android) : sa couleur, son contour.
+            *p = slint::Rgba8Pixel { r: g[0] as u8, g: g[1] as u8, b: g[2] as u8, a: (la * 255.0) as u8 };
+            continue;
+        }
         *p = slint::Rgba8Pixel { r: c[0] as u8, g: c[1] as u8, b: c[2] as u8, a: (bga * 255.0) as u8 };
     }
     buf
+}
+
+/// Icône adaptative Android d'un thème : premier plan (logo, ou orbe, dans la zone sûre d'un canevas
+/// de `n` px, transparent autour) et couleurs du fond (haut, bas). Rendues d'avance dans android/res
+/// (voir le test `android_icons`), une par thème intégré.
+pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rgba8Pixel>, String, String) {
+    // Logo : 168 / 256 de son image ; orbe : 244 / 256. Zone sûre : 66 / 108 du canevas.
+    let (span, target) = if t.logo == "orb" { (244.0, 0.60) } else { (168.0, 0.56) };
+    let m = ((n as f32 * target * 256.0 / span).round() as u32).min(n);
+    let part = icon_ss(t, m, false);
+    let mut out = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
+    let off = (n - m) / 2;
+    let src = part.as_slice();
+    let dst = out.make_mut_slice();
+    for y in 0..m {
+        for x in 0..m {
+            dst[((y + off) * n + x + off) as usize] = src[(y * m + x) as usize];
+        }
+    }
+    let d = turtlefin();
+    let bg = if t.bg.is_empty() { d.bg.clone() } else { t.bg.clone() };
+    let end = if t.bg_end.is_empty() { bg.clone() } else { t.bg_end.clone() };
+    let hex = |c: &str| parse(c).map(|c| format!("#{:02x}{:02x}{:02x}", c.red(), c.green(), c.blue())).unwrap_or_else(|| "#010e18".into());
+    (out, hex(&bg), hex(&end))
 }
 
 /// Logo en orbe de verre (thèmes à `logo: "orb"`, comme le bouton Démarrer de Windows 7) : sphère
@@ -715,6 +749,47 @@ mod tests {
             let b = super::icon(&t, 128);
             let img = image::RgbaImage::from_raw(b.width(), b.height(), b.as_bytes().to_vec()).unwrap();
             img.save(std::path::Path::new(&dir).join(format!("icon_{k}.png"))).unwrap();
+        }
+    }
+
+    /// `TURTLEFIN_ANDROID_RES=android/res` : icônes adaptatives Android de chaque thème intégré
+    /// (premier plan PNG, fond en dégradé, icône), à relancer quand un thème intégré change.
+    #[test]
+    fn android_icons() {
+        let Some(dir) = std::env::var_os("TURTLEFIN_ANDROID_RES") else { return };
+        let dir = std::path::Path::new(&dir);
+        for sub in ["drawable-nodpi", "drawable", "mipmap-anydpi-v26"] {
+            std::fs::create_dir_all(dir.join(sub)).unwrap();
+        }
+        for (k, t) in super::builtin() {
+            let (fg, top, bottom) = super::android_icon(&t, 432);
+            let img = image::RgbaImage::from_raw(fg.width(), fg.height(), fg.as_bytes().to_vec()).unwrap();
+            img.save(dir.join("drawable-nodpi").join(format!("ic_fg_{k}.png"))).unwrap();
+            std::fs::write(
+                dir.join("drawable").join(format!("ic_bg_{k}.xml")),
+                format!(
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<!-- Fond de l'icône du thème « {k} » (généré : theme.rs, test android_icons). -->
+<shape xmlns:android=\"http://schemas.android.com/apk/res/android\">
+    <gradient android:angle=\"270\" android:startColor=\"{top}\" android:endColor=\"{bottom}\" />
+</shape>
+"
+                ),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("mipmap-anydpi-v26").join(format!("ic_{k}.xml")),
+                format!(
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<!-- Icône du thème « {k} » (généré : theme.rs, test android_icons). -->
+<adaptive-icon xmlns:android=\"http://schemas.android.com/apk/res/android\">
+    <background android:drawable=\"@drawable/ic_bg_{k}\" />
+    <foreground android:drawable=\"@drawable/ic_fg_{k}\" />
+</adaptive-icon>
+"
+                ),
+            )
+            .unwrap();
         }
     }
 
