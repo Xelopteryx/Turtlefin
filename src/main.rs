@@ -2337,7 +2337,6 @@ fn refresh_party(app: &Arc<App>) {
 fn open_party(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
         u.set_sp_sel(0);
-        u.set_h_focus(false);
         u.set_menu_open(false);
         u.set_party_pop(!u.get_party_pop());
     }

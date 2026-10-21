@@ -3754,7 +3754,14 @@ export component AppWindow inherits Window {
     // Icônes de droite de la barre du haut (toutes les pages).
     property <int> right-base: root.screen == "home" ? root.nav-n + root.tab-count : root.nav-n;
     function right-activate(i: int) {
-        root.h-focus = false;
+        // Panneaux (diffuser, watch party) : la sélection reste sur leur icône, dessous, et y revient
+        // à la fermeture (sinon elle repartait sur la page : « Collections »…).
+        if (i <= 1) {
+            root.h-focus = true;
+            root.h-sel = root.right-base + i;
+        } else {
+            root.h-focus = false;
+        }
         if (i == 0) {
             root.cast-toggle();
         } else if (i == 1) {
@@ -4608,25 +4615,12 @@ export component AppWindow inherits Window {
             y: 0px;
             height: root.header-h;
 
-            NavBar {
-                x: 0px;
-                y: root.chrome-top;
-                height: 72px * root.k;
-                width: root.two-line ? parent.width - root.right-w : parent.width / 3;
-                k: root.k;
-                can-back: false;
-                show-home: false;
-                title: "Turtlefin";
-                title-color: root.offline ? Theme.ok : Theme.dark ? Theme.accent2 : Theme.accent1;
-                sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
-                activate(i) => {
-                    root.nav-activate(i);
-                }
-            }
-
+            // Nom et icônes : la barre commune à toutes les pages (plus bas), jamais recréée.
             // Onglets au centre, mais jamais sur le nom ni sur les icônes de droite (fenêtre étroite).
             // Portrait : seconde ligne, centrés.
             HorizontalLayout {
+                // Départ de l'accueil : les onglets s'effacent avec la page (le voile ne couvre plus la barre).
+                opacity: 1 - root.veil;
                 property <length> lo: 250px * root.k;
                 property <length> hi: parent.width - root.right-w - 16px * root.k;
                 width: self.preferred-width;
@@ -4678,36 +4672,6 @@ export component AppWindow inherits Window {
                 }
             }
 
-            HeaderRight {
-                width: parent.width;
-                y: root.chrome-top;
-                height: 72px * root.k;
-                k: root.k;
-                narrow: root.narrow;
-                sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
-                party-on: root.sp-active;
-        cast-on: root.cast-on;
-                party-count: root.sp-count;
-                has-avatar: root.has-avatar;
-                avatar: root.avatar;
-                avatar-frames: root.avatar-frames;
-                avatar-idx: root.avatar-idx;
-                clock: root.clock;
-                offline: root.offline;
-                dl-text: root.dl-pill;
-                dl-p: root.dl-p;
-                dl-paused: root.dl-paused;
-                me-pop: root.me-pop;
-                init => {
-                    root.right-w = self.used-w;
-                }
-                changed used-w => {
-                    root.right-w = self.used-w;
-                }
-                activate(i) => {
-                    root.right-activate(i);
-                }
-            }
         }
 
         FocusScope {
@@ -8569,32 +8533,38 @@ export component AppWindow inherits Window {
     // accueil, menu) et de droite (5 icônes) côte à côte, réduites si elles ne tiennent pas (téléphone en
     // mode tablette). Largeur à k = 1 : 24 + 3 × 54 à gauche, ~270 à droite.
     property <float> bar-k: root.narrow ? min(root.k, root.width / (24px + (root.back-ok ? 3 : 2) * 54px + 280px)) : root.k;
-    if root.bar-screen && !root.playing && (root.signed-in || root.offline): NavBar {
+    // Barre du haut : la même pour toutes les pages (accueil compris), jamais recréée en changeant de
+    // page (ses boutons ne disparaissent plus à chaque chargement) ; seuls ses boutons et son titre changent.
+    property <bool> on-home: root.screen == "home";
+    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): NavBar {
         y: root.chrome-top;
-        // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait).
+        // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait) ; à l'accueil, avant
+        // les onglets.
         x: 0px;
-        width: parent.width - root.right-w;
+        width: root.on-home && !root.two-line ? parent.width / 3 : parent.width - root.right-w;
         // Même hauteur que la barre (icônes réduites centrées comme celles de droite).
         height: 72px * root.k;
-        k: root.bar-k;
-        can-back: root.back-ok;
-        show-home: true;
+        k: root.on-home ? root.k : root.bar-k;
+        can-back: !root.on-home && root.back-ok;
+        show-home: !root.on-home;
         enter: root.page-e;
-        title-color: root.offline ? Theme.ok : Theme.text;
-        title: root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
+        title-color: root.offline ? Theme.ok : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
+        title: root.on-home ? "Turtlefin" : root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
             : root.screen == "party" ? Tr.t(Tr.k, "Watch party") : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);
         }
     }
-    if root.bar-screen && !root.playing && (root.signed-in || root.offline): HeaderRight {
+    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): HeaderRight {
         // Téléphone tenu droit : la moitié de l'écran ne suffit pas aux cinq icônes (alignées à droite).
-        x: root.narrow ? 0px : parent.width / 2;
+        // Toujours la largeur entière (icônes alignées à droite) : la barre ne bouge pas d'une page à l'autre.
+        x: 0px;
         y: root.chrome-top;
-        width: root.narrow ? parent.width : parent.width / 2;
+        width: parent.width;
         height: 72px * root.k;
-        k: root.bar-k;
+        k: root.on-home ? root.k : root.bar-k;
+        me-pop: root.me-pop;
         narrow: root.narrow;
         sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
         party-on: root.sp-active;
@@ -9021,7 +8991,9 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                // Panneau en train de partir (fermé) : il ne reprend pas le clavier (il l'emporterait
+                // en disparaissant, et plus rien ne répondrait).
+                if (root.party-pop && !root.menu-open && !root.tour-lock && !root.lx-open) {
                     self.focus();
                 }
             }
@@ -9039,9 +9011,6 @@ export component AppWindow inherits Window {
                 // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
                 if (root.loading && event.text == Key.Escape) {
                     root.cancel-open();
-                    return EventResult.accept;
-                }
-                if (root.nav-key(event.text)) {
                     return EventResult.accept;
                 }
                 if (event.text == Key.UpArrow) {
@@ -9760,7 +9729,16 @@ export component AppWindow inherits Window {
     // Voile de transition : la page qui part s'efface dans son fond, qui lui ne bouge pas (même image,
     // même décor : une copie du fond passe par-dessus la page, seul le contenu disparaît).
     property <bool> veil-dim: root.hero-on && root.hero-big && root.hero-dest;
-    if root.veil > 0.001 && !root.playing && !root.veil-dim: Backdrop {
+    // Sous la barre du haut seulement : la barre (commune à toutes les pages) reste nette. Rognée,
+    // la copie du fond garde sa position (l'image tombe exactement sur celle de dessous).
+    if root.veil > 0.001 && !root.playing && !root.veil-dim: Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
+        clip: true;
+        Backdrop {
+        y: -root.header-row;
+        width: root.width;
+        height: root.height;
         a: root.veil;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
@@ -9778,8 +9756,11 @@ export component AppWindow inherits Window {
                 return EventResult.accept;
             }
         }
+        }
     }
     if root.veil > 0.001 && !root.playing && root.veil-dim: Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
         // Sous une vignette qui grandit jusqu'au plein écran : léger assombrissement seulement
         // (pas de « fondu au noir » avant que l'image ne couvre tout).
         background: Theme.bg.transparentize(1 - root.veil * 0.45);
@@ -9844,10 +9825,15 @@ export component AppWindow inherits Window {
     // Image partagée (au-dessus du voile) pendant qu'elle vole ; un grand fond arrivé passe derrière
     // la page (voir plus haut, avant les écrans). Coins arrondis (rognage, le temps du vol) et
     // pastilles de la carte (épisodes restants, note...), qui s'effacent vers la page.
+    // Rognée sous la barre du haut, qui reste nette pendant le vol (barre commune à toutes les pages).
     if root.hero-on && !root.hero-under && !root.playing: Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
+        clip: true;
+    Rectangle {
         opacity: root.hero-out-a;
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
-        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
         height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
         // Carte : coins du haut arrondis, bas carrés · affiche : 4 coins arrondis · plein écran : aucun.
@@ -9879,6 +9865,7 @@ export component AppWindow inherits Window {
         if root.hero-big: Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
+    }
     }
 
     // Message d'état : bulle en bas, au-dessus du contenu, effacée après 6 s.
