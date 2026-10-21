@@ -1410,7 +1410,8 @@ component WinCaption inherits Rectangle {
         height: 20px;
         border-bottom-left-radius: 5px;
         border-bottom-right-radius: 5px;
-        background: #ffffff33;
+        // Verre bleuté (et non voile blanc) : les boutons gardent la couleur du cadre, comme sous Windows 7.
+        background: #2a5a9a59;
         border-width: 1px;
         border-color: #000000b3;
         drop-shadow-blur: 1px;
@@ -3299,6 +3300,23 @@ export component AppWindow inherits Window {
     animate cast-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     property <float> remote-p: root.remote-open ? 1 : 0;
     animate remote-p { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Panneau refermé, quel que soit le chemin (icône, Échap, à côté, Rust) : la page reprend le
+    // clavier (sinon le panneau disparu le gardait, et plus rien ne répondait).
+    changed cast-pop => {
+        if (!root.cast-pop) {
+            root.refocus += 1;
+        }
+    }
+    changed party-pop => {
+        if (!root.party-pop) {
+            root.refocus += 1;
+        }
+    }
+    changed remote-open => {
+        if (!root.remote-open) {
+            root.refocus += 1;
+        }
+    }
     function cast-toggle() {
         root.party-pop = false;
         root.cast-pop = !root.cast-pop;

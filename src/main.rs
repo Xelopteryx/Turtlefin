@@ -5486,6 +5486,7 @@ fn update_chrome(u: &AppWindow) {
             if let Ok(h) = w.window_handle() {
                 if let RawWindowHandle::Win32(h) = h.as_raw() {
                     winfull::set_blur(h.hwnd.get() as *mut std::ffi::c_void, on);
+                    winfull::set_round(h.hwnd.get() as *mut std::ffi::c_void, on);
                 }
             }
         });

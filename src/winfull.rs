@@ -101,6 +101,8 @@ const GWLP_WNDPROC: i32 = -4;
 const WM_TIMER: u32 = 0x0113;
 const WM_ENTERSIZEMOVE: u32 = 0x0231;
 const WM_EXITSIZEMOVE: u32 = 0x0232;
+const WM_SIZE: u32 = 0x0005;
+const SIZE_MAXIMIZED: usize = 2;
 const MOVE_TIMER: usize = 0x7475;
 
 type WndProc = unsafe extern "system" fn(Hwnd, u32, usize, isize) -> isize;
@@ -128,6 +130,10 @@ unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> 
         WM_EXITSIZEMOVE => {
             // SAFETY : idem.
             unsafe { KillTimer(h, MOVE_TIMER) };
+        }
+        WM_SIZE if ROUND.load(std::sync::atomic::Ordering::Relaxed) => {
+            let (w, h2) = ((lp & 0xffff) as i32, ((lp >> 16) & 0xffff) as i32);
+            round_corners(h, if wp == SIZE_MAXIMIZED { None } else { Some((w, h2)) });
         }
         WM_TIMER if wp == MOVE_TIMER => {
             ON_TICK.with(|t| {
@@ -201,4 +207,55 @@ pub fn set_blur(hwnd: *mut c_void, on: bool) {
         let mut data = Data { attrib: WCA_ACCENT_POLICY, data: (&mut accent as *mut AccentPolicy).cast(), size: std::mem::size_of::<AccentPolicy>() };
         set(hwnd, &mut data);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Coins arrondis du cadre de Windows 7 : la fenêtre est découpée en rectangle aux coins arrondis
+// (région de Windows) ; hors de la région, Windows ne montre rien de la fenêtre (vrais coins
+// transparents, même là où l'OpenGL n'a pas d'alpha). Refait à chaque changement de taille.
+
+static ROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Rayon des coins, en pixels (celui du contour dessiné, voir WinCaption).
+const CORNER: i32 = 6;
+
+#[link(name = "gdi32")]
+extern "system" {
+    fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) -> *mut c_void;
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn SetWindowRgn(h: Hwnd, rgn: *mut c_void, redraw: i32) -> i32;
+    fn GetClientRect(h: Hwnd, r: *mut Rect) -> i32;
+    fn IsZoomed(h: Hwnd) -> i32;
+    fn GetDpiForWindow(h: Hwnd) -> u32;
+}
+
+fn round_corners(h: Hwnd, size: Option<(i32, i32)>) {
+    // SAFETY : fenêtre de ce processus ; la région passe à Windows (qui la libère), ou aucune.
+    unsafe {
+        match size {
+            Some((w, ht)) if w > 0 && ht > 0 => {
+                let dpi = GetDpiForWindow(h).max(96) as i32;
+                let d = 2 * CORNER * dpi / 96;
+                let rgn = CreateRoundRectRgn(0, 0, w + 1, ht + 1, d, d);
+                if !rgn.is_null() {
+                    SetWindowRgn(h, rgn, 1);
+                }
+            }
+            _ => {
+                SetWindowRgn(h, std::ptr::null_mut(), 1);
+            }
+        }
+    }
+}
+
+/// Coins arrondis (cadre de Windows 7, fenêtre ni agrandie ni en plein écran) ou fenêtre rectangulaire.
+pub fn set_round(hwnd: *mut c_void, on: bool) {
+    ROUND.store(on, std::sync::atomic::Ordering::Relaxed);
+    let mut r = Rect::default();
+    // SAFETY : fenêtre de ce processus, structure initialisée.
+    let maxed = unsafe { GetClientRect(hwnd, &mut r) == 0 || IsZoomed(hwnd) != 0 };
+    round_corners(hwnd, if on && !maxed { Some((r.right - r.left, r.bottom - r.top)) } else { None });
 }
