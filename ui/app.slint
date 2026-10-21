@@ -8565,12 +8565,18 @@ export component AppWindow inherits Window {
         || root.screen == "search" || root.screen == "party" || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads";
     // Sans session (premier lancement, « Changer de serveur » depuis la connexion) : pas de barre,
     // ses boutons (accueil, watch party, hasard, recherche, compte) n'auraient rien à ouvrir.
+    // Barre du haut des pages (fiche, bibliothèque…) sur un écran étroit : icônes de gauche (retour,
+    // accueil, menu) et de droite (5 icônes) côte à côte, réduites si elles ne tiennent pas (téléphone en
+    // mode tablette). Largeur à k = 1 : 24 + 3 × 54 à gauche, ~270 à droite.
+    property <float> bar-k: root.narrow ? min(root.k, root.width / (24px + (root.back-ok ? 3 : 2) * 54px + 280px)) : root.k;
     if root.bar-screen && !root.playing && (root.signed-in || root.offline): NavBar {
         y: root.chrome-top;
         // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait).
         x: 0px;
         width: parent.width - root.right-w;
-        k: root.k;
+        // Même hauteur que la barre (icônes réduites centrées comme celles de droite).
+        height: 72px * root.k;
+        k: root.bar-k;
         can-back: root.back-ok;
         show-home: true;
         enter: root.page-e;
@@ -8588,7 +8594,7 @@ export component AppWindow inherits Window {
         y: root.chrome-top;
         width: root.narrow ? parent.width : parent.width / 2;
         height: 72px * root.k;
-        k: root.k;
+        k: root.bar-k;
         narrow: root.narrow;
         sel: root.h-focus && root.h-sel >= root.right-base ? root.h-sel - root.right-base : -1;
         party-on: root.sp-active;
