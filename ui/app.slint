@@ -6104,7 +6104,7 @@ export component AppWindow inherits Window {
                 }
             }
             Rectangle {
-                width: 480px * root.k;
+                width: min(480px * root.k, parent.width - 32px * root.k);
                 height: 70px * root.k + root.tp-items.length * 44px * root.k;
                 border-radius: (Theme.win7 ? 8px : 16px);
                 background: Theme.win7 ? transparent : Theme.glass;
@@ -6820,7 +6820,7 @@ export component AppWindow inherits Window {
             }
 
             choice := Rectangle {
-                width: 600px * root.k;
+                width: min(600px * root.k, parent.width - 32px * root.k);
                 height: 190px * root.k;
                 border-radius: (Theme.win7 ? 8px : 16px);
                 background: Theme.win7 ? transparent : Theme.glass;
@@ -7580,7 +7580,9 @@ export component AppWindow inherits Window {
                     for r[i] in root.set-rows: set-row-box := Rectangle {
                         // Portrait : la pastille d'un choix passe sous le libellé (ligne plus haute).
                         property <bool> stack: sets.one && r.kind == "choice";
-                        height: (r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k)
+                        // Grandit avec son texte (description sur plusieurs lignes, texte agrandi par le système).
+                        height: max(r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k,
+                                row-col.preferred-height + (r.kind == "info" ? 4px : 22px) * root.k)
                             + (self.stack ? 44px * root.k : 0px);
                         // Ligne choisie au clavier : on fait défiler pour qu'elle reste visible.
                         property <bool> is-sel: root.set-in && i == root.set-sel;
@@ -7641,7 +7643,7 @@ export component AppWindow inherits Window {
                             }
                             AlertRing { k: root.k; gap: 4px; }
                         }
-                        VerticalLayout {
+                        row-col := VerticalLayout {
                             x: r.kind == "profile" ? 108px * root.k : 20px * root.k;
                             y: 0px;
                             height: parent.height - (set-row-box.stack ? 44px * root.k : 0px);
@@ -7784,9 +7786,9 @@ export component AppWindow inherits Window {
             property <int> rows: min(root.ch-items.length, max(3, floor((self.height - 120px * root.k) / self.row-h)));
             property <int> top: max(0, min(root.ch-sel - 4, root.ch-items.length - self.rows));
             Rectangle {
-                x: parent.width - self.width - 32px * root.k + (1 - sets.ch-p) * (self.width + 40px * root.k);
+                x: max(16px * root.k, parent.width - self.width - 32px * root.k) + (1 - sets.ch-p) * (self.width + 40px * root.k);
                 y: (parent.height - self.height) / 2;
-                width: 380px * root.k;
+                width: min(380px * root.k, parent.width - 32px * root.k);
                 height: 70px * root.k + parent.rows * parent.row-h + 12px * root.k;
                 border-radius: (Theme.win7 ? 8px : 18px) * root.k;
                 background: Theme.win7 ? transparent : Theme.glass;
@@ -9235,7 +9237,7 @@ export component AppWindow inherits Window {
         drawer := Rectangle {
             x: -(1 - root.menu-p) * (self.width + 8px);
             y: root.chrome-top;
-            width: 340px * root.k;
+            width: min(340px * root.k, parent.width - 32px * root.k);
             height: parent.height - root.chrome-top;
             background: Theme.panel;
             border-width: 1px;
@@ -9676,7 +9678,8 @@ export component AppWindow inherits Window {
         x: max(root.safe-area-insets.left, self.side);
         y: root.chrome-top + root.safe-area-insets.top;
         width: parent.width - max(root.safe-area-insets.left, self.side) - max(root.safe-area-insets.right, self.side);
-        height: parent.height - root.chrome-top - root.safe-area-insets.top - root.safe-area-insets.bottom;
+        // Bas : la barre de gestes d'Android (paysage) passe aussi par-dessus.
+        height: parent.height - root.chrome-top - root.safe-area-insets.top - max(root.safe-area-insets.bottom, Nav.phone ? 20px : 0px);
         hit-sx <=> root.p-hit-sx;
         hit-sy <=> root.p-hit-sy;
         hit-sw <=> root.p-hit-sw;

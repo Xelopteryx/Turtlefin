@@ -2005,6 +2005,41 @@ fn cast_refresh(app: &Arc<App>) {
     });
 }
 
+/// Adresse de la vidéo pour un écran du réseau local : l'écran lit lui-même le flux, il lui faut une
+/// adresse du serveur qu'il peut joindre. Le téléphone peut passer par une autre (Tailscale, Internet) :
+/// on prend alors une adresse du même serveur sur le réseau de l'écran (adresses enregistrées, sinon
+/// serveurs trouvés sur le réseau), et l'adresse de la vidéo y est reportée.
+async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::IpAddr>) -> String {
+    let Some(std::net::IpAddr::V4(scr)) = screen else { return url.to_string() };
+    let same_net = |base: &str| -> bool {
+        reqwest::Url::parse(base)
+            .ok()
+            .and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::Ipv4Addr>().ok()))
+            .is_some_and(|ip| ip.octets()[..3] == scr.octets()[..3])
+    };
+    if same_net(&client.server) {
+        return url.to_string();
+    }
+    let saved = config::load();
+    let server_id = saved.server_id.clone();
+    let mut base = [saved.server_main.as_str(), saved.server_backup.as_str()].into_iter().find(|b| !b.is_empty() && same_net(b)).map(str::to_string);
+    if base.is_none() {
+        for f in discovery::discover().await {
+            if !server_id.is_empty() && f.id != server_id {
+                continue;
+            }
+            if let Some(b) = [f.main, f.backup].into_iter().flatten().find(|b| same_net(b)) {
+                base = Some(b);
+                break;
+            }
+        }
+    }
+    match base {
+        Some(b) if url.starts_with(&client.server) => format!("{}{}", b.trim_end_matches('/'), &url[client.server.len()..]),
+        _ => url.to_string(),
+    }
+}
+
 /// Lignes « Écrans de diffusion » de Paramètres → Lecture : (clé, nom, détail, valeur, type).
 fn screen_rows(p: &config::UiPrefs) -> Vec<(String, String, String, String, &'static str)> {
     let mut v = vec![(
@@ -2175,6 +2210,8 @@ fn cast_play_item(app: &Arc<App>, id: String) {
                     // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le
                     // fait Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
                     let (url, mime) = client.cast_stream(&item.id, true).await?;
+                    let screen = reqwest::Url::parse(&r.av_control).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::IpAddr>().ok()));
+                    let url = screen_url(&client, &url, screen).await;
                     let (title, _) = item.titles();
                     cast::play_url(r, &url, &mime, &title).await?;
                     if let Some(s) = start {
@@ -2183,6 +2220,7 @@ fn cast_play_item(app: &Arc<App>, id: String) {
                 }
                 CastTarget::Gcast(d) => {
                     let (url, mime) = client.cast_stream(&item.id, false).await?;
+                    let url = screen_url(&client, &url, Some(d.addr.ip())).await;
                     let (title, _) = item.titles();
                     chromecast::play_url(d, &url, &mime, &title, start).await?;
                 }

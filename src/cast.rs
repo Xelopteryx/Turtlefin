@@ -174,7 +174,13 @@ async fn soap(url: &str, service: &str, action: &str, args: &str) -> Result<Stri
     let ok = resp.status().is_success();
     let text = String::from_utf8_lossy(&crate::api::body_limited(resp, 64 << 10).await?).to_string();
     if !ok {
-        return Err(anyhow!("la télé refuse ({action})"));
+        // Raison donnée par la télé (UPnP : errorCode / errorDescription), si elle en donne une.
+        let why = tag(&text, "errorDescription", 0).map(|(d, _)| clean(d)).filter(|d| !d.is_empty())
+            .or_else(|| tag(&text, "errorCode", 0).map(|(c, _)| format!("code {}", clean(c))));
+        return Err(match why {
+            Some(w) => anyhow!("la télé refuse ({action} : {w})"),
+            None => anyhow!("la télé refuse ({action})"),
+        });
     }
     Ok(text)
 }

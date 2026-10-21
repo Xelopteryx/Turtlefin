@@ -1076,6 +1076,13 @@ export component PlayerView inherits Rectangle {
 
         // Panneau du bas : temps, barre, boutons, heure de fin.
         panel := Rectangle {
+            // Petit écran (téléphone, texte agrandi) : les boutons de lecture (au centre) et de pistes (à
+            // droite) ne doivent pas se chevaucher : la lecture se décale à gauche, puis tout rétrécit.
+            property <int> nr: root.quality-tracks.length > 0 ? 4 : 3;
+            property <length> need: (5 * 52px + 4 * 16px + (self.nr + 1) * 44px + self.nr * 12px + 24px) * root.k + root.m;
+            property <float> bk: min(1, self.width / self.need);
+            property <length> cw: (5 * 52px + 4 * 16px) * root.k * self.bk;
+            property <length> rw: ((self.nr + 1) * 44px + self.nr * 12px) * root.k * self.bk;
             x: root.m;
             width: parent.width - 2 * root.m;
             height: 160px * root.k;
@@ -1185,17 +1192,17 @@ export component PlayerView inherits Rectangle {
                 }
             }
 
-            // Boutons de lecture, au centre
+            // Boutons de lecture, au centre (décalés à gauche s'ils touchent les pistes)
             HorizontalLayout {
-                x: 0px;
-                y: 78px * root.k;
-                width: parent.width;
-                height: 52px * root.k;
-                alignment: center;
-                spacing: 16px * root.k;
+                x: max(root.m, min((parent.width - panel.cw) / 2, parent.width - root.m - panel.rw - 24px * root.k * panel.bk - panel.cw));
+                y: 78px * root.k + (1 - panel.bk) * 26px * root.k;
+                width: panel.cw;
+                height: 52px * root.k * panel.bk;
+                alignment: start;
+                spacing: 16px * root.k * panel.bk;
 
                 PlayerButton {
-                    size: 52px * root.k;
+                    size: 52px * root.k * panel.bk;
                     icon: "prev-ep";
                     enabled: root.has-prev;
                     focused: root.zone == 2 && root.btn == 0;
@@ -1206,7 +1213,7 @@ export component PlayerView inherits Rectangle {
                     }
                 }
                 PlayerButton {
-                    size: 52px * root.k;
+                    size: 52px * root.k * panel.bk;
                     icon: "prev-chap";
                     enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 1;
@@ -1217,7 +1224,7 @@ export component PlayerView inherits Rectangle {
                     }
                 }
                 PlayerButton {
-                    size: 52px * root.k;
+                    size: 52px * root.k * panel.bk;
                     icon: root.paused ? "play" : "pause";
                     main: true;
                     focused: root.zone == 2 && root.btn == 2;
@@ -1228,7 +1235,7 @@ export component PlayerView inherits Rectangle {
                     }
                 }
                 PlayerButton {
-                    size: 52px * root.k;
+                    size: 52px * root.k * panel.bk;
                     icon: "next-chap";
                     enabled: root.chapter-count > 0;
                     focused: root.zone == 2 && root.btn == 3;
@@ -1239,7 +1246,7 @@ export component PlayerView inherits Rectangle {
                     }
                 }
                 PlayerButton {
-                    size: 52px * root.k;
+                    size: 52px * root.k * panel.bk;
                     icon: "next-ep";
                     enabled: root.has-next;
                     focused: root.zone == 2 && root.btn == 4;
@@ -1254,14 +1261,14 @@ export component PlayerView inherits Rectangle {
             // Pistes, à droite
             HorizontalLayout {
                 x: 0px;
-                y: 82px * root.k;
+                y: 82px * root.k + (1 - panel.bk) * 22px * root.k;
                 width: parent.width - root.m;
-                height: 44px * root.k;
+                height: 44px * root.k * panel.bk;
                 alignment: end;
-                spacing: 12px * root.k;
+                spacing: 12px * root.k * panel.bk;
 
                 PlayerButton {
-                    size: 44px * root.k;
+                    size: 44px * root.k * panel.bk;
                     icon: root.volume == 0 ? "mute" : "volume";
                     focused: (root.zone == 2 || root.zone == 6) && root.btn == 5;
                     press: root.press-btn == 5 ? root.press-n : 0;
@@ -1271,7 +1278,7 @@ export component PlayerView inherits Rectangle {
                 }
                 PlayerButton {
                     enabled: root.audio-tracks.length > 1;
-                    size: 44px * root.k;
+                    size: 44px * root.k * panel.bk;
                     icon: "audio";
                     focused: root.zone == 2 && root.btn == 6;
                     press: root.press-btn == 6 ? root.press-n : 0;
@@ -1281,7 +1288,7 @@ export component PlayerView inherits Rectangle {
                 }
                 PlayerButton {
                     enabled: root.sub-tracks.length > 0;
-                    size: 44px * root.k;
+                    size: 44px * root.k * panel.bk;
                     icon: "subs";
                     focused: root.zone == 2 && root.btn == 7;
                     press: root.press-btn == 7 ? root.press-n : 0;
@@ -1290,7 +1297,7 @@ export component PlayerView inherits Rectangle {
                     }
                 }
                 if root.quality-tracks.length > 0: PlayerButton {
-                    size: 44px * root.k;
+                    size: 44px * root.k * panel.bk;
                     icon: "quality";
                     focused: root.zone == 2 && root.btn == 8;
                     press: root.press-btn == 8 ? root.press-n : 0;
@@ -1316,7 +1323,7 @@ export component PlayerView inherits Rectangle {
         // Menu des pistes, au-dessus du panneau, à droite.
         // Monte de 24 px en apparaissant, redescend en disparaissant.
         if root.menu-p > 0.01: Rectangle {
-            width: 440px * root.k;
+            width: min(440px * root.k, parent.width - 32px * root.k);
             height: 64px * root.k + max(1, min(root.menu-items.length, root.menu-rows)) * 46px * root.k + 10px * root.k;
             x: parent.width - self.width - root.m;
             y: panel.y - self.height - 16px * root.k + (1 - root.menu-p) * 24px * root.k;
@@ -1636,7 +1643,7 @@ export component PlayerView inherits Rectangle {
         opacity: root.next-p;
         y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
         animate y { duration: Motion.player ? 160ms : 0ms; easing: ease-out; }
-        width: 340px * root.k;
+        width: min(340px * root.k, parent.width - 32px * root.k);
         height: 340px * 0.5625 * root.k + 150px * root.k;
         border-radius: 14px;
         background: Theme.player-bar;
