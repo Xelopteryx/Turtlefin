@@ -1686,19 +1686,34 @@ impl Client {
     /// WebM, H.264 / VP8 / VP9, AAC / MP3 / Opus / Vorbis), sinon un flux HLS H.264 + AAC du serveur (qui
     /// recopie ce qui est déjà compatible au lieu de le convertir). Adresse complète, jeton compris :
     /// l'appareil la lit lui-même. Renvoie (adresse, type MIME).
-    pub async fn cast_stream(&self, item_id: &str) -> Result<(String, String)> {
-        let profile = serde_json::json!({
-            "MaxStreamingBitrate": 40_000_000u64,
-            "DirectPlayProfiles": [
-                { "Type": "Video", "Container": "mp4,m4v", "VideoCodec": "h264", "AudioCodec": "aac,mp3" },
-                { "Type": "Video", "Container": "webm", "VideoCodec": "vp8,vp9", "AudioCodec": "opus,vorbis" }
-            ],
-            "TranscodingProfiles": [{
-                "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3",
-                "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "2", "MinSegments": 1,
-                "BreakOnNonKeyFrames": true
-            }],
-        });
+    /// `dlna` : télé DLNA (Samsung, LG…) au lieu d'un Chromecast : MKV / MP4 / AVI tels quels (H.264,
+    /// HEVC, MPEG-4 ; AAC, AC3, MP3), sinon un flux MPEG-TS H.264 continu (pas de HLS : peu de télés le lisent).
+    pub async fn cast_stream(&self, item_id: &str, dlna: bool) -> Result<(String, String)> {
+        let profile = if dlna {
+            serde_json::json!({
+                "MaxStreamingBitrate": 40_000_000u64,
+                "DirectPlayProfiles": [
+                    { "Type": "Video", "Container": "mkv,mp4,m4v,avi", "VideoCodec": "h264,hevc,mpeg4", "AudioCodec": "aac,ac3,eac3,mp3" }
+                ],
+                "TranscodingProfiles": [{
+                    "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,ac3,mp3",
+                    "Context": "Streaming", "Protocol": "http", "MaxAudioChannels": "6", "EstimateContentLength": false
+                }],
+            })
+        } else {
+            serde_json::json!({
+                "MaxStreamingBitrate": 40_000_000u64,
+                "DirectPlayProfiles": [
+                    { "Type": "Video", "Container": "mp4,m4v", "VideoCodec": "h264", "AudioCodec": "aac,mp3" },
+                    { "Type": "Video", "Container": "webm", "VideoCodec": "vp8,vp9", "AudioCodec": "opus,vorbis" }
+                ],
+                "TranscodingProfiles": [{
+                    "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3",
+                    "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "2", "MinSegments": 1,
+                    "BreakOnNonKeyFrames": true
+                }],
+            })
+        };
         let resp = self
             .http
             .post(format!("{}/Items/{}/PlaybackInfo", self.server, seg(item_id)))
@@ -1706,7 +1721,8 @@ impl Client {
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .json(&serde_json::json!({ "DeviceProfile": profile }))
             .send()
-            .await?;
+            .await
+            .map_err(|e| anyhow!("PlaybackInfo (diffuser) : {e}"))?;
         if resp.status().as_u16() == 401 {
             return Err(Unauthorized.into());
         }
@@ -1715,7 +1731,15 @@ impl Client {
         let source = ms["Id"].as_str().unwrap_or(item_id);
         if ms["SupportsDirectPlay"].as_bool() == Some(true) || ms["SupportsDirectStream"].as_bool() == Some(true) && ms["TranscodingUrl"].is_null() {
             let container = ms["Container"].as_str().unwrap_or("mp4");
-            let mime = if container.contains("webm") { "video/webm" } else { "video/mp4" };
+            let mime = if container.contains("webm") {
+                "video/webm"
+            } else if container.contains("mkv") || container.contains("matroska") {
+                "video/x-mkv"
+            } else if container.contains("avi") {
+                "video/avi"
+            } else {
+                "video/mp4"
+            };
             let url = format!(
                 "{}/Videos/{}/stream?static=true&MediaSourceId={}&api_key={}",
                 self.server,
@@ -1731,7 +1755,7 @@ impl Client {
         if !url.to_ascii_lowercase().contains("api_key=") && !url.to_ascii_lowercase().contains("apikey=") {
             url.push_str(&format!("&api_key={}", seg(&self.token)));
         }
-        Ok((url, "application/x-mpegURL".to_string()))
+        Ok((url, if dlna { "video/mpeg" } else { "application/x-mpegURL" }.to_string()))
     }
 
     /// Arrête la conversion du serveur pour cette lecture (sinon elle tourne encore un moment pour rien).

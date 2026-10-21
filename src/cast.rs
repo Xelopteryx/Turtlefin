@@ -166,7 +166,8 @@ async fn soap(url: &str, service: &str, action: &str, args: &str) -> Result<Stri
         .header("SOAPACTION", format!("\"urn:schemas-upnp-org:service:{service}:1#{action}\""))
         .body(body)
         .send()
-        .await?;
+        .await
+        .map_err(|e| anyhow!("la télé ne répond pas ({action}) : {e}"))?;
     let ok = resp.status().is_success();
     let text = String::from_utf8_lossy(&crate::api::body_limited(resp, 64 << 10).await?).to_string();
     if !ok {
@@ -176,10 +177,14 @@ async fn soap(url: &str, service: &str, action: &str, args: &str) -> Result<Stri
 }
 
 /// Fait lire cette adresse (flux du serveur) par la télé.
-pub async fn play_url(r: &Renderer, url: &str, title: &str) -> Result<()> {
+/// `mime` : type exact du flux (les télés Samsung refusent un « video/* » vague et restent arrêtées).
+pub async fn play_url(r: &Renderer, url: &str, mime: &str, title: &str) -> Result<()> {
+    let flags = if mime == "video/mpeg" { "DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000" } else { "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000" };
     let meta = format!(
-        "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>{}</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:video/*:*\">{}</res></item></DIDL-Lite>",
+        "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>{}</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:{}:{}\">{}</res></item></DIDL-Lite>",
         xml_escape(title),
+        mime,
+        flags,
         xml_escape(url)
     );
     let _ = soap(&r.av_control, "AVTransport", "Stop", "<InstanceID>0</InstanceID>").await;

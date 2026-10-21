@@ -2074,15 +2074,15 @@ fn cast_play_item(app: &Arc<App>, id: String) {
                 CastTarget::Dlna(r) => {
                     // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le
                     // fait Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
-                    let url = format!("{}/Videos/{}/stream?static=true&api_key={}", client.server, api::seg(&item.id), client.token);
+                    let (url, mime) = client.cast_stream(&item.id, true).await?;
                     let (title, _) = item.titles();
-                    cast::play_url(r, &url, &title).await?;
+                    cast::play_url(r, &url, &mime, &title).await?;
                     if let Some(s) = start {
                         let _ = cast::control(r, "seek", s).await;
                     }
                 }
                 CastTarget::Gcast(d) => {
-                    let (url, mime) = client.cast_stream(&item.id).await?;
+                    let (url, mime) = client.cast_stream(&item.id, false).await?;
                     let (title, _) = item.titles();
                     chromecast::play_url(d, &url, &mime, &title, start).await?;
                 }
