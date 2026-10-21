@@ -2586,8 +2586,11 @@ export component AppWindow inherits Window {
     property <bool> hero-deck;
     property <bool> deal-anim;
     property <duration> deal-t0;
-    // Durée de la distribution : un départ toutes les 70 ms (20 au plus), 420 ms de vol chacun.
-    property <duration> deal-len: 260ms + min(root.lib-items.length, 20) * 70ms + 420ms;
+    // Cartes distribuées : celles qui tiennent à l'écran (posé par la grille) ; les suivantes, hors de
+    // vue, attendent à leur place (rien à dessiner ni à animer, voir la grille de la bibliothèque).
+    in-out property <int> deal-n: 20;
+    // Durée de la distribution : un départ toutes les 70 ms, 420 ms de vol chacun.
+    property <duration> deal-len: 260ms + min(root.lib-items.length, root.deal-n) * 70ms + 420ms;
     changed deal-anim => {
         // Distribution finie : le paquet (l'image partagée) s'efface sur place.
         if (!root.deal-anim && root.hero-deck && root.hero-on) {
@@ -2606,13 +2609,17 @@ export component AppWindow inherits Window {
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
     pure function deal-p(i: int) -> float {
+        // Hors de l'écran à l'arrivée : déjà à sa place (jamais vue en vol).
+        if (i >= root.deal-n) {
+            return 1;
+        }
         if (root.deal-wait && Motion.detail) {
             return 0;
         }
         if (!root.deal-anim || !Motion.detail) {
             return 1;
         }
-        let t = clamp((animation-tick() - root.deal-t0 - 260ms - min(i, 20) * 70ms) / 420ms, 0, 1);
+        let t = clamp((animation-tick() - root.deal-t0 - 260ms - i * 70ms) / 420ms, 0, 1);
         return 1 - (1 - t) * (1 - t) * (1 - t);
     }
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
@@ -6292,6 +6299,14 @@ export component AppWindow inherits Window {
         property <int> cols: max(1, floor((self.width - 2 * self.pad + self.gap) / (self.cw + self.gap)));
         property <int> rows: ceil(root.lib-items.length / self.cols);
         property <int> sel-row: floor(root.l-sel / self.cols);
+        // Cartes visibles à l'arrivée (lignes entières ou entamées) : seules celles-là sont distribuées.
+        property <int> on-screen: self.cols * max(1, ceil((self.height - 12px * root.k) / (self.ch + self.gap)));
+        init => {
+            root.deal-n = self.on-screen;
+        }
+        changed on-screen => {
+            root.deal-n = self.on-screen;
+        }
         // Grille centrée horizontalement.
         property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
 
