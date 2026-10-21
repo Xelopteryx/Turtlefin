@@ -1876,3 +1876,27 @@ msgstr "Telecomando"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: il video viene inviato lì"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "Nessuno schermo trovato finora. Accendi la TV, poi cerca."
+
+msgid "Chercher"
+msgstr "Cerca"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Nome mostrato in «Trasmetti». Vuoto: il nome originale ({})."
+
+msgid "Nom de l'écran"
+msgstr "Nome dello schermo"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Rinomina uno schermo per riconoscerlo in «Trasmetti» (due TV con lo stesso nome…)."
+
+msgid "Renommer"
+msgstr "Rinomina"
+
+msgid "Renommer l'écran"
+msgstr "Rinomina lo schermo"
+
+msgid "Écrans de diffusion"
+msgstr "Schermi di trasmissione"

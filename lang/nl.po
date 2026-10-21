@@ -1876,3 +1876,27 @@ msgstr "Afstandsbediening"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: de video wordt erheen gestuurd"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "Nog geen scherm gevonden. Zet de tv aan en zoek dan."
+
+msgid "Chercher"
+msgstr "Zoeken"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Naam in ‘Casten’. Leeg: de oorspronkelijke naam ({})."
+
+msgid "Nom de l'écran"
+msgstr "Naam van het scherm"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Geef een scherm een andere naam om het in ‘Casten’ te herkennen (twee tv's met dezelfde naam…)."
+
+msgid "Renommer"
+msgstr "Hernoemen"
+
+msgid "Renommer l'écran"
+msgstr "Scherm hernoemen"
+
+msgid "Écrans de diffusion"
+msgstr "Castschermen"

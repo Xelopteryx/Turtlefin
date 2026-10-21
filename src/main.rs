@@ -230,6 +230,10 @@ struct App {
     dlna_found: Mutex<Vec<cast::Renderer>>,
     /// Appareils Google Cast trouvés (Chromecast, Google TV, décodeurs « Chromecast intégré »).
     gcast_found: Mutex<Vec<chromecast::Device>>,
+    /// Noms d'origine des écrans trouvés (DLNA, Google Cast), dans l'ordre des listes ci-dessus.
+    screen_orig: Mutex<(Vec<String>, Vec<String>)>,
+    /// Écran en cours de renommage (clé de config::CastScreen).
+    rename_key: Mutex<String>,
     cast_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Télécommande (menu) : Turtlefin piloté (session, nom) et relecture de son état.
     remote: Mutex<Option<(String, String)>>,
@@ -1965,7 +1969,21 @@ fn cast_refresh(app: &Arc<App>) {
     let a = app.clone();
     app.rt.spawn(async move {
         let wait = std::time::Duration::from_millis(2500);
-        let (jf, dlna, gcast) = tokio::join!(client.remote_targets(), cast::discover(wait), chromecast::discover(wait));
+        let (jf, mut dlna, mut gcast) = tokio::join!(client.remote_targets(), cast::discover(wait), chromecast::discover(wait));
+        // Noms choisis dans Paramètres → Lecture (deux télés « [TV] Living room »…).
+        let screens = config::ui_prefs().cast_screens;
+        let named = |key: String, original: &str| -> String {
+            screens.iter().find(|s| s.key == key && !s.name.is_empty()).map(|s| s.name.clone()).unwrap_or_else(|| original.to_string())
+        };
+        let dlna_orig: Vec<String> = dlna.iter().map(|r| r.name.clone()).collect();
+        let gcast_orig: Vec<String> = gcast.iter().map(|d| d.name.clone()).collect();
+        for r in dlna.iter_mut() {
+            r.name = named(format!("dlna:{}", r.id), &r.name);
+        }
+        for d in gcast.iter_mut() {
+            d.name = named(format!("gcast:{}", d.id), &d.name);
+        }
+        *a.screen_orig.lock().unwrap() = (dlna_orig, gcast_orig);
         let mut items: Vec<CastItem> = Vec::new();
         for t in jf.unwrap_or_default() {
             let sub = if t.now_playing.is_empty() { t.client.clone() } else { format!("{} · {}", t.client, t.now_playing) };
@@ -1979,11 +1997,93 @@ fn cast_refresh(app: &Arc<App>) {
         }
         *a.dlna_found.lock().unwrap() = dlna;
         *a.gcast_found.lock().unwrap() = gcast;
+        a.remember_screens();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
             u.set_cast_items(ModelRc::new(VecModel::from(items)));
             u.set_cast_busy(false);
         });
     });
+}
+
+/// Lignes « Écrans de diffusion » de Paramètres → Lecture : (clé, nom, détail, valeur, type).
+fn screen_rows(p: &config::UiPrefs) -> Vec<(String, String, String, String, &'static str)> {
+    let mut v = vec![(
+        "screens_scan".to_string(),
+        tr("Écrans de diffusion").to_string(),
+        if p.cast_screens.is_empty() {
+            tr("Aucun écran vu pour l'instant. Allume la télé, puis cherche.").to_string()
+        } else {
+            tr("Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…).").to_string()
+        },
+        tr("Chercher").to_string(),
+        "action",
+    )];
+    for sc in &p.cast_screens {
+        let kind = if sc.key.starts_with("gcast:") { "Chromecast" } else { "DLNA" };
+        let hint = if sc.name.is_empty() { kind.to_string() } else { format!("{} · {kind}", sc.original) };
+        v.push((format!("screen:{}", sc.key), sc.shown().to_string(), hint, tr("Renommer").to_string(), "action"));
+    }
+    v
+}
+
+impl App {
+    /// Écrans trouvés gardés dans les préférences (pour les renommer même éteints), 24 au plus.
+    fn remember_screens(&self) {
+        let (dlna_orig, gcast_orig) = self.screen_orig.lock().unwrap().clone();
+        let mut found: Vec<(String, String)> = Vec::new();
+        for (r, o) in self.dlna_found.lock().unwrap().iter().zip(dlna_orig) {
+            found.push((format!("dlna:{}", r.id), o));
+        }
+        for (d, o) in self.gcast_found.lock().unwrap().iter().zip(gcast_orig) {
+            found.push((format!("gcast:{}", d.id), o));
+        }
+        let mut p = config::ui_prefs();
+        let before = p.cast_screens.clone();
+        for (key, original) in found {
+            match p.cast_screens.iter_mut().find(|s| s.key == key) {
+                Some(s) => s.original = original,
+                None => p.cast_screens.push(config::CastScreen { key, original, name: String::new() }),
+            }
+        }
+        p.cast_screens.truncate(24);
+        if p.cast_screens != before {
+            config::save_ui_prefs(&p);
+        }
+    }
+
+    /// Nouveau nom appliqué aux écrans déjà trouvés (liste de « Diffuser », écran choisi).
+    fn rename_found(&self, key: &str) {
+        let Some(sc) = config::ui_prefs().cast_screens.into_iter().find(|s| s.key == key) else { return };
+        let shown = sc.shown().to_string();
+        let mut old = None;
+        for r in self.dlna_found.lock().unwrap().iter_mut().filter(|r| format!("dlna:{}", r.id) == key) {
+            old = Some(std::mem::replace(&mut r.name, shown.clone()));
+        }
+        for d in self.gcast_found.lock().unwrap().iter_mut().filter(|d| format!("gcast:{}", d.id) == key) {
+            old = Some(std::mem::replace(&mut d.name, shown.clone()));
+        }
+        let mut cast = self.cast.lock().unwrap();
+        match cast.as_mut() {
+            Some(CastTarget::Dlna(r)) if format!("dlna:{}", r.id) == key => r.name = shown.clone(),
+            Some(CastTarget::Gcast(d)) if format!("gcast:{}", d.id) == key => d.name = shown.clone(),
+            _ => {}
+        }
+        if let (Some(u), Some(old)) = (self.ui().upgrade(), old) {
+            let items: Vec<CastItem> = (0..u.get_cast_items().row_count())
+                .filter_map(|i| u.get_cast_items().row_data(i))
+                .map(|mut c| {
+                    if c.kind != "jf" && c.name.as_str() == old {
+                        c.name = shown.clone().into();
+                    }
+                    c
+                })
+                .collect();
+            u.set_cast_items(ModelRc::new(VecModel::from(items)));
+            if u.get_cast_target().as_str() == old {
+                u.set_cast_target(shown.into());
+            }
+        }
+    }
 }
 
 /// Écran choisi : les vidéos y sont envoyées (« Lire sur … » des fiches) ; le panneau montre ce qui y
@@ -3222,7 +3322,10 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
             row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
-        ],
+        ]
+        .into_iter()
+        .chain(screen_rows(&prefs).into_iter().map(|(k, l, h, v, kind)| row(&k, &l, &h, v, kind, false)))
+        .collect(),
         2 => vec![
             row("slang", tr("Langue des sous-titres préférée"), tr("Utilisée selon le mode ci-dessous."), label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
             row("submode", tr("Quand afficher les sous-titres"), tr("Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."), label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
@@ -4094,6 +4197,27 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "server" => open_servers(app),
         "avatar" => open_avatar_picker(app),
         "password" => open_password(app),
+        "screens_scan" => {
+            cast_refresh(app);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(tr("Recherche des écrans…").into());
+            }
+            let a = app.clone();
+            slint::Timer::single_shot(std::time::Duration::from_millis(3500), move || refresh_settings(&a));
+        }
+        k if k.starts_with("screen:") => {
+            let key = k["screen:".len()..].to_string();
+            let Some(sc) = config::ui_prefs().cast_screens.into_iter().find(|s| s.key == key) else { return };
+            *app.rename_key.lock().unwrap() = key;
+            if let Some(u) = app.ui().upgrade() {
+                u.set_addr_text(sc.name.clone().into());
+                u.set_addr_hint(sc.original.clone().into());
+                u.set_addr_err("".into());
+                u.set_addr_osk(false);
+                u.set_addr_field(0);
+                u.set_addr_edit(7);
+            }
+        }
         "addr_main" | "addr_backup" => {
             let saved = config::load();
             if let Some(u) = app.ui().upgrade() {
@@ -4298,6 +4422,22 @@ fn pw_step(app: &Arc<App>, which: i32, text: String) {
 }
 
 fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    // Nom d'un écran de diffusion (vide : son nom d'origine).
+    if which == 7 {
+        let key = app.rename_key.lock().unwrap().clone();
+        let name: String = text.trim().chars().filter(|c| !c.is_control()).take(40).collect();
+        let mut p = config::ui_prefs();
+        if let Some(sc) = p.cast_screens.iter_mut().find(|s| s.key == key) {
+            sc.name = if name == sc.original { String::new() } else { name };
+        }
+        config::save_ui_prefs(&p);
+        app.rename_found(&key);
+        if let Some(u) = app.ui().upgrade() {
+            u.set_addr_edit(0);
+        }
+        refresh_settings(app);
+        return;
+    }
     if which >= 4 {
         pw_step(app, which, text);
         return;
@@ -6335,6 +6475,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
         cast: Mutex::new(None),
         dlna_found: Mutex::new(Vec::new()),
         gcast_found: Mutex::new(Vec::new()),
+        screen_orig: Mutex::new((Vec::new(), Vec::new())),
+        rename_key: Mutex::new(String::new()),
         cast_poll: Mutex::new(None),
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),

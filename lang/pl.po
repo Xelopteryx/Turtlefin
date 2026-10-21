@@ -1882,3 +1882,27 @@ msgstr "Pilot"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: wideo jest tam wysyłane"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "Nie znaleziono jeszcze ekranu. Włącz telewizor i wyszukaj."
+
+msgid "Chercher"
+msgstr "Szukaj"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Nazwa widoczna w „Przesyłaj”. Puste: nazwa oryginalna ({})."
+
+msgid "Nom de l'écran"
+msgstr "Nazwa ekranu"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Zmień nazwę ekranu, aby rozpoznać go w „Przesyłaj” (dwa telewizory o tej samej nazwie…)."
+
+msgid "Renommer"
+msgstr "Zmień nazwę"
+
+msgid "Renommer l'écran"
+msgstr "Zmień nazwę ekranu"
+
+msgid "Écrans de diffusion"
+msgstr "Ekrany do przesyłania"

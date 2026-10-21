@@ -20,6 +20,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[derive(Clone, Debug)]
 pub struct Device {
     pub name: String,
+    /// Identifiant stable de l'appareil (« id » de son annonce mDNS).
+    pub id: String,
     pub addr: SocketAddr,
 }
 
@@ -72,10 +74,11 @@ pub async fn discover(wait: Duration) -> Vec<Device> {
         if !(ip.is_private() || ip.is_link_local()) {
             continue;
         }
-        let Some((name, port)) = parse_answer(&data) else { continue };
+        let Some((name, port, id)) = parse_answer(&data) else { continue };
         let addr = SocketAddr::new(from.ip(), port);
         if out.len() < 16 && !out.iter().any(|d| d.addr == addr) {
-            out.push(Device { name, addr });
+            let id = if id.is_empty() { addr.ip().to_string() } else { id };
+            out.push(Device { name, id, addr });
         }
     }
     out
@@ -102,15 +105,16 @@ fn dns_name(msg: &[u8], mut pos: usize) -> Option<(String, usize)> {
     None
 }
 
-/// Réponse mDNS d'un appareil Cast : son nom (« fn » du TXT) et son port (SRV, 8009 sinon).
-fn parse_answer(msg: &[u8]) -> Option<(String, u16)> {
+/// Réponse mDNS d'un appareil Cast : son nom (« fn » du TXT), son port (SRV, 8009 sinon) et son
+/// identifiant (« id » du TXT, vide s'il manque).
+fn parse_answer(msg: &[u8]) -> Option<(String, u16, String)> {
     let count = |i: usize| -> Option<usize> { Some(u16::from_be_bytes([*msg.get(i)?, *msg.get(i + 1)?]) as usize) };
     let (qd, records) = (count(4)?, count(6)? + count(8)? + count(10)?);
     let mut pos = 12;
     for _ in 0..qd {
         pos = dns_name(msg, pos)?.1 + 4;
     }
-    let (mut name, mut port, mut cast) = (None, None, false);
+    let (mut name, mut port, mut cast, mut id) = (None, None, false, String::new());
     for _ in 0..records.min(64) {
         let (owner, p) = dns_name(msg, pos)?;
         let kind = count(p)?;
@@ -127,6 +131,8 @@ fn parse_answer(msg: &[u8]) -> Option<(String, u16)> {
                         let entry = String::from_utf8_lossy(data.get(i + 1..i + 1 + l).unwrap_or_default());
                         if let Some(v) = entry.strip_prefix("fn=") {
                             name = Some(v.chars().filter(|c| !c.is_control()).take(60).collect::<String>());
+                        } else if let Some(v) = entry.strip_prefix("id=") {
+                            id = v.chars().filter(|c| c.is_ascii_alphanumeric()).take(64).collect();
                         }
                         i += 1 + l;
                     }
@@ -138,7 +144,7 @@ fn parse_answer(msg: &[u8]) -> Option<(String, u16)> {
         }
         pos = p + 10 + len;
     }
-    cast.then(|| (name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "Chromecast".into()), port.unwrap_or(8009)))
+    cast.then(|| (name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "Chromecast".into()), port.unwrap_or(8009), id))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -460,7 +466,7 @@ mod tests {
         m.extend_from_slice(txt);
         m.extend_from_slice(&inst);
         m.extend_from_slice(&[0, 33, 0x80, 1, 0, 0, 0, 120, 0, 8, 0, 0, 0, 0, 0x1f, 0x49, 0xc0, 12]);
-        assert_eq!(parse_answer(&m), Some(("Salon".to_string(), 8009)));
+        assert_eq!(parse_answer(&m), Some(("Salon".to_string(), 8009, "ab".to_string())));
         assert_eq!(parse_answer(&[0; 12]), None);
     }
 }

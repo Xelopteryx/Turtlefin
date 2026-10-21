@@ -1876,3 +1876,27 @@ msgstr "Fernbedienung"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: das Video wird dorthin gesendet"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "Noch kein Bildschirm gefunden. Schalte den Fernseher ein und suche dann."
+
+msgid "Chercher"
+msgstr "Suchen"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Name unter „Übertragen“. Leer: der ursprüngliche Name ({})."
+
+msgid "Nom de l'écran"
+msgstr "Name des Bildschirms"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Benenne einen Bildschirm um, um ihn unter „Übertragen“ zu erkennen (zwei Fernseher mit gleichem Namen…)."
+
+msgid "Renommer"
+msgstr "Umbenennen"
+
+msgid "Renommer l'écran"
+msgstr "Bildschirm umbenennen"
+
+msgid "Écrans de diffusion"
+msgstr "Übertragungsbildschirme"

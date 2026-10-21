@@ -1876,3 +1876,27 @@ msgstr "Remote"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: the video is sent to it"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "No screen seen yet. Turn on the TV, then search."
+
+msgid "Chercher"
+msgstr "Search"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Name shown in “Cast”. Empty: its original name ({})."
+
+msgid "Nom de l'écran"
+msgstr "Screen name"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Rename a screen to recognize it in “Cast” (two TVs with the same name…)."
+
+msgid "Renommer"
+msgstr "Rename"
+
+msgid "Renommer l'écran"
+msgstr "Rename the screen"
+
+msgid "Écrans de diffusion"
+msgstr "Cast screens"

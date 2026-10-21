@@ -15,6 +15,8 @@ use anyhow::{anyhow, Result};
 #[derive(Clone, Debug)]
 pub struct Renderer {
     pub name: String,
+    /// Identifiant stable de la télé (UDN de sa description) : garde son nom choisi dans Turtlefin.
+    pub id: String,
     /// Adresses de commande (complètes) des services AVTransport et RenderingControl.
     pub av_control: String,
     pub rc_control: Option<String>,
@@ -147,7 +149,8 @@ async fn describe(http: &reqwest::Client, loc: &str) -> Option<Renderer> {
         }
         None
     };
-    Some(Renderer { name, av_control: control(":AVTransport:")?, rc_control: control(":RenderingControl:") })
+    let id = tag(&xml, "UDN", 0).map(|(u, _)| clean(u)).filter(|u| !u.is_empty()).unwrap_or_else(|| base.host_str().unwrap_or("").to_string());
+    Some(Renderer { name, id, av_control: control(":AVTransport:")?, rc_control: control(":RenderingControl:") })
 }
 
 fn xml_escape(s: &str) -> String {

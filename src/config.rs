@@ -485,6 +485,26 @@ pub struct UiPrefs {
     /// Thème : clé intégrée (« turtlefin », « aero »…) ou « custom:<nom> » ; thèmes importés.
     pub theme: String,
     pub themes: Vec<crate::theme::ThemeDef>,
+    /// Écrans de diffusion déjà vus (Paramètres → Lecture) : nom d'origine et nom choisi.
+    pub cast_screens: Vec<CastScreen>,
+}
+
+/// Écran de diffusion connu : télé DLNA ou appareil Google Cast.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct CastScreen {
+    /// « dlna:<UDN> » ou « gcast:<id> ».
+    pub key: String,
+    /// Nom donné par l'appareil.
+    pub original: String,
+    /// Nom choisi dans Turtlefin (vide : le nom d'origine).
+    pub name: String,
+}
+
+impl CastScreen {
+    pub fn shown(&self) -> &str {
+        if self.name.is_empty() { &self.original } else { &self.name }
+    }
 }
 
 /// Animations activées (voir `Motion` dans theme.slint).
@@ -598,6 +618,7 @@ impl Default for UiPrefs {
             anim_preset: String::new(),
             theme: "turtlefin".into(),
             themes: Vec::new(),
+            cast_screens: Vec::new(),
         }
     }
 }

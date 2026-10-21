@@ -1876,3 +1876,27 @@ msgstr "Comando"
 
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: o vídeo é enviado para lá"
+
+msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgstr "Ainda nenhum ecrã encontrado. Liga a TV e procura."
+
+msgid "Chercher"
+msgstr "Procurar"
+
+msgid "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({})."
+msgstr "Nome mostrado em «Transmitir». Vazio: o nome original ({})."
+
+msgid "Nom de l'écran"
+msgstr "Nome do ecrã"
+
+msgid "Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…)."
+msgstr "Muda o nome de um ecrã para o reconhecer em «Transmitir» (duas TVs com o mesmo nome…)."
+
+msgid "Renommer"
+msgstr "Mudar nome"
+
+msgid "Renommer l'écran"
+msgstr "Mudar o nome do ecrã"
+
+msgid "Écrans de diffusion"
+msgstr "Ecrãs de transmissão"
