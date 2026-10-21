@@ -154,14 +154,19 @@ export component Sheen inherits Rectangle {
     y: 0px;
     border-top-left-radius: root.r;
     border-top-right-radius: root.r;
-    clip: true;
     property <float> f: root.on ? 1.9 : 1;
     animate f { duration: Motion.select ? 420ms : 0ms; easing: cubic-bezier(0.25, 0.8, 0.3, 1); }
+    // Reflet à sa taille (cartes non choisies) : il a lui-même les coins arrondis, pas de rognage. Un
+    // rognage à coins du haut seulement est calculé par logiciel à chaque image par Skia (lent sur
+    // téléphone) ; il ne sert que quand le reflet déborde (carte choisie).
+    clip: root.f > 1.001;
     Rectangle {
         x: 0px;
         y: 0px;
         width: root.width * root.f;
         height: root.height * root.f;
+        border-top-left-radius: root.f > 1.001 ? 0px : root.r;
+        border-top-right-radius: root.f > 1.001 ? 0px : root.r;
         background: @linear-gradient(125deg, rgba(255, 255, 255, 0.42 * Theme.sheen) 0%, rgba(255, 255, 255, 0.14 * Theme.sheen) 38%,
             rgba(255, 255, 255, 0) 39%, rgba(255, 255, 255, 0) 100%);
     }

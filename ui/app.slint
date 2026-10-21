@@ -678,12 +678,16 @@ component SectionRow inherits Rectangle {
                 return EventResult.accept;
             }
         }
-        Rectangle {
+        strip := Rectangle {
             x: root.free ? root.free-x : root.target-x;
             width: root.strip-w;
             animate x { duration: Motion.select && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
 
             for card[i] in root.items: Card {
+                // Hors de la rangée visible (avec une carte de marge) : sautée au dessin, rien ne change
+                // à l'écran (une rangée peut compter des dizaines de cartes, parcourues à chaque image).
+                visible: root.pad + i * (root.card-w + root.gap) + strip.x > -1.5 * root.card-w
+                    && root.pad + i * (root.card-w + root.gap) + strip.x < root.width + 0.5 * root.card-w;
                 x: root.pad + i * (root.card-w + root.gap);
                 y: 10px * root.k;
                 width: root.card-w;
@@ -4934,7 +4938,7 @@ export component AppWindow inherits Window {
                 vertical-alignment: center;
             }
 
-            Rectangle {
+            home-clip := Rectangle {
                 clip: true;
 
                 home-view := Rectangle {
@@ -4944,6 +4948,9 @@ export component AppWindow inherits Window {
                     animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                     for section[si] in root.sections: SectionRow {
+                        // Rangée hors de l'écran : sautée au dessin (voir les cartes de SectionRow).
+                        visible: section.y-px * 1px + root.stagger(si) + home-view.y < home-clip.height + 60px
+                            && section.y-px * 1px + root.stagger(si) + section.h-px * 1px + home-view.y > -60px;
                         y: section.y-px * 1px + root.stagger(si);
                         width: parent.width;
                         height: section.h-px * 1px;
@@ -6386,7 +6393,7 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
         }
 
-        Rectangle {
+        lib-clip := Rectangle {
             clip: true;
 
             grid := Rectangle {
@@ -6399,6 +6406,9 @@ export component AppWindow inherits Window {
                     property <float> dp: root.deal-p(i);
                     property <length> bx: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
                     property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + root.stagger(floor(i / lib.cols) - lib.sel-row + 2);
+                    // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
+                    // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
+                    visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
                     x: self.bx + (1 - self.dp) * (root.width / 2 - lib.cw / 2 - grid.absolute-position.x - self.bx);
                     y: self.by + (1 - self.dp) * (root.height / 2 - lib.cw * 0.75 - grid.absolute-position.y - self.by);
                     transform-rotation: (1 - self.dp) * (mod(i * 7, 5) - 2) * 7deg;
