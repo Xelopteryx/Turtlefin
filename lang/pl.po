@@ -1849,3 +1849,33 @@ msgstr "Pilot · {}"
 
 msgid "{} ne répond pas : {}"
 msgstr "{} nie odpowiada: {}"
+
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
+msgstr "Żaden inny Turtlefin nie jest otwarty na tym koncie. Otwórz go na telewizorze (lub na Pi), a potem wróć tutaj."
+
+msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Brak ekranu. Włącz telewizor zgodny z DLNA w tej sieci albo otwórz Turtlefin (lub aplikację Jellyfin) na telewizorze z tym samym kontem."
+
+msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
+msgstr "Wybierz ekran, na który wysyłać filmy: na kartach pojawi się „Odtwórz na”."
+
+msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Wybierz Turtlefin do sterowania: to urządzenie stanie się jego pilotem."
+
+msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
+msgstr "Filmy uruchomione przez „Odtwórz na” (na kartach) lecą na tym ekranie."
+
+msgid "Ne plus diffuser sur {}"
+msgstr "Przestań przesyłać na {}"
+
+msgid "Recherche des écrans…"
+msgstr "Wyszukiwanie ekranów…"
+
+msgid "Rien en lecture sur {}"
+msgstr "Nic nie jest odtwarzane na {}"
+
+msgid "Sur l'accueil ou une fiche"
+msgstr "Na stronie głównej lub karcie"
+
+msgid "Télécommande"
+msgstr "Pilot"

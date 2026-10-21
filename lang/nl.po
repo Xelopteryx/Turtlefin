@@ -1843,3 +1843,33 @@ msgstr "Afstandsbediening · {}"
 
 msgid "{} ne répond pas : {}"
 msgstr "{} reageert niet: {}"
+
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
+msgstr "Er is geen andere Turtlefin open met dit account. Open hem op de tv (of de Pi) en kom dan hier terug."
+
+msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Geen scherm. Zet een DLNA-tv op dit netwerk aan, of open Turtlefin (of een Jellyfin-app) op de tv met hetzelfde account."
+
+msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
+msgstr "Kies het scherm waar video's naartoe gaan: ‘Afspelen op’ verschijnt dan op de detailpagina's."
+
+msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Kies de Turtlefin die je wilt bedienen: dit apparaat wordt de afstandsbediening."
+
+msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
+msgstr "Video's gestart met ‘Afspelen op’ (op de detailpagina's) spelen op dit scherm."
+
+msgid "Ne plus diffuser sur {}"
+msgstr "Stoppen met casten naar {}"
+
+msgid "Recherche des écrans…"
+msgstr "Schermen zoeken…"
+
+msgid "Rien en lecture sur {}"
+msgstr "Er speelt niets op {}"
+
+msgid "Sur l'accueil ou une fiche"
+msgstr "Op het startscherm of een detailpagina"
+
+msgid "Télécommande"
+msgstr "Afstandsbediening"

@@ -1843,3 +1843,33 @@ msgstr "Comando · {}"
 
 msgid "{} ne répond pas : {}"
 msgstr "{} não responde: {}"
+
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
+msgstr "Nenhum outro Turtlefin aberto com esta conta. Abre-o na TV (ou no Pi) e volta aqui."
+
+msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Nenhum ecrã. Liga uma TV compatível com DLNA nesta rede, ou abre o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta."
+
+msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
+msgstr "Escolhe o ecrã para onde enviar os vídeos: «Reproduzir em» aparece depois nas fichas."
+
+msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Escolhe o Turtlefin a controlar: este dispositivo torna-se o seu comando."
+
+msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
+msgstr "Os vídeos iniciados com «Reproduzir em» (nas fichas) passam neste ecrã."
+
+msgid "Ne plus diffuser sur {}"
+msgstr "Deixar de transmitir para {}"
+
+msgid "Recherche des écrans…"
+msgstr "A procurar ecrãs…"
+
+msgid "Rien en lecture sur {}"
+msgstr "Nada em reprodução em {}"
+
+msgid "Sur l'accueil ou une fiche"
+msgstr "No início ou numa ficha"
+
+msgid "Télécommande"
+msgstr "Comando"

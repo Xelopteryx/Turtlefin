@@ -1843,3 +1843,33 @@ msgstr "Fernbedienung · {}"
 
 msgid "{} ne répond pas : {}"
 msgstr "{} antwortet nicht: {}"
+
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
+msgstr "Kein anderes Turtlefin ist mit diesem Konto geöffnet. Öffne es auf dem Fernseher (oder dem Pi) und komm dann hierher zurück."
+
+msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Kein Bildschirm. Schalte einen DLNA-fähigen Fernseher in diesem Netzwerk ein oder öffne Turtlefin (oder eine Jellyfin-App) auf dem Fernseher mit demselben Konto."
+
+msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
+msgstr "Wähle den Bildschirm, an den Videos gesendet werden: „Abspielen auf“ erscheint dann auf den Detailseiten."
+
+msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Wähle das Turtlefin, das du steuern willst: Dieses Gerät wird zu seiner Fernbedienung."
+
+msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
+msgstr "Mit „Abspielen auf“ (auf den Detailseiten) gestartete Videos laufen auf diesem Bildschirm."
+
+msgid "Ne plus diffuser sur {}"
+msgstr "Nicht mehr an {} übertragen"
+
+msgid "Recherche des écrans…"
+msgstr "Bildschirme werden gesucht…"
+
+msgid "Rien en lecture sur {}"
+msgstr "Keine Wiedergabe auf {}"
+
+msgid "Sur l'accueil ou une fiche"
+msgstr "Auf der Startseite oder einer Detailseite"
+
+msgid "Télécommande"
+msgstr "Fernbedienung"

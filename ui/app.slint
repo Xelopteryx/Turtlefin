@@ -778,6 +778,19 @@ component NavIcon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 12 3 L 12 15 M 7 10 L 12 15 L 17 10 M 4 20 L 20 20";
     }
+    // Télécommande : boîtier, croix directionnelle et bouton.
+    if root.name == "remote": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 8 2 L 16 2 Q 18 2 18 4 L 18 20 Q 18 22 16 22 L 8 22 Q 6 22 6 20 L 6 4 Q 6 2 8 2 Z M 12 6 L 12 12 M 9 9 L 15 9 M 12 17 L 12 17.2";
+    }
     if root.name == "party": Path {
         width: parent.width;
         height: parent.height;
@@ -1307,8 +1320,10 @@ component WinCaption inherits Rectangle {
             border-color: #000000b3;
         }
     }
-    // Barre de titre : déplacer, double-clic pour agrandir.
+    // Barre de titre : déplacer, double-clic pour agrandir. Position explicite : sans « y », Slint
+    // centre l'élément, et une bande invisible au milieu de la fenêtre prenait les clics pour déplacer.
     TouchArea {
+        y: 0px;
         height: root.bar;
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
@@ -3278,15 +3293,25 @@ export component AppWindow inherits Window {
     in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
     in-out property <int> sp-sel;
-    // Diffuser (voir cast.rs) : liste des appareils (panneau sous l'icône), télécommande ouverte.
+    // Diffuser (voir cast.rs) : écran où les vidéos sont envoyées (télé DLNA, Turtlefin ou appli Jellyfin
+    // du compte), choisi dans le panneau sous l'icône ; le panneau montre ensuite ce qui y passe.
     in-out property <bool> cast-pop;
     in property <[CastItem]> cast-items;
     in property <bool> cast-busy;          // recherche des appareils en cours
-    in-out property <int> cast-sel;
-    in property <bool> cast-on;            // un appareil est piloté
+    in-out property <int> cast-sel;        // clavier : appareils, puis commandes, puis « Arrêter »
+    in-out property <int> cast-ctl: 2;     // clavier : bouton choisi dans la rangée des commandes
+    in property <bool> cast-on;            // un écran est choisi
     in property <string> cast-target;      // son nom
+    in property <string> cast-now;         // titre en cours sur cet écran
+    in property <bool> cast-paused;
+    in property <float> cast-pos;          // avancement (0 à 1)
+    in property <string> cast-time;        // « 12:03 / 47:59 »
+    // Télécommande (menu) : un autre Turtlefin du compte, piloté comme avec sa télécommande.
     in-out property <bool> remote-open;
-    in property <string> remote-kind;      // "jf" (télécommande complète) · "dlna" (lecture seule)
+    in property <[CastItem]> remote-items; // Turtlefin à piloter (liste avant le choix)
+    in property <bool> remote-busy;
+    in-out property <int> remote-pick-sel;
+    in property <string> remote-target;    // nom du Turtlefin piloté ("" : liste)
     in property <string> remote-now;       // titre en cours sur l'appareil
     in property <bool> remote-paused;
     in property <float> remote-pos;        // avancement (0 à 1)
@@ -3295,6 +3320,9 @@ export component AppWindow inherits Window {
     callback cast-refresh();
     callback cast-pick(string);
     callback cast-stop();
+    callback cast-cmd(string);
+    callback remote-pick(string);
+    callback remote-closed();
     callback remote-cmd(string);
     property <float> cast-p: root.cast-pop && !root.playing ? 1 : 0;
     animate cast-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
@@ -3331,6 +3359,7 @@ export component AppWindow inherits Window {
     }
     function close-remote() {
         root.remote-open = false;
+        root.remote-closed();
         root.refocus += 1;
     }
     // Panneau de la watch party ouvert (voir open_party), et son apparition.
@@ -3339,8 +3368,8 @@ export component AppWindow inherits Window {
     animate party-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     // Entrée du menu choisie : la watch party s'ouvre en panneau (sans changer de page).
     function menu-go(action: string) {
-        if (action == "party") {
-            root.menu-action("party");
+        if (action == "party" || action == "remote") {
+            root.menu-action(action);
         } else {
             root.nav-out("menu", action);
         }
@@ -3634,7 +3663,7 @@ export component AppWindow inherits Window {
         return action == "home" ? "home" : action == "requests" ? "requests" : action == "downloads" ? "downloads"
             : action == "party" ? "party" : action == "switch" ? "profile" : action == "server" ? "server"
             : action == "logout" ? "logout" : action == "settings" ? "settings" : action == "quit" ? "quit"
-            : action == "password" ? "profile" : "library";
+            : action == "password" ? "profile" : action == "remote" ? "remote" : "library";
     }
 
     function open-menu() {
@@ -8586,7 +8615,9 @@ export component AppWindow inherits Window {
     }
 
     // Diffuser : panneau qui descend sous son icône (toucher à côté, Échap ou Retour le referment).
-    // Appareils du compte (Turtlefin ou une autre appli Jellyfin : télécommande) et télés DLNA du réseau.
+    // Écrans où envoyer les vidéos (télés DLNA du réseau, Turtlefin ou applis Jellyfin du compte) ; l'écran
+    // choisi, le panneau montre ce qui y passe, avec lecture, avance, arrêt et volume.
+    // Clavier : ↑ ↓ entre les écrans, les deux rangées de commandes et « Ne plus diffuser » ; ← → dans une rangée.
     if root.cast-p > 0.01 && !root.playing: Rectangle {
         background: Theme.scrim.with-alpha(0.35 * root.cast-p);
         TouchArea {
@@ -8598,6 +8629,10 @@ export component AppWindow inherits Window {
             }
         }
         cast-panel := Rectangle {
+            // Indices du clavier : 0..n-1 écrans · n commandes de lecture · n+1 volume · n+2 « Ne plus diffuser ».
+            property <int> n: root.cast-items.length;
+            // Commandes : 0 précédent · 1 recul · 2 lecture · 3 avance · 4 suivant · 5 arrêt · 6 vol- · 7 muet · 8 vol+
+            property <[string]> codes: ["prev", "rew", "playpause", "ff", "next", "stop", "vol-", "mute", "vol+"];
             width: min(460px * root.k, parent.width - 32px * root.k);
             height: cast-col.preferred-height + 40px * root.k;
             x: parent.width - self.width - 16px * root.k;
@@ -8626,13 +8661,27 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.UpArrow) {
                         root.cast-sel = max(0, root.cast-sel - 1);
                     } else if (event.text == Key.DownArrow) {
-                        root.cast-sel = min(root.cast-items.length - (root.cast-on ? 0 : 1), root.cast-sel + 1);
-                    } else if (event.text == Key.Return) {
-                        if (root.cast-sel < root.cast-items.length) {
-                            root.cast-pick(root.cast-items[root.cast-sel].id);
-                        } else if (root.cast-on) {
-                            root.cast-stop();
+                        root.cast-sel = min(root.cast-on ? cast-panel.n + 2 : cast-panel.n - 1, root.cast-sel + 1);
+                    } else if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
+                        if (root.cast-on && root.cast-sel == cast-panel.n) {
+                            root.cast-ctl = clamp(root.cast-ctl + (event.text == Key.RightArrow ? 1 : -1), 0, 5);
+                        } else if (root.cast-on && root.cast-sel == cast-panel.n + 1) {
+                            root.cast-ctl = clamp(root.cast-ctl + (event.text == Key.RightArrow ? 1 : -1), 6, 8);
                         }
+                    } else if (event.text == Key.Return) {
+                        if (root.cast-sel < cast-panel.n) {
+                            root.cast-pick(root.cast-items[root.cast-sel].id);
+                        } else if (root.cast-sel == cast-panel.n + 2) {
+                            root.cast-stop();
+                        } else if (root.cast-on) {
+                            root.cast-cmd(cast-panel.codes[root.cast-ctl]);
+                        }
+                    }
+                    // Rangée atteinte au clavier : son bouton du milieu.
+                    if (root.cast-sel == cast-panel.n && root.cast-ctl > 5) {
+                        root.cast-ctl = 2;
+                    } else if (root.cast-sel == cast-panel.n + 1 && root.cast-ctl < 6) {
+                        root.cast-ctl = 7;
                     }
                     return EventResult.accept;
                 }
@@ -8650,9 +8699,10 @@ export component AppWindow inherits Window {
                     font-weight: 700;
                 }
                 Text {
-                    text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des appareils…")
-                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau.")
-                        : Tr.t(Tr.k, "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches.");
+                    text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
+                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
+                        : root.cast-on ? Tr.t(Tr.k, "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran.")
+                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches.");
                     color: Theme.muted;
                     font-size: 13px * root.k;
                     wrap: word-wrap;
@@ -8661,13 +8711,16 @@ export component AppWindow inherits Window {
                     height: 56px * root.k;
                     border-radius: 10px * root.k;
                     property <bool> lit: (Nav.kb ? i == root.cast-sel : c-area.has-hover && !Nav.touch);
-                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.07);
+                    property <bool> chosen: root.cast-on && root.cast-target == c.name;
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(self.chosen ? 0.16 : 0.07);
+                    border-width: self.chosen && !self.lit ? 1px : 0px;
+                    border-color: Theme.accent2;
                     opacity: 1 - (1 - root.cast-p) * min(1, i * 0.4);
                     Text {
                         x: 16px * root.k;
                         y: 8px * root.k;
                         width: parent.width - 32px * root.k;
-                        text: (c.kind == "dlna" ? "📺  " : "") + c.name + (root.cast-on && root.cast-target == c.name ? "  ✓" : "");
+                        text: (c.kind == "dlna" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
                         color: parent.lit ? Theme.on-accent : Theme.fg;
                         font-size: 16px * root.k;
                         font-weight: 700;
@@ -8689,11 +8742,74 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+                // Écran choisi : ce qui y passe, et ses commandes.
+                if root.cast-on: Rectangle {
+                    height: 4px * root.k;
+                }
+                if root.cast-on: Text {
+                    text: root.cast-now == "" ? Tr.f(Tr.k, "Rien en lecture sur {}", root.cast-target, "") : root.cast-now;
+                    color: Theme.fg;
+                    font-size: 14px * root.k;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                if root.cast-on: Rectangle {
+                    height: 20px * root.k;
+                    Rectangle {
+                        y: 0px;
+                        height: 6px * root.k;
+                        border-radius: self.height / 2;
+                        background: Theme.fg.with-alpha(0.15);
+                        Rectangle {
+                            x: 0px;
+                            width: parent.width * clamp(root.cast-pos, 0, 1);
+                            animate width { duration: Motion.player ? 400ms : 0ms; }
+                            border-radius: parent.border-radius;
+                            background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                        }
+                    }
+                    Text {
+                        y: 8px * root.k;
+                        width: parent.width;
+                        text: root.cast-time;
+                        color: Theme.muted;
+                        font-size: 12px * root.k;
+                        horizontal-alignment: right;
+                    }
+                }
+                if root.cast-on: HorizontalLayout {
+                    alignment: center;
+                    spacing: 8px * root.k;
+                    for ic[j] in ["prev", "rew", root.cast-paused ? "play" : "pause", "ff", "next", "stop"]: PadButton {
+                        k: root.k;
+                        size: j == 2 ? 52px : 42px;
+                        icon: ic;
+                        focused: root.cast-sel == cast-panel.n && root.cast-ctl == j;
+                        clicked => {
+                            root.cast-ctl = j;
+                            root.cast-cmd(cast-panel.codes[j]);
+                        }
+                    }
+                }
+                if root.cast-on: HorizontalLayout {
+                    alignment: center;
+                    spacing: 14px * root.k;
+                    for ic[j] in ["vol-", "mute", "vol+"]: PadButton {
+                        k: root.k;
+                        size: 40px;
+                        icon: ic;
+                        focused: root.cast-sel == cast-panel.n + 1 && root.cast-ctl == j + 6;
+                        clicked => {
+                            root.cast-ctl = j + 6;
+                            root.cast-cmd(ic);
+                        }
+                    }
+                }
                 if root.cast-on: ActionButton {
                     height: 42px * root.k;
-                    text: Tr.f(Tr.k, "Arrêter de piloter {}", root.cast-target, "");
+                    text: Tr.f(Tr.k, "Ne plus diffuser sur {}", root.cast-target, "");
                     font: 15px * root.k;
-                    focused: Nav.kb && root.cast-sel == root.cast-items.length;
+                    focused: Nav.kb && root.cast-sel == cast-panel.n + 2;
                     clicked => {
                         root.cast-stop();
                     }
@@ -8702,15 +8818,127 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Télécommande : pilote l'appareil choisi (flèches, OK, retour, accueil, lecture, volume).
+    // Télécommande (menu) : d'abord le Turtlefin à piloter, puis ses boutons (flèches, OK, retour,
+    // accueil, lecture, volume), comme la télécommande de la télé.
     if root.remote-p > 0.01: Rectangle {
         background: Theme.scrim.with-alpha(0.55 * root.remote-p);
         TouchArea {
+            clicked => {
+                if (root.remote-target == "") {
+                    root.close-remote();
+                }
+            }
             scroll-event(e) => {
                 return EventResult.accept;
             }
         }
-        RemotePad {
+        if root.remote-target == "": Rectangle {
+            width: min(parent.width - 32px * root.k, 460px * root.k);
+            height: pick-col.preferred-height + 40px * root.k;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2 + (1 - root.remote-p) * 40px * root.k;
+            opacity: root.remote-p;
+            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+            background: Theme.win7 ? transparent : Theme.panel;
+            border-width: Theme.win7 ? 0px : 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: 30px * root.k;
+            drop-shadow-color: #000000a0;
+            Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+            WinFrame { r: parent.border-radius; k: root.k; }
+            TouchArea {
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.close-remote();
+                    } else if (event.text == Key.UpArrow) {
+                        root.remote-pick-sel = max(0, root.remote-pick-sel - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.remote-pick-sel = min(root.remote-items.length, root.remote-pick-sel + 1);
+                    } else if (event.text == Key.Return) {
+                        if (root.remote-pick-sel < root.remote-items.length) {
+                            root.remote-pick(root.remote-items[root.remote-pick-sel].id);
+                        } else {
+                            root.close-remote();
+                        }
+                    }
+                    return EventResult.accept;
+                }
+            }
+            pick-col := VerticalLayout {
+                x: 20px * root.k;
+                y: 20px * root.k;
+                width: parent.width - 40px * root.k;
+                alignment: start;
+                spacing: 10px * root.k;
+                Text {
+                    text: Tr.t(Tr.k, "Télécommande");
+                    color: Theme.fg;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    text: root.remote-busy && root.remote-items.length == 0 ? Tr.t(Tr.k, "Recherche des appareils…")
+                        : root.remote-items.length == 0 ? Tr.t(Tr.k, "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici.")
+                        : Tr.t(Tr.k, "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande.");
+                    color: Theme.muted;
+                    font-size: 13px * root.k;
+                    wrap: word-wrap;
+                }
+                for c[i] in root.remote-items: Rectangle {
+                    height: 56px * root.k;
+                    border-radius: 10px * root.k;
+                    property <bool> lit: (Nav.kb ? i == root.remote-pick-sel : r-area.has-hover && !Nav.touch);
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.07);
+                    Text {
+                        x: 16px * root.k;
+                        y: 8px * root.k;
+                        width: parent.width - 32px * root.k;
+                        text: c.name;
+                        color: parent.lit ? Theme.on-accent : Theme.fg;
+                        font-size: 16px * root.k;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: 16px * root.k;
+                        y: 31px * root.k;
+                        width: parent.width - 32px * root.k;
+                        text: c.sub;
+                        color: (parent.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
+                        font-size: 12px * root.k;
+                        overflow: elide;
+                    }
+                    r-area := TouchArea {
+                        clicked => {
+                            root.remote-pick-sel = i;
+                            root.remote-pick(c.id);
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    ActionButton {
+                        height: 42px * root.k;
+                        width: self.preferred-width;
+                        text: Tr.t(Tr.k, "Fermer");
+                        font: 15px * root.k;
+                        focused: Nav.kb && root.remote-pick-sel == root.remote-items.length;
+                        clicked => {
+                            root.close-remote();
+                        }
+                    }
+                }
+            }
+        }
+        if root.remote-target != "": RemotePad {
             width: min(parent.width - 24px * root.k, 440px * root.k);
             // Ajustée au contenu ; un écran trop bas réduit l'ensemble (k).
             height: min(parent.height - 24px * root.k, self.want-h);
@@ -8718,12 +8946,12 @@ export component AppWindow inherits Window {
             y: (parent.height - self.height) / 2 + (1 - root.remote-p) * (root.remote-open ? 60px : -40px) * root.k;
             opacity: root.remote-p;
             k: min(root.k, (parent.height - 24px * root.k) / 600px);
-            name: root.cast-target;
+            name: root.remote-target;
             now: root.remote-now;
             paused: root.remote-paused;
             pos: root.remote-pos;
             time: root.remote-time;
-            full: root.remote-kind == "jf";
+            full: true;
             sel <=> root.remote-sel;
             cmd(c) => {
                 root.remote-cmd(c);

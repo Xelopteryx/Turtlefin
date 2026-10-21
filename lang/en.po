@@ -1843,3 +1843,33 @@ msgstr "Remote · {}"
 
 msgid "{} ne répond pas : {}"
 msgstr "{} isn't responding: {}"
+
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
+msgstr "No other Turtlefin is open with this account. Open it on the TV (or the Pi), then come back here."
+
+msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "No screen. Turn on a DLNA-capable TV on this network, or open Turtlefin (or a Jellyfin app) on the TV with the same account."
+
+msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
+msgstr "Pick the screen to send videos to: “Play on” then appears on item pages."
+
+msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Pick the Turtlefin to control: this device becomes its remote."
+
+msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
+msgstr "Videos started with “Play on” (on item pages) play on this screen."
+
+msgid "Ne plus diffuser sur {}"
+msgstr "Stop casting to {}"
+
+msgid "Recherche des écrans…"
+msgstr "Looking for screens…"
+
+msgid "Rien en lecture sur {}"
+msgstr "Nothing playing on {}"
+
+msgid "Sur l'accueil ou une fiche"
+msgstr "On the home screen or an item page"
+
+msgid "Télécommande"
+msgstr "Remote"
