@@ -3831,7 +3831,9 @@ export component AppWindow inherits Window {
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";
-        header-h: root.header-h;
+        // Le fond commence sous la barre de titre de Windows 7 (chrome-top) : la barre de verre a la
+        // hauteur de l'en-tête seul.
+        header-h: root.header-h - root.chrome-top;
     }
 
     // Grand fond provisoire (vignette 16:9 ouverte) : derrière la page, assombri, puis effacé.
@@ -9736,9 +9738,10 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-row;
         clip: true;
         Backdrop {
-        y: -root.header-row;
-        width: root.width;
-        height: root.height;
+        x: root.chrome-side;
+        y: root.chrome-top - root.header-row;
+        width: root.width - 2 * root.chrome-side;
+        height: root.height - root.chrome-top - root.chrome-side;
         a: root.veil;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
@@ -9749,7 +9752,9 @@ export component AppWindow inherits Window {
         on-detail: root.screen == "detail";
         k: root.k;
         glass: root.signed-in && root.screen != "login" && root.screen != "loading";
-        header-h: root.header-h;
+        // Le fond commence sous la barre de titre de Windows 7 (chrome-top) : la barre de verre a la
+        // hauteur de l'en-tête seul.
+        header-h: root.header-h - root.chrome-top;
         TouchArea {
             // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
