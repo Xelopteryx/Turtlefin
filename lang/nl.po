@@ -1903,3 +1903,18 @@ msgstr "Castschermen"
 
 msgid "Au hasard"
 msgstr "Willekeurig"
+
+msgid "Arrêter la diffusion"
+msgstr "Casten stoppen"
+
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgstr "Dit scherm geeft de lengte van een omgezette video niet door: gebruik de knoppen terug en vooruit."
+
+msgid "En lecture sur {}"
+msgstr "Speelt af op {}"
+
+msgid "Reprendre sur cet appareil"
+msgstr "Verder op dit apparaat"
+
+msgid "Voir la lecture · {}"
+msgstr "Afspelen tonen · {}"

@@ -3339,6 +3339,10 @@ export component AppWindow inherits Window {
     property <string> cast-trk;
     // Panneau ouvert depuis le lecteur : l'écran choisi reçoit la vidéo en cours.
     in-out property <bool> cast-handoff;
+    // Lecteur en télécommande d'un écran de diffusion (voir PlayerView.remote).
+    in-out property <bool> p-remote;
+    in property <bool> p-remote-nodur;
+    callback cast-reopen();
     callback cast-track(string, string);
     callback player-cast();
     // Télécommande (menu) : un autre Turtlefin du compte, piloté comme avec sa télécommande.
@@ -8786,32 +8790,27 @@ export component AppWindow inherits Window {
                     self.focus();
                 }
                 key-pressed(event) => {
+                    // Indices : 0..n-1 écrans · n « Voir la lecture » · n+1 « Ne plus diffuser ».
                     if (event.text == Key.Escape || event.text == Key.Backspace) {
                         root.close-cast();
                     } else if (event.text == Key.UpArrow) {
                         root.cast-sel = max(0, root.cast-sel - 1);
+                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
+                            root.cast-sel -= 1;
+                        }
                     } else if (event.text == Key.DownArrow) {
-                        root.cast-sel = min(root.cast-on ? cast-panel.n + 2 : cast-panel.n - 1, root.cast-sel + 1);
-                    } else if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
-                        if (root.cast-on && root.cast-sel == cast-panel.n) {
-                            root.cast-ctl = clamp(root.cast-ctl + (event.text == Key.RightArrow ? 1 : -1), 0, 5);
-                        } else if (root.cast-on && root.cast-sel == cast-panel.n + 1) {
-                            root.cast-ctl = clamp(root.cast-ctl + (event.text == Key.RightArrow ? 1 : -1), 6, 8);
+                        root.cast-sel = min(root.cast-on ? cast-panel.n + 1 : cast-panel.n - 1, root.cast-sel + 1);
+                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
+                            root.cast-sel += 1;
                         }
                     } else if (event.text == Key.Return) {
                         if (root.cast-sel < cast-panel.n) {
                             root.cast-pick(root.cast-items[root.cast-sel].id);
-                        } else if (root.cast-sel == cast-panel.n + 2) {
-                            root.cast-stop();
+                        } else if (root.cast-sel == cast-panel.n) {
+                            root.cast-reopen();
                         } else if (root.cast-on) {
-                            root.cast-cmd(cast-panel.codes[root.cast-ctl]);
+                            root.cast-stop();
                         }
-                    }
-                    // Rangée atteinte au clavier : son bouton du milieu.
-                    if (root.cast-sel == cast-panel.n && root.cast-ctl > 5) {
-                        root.cast-ctl = 2;
-                    } else if (root.cast-sel == cast-panel.n + 1 && root.cast-ctl < 6) {
-                        root.cast-ctl = 7;
                     }
                     return EventResult.accept;
                 }
@@ -8872,118 +8871,21 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
-                // Écran choisi : ce qui y passe, et ses commandes.
-                if root.cast-on: Rectangle {
-                    height: 4px * root.k;
-                }
-                if root.cast-on: Text {
-                    text: root.cast-now == "" ? Tr.f(Tr.k, "Rien en lecture sur {}", root.cast-target, "") : root.cast-now;
-                    color: Theme.fg;
-                    font-size: 14px * root.k;
-                    font-weight: 600;
-                    overflow: elide;
-                }
-                if root.cast-on: Rectangle {
-                    height: 20px * root.k;
-                    Rectangle {
-                        y: 0px;
-                        height: 6px * root.k;
-                        border-radius: self.height / 2;
-                        background: Theme.fg.with-alpha(0.15);
-                        Rectangle {
-                            x: 0px;
-                            width: parent.width * clamp(root.cast-pos, 0, 1);
-                            animate width { duration: Motion.player ? 400ms : 0ms; }
-                            border-radius: parent.border-radius;
-                            background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
-                        }
-                    }
-                    Text {
-                        y: 8px * root.k;
-                        width: parent.width;
-                        text: root.cast-time;
-                        color: Theme.muted;
-                        font-size: 12px * root.k;
-                        horizontal-alignment: right;
-                    }
-                }
-                if root.cast-on: HorizontalLayout {
-                    alignment: center;
-                    spacing: 8px * cast-panel.bk;
-                    for ic[j] in ["prev", "rew", root.cast-paused ? "play" : "pause", "ff", "next", "stop"]: PadButton {
-                        k: cast-panel.bk;
-                        size: j == 2 ? 52px : 42px;
-                        icon: ic;
-                        focused: root.cast-sel == cast-panel.n && root.cast-ctl == j;
-                        clicked => {
-                            root.cast-ctl = j;
-                            root.cast-cmd(cast-panel.codes[j]);
-                        }
-                    }
-                }
-                if root.cast-on: HorizontalLayout {
-                    alignment: center;
-                    spacing: 14px * cast-panel.bk;
-                    for ic[j] in ["vol-", "mute", "vol+"]: PadButton {
-                        k: cast-panel.bk;
-                        size: 40px;
-                        icon: ic;
-                        focused: root.cast-sel == cast-panel.n + 1 && root.cast-ctl == j + 6;
-                        clicked => {
-                            root.cast-ctl = j + 6;
-                            root.cast-cmd(ic);
-                        }
-                    }
-                }
-                // Pistes : audio et sous-titres de la vidéo diffusée (la liste s'ouvre dans le panneau).
-                if root.cast-on && (root.cast-audio.length > 1 || root.cast-subs.length > 1): HorizontalLayout {
-                    spacing: 10px * root.k;
-                    ActionButton {
-                        height: 38px * root.k;
-                        font: 13px * root.k;
-                        text: Tr.t(Tr.k, "Audio") + (root.cast-trk == "audio" ? "  ▴" : "  ▾");
-                        clicked => {
-                            root.cast-trk = root.cast-trk == "audio" ? "" : "audio";
-                        }
-                    }
-                    ActionButton {
-                        height: 38px * root.k;
-                        font: 13px * root.k;
-                        text: Tr.t(Tr.k, "Sous-titres") + (root.cast-trk == "sub" ? "  ▴" : "  ▾");
-                        clicked => {
-                            root.cast-trk = root.cast-trk == "sub" ? "" : "sub";
-                        }
-                    }
-                }
-                if root.cast-on && root.cast-trk != "": VerticalLayout {
-                    spacing: 4px * root.k;
-                    for t in (root.cast-trk == "audio" ? root.cast-audio : root.cast-subs): Rectangle {
-                        height: 40px * root.k;
-                        border-radius: 8px * root.k;
-                        background: t.current ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-                            : trk-area.has-hover && !Nav.touch ? Theme.fg.with-alpha(0.14) : Theme.fg.with-alpha(0.06);
-                        Text {
-                            x: 14px * root.k;
-                            width: parent.width - 28px * root.k;
-                            text: (t.current ? "✓  " : "") + t.label;
-                            color: t.current ? Theme.on-accent : Theme.fg;
-                            font-size: 14px * root.k;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
-                        trk-area := TouchArea {
-                            clicked => {
-                                root.cast-track(root.cast-trk, t.id);
-                                root.cast-trk = "";
-                            }
-                        }
+                // Écran choisi : la vidéo en cours, et le lecteur-télécommande pour la piloter.
+                if root.cast-on && root.cast-now != "": ActionButton {
+                    height: 42px * root.k;
+                    text: Tr.f(Tr.k, "Voir la lecture · {}", root.cast-now, "");
+                    font: 15px * root.k;
+                    focused: Nav.kb && root.cast-sel == cast-panel.n;
+                    clicked => {
+                        root.cast-reopen();
                     }
                 }
                 if root.cast-on: ActionButton {
                     height: 42px * root.k;
                     text: Tr.f(Tr.k, "Ne plus diffuser sur {}", root.cast-target, "");
                     font: 15px * root.k;
-                    focused: Nav.kb && root.cast-sel == cast-panel.n + 2;
+                    focused: Nav.kb && root.cast-sel == cast-panel.n + 1;
                     clicked => {
                         root.cast-stop();
                     }
@@ -9854,6 +9756,9 @@ export component AppWindow inherits Window {
     }
     if root.playing: PlayerView {
         cast-on: root.cast-on;
+        remote: root.p-remote;
+        remote-name: root.cast-target;
+        remote-nodur: root.p-remote-nodur;
         cast => {
             root.player-cast();
         }
@@ -10070,6 +9975,40 @@ export component AppWindow inherits Window {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
     }
+    }
+
+    // Vidéo en cours sur un écran de diffusion (lecteur quitté) : bandeau en bas pour y revenir.
+    if root.cast-on && root.cast-now != "" && !root.playing && root.signed-in: Rectangle {
+        width: min(parent.width - 32px * root.k, cb-row.preferred-width + 36px * root.k);
+        height: 52px * root.k;
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 16px * root.k - max(root.safe-area-insets.bottom, Nav.phone && root.height > root.width ? 48px : 0px);
+        border-radius: self.height / 2;
+        background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+        cb-row := HorizontalLayout {
+            x: 18px * root.k;
+            width: parent.width - 36px * root.k;
+            spacing: 10px * root.k;
+            Text {
+                text: "▶";
+                color: Theme.on-accent;
+                font-size: 15px * root.k;
+                vertical-alignment: center;
+            }
+            Text {
+                text: Tr.f(Tr.k, "En lecture sur {}", root.cast-target, "") + " · " + root.cast-now;
+                color: Theme.on-accent;
+                font-size: 15px * root.k;
+                font-weight: 700;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        TouchArea {
+            clicked => {
+                root.cast-reopen();
+            }
+        }
     }
 
     // Message d'état : bulle en bas, au-dessus du contenu, effacée après 6 s.

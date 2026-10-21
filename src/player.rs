@@ -298,7 +298,7 @@ pub fn bitrate_label(kbps: u32) -> String {
 }
 
 /// Liste des épisodes de la série (pour précédent / suivant et l'enchaînement).
-async fn series_episodes(client: Option<&Client>, item: Option<&Item>) -> Vec<String> {
+pub async fn series_episodes(client: Option<&Client>, item: Option<&Item>) -> Vec<String> {
     match (client, item) {
         (Some(c), Some(it)) if it.kind == "Episode" => match it.series_id.as_deref() {
             Some(sid) => c.episodes(sid, None).await.map(|v| v.into_iter().map(|e| e.id).collect()).unwrap_or_default(),

@@ -1903,3 +1903,18 @@ msgstr "Übertragungsbildschirme"
 
 msgid "Au hasard"
 msgstr "Zufällig"
+
+msgid "Arrêter la diffusion"
+msgstr "Übertragung beenden"
+
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgstr "Dieser Bildschirm meldet die Länge eines umgewandelten Videos nicht: nutze die Tasten zum Zurück- und Vorspulen."
+
+msgid "En lecture sur {}"
+msgstr "Wiedergabe auf {}"
+
+msgid "Reprendre sur cet appareil"
+msgstr "Auf diesem Gerät fortsetzen"
+
+msgid "Voir la lecture · {}"
+msgstr "Wiedergabe anzeigen · {}"

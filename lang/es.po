@@ -1903,3 +1903,18 @@ msgstr "Pantallas de transmisión"
 
 msgid "Au hasard"
 msgstr "Al azar"
+
+msgid "Arrêter la diffusion"
+msgstr "Detener la transmisión"
+
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgstr "Esta pantalla no indica la duración de un vídeo convertido: usa los botones de retroceso y avance."
+
+msgid "En lecture sur {}"
+msgstr "Reproduciendo en {}"
+
+msgid "Reprendre sur cet appareil"
+msgstr "Continuar en este dispositivo"
+
+msgid "Voir la lecture · {}"
+msgstr "Ver la reproducción · {}"

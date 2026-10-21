@@ -1909,3 +1909,18 @@ msgstr "Ekrany do przesyłania"
 
 msgid "Au hasard"
 msgstr "Losowo"
+
+msgid "Arrêter la diffusion"
+msgstr "Zatrzymaj przesyłanie"
+
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgstr "Ten ekran nie podaje długości przekonwertowanego wideo: używaj przycisków przewijania."
+
+msgid "En lecture sur {}"
+msgstr "Odtwarzanie na {}"
+
+msgid "Reprendre sur cet appareil"
+msgstr "Kontynuuj na tym urządzeniu"
+
+msgid "Voir la lecture · {}"
+msgstr "Pokaż odtwarzanie · {}"

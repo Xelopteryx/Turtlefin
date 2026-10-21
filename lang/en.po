@@ -1903,3 +1903,18 @@ msgstr "Cast screens"
 
 msgid "Au hasard"
 msgstr "Random"
+
+msgid "Arrêter la diffusion"
+msgstr "Stop casting"
+
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgstr "This screen doesn't report the length of a converted video: use the rewind and forward buttons."
+
+msgid "En lecture sur {}"
+msgstr "Playing on {}"
+
+msgid "Reprendre sur cet appareil"
+msgstr "Continue on this device"
+
+msgid "Voir la lecture · {}"
+msgstr "Show playback · {}"

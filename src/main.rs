@@ -234,6 +234,8 @@ struct App {
     screen_orig: Mutex<(Vec<String>, Vec<String>)>,
     /// Vidéo en cours sur l'écran de diffusion, et ses pistes (changeables pendant la lecture).
     cast_now: Mutex<Option<CastNow>>,
+    /// Épisodes de la série diffusée (précédent / suivant depuis le lecteur-télécommande).
+    cast_eps: Mutex<Vec<String>>,
     /// Écran en cours de renommage (clé de config::CastScreen).
     rename_key: Mutex<String>,
     cast_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -2201,6 +2203,9 @@ fn cast_stop(app: &Arc<App>) {
     }
     *app.cast_now.lock().unwrap() = None;
     *app.cast.lock().unwrap() = None;
+    if app.ui().upgrade().is_some_and(|u| u.get_p_remote()) {
+        close_remote_player(app);
+    }
     if let Some(h) = app.cast_poll.lock().unwrap().take() {
         h.abort();
     }
@@ -2374,9 +2379,11 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
         };
         let a2 = a.clone();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
-            u.set_toast(msg.into());
             if ok {
                 push_cast_tracks(&a2);
+                open_remote_player(&a2);
+            } else {
+                u.set_toast(msg.into());
             }
         });
     });
@@ -2416,6 +2423,158 @@ fn cast_track(app: &Arc<App>, kind: &str, id: i32) {
     });
 }
 
+/// Lecteur en télécommande de l'écran de diffusion : le lecteur habituel, sans vidéo ici (« En
+/// lecture sur … » au milieu) ; ses commandes partent à l'écran (voir remote_player_cmd).
+fn open_remote_player(app: &Arc<App>) {
+    let Some(now) = app.cast_now.lock().unwrap().clone() else { return };
+    let Some(u) = app.ui().upgrade() else { return };
+    let (title, subtitle) = now.item.titles();
+    u.set_p_title(title.into());
+    u.set_p_subtitle(subtitle.into());
+    u.set_p_ready(true);
+    u.set_p_buffering(false);
+    u.set_p_lost(false);
+    u.set_p_up_mode("".into());
+    u.set_p_skip_intro(false);
+    u.set_p_quality(ModelRc::default());
+    u.set_p_chapters(ModelRc::default());
+    u.set_p_chapter_count(0);
+    u.set_p_episodes(ModelRc::default());
+    u.set_p_has_bg(false);
+    u.set_p_volume(app.dlna_state.lock().unwrap().3 as i32);
+    // Pistes : celles de la vidéo (index Jellyfin) ; « no » : sans sous-titres.
+    let audio: Vec<TrackData> = item_streams(&now.item, "Audio")
+        .into_iter()
+        .map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.audio })
+        .collect();
+    let mut subs = vec![TrackData { id: "no".into(), label: tr("Désactivés").into(), current: now.sub < 0 }];
+    subs.extend(item_streams(&now.item, "Subtitle").into_iter().map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.sub }));
+    u.set_audio_current(audio.iter().position(|t| t.current).unwrap_or(0) as i32);
+    u.set_sub_current(subs.iter().position(|t| t.current).unwrap_or(0) as i32);
+    u.set_audio_tracks(ModelRc::new(VecModel::from(audio)));
+    u.set_sub_tracks(ModelRc::new(VecModel::from(subs)));
+    u.set_cast_pop(false);
+    u.set_p_remote(true);
+    u.set_playing(true);
+    // Épisode précédent / suivant, et image de fond.
+    let (Some(client), a) = (app.client(), app.clone()) else { return };
+    let item = now.item.clone();
+    app.rt.spawn(async move {
+        let eps = player::series_episodes(Some(&client), Some(&item)).await;
+        let i = eps.iter().position(|e| *e == item.id);
+        let (prev, next) = (i.is_some_and(|i| i > 0), i.is_some_and(|i| i + 1 < eps.len()));
+        *a.cast_eps.lock().unwrap() = eps;
+        let bg = match client.backdrop(&item).await {
+            Some(bytes) => tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten(),
+            None => None,
+        };
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            if !u.get_p_remote() {
+                return;
+            }
+            u.set_p_has_prev(prev);
+            u.set_p_has_next(next);
+            if let Some(buf) = bg {
+                u.set_p_bg(slint::Image::from_rgba8(buf));
+                u.set_p_has_bg(true);
+            }
+        });
+    });
+}
+
+/// Le lecteur-télécommande se ferme (la vidéo continue sur l'écran ; le bandeau du bas y ramène).
+fn close_remote_player(app: &Arc<App>) {
+    if let Some(u) = app.ui().upgrade() {
+        u.set_p_remote(false);
+        u.set_playing(false);
+        u.set_refocus(u.get_refocus() + 1);
+    }
+}
+
+/// Commande du lecteur-télécommande, envoyée à l'écran de diffusion.
+fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
+    let (verb, arg) = cmd.split_once(':').unwrap_or((cmd, ""));
+    let Some(target) = app.cast.lock().unwrap().clone() else {
+        close_remote_player(app);
+        return;
+    };
+    match verb {
+        "stop" | "home" => close_remote_player(app),
+        "pause" => send_cmd(app, target, "playpause"),
+        "seek" | "seek-to" | "volume" => {
+            let a = app.clone();
+            let (verb, arg) = (verb.to_string(), arg.to_string());
+            app.rt.spawn(async move {
+                let st = target_state(&a, &target).await;
+                let (pos, dur) = st.map(|s| (s.2, s.3)).unwrap_or((0.0, 0.0));
+                let res = match verb.as_str() {
+                    "volume" => {
+                        let v = arg.parse::<f64>().unwrap_or(50.0);
+                        a.dlna_state.lock().unwrap().3 = v as u32;
+                        match &target {
+                            CastTarget::Dlna(r) => cast::control(r, "vol", v).await,
+                            CastTarget::Gcast(d) => chromecast::control(d, "vol", v).await,
+                            CastTarget::Jf { .. } => Ok(()),
+                        }
+                    }
+                    _ => {
+                        let to = if verb == "seek" { pos + arg.parse::<f64>().unwrap_or(0.0) } else { arg.parse::<f64>().unwrap_or(0.0) * dur };
+                        if verb == "seek-to" && dur <= 0.0 {
+                            Ok(())
+                        } else {
+                            match &target {
+                                CastTarget::Dlna(r) => cast::control(r, "seek", to.max(0.0)).await,
+                                CastTarget::Gcast(d) => chromecast::control(d, "seek", to.max(0.0)).await,
+                                CastTarget::Jf { session, .. } => match a.client() {
+                                    Some(c) => c.remote_playstate(session, "Seek", Some(to.max(0.0))).await,
+                                    None => Ok(()),
+                                },
+                            }
+                        }
+                    }
+                };
+                if let Err(e) = res {
+                    let msg = trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]);
+                    let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                }
+            });
+        }
+        "episode" => {
+            let cur = app.cast_now.lock().unwrap().as_ref().map(|n| n.item.id.clone()).unwrap_or_default();
+            let eps = app.cast_eps.lock().unwrap().clone();
+            let d: i64 = arg.parse().unwrap_or(0);
+            if let Some(next) = eps.iter().position(|e| *e == cur).and_then(|i| eps.get((i as i64 + d).max(0) as usize)).cloned() {
+                cast_play_item(app, next, Some(0.0));
+            }
+        }
+        "aid" => cast_track(app, "audio", arg.parse().unwrap_or(-1)),
+        "sid" => cast_track(app, "sub", if arg == "no" { -1 } else { arg.parse().unwrap_or(-1) }),
+        // Reprendre ici : la vidéo revient sur cet appareil, au même endroit ; l'écran s'arrête.
+        "cast" if arg == "resume" => {
+            let id = app.cast_now.lock().unwrap().as_ref().map(|n| n.item.id.clone());
+            let a = app.clone();
+            app.rt.spawn(async move {
+                let pos = target_state(&a, &target).await.map(|s| s.2).unwrap_or(0.0);
+                let a2 = a.clone();
+                let _ = a.ui().upgrade_in_event_loop(move |_| {
+                    cast_stop(&a2);
+                    close_remote_player(&a2);
+                    if let Some(id) = id {
+                        *a2.play_start.lock().unwrap() = Some(pos);
+                        let a3 = a2.clone();
+                        a2.rt.spawn(async move { play_flow(a3, Some(id), None).await });
+                    }
+                });
+            });
+        }
+        "cast" if arg == "stop" => {
+            cast_stop(app);
+            close_remote_player(app);
+        }
+        _ => {}
+    }
+}
+
 /// Bouton Diffuser du lecteur : la vidéo en cours passe à l'écran choisi (au même endroit) et la
 /// lecture s'arrête ici ; le panneau Diffuser sert ensuite de télécommande. Sans écran choisi, le
 /// panneau s'ouvre pour en choisir un (la vidéo y passe dès le choix).
@@ -2439,9 +2598,8 @@ fn player_cast(app: &Arc<App>) {
         for _ in 0..40 {
             if let Some((id, pos)) = player::HANDOFF.lock().unwrap().take() {
                 let a2 = a.clone();
-                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                let _ = a.ui().upgrade_in_event_loop(move |_| {
                     cast_play_item(&a2, id, Some(pos));
-                    u.set_cast_pop(true);
                 });
                 return;
             }
@@ -2489,13 +2647,31 @@ fn start_cast_poll(app: &Arc<App>) {
             if let Some((now, paused, pos, dur)) = target_state(&a, &target).await {
                 let _ = a.ui().upgrade_in_event_loop(move |u| {
                     let (p, t) = clock_pair(pos, dur);
-                    u.set_cast_now(now.into());
+                    if !now.is_empty() {
+                        u.set_cast_now(now.into());
+                    }
                     u.set_cast_paused(paused);
                     u.set_cast_pos(p);
                     u.set_cast_time(t.into());
+                    if u.get_p_remote() {
+                        u.set_p_paused(paused);
+                        u.set_p_progress(p);
+                        u.set_p_pos_text(fmt_clock(pos).into());
+                        u.set_p_dur_text(if dur > 0.0 { fmt_clock(dur) } else { String::new() }.into());
+                        u.set_p_remote_nodur(dur <= 0.0 && pos > 0.0);
+                        let end = if dur > pos {
+                            chrono::Local::now()
+                                .checked_add_signed(chrono::Duration::seconds((dur - pos) as i64))
+                                .map(|t| trf("Fin à {}", &[&t.format("%H:%M")]))
+                                .unwrap_or_default()
+                        } else {
+                            String::new()
+                        };
+                        u.set_p_end_text(end.into());
+                    }
                 });
             }
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     });
     *app.cast_poll.lock().unwrap() = Some(h);
@@ -6733,6 +6909,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         screen_orig: Mutex::new((Vec::new(), Vec::new())),
         rename_key: Mutex::new(String::new()),
         cast_now: Mutex::new(None),
+        cast_eps: Mutex::new(Vec::new()),
         cast_poll: Mutex::new(None),
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),
@@ -7330,6 +7507,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
         let app = app.clone();
         move |kind, id| cast_track(&app, kind.as_str(), id.parse().unwrap_or(-1))
     });
+    ui.on_cast_reopen({
+        let app = app.clone();
+        move || open_remote_player(&app)
+    });
     ui.on_player_cast({
         let app = app.clone();
         move || player_cast(&app)
@@ -7350,6 +7531,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_player_cmd({
         let app = app.clone();
         move |cmd| {
+            // Lecteur-télécommande : la commande part à l'écran de diffusion.
+            if app.ui().upgrade().is_some_and(|u| u.get_p_remote()) {
+                remote_player_cmd(&app, cmd.as_str());
+                return;
+            }
             if let Some(tx) = app.player_tx.lock().unwrap().as_ref() {
                 let _ = tx.send(cmd.to_string());
             }

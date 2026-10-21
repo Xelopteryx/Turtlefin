@@ -487,6 +487,12 @@ export component PlayerView inherits Rectangle {
     // Bouton Diffuser (en haut à droite) ; un écran est déjà choisi.
     callback cast();
     in property <bool> cast-on;
+    // Lecture sur un écran de diffusion : ce lecteur sert de télécommande (aucune vidéo ici) ; les
+    // commandes partent à l'écran. `remote-nodur` : l'écran ne donne pas la durée (flux converti).
+    in property <bool> remote;
+    in property <string> remote-name;
+    in property <bool> remote-nodur;
+    property <bool> cm-open;
 
     property <bool> osd: true;   // commandes affichées
     property <int> idle: 0;      // secondes sans activité
@@ -633,6 +639,12 @@ export component PlayerView inherits Rectangle {
     }
 
     function hide() {
+        // Télécommande : les commandes restent affichées (il n'y a rien à regarder dessous).
+        if (root.remote) {
+            root.menu = "";
+            root.cm-open = false;
+            return;
+        }
         root.osd = false;
         root.zone = 0;
         root.menu = "";
@@ -712,6 +724,49 @@ export component PlayerView inherits Rectangle {
         source: root.frame;
         image-fit: fill;
         animate x, y, width, height { duration: Motion.player ? 450ms : 0ms; easing: ease-in-out; }
+    }
+
+    // Télécommande : image de la vidéo (floutée par l'assombrissement), écran où elle passe.
+    if root.remote: Rectangle {
+        if root.has-bg: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.bg;
+            image-fit: cover;
+            opacity: 0.45;
+        }
+        Rectangle {
+            background: @linear-gradient(180deg, #000000aa 0%, #00000066 50%, #000000cc 100%);
+        }
+        VerticalLayout {
+            y: (parent.height - self.preferred-height) / 2 - 40px * root.k;
+            height: self.preferred-height;
+            alignment: center;
+            spacing: 10px * root.k;
+            HorizontalLayout {
+                alignment: center;
+                Icon {
+                    width: 64px * root.k;
+                    height: 64px * root.k;
+                    name: "cast-on";
+                }
+            }
+            Text {
+                text: Tr.f(Tr.k, "En lecture sur {}", root.remote-name, "");
+                color: Theme.player-ink;
+                font-size: 24px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+            if root.remote-nodur: Text {
+                text: Tr.t(Tr.k, "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance.");
+                color: Theme.player-ink.with-alpha(0.7);
+                font-size: 14px * root.k;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
     }
 
     if !root.ready: Text {
@@ -1066,7 +1121,47 @@ export component PlayerView inherits Rectangle {
             size: 52px * root.k;
             icon: root.cast-on ? "cast-on" : "cast";
             clicked => {
-                root.cast();
+                if (root.remote) {
+                    root.cm-open = !root.cm-open;
+                    root.show();
+                } else {
+                    root.cast();
+                }
+            }
+        }
+        // Télécommande : reprendre ici ou arrêter.
+        if root.remote && root.cm-open: Rectangle {
+            width: min(320px * root.k, parent.width - 2 * root.m);
+            height: 2 * 52px * root.k + 16px * root.k;
+            x: parent.width - self.width - root.m;
+            y: root.m + 60px * root.k;
+            border-radius: 14px * root.k;
+            background: Theme.player-bar;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            for c[i] in [Tr.t(Tr.k, "Reprendre sur cet appareil"), Tr.t(Tr.k, "Arrêter la diffusion")]: Rectangle {
+                x: 8px * root.k;
+                y: 8px * root.k + i * 52px * root.k;
+                width: parent.width - 16px * root.k;
+                height: 48px * root.k;
+                border-radius: 10px * root.k;
+                background: (cm-a.has-hover && !Nav.touch) || cm-a.pressed ? Theme.player-ink.with-alpha(0.16) : transparent;
+                Text {
+                    x: 14px * root.k;
+                    width: parent.width - 28px * root.k;
+                    text: c;
+                    color: Theme.player-ink;
+                    font-size: 16px * root.k;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                cm-a := TouchArea {
+                    clicked => {
+                        root.cm-open = false;
+                        root.command(i == 0 ? "cast:resume" : "cast:stop");
+                    }
+                }
             }
         }
 
@@ -1097,7 +1192,7 @@ export component PlayerView inherits Rectangle {
         Text {
             x: root.m + 70px * root.k;
             y: root.m + 28px * root.k;
-            width: parent.width - self.x - root.m;
+            width: parent.width - self.x - root.m - 70px * root.k;
             height: 24px * root.k;
             text: root.subtitle;
             color: Theme.accent2;
@@ -1112,7 +1207,8 @@ export component PlayerView inherits Rectangle {
             // Petit écran (téléphone, texte agrandi) : les boutons de lecture (au centre) et de pistes (à
             // droite) ne doivent pas se chevaucher : la lecture se décale à gauche, puis tout rétrécit.
             property <int> nr: root.quality-tracks.length > 0 ? 4 : 3;
-            property <length> need: (5 * 52px + 4 * 16px + (self.nr + 1) * 44px + self.nr * 12px + 24px) * root.k + root.m;
+            // Marges des deux côtés, bouton Lecture plus gros que sa place (+16), écart de 24 entre les groupes.
+            property <length> need: (5 * 52px + 4 * 16px + 16px + (self.nr + 1) * 44px + self.nr * 12px + 24px) * root.k + 2 * root.m;
             property <float> bk: min(1, self.width / self.need);
             property <length> cw: (5 * 52px + 4 * 16px) * root.k * self.bk;
             property <length> rw: ((self.nr + 1) * 44px + self.nr * 12px) * root.k * self.bk;
@@ -1227,7 +1323,7 @@ export component PlayerView inherits Rectangle {
 
             // Boutons de lecture, au centre (décalés à gauche s'ils touchent les pistes)
             HorizontalLayout {
-                x: max(root.m, min((parent.width - panel.cw) / 2, parent.width - root.m - panel.rw - 24px * root.k * panel.bk - panel.cw));
+                x: max(root.m + 8px * root.k * panel.bk, min((parent.width - panel.cw) / 2, parent.width - root.m - panel.rw - 32px * root.k * panel.bk - panel.cw));
                 y: 78px * root.k + (1 - panel.bk) * 26px * root.k;
                 width: panel.cw;
                 height: 52px * root.k * panel.bk;
