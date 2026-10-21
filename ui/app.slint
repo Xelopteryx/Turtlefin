@@ -3842,10 +3842,15 @@ export component AppWindow inherits Window {
     // jamais les affiches.
     property <bool> hero-under: root.hero-on && root.hero-big && root.hero-dest && !root.loading
         && root.screen != "home" && root.screen != "loading";
+    // Rognée sous la barre du haut : le verre de la barre reste visible pendant le vol.
     if root.hero-under && !root.playing: Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
+        clip: true;
+    Rectangle {
         // Même trajectoire que l'image en vol (elle finit de s'agrandir derrière la page).
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
-        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
         height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
         Image {
@@ -3862,6 +3867,7 @@ export component AppWindow inherits Window {
         Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha * root.hero-p);
         }
+    }
     }
 
     // ------------------------------------------------------------ Connexion
