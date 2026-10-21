@@ -113,7 +113,11 @@ extern "system" {
     fn CallWindowProcW(prev: WndProc, h: Hwnd, msg: u32, wp: usize, lp: isize) -> isize;
     fn SetTimer(h: Hwnd, id: usize, ms: u32, f: *const c_void) -> usize;
     fn KillTimer(h: Hwnd, id: usize) -> i32;
+    fn RedrawWindow(h: Hwnd, rect: *const Rect, rgn: *mut c_void, flags: u32) -> i32;
 }
+
+const RDW_INVALIDATE: u32 = 0x0001;
+const RDW_UPDATENOW: u32 = 0x0100;
 
 static PREV_PROC: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
@@ -131,9 +135,26 @@ unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> 
             // SAFETY : idem.
             unsafe { KillTimer(h, MOVE_TIMER) };
         }
-        WM_SIZE if ROUND.load(std::sync::atomic::Ordering::Relaxed) => {
-            let (w, h2) = ((lp & 0xffff) as i32, ((lp >> 16) & 0xffff) as i32);
-            round_corners(h, if wp == SIZE_MAXIMIZED { None } else { Some((w, h2)) });
+        WM_SIZE => {
+            // Nouvelle taille : traitée d'abord (Slint la prend), puis l'image est refaite tout de suite,
+            // avant que Windows n'affiche la fenêtre ; sinon il étire l'ancienne image à la nouvelle
+            // taille le temps d'un rendu (bords du cadre dédoublés, barres claires pendant un
+            // redimensionnement lent).
+            let prev = PREV_PROC.load(std::sync::atomic::Ordering::Relaxed);
+            // SAFETY : procédure d'origine de la fenêtre (posée par `keep_alive_while_moving`).
+            let r = unsafe { CallWindowProcW(std::mem::transmute::<isize, WndProc>(prev), h, msg, wp, lp) };
+            ON_TICK.with(|t| {
+                if let Some(f) = t.borrow().as_ref() {
+                    f();
+                }
+            });
+            // SAFETY : fenêtre valide (message reçu pour elle).
+            unsafe { RedrawWindow(h, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_UPDATENOW) };
+            if ROUND.load(std::sync::atomic::Ordering::Relaxed) {
+                let (w, h2) = ((lp & 0xffff) as i32, ((lp >> 16) & 0xffff) as i32);
+                round_corners(h, if wp == SIZE_MAXIMIZED { None } else { Some((w, h2)) });
+            }
+            return r;
         }
         WM_TIMER if wp == MOVE_TIMER => {
             ON_TICK.with(|t| {
