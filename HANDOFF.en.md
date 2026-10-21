@@ -64,6 +64,8 @@ src/discovery.rs    server discovery (UDP, subnets, ARP, VPN peers)
 src/downloads.rs    downloads (Range resume, queue, offline sync)
 src/mpv.rs          libmpv binding; src/video.rs OpenGL texture; src/player.rs playback, reports, chaining
 src/syncplay.rs     watch party (WebSocket /socket)
+src/cast.rs         Cast: DLNA TVs on the network (SSDP, SOAP)
+src/password.rs     password strength (the "too simple" alert)
 src/paths.rs        config / cache / data folders; portable mode; quiet_command
 src/update.rs       update by installation kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows: screen / work area, window animated while moved
@@ -251,6 +253,46 @@ Done after remarks on Reddit; the app was “attacked” point by point:
 
 Left: an `http://` server sends the token in clear text (user's choice); token in clear text (0600) on Linux,
 for lack of a keyring common to all target machines.
+
+## 6 ter. October 2026 work (after 1.2.0, unreleased)
+
+- **Password** (`src/password.rs`): `score()` 0 to 4, `is_weak()` (common passwords, account name, sequences,
+  length). Only the verdict is kept (`Account.weak_pw`), never the password. Alert (`Alert` global in
+  `ui/theme.slint`): red ring around the avatar, "!" badges along the way (Settings → Account → Change password,
+  side menu). Change: `Client::change_password` (`/Users/Password`, 403 = wrong current password), three-step
+  dialog (modes 4 to 6 of the `addr` dialog).
+- **Cast** (top-right icon): picks the screen videos are sent to ("Play on …" on item pages): another Turtlefin or
+  Jellyfin app of the account (`/Sessions?controllableByUserId`, server `Play` command; controllable =
+  `SupportsRemoteControl` and `IsActive`, no activity window: a TV left on the home screen makes no request) or a
+  DLNA TV on the network (`src/cast.rs`: SSDP, then SOAP AVTransport / RenderingControl; private addresses only,
+  the LOCATION host must be the responder; the TV reads `/Videos/{id}/stream?static=true&api_key=…`). The panel
+  then shows what plays there (polled every 2 s) with play, skip, stop and volume (`cast_cmd`).
+- **Remote** (side menu): lists the account's other Turtlefin instances (`Client == "Turtlefin"`), then controls the
+  chosen one (`remote_cmd`: `GeneralCommand` MoveUp…/Select/Back/GoHome/Volume, `Playstate`). On the controlled
+  side, `syncplay.rs` receives these over the WebSocket (`Event::Remote`, `remote_received` in main.rs); the
+  WebSocket announces capabilities (`Client::set_capabilities`) on every connection. Device name
+  (`api::device_name`): `TURTLEFIN_DEVICE_NAME`, else the computer name; Android: the name set in the phone's
+  settings (Settings.Global `device_name`), else the model; accents percent-encoded in the header (`header_value`).
+- **TV remote**: Select / Back / Exit / Play keys mapped (main.rs `install_f11`, and
+  `android/vendor/…/androidwindowadapter.rs`); on the Pi, HDMI-CEC through Xelauncher (`cec-ctl --playback`).
+- **Frutiger Aero**: Selawik font, Windows 7 frame drawn by Turtlefin when windowed (`WinCaption`, `CaptionButton`
+  after 7.css, MIT, `ui/icons/win7`); glass blurred by `winfull::set_blur` (SetWindowCompositionAttribute) and
+  corners cut by `winfull::set_round` (SetWindowRgn, redone on WM_SIZE, removed when maximized or fullscreen);
+  `chrome-top` / `chrome-side` shift the UI below the bar. Pitfall found: in Slint an element without `x` / `y` is
+  **centered** in its parent; the title-bar drag area (no `y`) made an invisible band in the middle of the window
+  that ate clicks. Always give sized `TouchArea`s an `x` / `y`.
+- **Animated fullscreen** (Windows): the window grows to the screen (`animate_window`, 280 ms).
+  **TV ↔ desktop UI**: `relayout_rows` recomputes rows already shown (no more gaps).
+- **Top panels** (Cast, watch party, remote): every way of closing gives the keyboard back to the page
+  (`changed cast-pop / party-pop / remote-open` → `refocus`).
+- **Android**: player volume = phone media volume (JNI AudioManager); touch zones of the time and volume bars
+  (`hit-*` of `PlayerView`, set in `init`: a constant value never goes through `changed`); in landscape, 48 px
+  margin on both sides of the player (the navigation bar is drawn over the app without being reported,
+  `Nav.phone`); toast above that bar; "Tablet mode"; useless settings removed; Android TV forces the TV UI.
+- **Collections**: the poster moves to the center, then the movies are dealt (`deal-*` in app.slint).
+- **Release prepared**: 32-bit Linux (armhf, i386) in `release.yml` (`linux32` job, Debian 12 container); APK
+  armeabi-v7a / x86 possible (`build-apk.ps1 -Abi`), release signing with `-Release` (key
+  `%USERPROFILE%\.android\turtlefin-release.jks`, password protected by DPAPI).
 
 ## 7. Building, packaging, publishing
 

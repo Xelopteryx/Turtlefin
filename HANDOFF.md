@@ -64,6 +64,8 @@ src/discovery.rs    recherche des serveurs (UDP, sous-réseaux, ARP, pairs VPN)
 src/downloads.rs    téléchargements (reprise Range, file, synchronisation hors ligne)
 src/mpv.rs          liaison libmpv ; src/video.rs texture OpenGL ; src/player.rs lecture, rapports, enchaînement
 src/syncplay.rs     watch party (WebSocket /socket)
+src/cast.rs         Diffuser : télés DLNA du réseau (SSDP, SOAP)
+src/password.rs     solidité d'un mot de passe (alerte « trop simple »)
 src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_command
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant un déplacement
@@ -261,6 +263,49 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
 
 Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
 sous Linux, faute de trousseau commun à toutes les machines visées.
+
+## 6 ter. Travaux d'octobre 2026 (après la 1.2.0, non publiés)
+
+- **Mot de passe** (`src/password.rs`) : `score()` 0 à 4, `is_weak()` (liste de mots de passe courants, nom du
+  compte, suites, longueur). Seul le verdict est gardé (`Account.weak_pw`), jamais le mot de passe. Alerte
+  (global `Alert` de `ui/theme.slint`) : anneau rouge autour de la photo, pastilles « ! » sur le chemin
+  (Paramètres → Compte → Changer le mot de passe, menu de gauche). Changement : `Client::change_password`
+  (`/Users/Password`, 403 = mot de passe actuel faux), fenêtre en trois étapes (modes 4 à 6 du dialogue `addr`).
+- **Diffuser** (icône en haut à droite) : choisit l'écran où envoyer les vidéos (« Lire sur … » sur les fiches) :
+  autre Turtlefin ou appli Jellyfin du compte (`/Sessions?controllableByUserId`, commande `Play` du serveur ;
+  pilotables = `SupportsRemoteControl` et `IsActive`, sans limite d'activité : une télé restée sur l'accueil ne
+  fait aucune requête) ou télé DLNA du réseau (`src/cast.rs` : SSDP, puis SOAP AVTransport / RenderingControl ;
+  adresses privées seulement, l'hôte de LOCATION doit être celui qui a répondu ; la télé lit
+  `/Videos/{id}/stream?static=true&api_key=…`). Le panneau montre ensuite ce qui y passe (relu toutes les 2 s)
+  avec lecture, avance, arrêt et volume (`cast_cmd`).
+- **Télécommande** (menu de gauche) : liste les autres Turtlefin du compte (`Client == "Turtlefin"`), puis pilote
+  celui choisi (`remote_cmd` : `GeneralCommand` MoveUp…/Select/Back/GoHome/Volume, `Playstate`). Côté piloté,
+  `syncplay.rs` reçoit ces messages par le WebSocket (`Event::Remote`, `remote_received` dans main.rs) ; le
+  WebSocket annonce les capacités (`Client::set_capabilities`) à chaque connexion. Nom de l'appareil
+  (`api::device_name`) : `TURTLEFIN_DEVICE_NAME`, sinon nom de l'ordinateur ; Android : nom choisi dans les
+  réglages (Settings.Global `device_name`), sinon le modèle ; accents encodés dans l'en-tête (`header_value`).
+- **Télécommande de la télé** : touches Select / Back / Exit / Lecture traduites (main.rs, `install_f11`, et
+  `android/vendor/…/androidwindowadapter.rs`) ; sur le Pi, HDMI-CEC par Xelauncher (`cec-ctl --playback`).
+- **Frutiger Aero** : police Selawik, cadre de Windows 7 dessiné par Turtlefin en fenêtre (`WinCaption`,
+  boutons `CaptionButton` d'après 7.css, MIT, `ui/icons/win7`) ; verre flouté par
+  `winfull::set_blur` (SetWindowCompositionAttribute) et coins découpés par `winfull::set_round`
+  (SetWindowRgn, refait sur WM_SIZE, enlevé agrandie ou en plein écran) ; `chrome-top` / `chrome-side` décalent
+  l'interface sous la barre. Piège trouvé : dans Slint, un élément sans `x` / `y` est **centré** dans son parent ;
+  la zone de la barre de titre (sans `y`) faisait une bande invisible au milieu de la fenêtre qui prenait les
+  clics. Toujours donner `x` / `y` aux `TouchArea` dimensionnées.
+- **Plein écran animé** (Windows) : la fenêtre grandit jusqu'à l'écran (`animate_window`, 280 ms).
+  **Interface TV ↔ bureau** : `relayout_rows` recalcule les rangées déjà affichées (plus de trous).
+- **Panneaux du haut** (Diffuser, watch party, télécommande) : tout chemin de fermeture rend le clavier à la page
+  (`changed cast-pop / party-pop / remote-open` → `refocus`).
+- **Android** : volume du lecteur = volume média du téléphone (JNI AudioManager) ; zones de toucher des barres
+  de temps et de volume (`hit-*` de `PlayerView`, posées dans `init` : une valeur constante ne passe jamais par
+  `changed`) ; en paysage, marge de 48 px des deux côtés du lecteur (la barre de navigation passe par-dessus
+  l'appli sans être signalée, `Nav.phone`) ; toast au-dessus de cette barre ; « Mode tablette » ; réglages
+  inutiles retirés ; Android TV : interface TV imposée.
+- **Collections** : l'affiche va au centre puis les films sont distribués (`deal-*` dans app.slint).
+- **Publication préparée** : Linux 32 bits (armhf, i386) dans `release.yml` (job `linux32`, conteneur Debian 12) ;
+  APK armeabi-v7a / x86 possibles (`build-apk.ps1 -Abi`), signature de publication `-Release` (clé
+  `%USERPROFILE%\.android\turtlefin-release.jks`, mot de passe protégé par DPAPI).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
