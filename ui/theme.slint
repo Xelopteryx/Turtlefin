@@ -69,10 +69,19 @@ export global Theme {
 
 // Reflet brillant d'un bouton ou d'un panneau (thèmes à `Theme.gloss` > 0) : moitié haute plus
 // claire, comme du plastique mouillé ou du verre. À poser en premier enfant, pleine largeur.
+// Diagnostic des performances (TURTLEFIN_PERF_OFF, voir main.rs) : couches masquées pour mesurer leur
+// coût. 0 en usage normal.
+export global Perf {
+    in-out property <int> off;
+    pure public function hide(bit: int) -> bool {
+        return Math.mod(floor(self.off / bit), 2) == 1;
+    }
+}
+
 export component Gloss inherits Rectangle {
     in property <length> r: 10px;
     in property <float> strength: 1.0;
-    visible: Theme.gloss > 0;
+    visible: Theme.gloss > 0 && !Perf.hide(64);
     clip: true;
     border-radius: root.r;
     // Liseré intérieur clair (verre de Windows 7).

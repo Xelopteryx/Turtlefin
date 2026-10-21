@@ -12,6 +12,8 @@ param(
     # -Release : cle de publication (%USERPROFILE%\.android\turtlefin-release.jks, mot de passe chiffre
     # par DPAPI dans turtlefin-release.pass.dpapi, lisible du seul compte Windows qui l'a cree).
     [switch]$Release,
+    # Version d'essai profilable (simpleperf) : android:debuggable, symboles gardés.
+    [switch]$Profile,
     [string]$Keystore = "",
     [string]$KeystorePass = "android",
     [string]$WorkDir = "$env:LOCALAPPDATA\turtlefin-android"
@@ -76,7 +78,8 @@ if ($LASTEXITCODE -ne 0) { throw "aapt2 compile" }
 $code = ($version.Split('.') | ForEach-Object { [int]$_ })
 $versionCode = $code[0] * 10000 + $code[1] * 100 + $code[2]
 & "$tools\aapt2.exe" link -o "$build\base.apk" -I $jar --manifest "$PSScriptRoot\AndroidManifest.xml" "$build\res.zip" `
-    --min-sdk-version 26 --target-sdk-version 34 --version-code $versionCode --version-name $version
+    --min-sdk-version 26 --target-sdk-version 34 --version-code $versionCode --version-name $version `
+    $(if ($Profile) { "--debug-mode" })
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link" }
 
 # 4. Bibliotheques : Turtlefin + libmpv et ses dependances (pas libplayer.so, l'enveloppe Java de libmpv).

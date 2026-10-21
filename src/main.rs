@@ -6786,6 +6786,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
     if cfg!(target_os = "android") {
         ui.global::<Nav>().set_no_shadow(true);
     }
+    // Diagnostic : couches masquées (voir Perf dans theme.slint).
+    if let Some(v) = std::env::var("TURTLEFIN_PERF_OFF").ok().and_then(|v| v.parse::<i32>().ok()) {
+        ui.global::<Perf>().set_off(v);
+    }
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
         // Découpe du texte tapé (ui/typed.slint) : tout sauf les n derniers caractères, et le k-ième en partant de la fin.

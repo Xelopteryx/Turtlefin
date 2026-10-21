@@ -62,6 +62,8 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // précédente (à 60 Hz, une image arrive toutes les 16,7 ms : au-delà, au moins une est sautée).
     // À combiner avec SLINT_DEBUG_PERFORMANCE=refresh_full_speed,console pour un rendu continu.
     let debug_frames = std::env::var_os("TURTLEFIN_DEBUG_FRAMES").is_some();
+    // Seuil des images signalées (ms) : TURTLEFIN_DEBUG_FRAMES=<ms>, 12 par défaut.
+    let slow_ms = std::env::var("TURTLEFIN_DEBUG_FRAMES").ok().and_then(|v| v.parse::<f64>().ok()).filter(|v| *v > 0.5).unwrap_or(12.0);
     // Durée de dessin d'une image (avant -> après le rendu) : l'écart entre deux images compterait
     // aussi les moments de repos, où rien n'est redessiné.
     let mut started: Option<std::time::Instant> = None;
@@ -99,7 +101,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 slint::RenderingState::AfterRendering => {
                     if let Some(t) = started.take() {
                         let ms = t.elapsed().as_secs_f64() * 1000.0;
-                        if ms > 12.0 {
+                        if ms > slow_ms {
                             eprintln!("[{:.2} s] image lente : {ms:.1} ms", t_start.elapsed().as_secs_f64());
                         }
                     }

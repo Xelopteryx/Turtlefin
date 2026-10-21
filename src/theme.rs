@@ -486,6 +486,7 @@ fn icon_raw(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<sli
 /// Icône adaptative Android d'un thème : premier plan (logo, ou orbe, dans la zone sûre d'un canevas
 /// de `n` px, transparent autour) et couleurs du fond (haut, bas). Rendues d'avance dans android/res
 /// (voir le test `android_icons`), une par thème intégré.
+#[cfg(test)]
 pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rgba8Pixel>, String, String) {
     // Logo : 168 / 256 de son image ; orbe : 244 / 256. Zone sûre : 66 / 108 du canevas.
     let (span, target) = if t.logo == "orb" { (244.0, 0.60) } else { (168.0, 0.56) };
@@ -765,6 +766,19 @@ mod tests {
             let (fg, top, bottom) = super::android_icon(&t, 432);
             let img = image::RgbaImage::from_raw(fg.width(), fg.height(), fg.as_bytes().to_vec()).unwrap();
             img.save(dir.join("drawable-nodpi").join(format!("ic_fg_{k}.png"))).unwrap();
+            // Aero : l'orbe seule, sans fond (transparent autour).
+            if t.logo == "orb" {
+                std::fs::write(
+                    dir.join("drawable").join(format!("ic_bg_{k}.xml")),
+                    format!("<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<!-- Fond de l'icône du thème « {k} » : transparent (généré : theme.rs, test android_icons). -->
+<shape xmlns:android=\"http://schemas.android.com/apk/res/android\">
+    <solid android:color=\"@android:color/transparent\" />
+</shape>
+"),
+                )
+                .unwrap();
+            } else {
             std::fs::write(
                 dir.join("drawable").join(format!("ic_bg_{k}.xml")),
                 format!(
@@ -777,6 +791,7 @@ mod tests {
                 ),
             )
             .unwrap();
+            }
             std::fs::write(
                 dir.join("mipmap-anydpi-v26").join(format!("ic_{k}.xml")),
                 format!(
