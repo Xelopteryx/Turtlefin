@@ -8633,6 +8633,8 @@ export component AppWindow inherits Window {
             property <int> n: root.cast-items.length;
             // Commandes : 0 précédent · 1 recul · 2 lecture · 3 avance · 4 suivant · 5 arrêt · 6 vol- · 7 muet · 8 vol+
             property <[string]> codes: ["prev", "rew", "playpause", "ff", "next", "stop", "vol-", "mute", "vol+"];
+            // Boutons de lecture réduits si la rangée (310 px à k = 1) ne tient pas (téléphone).
+            property <float> bk: root.k * min(1, (self.width - 40px * root.k) / (310px * root.k));
             width: min(460px * root.k, parent.width - 32px * root.k);
             height: cast-col.preferred-height + 40px * root.k;
             x: parent.width - self.width - 16px * root.k;
@@ -8779,9 +8781,9 @@ export component AppWindow inherits Window {
                 }
                 if root.cast-on: HorizontalLayout {
                     alignment: center;
-                    spacing: 8px * root.k;
+                    spacing: 8px * cast-panel.bk;
                     for ic[j] in ["prev", "rew", root.cast-paused ? "play" : "pause", "ff", "next", "stop"]: PadButton {
-                        k: root.k;
+                        k: cast-panel.bk;
                         size: j == 2 ? 52px : 42px;
                         icon: ic;
                         focused: root.cast-sel == cast-panel.n && root.cast-ctl == j;
@@ -8793,9 +8795,9 @@ export component AppWindow inherits Window {
                 }
                 if root.cast-on: HorizontalLayout {
                     alignment: center;
-                    spacing: 14px * root.k;
+                    spacing: 14px * cast-panel.bk;
                     for ic[j] in ["vol-", "mute", "vol+"]: PadButton {
-                        k: root.k;
+                        k: cast-panel.bk;
                         size: 40px;
                         icon: ic;
                         focused: root.cast-sel == cast-panel.n + 1 && root.cast-ctl == j + 6;
@@ -8945,7 +8947,9 @@ export component AppWindow inherits Window {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2 + (1 - root.remote-p) * (root.remote-open ? 60px : -40px) * root.k;
             opacity: root.remote-p;
-            k: min(root.k, (parent.height - 24px * root.k) / 600px);
+            // Écran trop bas ou trop étroit (téléphone en mode tablette) : l'ensemble rétrécit (rangée de
+            // lecture : 340 px de large à k = 1, marges comprises).
+            k: min(root.k, (parent.height - 24px * root.k) / 600px, (parent.width - 24px * root.k) / 360px);
             name: root.remote-target;
             now: root.remote-now;
             paused: root.remote-paused;
