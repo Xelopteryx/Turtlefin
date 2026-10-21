@@ -1900,3 +1900,6 @@ msgstr "Bildschirm umbenennen"
 
 msgid "Écrans de diffusion"
 msgstr "Übertragungsbildschirme"
+
+msgid "Au hasard"
+msgstr "Zufällig"

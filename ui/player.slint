@@ -104,6 +104,25 @@ component Icon inherits Rectangle {
         stroke-line-cap: round;
         commands: "M 16 9 L 21 15 M 21 9 L 16 15";
     }
+    // Diffuser : écran et ondes (pleine quand la vidéo est déjà sur un écran).
+    if root.name == "cast" || root.name == "cast-on": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: 2.2px;
+        commands: "M 3 8 L 3 5 L 21 5 L 21 19 L 14 19 M 3 12 A 7 7 0 0 1 10 19 M 3 16 A 3 3 0 0 1 6 19";
+    }
+    if root.name == "cast-on": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.tint;
+        commands: "M 6 8 L 18 8 L 18 16 L 14 16 A 9 9 0 0 0 6 10 Z";
+    }
     if root.name == "audio": Path {
         width: parent.width;
         height: parent.height;
@@ -205,7 +224,7 @@ component PlayerButton inherits Rectangle {
     animate background { duration: Motion.player ? 180ms : 0ms; }
     border-width: root.lit && !root.orb ? 0px : 1px;
     border-color: root.orb ? Theme.player-ink.with-alpha(0.55) : Theme.player-ink.with-alpha(0.25);
-    drop-shadow-blur: root.orb && root.lit ? 16px : 0px;
+    drop-shadow-blur: Nav.no-shadow ? 0px : (root.orb && root.lit ? 16px : 0px);
     drop-shadow-color: Theme.accent2.with-alpha(0.8);
     Gloss { r: parent.border-radius; }
     // Orbe : éclat lumineux en bas, comme une bille de verre éclairée par-dessous.
@@ -268,7 +287,7 @@ component EpisodeCard inherits Rectangle {
     background: Theme.player-bar;
     border-width: root.current ? 2px : 1px;
     border-color: root.current ? Theme.accent2 : Theme.card-border;
-    drop-shadow-blur: root.lit ? 18px * root.k : 0px;
+    drop-shadow-blur: Nav.no-shadow ? 0px : (root.lit ? 18px * root.k : 0px);
     drop-shadow-color: Theme.glow;
     // Carte choisie : un peu plus claire.
     Rectangle {
@@ -465,6 +484,9 @@ export component PlayerView inherits Rectangle {
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "quality:8000", "stop"
     callback toggle-fullscreen();
+    // Bouton Diffuser (en haut à droite) ; un écran est déjà choisi.
+    callback cast();
+    in property <bool> cast-on;
 
     property <bool> osd: true;   // commandes affichées
     property <int> idle: 0;      // secondes sans activité
@@ -1037,6 +1059,17 @@ export component PlayerView inherits Rectangle {
             background: @linear-gradient(180deg, #000000b3 0%, #00000000 100%);
         }
 
+        // Diffuser : la vidéo passe à un écran (télé, Chromecast) au même endroit.
+        PlayerButton {
+            x: parent.width - self.width - root.m;
+            y: root.m;
+            size: 52px * root.k;
+            icon: root.cast-on ? "cast-on" : "cast";
+            clicked => {
+                root.cast();
+            }
+        }
+
         PlayerButton {
             x: root.m;
             y: root.m;
@@ -1051,7 +1084,7 @@ export component PlayerView inherits Rectangle {
         Text {
             x: root.m + 70px * root.k;
             y: root.m - 2px * root.k;
-            width: parent.width - self.x - root.m;
+            width: parent.width - self.x - root.m - 70px * root.k;
             height: 30px * root.k;
             text: root.title;
             color: Theme.player-ink.with-alpha(0.92);

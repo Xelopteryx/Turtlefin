@@ -365,7 +365,8 @@ impl Conn {
 }
 
 /// Fait lire `url` par l'appareil (type MIME `mime`), à partir de `start` secondes.
-pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: Option<f64>) -> Result<()> {
+/// `subs` : adresse d'un fichier de sous-titres WebVTT, affiché par l'appareil (piste de texte).
+pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: Option<f64>, subs: Option<&str>) -> Result<()> {
     let mut c = Conn::open(dev).await?;
     let tid = c.media_app(true).await?.ok_or_else(|| anyhow!("lecteur indisponible"))?;
     let mut load = json!({
@@ -381,6 +382,12 @@ pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: O
     });
     if let Some(s) = start {
         load["currentTime"] = json!(s);
+    }
+    if let Some(vtt) = subs {
+        load["media"]["tracks"] = json!([{
+            "trackId": 1, "type": "TEXT", "trackContentId": vtt, "trackContentType": "text/vtt", "subtype": "SUBTITLES", "name": "Sous-titres"
+        }]);
+        load["activeTrackIds"] = json!([1]);
     }
     let r = c.request(&tid, NS_MEDIA, load).await?;
     match r["type"].as_str() {
@@ -435,6 +442,34 @@ pub async fn status(dev: &Device) -> Option<(bool, f64, f64, Option<u32>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Essai sur un vrai appareil : CAST_ADDR=ip:8009 CAST_URL=… [CAST_MIME=…] [CAST_VTT=…]
+    /// cargo test --release chromecast::tests::real_device -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn real_device() {
+        let addr = std::env::var("CAST_ADDR").unwrap().parse().unwrap();
+        let url = std::env::var("CAST_URL").unwrap();
+        let mime = std::env::var("CAST_MIME").unwrap_or_else(|_| "application/x-mpegURL".into());
+        let vtt = std::env::var("CAST_VTT").ok();
+        if std::env::var("CAST_STOP").is_ok() {
+            let dev = Device { name: "essai".into(), id: String::new(), addr };
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async { control(&dev, "stop", 0.0).await.unwrap() });
+            return;
+        }
+        let dev = Device { name: "essai".into(), id: String::new(), addr };
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            play_url(&dev, &url, &mime, "Essai Turtlefin", Some(60.0), vtt.as_deref()).await.unwrap();
+            for _ in 0..6 {
+                tokio::time::sleep(Duration::from_secs(4)).await;
+                println!("état : {:?}", status(&dev).await);
+            }
+            control(&dev, "stop", 0.0).await.unwrap();
+            println!("arrêt : {:?}", status(&dev).await);
+        });
+    }
 
     #[test]
     fn message_round_trip() {

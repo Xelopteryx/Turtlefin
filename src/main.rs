@@ -232,6 +232,8 @@ struct App {
     gcast_found: Mutex<Vec<chromecast::Device>>,
     /// Noms d'origine des écrans trouvés (DLNA, Google Cast), dans l'ordre des listes ci-dessus.
     screen_orig: Mutex<(Vec<String>, Vec<String>)>,
+    /// Vidéo en cours sur l'écran de diffusion, et ses pistes (changeables pendant la lecture).
+    cast_now: Mutex<Option<CastNow>>,
     /// Écran en cours de renommage (clé de config::CastScreen).
     rename_key: Mutex<String>,
     cast_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -1006,6 +1008,7 @@ async fn start_session(app: Arc<App>, client: api::Client, weak: Option<bool>) {
             }
             saved.server_id = server_id.clone();
             config::save(&saved);
+            note_lan_server(&server_id, &client.server);
             let weak = weak.unwrap_or_else(|| config::weak_pw(&client.user_id));
             config::save_account(config::Account {
                 server_id,
@@ -2017,12 +2020,14 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
             .and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::Ipv4Addr>().ok()))
             .is_some_and(|ip| ip.octets()[..3] == scr.octets()[..3])
     };
-    if same_net(&client.server) {
-        return url.to_string();
-    }
     let saved = config::load();
     let server_id = saved.server_id.clone();
-    let mut base = [saved.server_main.as_str(), saved.server_backup.as_str()].into_iter().find(|b| !b.is_empty() && same_net(b)).map(str::to_string);
+    if same_net(&client.server) {
+        note_lan_server(&server_id, &client.server);
+        return url.to_string();
+    }
+    let known = config::ui_prefs().lan_servers.get(&server_id).cloned();
+    let mut base = known.into_iter().chain([saved.server_main.clone(), saved.server_backup.clone()]).find(|b| !b.is_empty() && same_net(b));
     if base.is_none() {
         for f in discovery::discover().await {
             if !server_id.is_empty() && f.id != server_id {
@@ -2034,9 +2039,27 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
             }
         }
     }
+    eprintln!("turtlefin : diffuser vers {scr} : serveur {}", base.as_deref().unwrap_or("(aucune adresse locale trouvée)"));
     match base {
         Some(b) if url.starts_with(&client.server) => format!("{}{}", b.trim_end_matches('/'), &url[client.server.len()..]),
         _ => url.to_string(),
+    }
+}
+
+/// Note l'adresse locale du serveur (voir UiPrefs::lan_servers) : adresse IPv4 privée seulement
+/// (192.168…, 10…, 172.16…), pas celle de Tailscale (100.64/10) ni d'Internet.
+fn note_lan_server(server_id: &str, base: &str) {
+    if server_id.is_empty() {
+        return;
+    }
+    let host = reqwest::Url::parse(base).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::Ipv4Addr>().ok()));
+    if !host.is_some_and(|ip| ip.is_private()) {
+        return;
+    }
+    let mut p = config::ui_prefs();
+    if p.lan_servers.get(server_id).map(String::as_str) != Some(base) {
+        p.lan_servers.insert(server_id.to_string(), base.to_string());
+        config::save_ui_prefs(&p);
     }
 }
 
@@ -2158,13 +2181,25 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     refresh_detail_buttons(app);
     if dlna {
         if let Some(id) = detail_id {
-            cast_play_item(app, id);
+            cast_play_item(app, id, None);
         }
     }
     start_cast_poll(app);
+    // Choisi depuis le lecteur : la vidéo en cours y passe tout de suite.
+    if u.get_cast_handoff() {
+        u.set_cast_handoff(false);
+        if u.get_playing() {
+            player_cast(app);
+        }
+    }
 }
 
 fn cast_stop(app: &Arc<App>) {
+    // La vidéo en cours sur l'écran s'arrête aussi (sinon « Ne plus diffuser » ne servait à rien).
+    if let Some(target) = app.cast.lock().unwrap().clone() {
+        send_cmd(app, target, "stop");
+    }
+    *app.cast_now.lock().unwrap() = None;
     *app.cast.lock().unwrap() = None;
     if let Some(h) = app.cast_poll.lock().unwrap().take() {
         h.abort();
@@ -2196,43 +2231,222 @@ fn refresh_detail_buttons(app: &Arc<App>) {
     u.set_detail(d);
 }
 
-/// Lire un élément sur l'appareil piloté (série / saison : l'épisode à suivre).
-fn cast_play_item(app: &Arc<App>, id: String) {
+/// Vidéo envoyée à un écran de diffusion, avec les pistes choisies (index Jellyfin ; sous-titres -1 :
+/// aucun).
+#[derive(Clone)]
+struct CastNow {
+    item: api::Item,
+    audio: i32,
+    sub: i32,
+}
+
+/// Pistes d'un élément : audio et sous-titres de la première source.
+fn item_streams<'a>(item: &'a api::Item, kind: &str) -> Vec<&'a api::MediaStream> {
+    item.media_sources.as_ref().and_then(|m| m.first()).map(|m| m.media_streams.iter().filter(|s| s.kind == kind).collect()).unwrap_or_default()
+}
+
+/// Pistes à diffuser : celles choisies pour la série / le film (fiche, lecteur), sinon les préférences
+/// du compte Jellyfin (langue audio, langue et mode des sous-titres), comme la lecture sur l'appareil.
+fn cast_tracks(item: &api::Item) -> (i32, i32) {
+    let pref = config::track_pref(&item.pref_key());
+    let (d_audio, d_sub, d_mode) = config::user_defaults();
+    let audios = item_streams(item, "Audio");
+    let default_audio = audios.iter().find(|s| s.is_default).or(audios.first()).map(|s| s.index).unwrap_or(-1);
+    let want = if pref.audio.is_empty() { d_audio } else { pref.audio.clone() };
+    let langs: Vec<String> = want.split(',').map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty()).collect();
+    let audio = langs
+        .iter()
+        .find_map(|l| audios.iter().find(|s| s.language.as_deref().is_some_and(|x| x.to_lowercase() == *l)))
+        .map(|s| s.index)
+        .unwrap_or(default_audio);
+    let subs = item_streams(item, "Subtitle");
+    let sub_lang = if !pref.sub.is_empty() { pref.sub.clone() } else if d_mode == "None" { "off".to_string() } else { d_sub };
+    let sub = if sub_lang == "off" {
+        -1
+    } else {
+        let langs: Vec<String> = sub_lang.split(',').map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty()).collect();
+        // Langue voulue (sous-titres complets avant les « forcés ») ; sinon ceux marqués par défaut.
+        let by_lang = langs.iter().find_map(|l| {
+            let m: Vec<&&api::MediaStream> = subs.iter().filter(|s| s.language.as_deref().is_some_and(|x| x.to_lowercase() == *l)).collect();
+            m.iter().find(|s| !s.is_forced).or(m.first()).map(|s| s.index)
+        });
+        by_lang.or_else(|| subs.iter().find(|s| s.is_default).map(|s| s.index)).unwrap_or(-1)
+    };
+    (audio, sub)
+}
+
+/// Libellé d'une piste (« Français · AC3 · 5.1 »…), celui donné par le serveur.
+fn stream_label(s: &api::MediaStream) -> String {
+    s.display_title.clone().or_else(|| s.title.clone()).or_else(|| s.language.clone()).unwrap_or_else(|| format!("#{}", s.index))
+}
+
+/// Pistes de la vidéo diffusée, montrées dans le panneau Diffuser.
+fn push_cast_tracks(app: &Arc<App>) {
+    let now = app.cast_now.lock().unwrap().clone();
+    let (audio, subs, title) = match &now {
+        Some(n) => {
+            let audio: Vec<TrackData> = item_streams(&n.item, "Audio")
+                .into_iter()
+                .map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == n.audio })
+                .collect();
+            let mut subs = vec![TrackData { id: "-1".into(), label: tr("Désactivés").into(), current: n.sub < 0 }];
+            subs.extend(
+                item_streams(&n.item, "Subtitle")
+                    .into_iter()
+                    .map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == n.sub }),
+            );
+            (audio, subs, n.item.titles().0)
+        }
+        None => (Vec::new(), Vec::new(), String::new()),
+    };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_cast_audio(ModelRc::new(VecModel::from(audio)));
+        u.set_cast_subs(ModelRc::new(VecModel::from(subs)));
+        if !title.is_empty() {
+            u.set_cast_now(title.into());
+        }
+    }
+}
+
+/// Envoie la vidéo (avec ses pistes) à l'écran, à partir de `start` secondes.
+async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, start: Option<f64>) -> anyhow::Result<()> {
+    let item = &now.item;
+    let (title, _) = item.titles();
+    let source = item.media_sources.as_ref().and_then(|m| m.first()).map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
+    let audios = item_streams(item, "Audio");
+    let default_audio = audios.iter().find(|s| s.is_default).or(audios.first()).map(|s| s.index).unwrap_or(-1);
+    let audio = (now.audio >= 0 && now.audio != default_audio).then_some(now.audio);
+    let sub = item_streams(item, "Subtitle").into_iter().find(|s| s.index == now.sub).cloned();
+    // Sous-titres en texte : fichier à part (rien à convertir) ; en images : incrustés.
+    let burn = sub.as_ref().filter(|s| !s.is_text_subtitle_stream).map(|s| s.index);
+    let text_sub = sub.as_ref().filter(|s| s.is_text_subtitle_stream).map(|s| s.index);
+    match target {
+        CastTarget::Jf { session, .. } => client.remote_play(session, &item.id, start).await?,
+        CastTarget::Dlna(r) => {
+            // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le fait
+            // Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
+            let (url, mime) = client.cast_stream(&item.id, true, audio, burn).await?;
+            let screen = reqwest::Url::parse(&r.av_control).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::IpAddr>().ok()));
+            let url = screen_url(client, &url, screen).await;
+            let subs = match text_sub {
+                Some(i) => Some(screen_url(client, &client.cast_subtitle_url(&item.id, &source, i, "srt"), screen).await),
+                None => None,
+            };
+            cast::play_url(r, &url, &mime, &title, subs.as_deref()).await?;
+            if let Some(s) = start {
+                let _ = cast::control(r, "seek", s).await;
+            }
+        }
+        CastTarget::Gcast(d) => {
+            let (url, mime) = client.cast_stream(&item.id, false, audio, burn).await?;
+            let url = screen_url(client, &url, Some(d.addr.ip())).await;
+            let subs = match text_sub {
+                Some(i) => Some(screen_url(client, &client.cast_subtitle_url(&item.id, &source, i, "vtt"), Some(d.addr.ip())).await),
+                None => None,
+            };
+            chromecast::play_url(d, &url, &mime, &title, start, subs.as_deref()).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Lire un élément sur l'appareil piloté (série / saison : l'épisode à suivre), avec les pistes
+/// préférées. `at` : position imposée (vidéo passée depuis le lecteur), sinon là où on en était.
+fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
     let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
     let a = app.clone();
     app.rt.spawn(async move {
         let res: anyhow::Result<String> = async {
             let item = resolve_playable(&client, client.item(&id).await?).await?;
-            let start = item.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).filter(|s| *s > 5.0);
-            match &target {
-                CastTarget::Jf { session, .. } => client.remote_play(session, &item.id, start).await?,
-                CastTarget::Dlna(r) => {
-                    // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le
-                    // fait Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
-                    let (url, mime) = client.cast_stream(&item.id, true).await?;
-                    let screen = reqwest::Url::parse(&r.av_control).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::IpAddr>().ok()));
-                    let url = screen_url(&client, &url, screen).await;
-                    let (title, _) = item.titles();
-                    cast::play_url(r, &url, &mime, &title).await?;
-                    if let Some(s) = start {
-                        let _ = cast::control(r, "seek", s).await;
-                    }
-                }
-                CastTarget::Gcast(d) => {
-                    let (url, mime) = client.cast_stream(&item.id, false).await?;
-                    let url = screen_url(&client, &url, Some(d.addr.ip())).await;
-                    let (title, _) = item.titles();
-                    chromecast::play_url(d, &url, &mime, &title, start).await?;
-                }
-            }
-            Ok(item.titles().0)
+            let start = at.or_else(|| item.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).filter(|s| *s > 5.0));
+            let (audio, sub) = cast_tracks(&item);
+            let now = CastNow { item, audio, sub };
+            cast_send(&client, &target, &now, start).await?;
+            let title = now.item.titles().0;
+            *a.cast_now.lock().unwrap() = Some(now);
+            Ok(title)
         }
         .await;
+        let ok = res.is_ok();
         let msg = match res {
             Ok(t) => trf("Lecture sur {} : {}", &[&target.name(), &t]),
             Err(e) => trf("Impossible de lire sur {} : {}", &[&target.name(), &human_err(&e)]),
         };
-        let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        let a2 = a.clone();
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_toast(msg.into());
+            if ok {
+                push_cast_tracks(&a2);
+            }
+        });
+    });
+}
+
+/// Piste changée dans le panneau Diffuser (`kind` : « audio » ou « sub ») : la vidéo repart sur
+/// l'écran au même endroit avec cette piste ; le choix est gardé pour la série / le film.
+fn cast_track(app: &Arc<App>, kind: &str, id: i32) {
+    let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
+    let Some(mut now) = app.cast_now.lock().unwrap().clone() else { return };
+    if kind == "audio" {
+        now.audio = id;
+    } else {
+        now.sub = id;
+    }
+    let lang = |k: &str, i: i32| item_streams(&now.item, k).into_iter().find(|s| s.index == i).and_then(|s| s.language.clone()).unwrap_or_default();
+    if kind == "audio" {
+        let l = lang("Audio", id);
+        if !l.is_empty() {
+            config::set_track_pref(&now.item.pref_key(), Some(&l), None);
+        }
+    } else {
+        let l = if id < 0 { "off".to_string() } else { lang("Subtitle", id) };
+        if !l.is_empty() {
+            config::set_track_pref(&now.item.pref_key(), None, Some(&l));
+        }
+    }
+    *app.cast_now.lock().unwrap() = Some(now.clone());
+    push_cast_tracks(app);
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let pos = target_state(&a, &target).await.map(|s| s.2).filter(|p| *p > 1.0);
+        if let Err(e) = cast_send(&client, &target, &now, pos).await {
+            let msg = trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]);
+            let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+    });
+}
+
+/// Bouton Diffuser du lecteur : la vidéo en cours passe à l'écran choisi (au même endroit) et la
+/// lecture s'arrête ici ; le panneau Diffuser sert ensuite de télécommande. Sans écran choisi, le
+/// panneau s'ouvre pour en choisir un (la vidéo y passe dès le choix).
+fn player_cast(app: &Arc<App>) {
+    if app.cast.lock().unwrap().is_none() {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_cast_handoff(true);
+            u.set_cast_pop(true);
+            u.set_cast_sel(0);
+        }
+        cast_refresh(app);
+        return;
+    }
+    *player::HANDOFF.lock().unwrap() = None;
+    if let Some(tx) = app.player_tx.lock().unwrap().as_ref() {
+        let _ = tx.send("handoff".into());
+    }
+    let a = app.clone();
+    app.rt.spawn(async move {
+        // La lecture s'arrête et note la vidéo et la position (voir player::HANDOFF).
+        for _ in 0..40 {
+            if let Some((id, pos)) = player::HANDOFF.lock().unwrap().take() {
+                let a2 = a.clone();
+                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                    cast_play_item(&a2, id, Some(pos));
+                    u.set_cast_pop(true);
+                });
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
     });
 }
 
@@ -6387,6 +6601,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
     if cfg!(target_os = "android") && !android_tv() {
         ui.global::<Nav>().set_phone(true);
     }
+    if cfg!(target_os = "android") {
+        ui.global::<Nav>().set_no_shadow(true);
+    }
     // Traduction de l'interface (global Tr de theme.slint) : faite ici, avec le catalogue de i18n.rs.
     {
         // Découpe du texte tapé (ui/typed.slint) : tout sauf les n derniers caractères, et le k-ième en partant de la fin.
@@ -6515,6 +6732,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         gcast_found: Mutex::new(Vec::new()),
         screen_orig: Mutex::new((Vec::new(), Vec::new())),
         rename_key: Mutex::new(String::new()),
+        cast_now: Mutex::new(None),
         cast_poll: Mutex::new(None),
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),
@@ -7076,7 +7294,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 }
             } else if a == "cast-play" {
                 if let Some(id) = app.stack.lock().unwrap().last().cloned() {
-                    cast_play_item(&app, id);
+                    cast_play_item(&app, id, None);
                 }
             } else if a == "pick-audio" || a == "pick-sub" {
                 open_track_picker(&app, if a == "pick-audio" { "audio" } else { "sub" });
@@ -7107,6 +7325,14 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_remote_cmd({
         let app = app.clone();
         move |c| remote_cmd(&app, c.as_str())
+    });
+    ui.on_cast_track({
+        let app = app.clone();
+        move |kind, id| cast_track(&app, kind.as_str(), id.parse().unwrap_or(-1))
+    });
+    ui.on_player_cast({
+        let app = app.clone();
+        move || player_cast(&app)
     });
     ui.on_cast_cmd({
         let app = app.clone();
@@ -7206,6 +7432,7 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
         saved.server_main = saved.server.clone();
     }
     let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+    note_lan_server(&saved.server_id, &best);
     if !best.is_empty() {
         saved.server = best;
     }

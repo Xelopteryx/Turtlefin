@@ -487,6 +487,10 @@ pub struct UiPrefs {
     pub themes: Vec<crate::theme::ThemeDef>,
     /// Écrans de diffusion déjà vus (Paramètres → Lecture) : nom d'origine et nom choisi.
     pub cast_screens: Vec<CastScreen>,
+    /// Adresse du serveur sur le réseau local (identifiant du serveur -> adresse), notée à chaque
+    /// connexion par une adresse locale : donnée aux écrans de diffusion même quand l'appareil passe
+    /// par Tailscale ou Internet (l'écran, lui, ne joint que le réseau local).
+    pub lan_servers: std::collections::BTreeMap<String, String>,
 }
 
 /// Écran de diffusion connu : télé DLNA ou appareil Google Cast.
@@ -619,6 +623,7 @@ impl Default for UiPrefs {
             theme: "turtlefin".into(),
             themes: Vec::new(),
             cast_screens: Vec::new(),
+            lan_servers: std::collections::BTreeMap::new(),
         }
     }
 }

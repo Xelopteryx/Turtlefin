@@ -187,10 +187,19 @@ async fn soap(url: &str, service: &str, action: &str, args: &str) -> Result<Stri
 
 /// Fait lire cette adresse (flux du serveur) par la télé.
 /// `mime` : type exact du flux (les télés Samsung refusent un « video/* » vague et restent arrêtées).
-pub async fn play_url(r: &Renderer, url: &str, mime: &str, title: &str) -> Result<()> {
+/// `subs` : adresse d'un fichier de sous-titres SRT, donné à la télé à côté de la vidéo
+/// (CaptionInfoEx des télés Samsung, compris aussi par d'autres).
+pub async fn play_url(r: &Renderer, url: &str, mime: &str, title: &str, subs: Option<&str>) -> Result<()> {
+    let caption = subs
+        .map(|s| {
+            let s = xml_escape(s);
+            format!("<sec:CaptionInfoEx sec:type=\"srt\">{s}</sec:CaptionInfoEx><sec:CaptionInfo sec:type=\"srt\">{s}</sec:CaptionInfo>")
+        })
+        .unwrap_or_default();
+    let sub_res = subs.map(|s| format!("<res protocolInfo=\"http-get:*:text/srt:*\">{}</res>", xml_escape(s))).unwrap_or_default();
     let flags = if mime == "video/mpeg" { "DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000" } else { "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000" };
     let meta = format!(
-        "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>{}</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:{}:{}\">{}</res></item></DIDL-Lite>",
+        "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns:sec=\"http://www.sec.co.kr/\"><item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>{}</dc:title><upnp:class>object.item.videoItem</upnp:class>{caption}<res protocolInfo=\"http-get:*:{}:{}\">{}</res>{sub_res}</item></DIDL-Lite>",
         xml_escape(title),
         mime,
         flags,

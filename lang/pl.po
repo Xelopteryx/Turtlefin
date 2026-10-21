@@ -1906,3 +1906,6 @@ msgstr "Zmień nazwę ekranu"
 
 msgid "Écrans de diffusion"
 msgstr "Ekrany do przesyłania"
+
+msgid "Au hasard"
+msgstr "Losowo"

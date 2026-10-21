@@ -1900,3 +1900,6 @@ msgstr "Renombrar la pantalla"
 
 msgid "Écrans de diffusion"
 msgstr "Pantallas de transmisión"
+
+msgid "Au hasard"
+msgstr "Al azar"

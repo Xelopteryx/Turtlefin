@@ -1900,3 +1900,6 @@ msgstr "Mudar o nome do ecrã"
 
 msgid "Écrans de diffusion"
 msgstr "Ecrãs de transmissão"
+
+msgid "Au hasard"
+msgstr "Ao acaso"

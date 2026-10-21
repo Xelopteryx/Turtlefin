@@ -98,6 +98,10 @@ pub struct MediaStream {
     pub is_external: bool,
     pub display_title: Option<String>,
     pub title: Option<String>,
+    pub is_default: bool,
+    pub is_forced: bool,
+    /// Sous-titres en texte (SRT, ASS…), convertibles ; faux pour les images (PGS, DVD).
+    pub is_text_subtitle_stream: bool,
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -1688,8 +1692,12 @@ impl Client {
     /// l'appareil la lit lui-même. Renvoie (adresse, type MIME).
     /// `dlna` : télé DLNA (Samsung, LG…) au lieu d'un Chromecast : MKV / MP4 / AVI tels quels (H.264,
     /// HEVC, MPEG-4 ; AAC, AC3, MP3), sinon un flux MPEG-TS H.264 continu (pas de HLS : peu de télés le lisent).
-    pub async fn cast_stream(&self, item_id: &str, dlna: bool) -> Result<(String, String)> {
-        let profile = if dlna {
+    /// `audio` : piste audio voulue quand ce n'est pas celle par défaut du fichier (le flux est alors
+    /// réassemblé par le serveur, l'image recopiée telle quelle). `burn` : sous-titres en images
+    /// (PGS…) incrustés dans la vidéo (conversion complète, lente sur un petit serveur).
+    pub async fn cast_stream(&self, item_id: &str, dlna: bool, audio: Option<i32>, burn: Option<i32>) -> Result<(String, String)> {
+        let force = audio.is_some() || burn.is_some();
+        let mut profile = if dlna {
             serde_json::json!({
                 "MaxStreamingBitrate": 40_000_000u64,
                 "DirectPlayProfiles": [
@@ -1714,10 +1722,26 @@ impl Client {
                 }],
             })
         };
+        if force {
+            // Plus de lecture directe : le serveur doit garder la piste voulue (ou incruster les
+            // sous-titres) ; l'image H.264 / HEVC est recopiée sans conversion quand c'est possible.
+            profile["DirectPlayProfiles"] = serde_json::json!([]);
+            profile["TranscodingProfiles"][0]["VideoCodec"] = serde_json::json!(if dlna { "h264,hevc" } else { "h264" });
+            profile["SubtitleProfiles"] = serde_json::json!(["srt", "subrip", "ass", "ssa", "vtt", "pgssub", "dvdsub", "dvbsub"]
+                .iter()
+                .map(|f| serde_json::json!({ "Format": f, "Method": "Encode" }))
+                .collect::<Vec<_>>());
+        }
+        let audio_s = audio.map(|a| a.to_string());
+        let sub_s = burn.map(|s| s.to_string()).unwrap_or_else(|| "-1".into());
+        let mut q: Vec<(&str, &str)> = vec![("userId", self.user_id.as_str()), ("MaxStreamingBitrate", "40000000"), ("SubtitleStreamIndex", &sub_s)];
+        if let Some(a) = &audio_s {
+            q.push(("AudioStreamIndex", a));
+        }
         let resp = self
             .http
             .post(format!("{}/Items/{}/PlaybackInfo", self.server, seg(item_id)))
-            .query(&[("userId", self.user_id.as_str()), ("MaxStreamingBitrate", "40000000")])
+            .query(&q)
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .json(&serde_json::json!({ "DeviceProfile": profile }))
             .send()
@@ -1729,7 +1753,7 @@ impl Client {
         let v: serde_json::Value = json_limited(resp.error_for_status()?).await?;
         let ms = v["MediaSources"].as_array().and_then(|a| a.first()).cloned().ok_or_else(|| anyhow!("aucune source"))?;
         let source = ms["Id"].as_str().unwrap_or(item_id);
-        if ms["SupportsDirectPlay"].as_bool() == Some(true) || ms["SupportsDirectStream"].as_bool() == Some(true) && ms["TranscodingUrl"].is_null() {
+        if !force && (ms["SupportsDirectPlay"].as_bool() == Some(true) || ms["SupportsDirectStream"].as_bool() == Some(true) && ms["TranscodingUrl"].is_null()) {
             let container = ms["Container"].as_str().unwrap_or("mp4");
             let mime = if container.contains("webm") {
                 "video/webm"
@@ -1881,6 +1905,12 @@ impl Client {
             path.push_str(&format!("?seekPositionTicks={}", (t.max(0.0) * 1e7) as i64));
         }
         self.post_empty(&path, None).await
+    }
+
+    /// Fichier de sous-titres (texte) de l'élément, converti par le serveur au format `ext` (« srt »,
+    /// « vtt ») : adresse complète, jeton compris (l'écran de diffusion la lit lui-même).
+    pub fn cast_subtitle_url(&self, item_id: &str, source_id: &str, index: i32, ext: &str) -> String {
+        format!("{}/Videos/{}/{}/Subtitles/{index}/0/Stream.{ext}?api_key={}", self.server, seg(item_id), seg(source_id), seg(&self.token))
     }
 
     /// Lire un élément sur l'appareil (à cette position, sinon là où il en était).

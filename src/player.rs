@@ -195,6 +195,9 @@ fn tracks(list: &Value, kind: &str) -> (Vec<TrackData>, i32) {
 }
 
 /// Un fichier en cours de lecture et son rapport au serveur.
+/// Vidéo passée à un écran de diffusion depuis le lecteur : (élément, position en secondes).
+pub static HANDOFF: std::sync::Mutex<Option<(String, f64)>> = std::sync::Mutex::new(None);
+
 struct Current {
     item: Option<Item>,
     ms_id: String,
@@ -787,6 +790,13 @@ pub async fn play(
                         break;
                     }
                     "stop" => break,
+                    // Diffuser : la vidéo passe à l'écran choisi, au même endroit ; la lecture ici s'arrête.
+                    "handoff" => {
+                        if let Some(it) = &cur.item {
+                            *HANDOFF.lock().unwrap() = Some((it.id.clone(), cur.pos));
+                        }
+                        break;
+                    }
                     _ => Ok(()),
                 };
                 if let Err(e) = r {

@@ -1900,3 +1900,6 @@ msgstr "Rename the screen"
 
 msgid "Écrans de diffusion"
 msgstr "Cast screens"
+
+msgid "Au hasard"
+msgstr "Random"
