@@ -65,6 +65,10 @@ if (-not (Test-Path $mpvDir)) {
 # 3. Ressources (icone) et manifeste.
 $build = "$WorkDir\apk"
 Remove-Item $build -Recurse -Force -ErrorAction SilentlyContinue
+# Icone adaptative (android\res : logo seul au premier plan, fond noir a part) ; l'image PNG reste pour
+# les lanceurs qui n'en veulent pas.
+New-Item -ItemType Directory -Force "$build" | Out-Null
+Copy-Item "$PSScriptRoot\res" "$build\res" -Recurse
 New-Item -ItemType Directory -Force "$build\res\mipmap-xxxhdpi" | Out-Null
 Copy-Item "$root\packaging\icons\turtlefin-256.png" "$build\res\mipmap-xxxhdpi\ic_launcher.png"
 & "$tools\aapt2.exe" compile --dir "$build\res" -o "$build\res.zip"

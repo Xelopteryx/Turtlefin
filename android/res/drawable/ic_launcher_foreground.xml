@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône adaptative : logo seul (fond noir à part, ic_launcher_background), dans la zone sûre. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="256" android:viewportHeight="256">
+    <group android:pivotX="128" android:pivotY="128" android:scaleX="0.8680" android:scaleY="0.8680">
+        <path android:strokeWidth="14" android:strokeLineJoin="round" android:strokeLineCap="round"
+            android:pathData="M128 60 L187 94 L187 162 L128 196 L69 162 L69 94 Z">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="53" android:startY="53" android:endX="203" android:endY="203"
+                    android:startColor="#a95bc2" android:endColor="#00a4db"/>
+            </aapt:attr>
+        </path>
+        <path android:strokeWidth="8" android:strokeLineCap="round"
+            android:pathData="M128 60 L128 98 M187 94 L154 113 M187 162 L154 143 M128 196 L128 158 M69 162 L102 143 M69 94 L102 113">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="53" android:startY="53" android:endX="203" android:endY="203"
+                    android:startColor="#a95bc2" android:endColor="#00a4db"/>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M128 98 L154 113 L154 143 L128 158 L102 143 L102 113 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="53" android:startY="53" android:endX="203" android:endY="203"
+                    android:startColor="#a95bc2" android:endColor="#00a4db"/>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
