@@ -2661,9 +2661,12 @@ export component AppWindow inherits Window {
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
     property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.narrow ? 16px : 32px;
-    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.header-h + 24px;
+    // Vignette 16:9 en portrait : elle se pose en haut, sur toute la largeur et à ses proportions (étirée
+    // à tout l'écran, il fallait l'agrandir bien au-delà des bords pour en couvrir la hauteur).
+    property <bool> hero-band: root.hero-wide && root.narrow;
+    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-band ? root.header-row : root.hero-wide ? 0px : root.header-h + 24px;
     property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
+    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-band ? root.width * 0.5625 : root.hero-wide ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
@@ -10245,7 +10248,9 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-row;
         clip: true;
     Rectangle {
-        opacity: root.hero-out-a;
+        // Bande du haut (portrait) : elle s'efface pendant que la fiche arrive (fin du vol), au lieu
+        // de rester nette sous la page.
+        opacity: root.hero-out-a * (root.hero-band && root.hero-dest ? 1 - clamp((root.hero-q - 0.7) / 0.3, 0, 1) : 1);
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
         y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
@@ -10278,6 +10283,12 @@ export component AppWindow inherits Window {
         // Grand fond : assombri pour que la page reste lisible par-dessus.
         if root.hero-big: Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
+        }
+        // Bande du haut (portrait) : son bas se fond dans la page au lieu de s'arrêter net.
+        if root.hero-band: Rectangle {
+            y: parent.height * 0.55;
+            height: parent.height * 0.45 + 1px;
+            background: @linear-gradient(180deg, Theme.bg.transparentize(1) 0%, Theme.bg.transparentize(1 - root.hero-p * root.hero-alpha) 100%);
         }
     }
     }
