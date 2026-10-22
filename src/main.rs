@@ -3351,6 +3351,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 count: 0,
                 deck: false,
                 played: false,
+                overview: String::new(),
             })
             .collect();
         let jobs: Vec<ImageJob> = cast.iter().enumerate().filter_map(|(i, c)| ImageJob::for_card(0, i, c, false)).collect();
@@ -6149,6 +6150,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                                 count: c.count,
                                 played: c.played,
                                 deck: c.deck,
+                overview: c.overview.clone().into(),
                 ..Default::default()
             })
             .collect();
@@ -6847,6 +6849,9 @@ impl Swipe {
                 if self.active && phase == TouchPhase::Ended && !u.get_playing() {
                     let dx = self.last.0 - self.start.0;
                     if self.edge && self.horizontal && dx > 60.0 * s {
+                        key(u, slint::platform::Key::Escape);
+                    } else if u.get_menu_open() && self.horizontal && (dx < -60.0 * s || self.v.0 < -300.0 * s) {
+                        // Menu de gauche ouvert : un balayage vers la gauche le referme.
                         key(u, slint::platform::Key::Escape);
                     } else if !self.edge {
                         let v = if self.horizontal { self.v.0 } else { self.v.1 };
@@ -7601,10 +7606,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
                     }
                 }
                 go_home_at(&app, true);
-            } else if a == "requests" {
-                let changed = std::mem::replace(&mut *app.tab.lock().unwrap(), "requests".to_string()) != "requests";
+            } else if a == "requests" || a == "favorites" {
+                // Onglet Demandes (menu, barre) ou Favoris (barre, depuis une autre page).
+                let changed = std::mem::replace(&mut *app.tab.lock().unwrap(), a.to_string()) != a;
                 if let Some(u) = app.ui().upgrade() {
-                    u.set_tab("requests".into());
+                    u.set_tab(a.into());
                     if changed {
                         u.set_sections(ModelRc::default());
                     }

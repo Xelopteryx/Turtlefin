@@ -224,6 +224,8 @@ pub struct CardInfo {
     pub played: bool,
     /// Collection (BoxSet) : ouverte en « distribuant » ses films (voir deal, app.slint).
     pub deck: bool,
+    /// Résumé (épisodes d'une saison, montrés en liste) ; vide sinon.
+    pub overview: String,
 }
 
 /// Appareil pilotable du compte (voir Client::remote_targets).
@@ -340,6 +342,7 @@ impl SeerrRequest {
             count: 0,
             played: false,
             deck: false,
+            overview: String::new(),
         }
     }
 }
@@ -444,6 +447,7 @@ impl Item {
             },
             played: self.user_data.as_ref().is_some_and(|u| u.played),
             deck: self.kind == "BoxSet",
+            overview: String::new(),
         }
     }
 
@@ -480,6 +484,7 @@ impl Item {
             // Coche « vu » sur l'image, comme les films et les séries.
             played,
             deck: false,
+            overview: self.overview.clone().unwrap_or_default(),
         }
     }
 
@@ -614,6 +619,7 @@ impl Item {
                 count: 0,
                 played: false,
                 deck: false,
+                overview: String::new(),
             });
         }
         out
@@ -1072,6 +1078,8 @@ impl Client {
                     ("SortBy", sort_by),
                     ("SortOrder", "Ascending"),
                     ("Limit", &limit),
+                    // Résumé : montré dans la liste des épisodes d'une saison.
+                    ("Fields", "Overview"),
                 ],
             )
             .await?;
@@ -1284,6 +1292,7 @@ impl Client {
                 count: 0,
                 played: false,
                 deck: false,
+                overview: String::new(),
             });
         }
         out
@@ -1592,6 +1601,7 @@ impl Client {
                 count: 0,
                 played: false,
                 deck: false,
+                overview: String::new(),
             });
         }
         out

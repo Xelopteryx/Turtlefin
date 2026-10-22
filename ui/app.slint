@@ -2529,8 +2529,11 @@ export component AppWindow inherits Window {
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
         // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste
-        // (sauf un grand fond : la page arrive normalement par-dessus).
+        // (sauf un grand fond : la page arrive normalement par-dessus). Le reste de la fiche arrive
+        // alors l'un après l'autre (voir rev), au lieu de surgir d'un coup.
         if (root.hero-on && !root.hero-big) {
+            root.rev-t0 = animation-tick();
+            root.rev-anim = true;
             return;
         }
         root.page-t0 = animation-tick();
@@ -2544,6 +2547,24 @@ export component AppWindow inherits Window {
         triggered => {
             if (animation-tick() - root.page-t0 > 540ms) {
                 root.page-anim = false;
+            }
+        }
+    }
+    // Fiche ouverte depuis une affiche : apparition échelonnée de ses éléments (0 : titre et
+    // informations, 1 : boutons, 2 : résumé, 3 : saisons / épisodes, 4 : rangées du bas), en 900 ms.
+    property <bool> rev-anim;
+    property <duration> rev-t0;
+    property <float> rev-lin: root.rev-anim && Motion.detail ? clamp((animation-tick() - root.rev-t0) / 900ms, 0, 1) : 1;
+    pure function rev(i: int) -> float {
+        let x = clamp((root.rev-lin - i * 0.14) / 0.44, 0, 1);
+        return 1 - (1 - x) * (1 - x) * (1 - x);
+    }
+    Timer {
+        interval: 100ms;
+        running: root.rev-anim;
+        triggered => {
+            if (animation-tick() - root.rev-t0 > 950ms) {
+                root.rev-anim = false;
             }
         }
     }
@@ -2639,7 +2660,7 @@ export component AppWindow inherits Window {
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
-    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : 32px;
+    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.narrow ? 16px : 32px;
     property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.header-h + 24px;
     property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
     property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide ? root.height : root.poster-w * 1.5;
@@ -3674,11 +3695,16 @@ export component AppWindow inherits Window {
     out property <length> chrome-top: root.chrome ? 30px : 0px;
     property <length> chrome-side: root.chrome && !root.win-maxed ? 8px : 0px;
     property <length> header-row: 72px * root.k + root.chrome-top;
-    // Seconde ligne (onglets) : l'accueil seulement ; les autres pages n'ont pas d'onglets.
-    // En-tête de l'accueil sur deux lignes (onglets dessous) : portrait, ou onglets qui ne tiennent pas
-    // entre le nom et les icônes de droite (petit écran en grands éléments, par exemple).
-    property <bool> two-line: root.narrow || root.width - root.right-w - 16px * root.k - 250px * root.k < root.tabs-w;
-    property <length> header-h: root.two-line && root.screen == "home" ? root.header-row + 48px * root.k : root.header-row;
+    // Onglets (Accueil, Favoris, Demandes) : dans la barre commune, sur toutes les pages qui l'ont.
+    property <bool> tabs-on: (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline);
+    // Place des onglets sur la ligne de la barre : après le nom (accueil) ou les boutons de gauche
+    // (autres pages, le titre de la page s'arrête avant eux), avant les icônes de droite.
+    property <length> tabs-lo: root.on-home ? 250px * root.k : (24px + root.nav-n * 54px + 90px) * root.bar-k;
+    property <length> tabs-hi: root.width - root.right-w - 16px * root.k;
+    // En-tête sur deux lignes (onglets dessous) : portrait, ou onglets qui ne tiennent pas entre la
+    // gauche de la barre et ses icônes de droite (petit écran en grands éléments, par exemple).
+    property <bool> two-line: root.narrow || root.tabs-hi - root.tabs-lo < root.tabs-w;
+    property <length> header-h: root.two-line && root.tabs-on ? root.header-row + 48px * root.k : root.header-row;
     property <int> tab-count: root.has-requests ? 3 : 2;
 
     // Passage d'une rangée à l'autre : carte la plus proche à l'écran (voir Rows).
@@ -3700,7 +3726,11 @@ export component AppWindow inherits Window {
     property <bool> show-home: root.screen != "home";
     // Retour visible aussi dans une sous-page sans pile (choix de l'avatar) : il la ferme.
     // Retour interne aux Paramètres : choix d'avatar ouvert, ou catégorie ouverte en portrait.
-    property <bool> sub-back: root.screen == "settings" && (root.av-open || (root.narrow && root.set-in));
+    property <bool> sub-back: root.screen == "settings" && (root.av-open || (root.set-one && root.set-in));
+    // Paramètres sur une colonne : selon la largeur, pas le sens de l'écran (une tablette tournée en
+    // portrait a la place pour deux colonnes ; changer de mise en page en la tournant déplaçait la
+    // sélection, jusque sur la liste des catégories).
+    property <bool> set-one: root.width < 640px * root.k;
     property <bool> back-ok: root.can-back || root.sub-back;
     property <int> nav-n: 1 + (root.back-ok ? 1 : 0) + (root.show-home ? 1 : 0);
 
@@ -3727,11 +3757,11 @@ export component AppWindow inherits Window {
     property <string> here: root.screen == "downloads" ? "downloads" : root.screen == "party" ? "party"
         : root.screen == "settings" ? "settings" : root.screen == "servers" ? "server"
         : (root.screen == "library" || root.screen == "detail") && root.here-lib != "" ? root.here-lib
-        : root.tab == "requests" ? "requests" : root.tab == "home" ? "home" : "";
+        : root.tab == "requests" ? "requests" : root.tab == "favorites" ? "favorites" : root.tab == "home" ? "home" : "";
     // Déjà sur cette page (à sa racine) : rien à recharger.
     pure function at(action: string) -> bool {
         return action == root.here && (
-            ((action == "home" || action == "requests") && root.screen == "home")
+            ((action == "home" || action == "requests" || action == "favorites") && root.screen == "home")
             || (action == "downloads" && root.dl-level == 0)
             || action == "party" || action == "settings" || action == "server"
             || (root.screen == "library" && root.at-lib-root));
@@ -3813,6 +3843,8 @@ export component AppWindow inherits Window {
         } else if (t == Key.Return) {
             if (root.h-sel < root.nav-n) {
                 root.nav-activate(root.h-sel);
+            } else if (root.h-sel < root.right-base) {
+                root.header-activate(root.h-sel - root.nav-n);
             } else {
                 root.right-activate(root.h-sel - root.right-base);
             }
@@ -3834,6 +3866,12 @@ export component AppWindow inherits Window {
 
     // Onglets, puis Recherche, puis Profil.
     function header-activate(i: int) {
+        // Ailleurs que sur l'accueil : retour à l'accueil, sur cet onglet (transition habituelle).
+        if (root.screen != "home") {
+            root.h-focus = false;
+            root.nav-out("menu", i == 0 ? "home" : i == 1 ? "favorites" : "requests");
+            return;
+        }
         if (i == 0) {
             root.select-tab("home");
         } else if (i == 1) {
@@ -3844,7 +3882,7 @@ export component AppWindow inherits Window {
     }
 
     // Icônes de droite de la barre du haut (toutes les pages).
-    property <int> right-base: root.screen == "home" ? root.nav-n + root.tab-count : root.nav-n;
+    property <int> right-base: root.tabs-on ? root.nav-n + root.tab-count : root.nav-n;
     // Petit écran (téléphone tenu droit) : icônes de droite regroupées derrière « ⋯ ».
     property <bool> hdr-collapsed: root.narrow;
     in-out property <bool> more-open;
@@ -3891,7 +3929,23 @@ export component AppWindow inherits Window {
     // Haut de la rangée d'enfants, et des rangées du bas (sous les enfants s'il y en a).
     property <length> d-children-y: 24px + 316px * root.k + 16px + root.d-low;
     property <length> d-extra-y: root.d-children-y
-        + (root.child-items.length > 0 ? root.child-card-w * root.child-ratio + 132px * root.k : 0px);
+        + (root.child-items.length == 0 ? 0px : root.ep-list ? root.ep-block-h : root.child-card-w * root.child-ratio + 132px * root.k);
+    // Épisodes d'une saison : en liste verticale (comme les .listItem de Style.css) au lieu d'une
+    // rangée ; vignette 16:9 à gauche, numéro et titre, durée, début du résumé.
+    property <bool> ep-list: root.detail.children-landscape;
+    // Raccourci de la liste d'épisodes : la sélection (et la fiche) saute à la première rangée du bas.
+    function ep-skip() {
+        if (root.detail-rows.length > 0) {
+            root.d-free = false;
+            root.d-zone = 4;
+            root.d-x = 0;
+        }
+    }
+    property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
+    property <length> ep-row-h: root.ep-thumb-w * 0.5625 + 16px * root.k;
+    property <length> ep-gap: 8px * root.k;
+    property <length> ep-head-h: 56px * root.k;
+    property <length> ep-block-h: root.ep-head-h + root.child-items.length * (root.ep-row-h + root.ep-gap) + 40px * root.k;
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
     // Défilement affiché de la fiche : celui de la sélection, ou le défilement libre (doigt, molette).
     property <length> d-view-y: root.d-free ? root.d-free-y : root.d-scroll;
@@ -3905,6 +3959,9 @@ export component AppWindow inherits Window {
     property <length> d-scroll: min(root.d-max, root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
         ? (root.d-extra-y + (root.detail-rows[root.d-zone - 4].y-px + root.detail-rows[root.d-zone - 4].h-px) * 1px <= root.d-view-h ? 0px
             : max(0px, root.d-extra-y + root.detail-rows[root.d-zone - 4].y-px * 1px - 40px * root.k))
+        : root.d-zone == 2 && root.ep-list ? (root.d-extra-y <= root.d-view-h ? 0px
+            // Liste d'épisodes : l'épisode choisi reste vers le milieu de l'écran.
+            : max(0px, root.d-children-y + root.ep-head-h + root.d-child * (root.ep-row-h + root.ep-gap) - root.d-view-h * 0.4))
         : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k)) : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
@@ -4744,69 +4801,7 @@ export component AppWindow inherits Window {
     if root.screen == "home" && !root.playing && !Perf.hide(16): Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
         transform-scale: 0.96 + 0.04 * root.page-e;
-        // En-tête : nom, onglets au centre, recherche, profil et heure à droite.
-        Rectangle {
-            y: 0px;
-            height: root.header-h;
-
-            // Nom et icônes : la barre commune à toutes les pages (plus bas), jamais recréée.
-            // Onglets au centre, mais jamais sur le nom ni sur les icônes de droite (fenêtre étroite).
-            // Portrait : seconde ligne, centrés.
-            HorizontalLayout {
-                // Départ de l'accueil : les onglets s'effacent avec la page (le voile ne couvre plus la barre).
-                opacity: 1 - root.veil;
-                property <length> lo: 250px * root.k;
-                property <length> hi: parent.width - root.right-w - 16px * root.k;
-                width: self.preferred-width;
-                y: root.two-line ? root.header-row - 10px * root.k : root.chrome-top;
-                height: root.two-line ? 54px * root.k : 72px * root.k;
-                x: root.two-line ? (parent.width - self.width) / 2 : max(self.lo, min((parent.width - self.width) / 2, self.hi - self.width));
-                spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
-                // Position réelle des onglets, pour le cadre de la visite guidée.
-                init => {
-                    root.tabs-x = self.x;
-                    root.tabs-w = self.width;
-                }
-                changed x => {
-                    root.tabs-x = self.x;
-                }
-                changed width => {
-                    root.tabs-w = self.width;
-                }
-
-                Tab {
-                    text: Tr.t(Tr.k, "Accueil");
-                    k: root.k;
-                    active: root.tab == "home";
-                    focused: root.h-focus && root.h-sel == root.nav-n + 0;
-                    clicked => {
-                        root.h-sel = root.nav-n + 0;
-                        root.header-activate(0);
-                    }
-                }
-                Tab {
-                    text: Tr.t(Tr.k, "Favoris");
-                    k: root.k;
-                    active: root.tab == "favorites";
-                    focused: root.h-focus && root.h-sel == root.nav-n + 1;
-                    clicked => {
-                        root.h-sel = root.nav-n + 1;
-                        root.header-activate(1);
-                    }
-                }
-                if root.has-requests: Tab {
-                    text: Tr.t(Tr.k, "Demandes");
-                    k: root.k;
-                    active: root.tab == "requests";
-                    focused: root.h-focus && root.h-sel == root.nav-n + 2;
-                    clicked => {
-                        root.h-sel = root.nav-n + 2;
-                        root.header-activate(2);
-                    }
-                }
-            }
-
-        }
+        // En-tête (nom, onglets, icônes) : la barre commune à toutes les pages (plus bas), jamais recréée.
 
         FocusScope {
             y: root.header-h;
@@ -5653,6 +5648,38 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Zone 2, épisodes en liste : ↑ ↓ d'un épisode à l'autre, → saute à la suite (rangées du bas).
+        if (root.d-zone == 2 && root.ep-list) {
+            if (t == Key.DownArrow) {
+                if (root.d-child < root.child-items.length - 1) {
+                    root.d-child += 1;
+                } else if (root.detail-rows.length > 0) {
+                    root.d-zone = 4;
+                    root.d-x = 0;
+                }
+                return true;
+            }
+            if (t == Key.UpArrow) {
+                if (root.d-child > 0) {
+                    root.d-child -= 1;
+                } else {
+                    root.d-zone = root.detail.overview != "" ? 1 : 0;
+                }
+                return true;
+            }
+            if (t == Key.RightArrow) {
+                root.ep-skip();
+                return true;
+            }
+            if (t == Key.LeftArrow) {
+                return true;
+            }
+            if (t == Key.Return) {
+                root.open-hero(root.child-items[root.d-child].id);
+                return true;
+            }
+        }
+
         // Zone 2 : saisons / épisodes
         if (root.d-zone == 2) {
             if (t == Key.RightArrow) {
@@ -5703,6 +5730,10 @@ export component AppWindow inherits Window {
                 if (root.d-zone > 4) {
                     root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, root.card-w, root.d-zone - 5);
                     root.d-zone -= 1;
+                } else if (root.ep-list && root.child-items.length > 0) {
+                    // Remontée dans la liste d'épisodes : sur le dernier.
+                    root.d-child = root.child-items.length - 1;
+                    root.d-zone = 2;
                 } else {
                     if (root.child-items.length > 0) {
                         root.d-child = root.row-to(1004, root.d-x, root.card-w, 1002, root.child-items.length, root.child-card-w);
@@ -5922,7 +5953,7 @@ export component AppWindow inherits Window {
             y: 24px;
             width: root.info-w;
             height: 84px * root.k;
-            opacity: root.sw-title ? root.sw-e : 1;
+            opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0);
 
             if root.detail.has-logo: Image {
                 x: 0px;
@@ -5950,7 +5981,7 @@ export component AppWindow inherits Window {
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
-            opacity: root.sw-sub ? root.sw-e : 1;
+            opacity: (root.sw-sub ? root.sw-e : 1) * root.rev(0);
             text: root.detail.subtitle;
             text-color: Theme.accent2;
             font-size: 18px * root.k;
@@ -5963,7 +5994,7 @@ export component AppWindow inherits Window {
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
             x: root.d-low-x + (root.narrow ? 0px : (dt.btns-w - dt.icons-w) / 2) + root.po-right;
-            opacity: root.sw-icons ? root.sw-e : 1;
+            opacity: (root.sw-icons ? root.sw-e : 1) * root.rev(1);
             y: 24px + 118px * root.k + root.d-low;
             width: root.d-low-w;
             height: 40px * root.k;
@@ -6003,7 +6034,7 @@ export component AppWindow inherits Window {
             }
         }
         chips-row := HorizontalLayout {
-            opacity: root.sw-chips ? root.sw-e : 1;
+            opacity: (root.sw-chips ? root.sw-e : 1) * root.rev(1);
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
             x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : (dt.btns-w - dt.chips-w) / 2) + root.po-right;
             y: 24px + 166px * root.k + root.d-low;
@@ -6034,7 +6065,7 @@ export component AppWindow inherits Window {
         Text {
             x: root.col-x + root.po-right;
             y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
-            opacity: root.sw-misc ? root.sw-e : 1;
+            opacity: (root.sw-misc ? root.sw-e : 1) * root.rev(0);
             width: root.info-w;
             height: 24px * root.k;
             text: root.detail.misc;
@@ -6048,7 +6079,7 @@ export component AppWindow inherits Window {
         if root.detail.overview != "": Rectangle {
             x: root.d-low-x + root.po-right;
             y: 24px + 232px * root.k - dt.lift + root.d-low - (root.narrow ? 30px * root.k : 0px);
-            opacity: root.sw-ov ? root.sw-e : 1;
+            opacity: (root.sw-ov ? root.sw-e : 1) * root.rev(2);
             width: root.d-low-w;
             height: 80px * root.k;
             border-radius: 14px;
@@ -6080,7 +6111,7 @@ export component AppWindow inherits Window {
         if root.show-next: Rectangle {
             x: parent.width - 32px - root.next-w + root.po * (root.next-w + 64px);
             y: 24px;
-            opacity: root.sw-next ? root.sw-e : 1;
+            opacity: (root.sw-next ? root.sw-e : 1) * root.rev(2);
             width: root.next-w;
             height: 228px * root.k;
 
@@ -6169,10 +6200,140 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Épisodes d'une saison : liste verticale (voir ep-list).
+        if root.child-items.length > 0 && root.ep-list: Rectangle {
+            x: (root.narrow ? 16px : 32px) + root.po-right;
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
+            width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1200px * root.k);
+            height: root.ep-block-h;
+            // Titre de la liste (« Épisodes »), et raccourci vers la suite quand la liste est longue.
+            Text {
+                x: 0px;
+                y: 0px;
+                height: root.ep-head-h - 12px * root.k;
+                text: "— " + root.detail.children-title;
+                color: Theme.text;
+                font-size: 22px * root.k;
+                vertical-alignment: center;
+            }
+            if root.detail-rows.length > 0 && root.child-items.length > 6: Rectangle {
+                property <bool> hot: skip-area.has-hover && !Nav.touch;
+                x: parent.width - self.width;
+                y: (root.ep-head-h - 12px * root.k - self.height) / 2;
+                width: skip-t.preferred-width + 32px * root.k;
+                height: 38px * root.k;
+                border-radius: self.height / 2;
+                background: self.hot ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.1);
+                skip-t := Text {
+                    text: Tr.f(Tr.k, "Aller à « {} »", root.detail-rows[0].title, "") + "  ↓";
+                    color: parent.hot ? Theme.on-accent : Theme.fg;
+                    font-size: 14px * root.k;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                skip-area := TouchArea {
+                    clicked => {
+                        root.ep-skip();
+                    }
+                }
+            }
+            for ep[i] in root.child-items: ep-row := Rectangle {
+                property <bool> lit: (!root.h-focus && root.d-zone == 2 && root.d-child == i && Nav.kb) || (ep-area.has-hover && !Nav.touch);
+                // Hors de l'écran : pas dessiné (saisons de plus de 100 épisodes).
+                property <length> top: root.ep-head-h + i * (root.ep-row-h + root.ep-gap);
+                visible: parent.y + self.top - root.d-view-y < root.d-view-h + 40px && parent.y + self.top + root.ep-row-h - root.d-view-y > -40px;
+                y: self.top;
+                width: parent.width;
+                height: root.ep-row-h;
+                border-radius: 12px * root.k;
+                // Résumé long : coupé au bas de la ligne.
+                clip: true;
+                background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (Theme.dark ? #00000040 : Theme.fg.with-alpha(0.07));
+                animate background { duration: Motion.select ? 150ms : 0ms; }
+                // Vignette 16:9, avancement et coche « vu ».
+                Rectangle {
+                    x: 8px * root.k;
+                    y: 8px * root.k;
+                    width: root.ep-thumb-w;
+                    height: root.ep-thumb-w * 0.5625;
+                    border-radius: 8px * root.k;
+                    clip: true;
+                    background: Theme.fg.with-alpha(0.08);
+                    if ep.has-image: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: ep.image;
+                        image-fit: cover;
+                    }
+                    if ep.progress > 0 && !ep.played: Rectangle {
+                        x: 0px;
+                        y: parent.height - self.height;
+                        width: parent.width * ep.progress;
+                        height: 4px * root.k;
+                        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                    }
+                    if ep.played: Rectangle {
+                        x: parent.width - self.width - 6px * root.k;
+                        y: 6px * root.k;
+                        width: 22px * root.k;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: Theme.accent2;
+                        Text {
+                            text: "✓";
+                            color: Theme.on-accent;
+                            font-size: 13px * root.k;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                // Numéro et titre, durée, puis le début du résumé.
+                VerticalLayout {
+                    x: root.ep-thumb-w + 24px * root.k;
+                    y: 10px * root.k;
+                    width: parent.width - self.x - 16px * root.k;
+                    height: parent.height - 20px * root.k;
+                    spacing: 3px * root.k;
+                    alignment: start;
+                    Text {
+                        text: ep.title;
+                        color: ep-row.lit ? Theme.on-accent : Theme.fg;
+                        font-size: 17px * root.k;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    if ep.subtitle != "": Text {
+                        text: ep.subtitle;
+                        color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
+                        font-size: 13px * root.k;
+                        overflow: elide;
+                    }
+                    if ep.overview != "" && !root.narrow: Text {
+                        text: ep.overview;
+                        color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.8);
+                        font-size: 13px * root.k;
+                        wrap: word-wrap;
+                        overflow: elide;
+                        vertical-stretch: 1;
+                    }
+                }
+                ep-area := TouchArea {
+                    clicked => {
+                        root.d-zone = 2;
+                        root.d-child = i;
+                        root.open-hero(ep.id);
+                    }
+                }
+            }
+        }
+
         // Saisons / épisodes / contenu
-        if root.child-items.length > 0: SectionRow {
+        if root.child-items.length > 0 && !root.ep-list: SectionRow {
             // Glissement seulement : une opacité sur toute la rangée coûte cher sur les petites machines.
-            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + root.po-down;
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
@@ -6196,7 +6357,7 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
-            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k + root.po-down;
+            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k + (1 - root.rev(4)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
@@ -7214,10 +7375,10 @@ export component AppWindow inherits Window {
 
         property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "motion", "about"];
         property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
-        // Portrait (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
+        // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
         // set-in (sélection dans les lignes) dit laquelle est affichée.
-        property <bool> one: root.narrow;
+        property <bool> one: root.set-one;
         property <float> one-p: self.one && root.set-in ? 1 : 0;
         animate one-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         property <length> left-w: self.one ? self.width - 32px * root.k : 260px * root.k;
@@ -8693,7 +8854,7 @@ export component AppWindow inherits Window {
         // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait) ; à l'accueil, avant
         // les onglets.
         x: 0px;
-        width: root.on-home && !root.two-line ? parent.width / 3 : parent.width - root.right-w;
+        width: root.tabs-on && !root.two-line ? root.tabs-x - 8px * root.k : parent.width - root.right-w;
         // Même hauteur que la barre (icônes réduites centrées comme celles de droite).
         height: 72px * root.k;
         k: root.on-home ? root.k : root.bar-k;
@@ -8706,6 +8867,58 @@ export component AppWindow inherits Window {
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
             root.nav-activate(i);
+        }
+    }
+    // Onglets (Accueil, Favoris, Demandes) : sur toutes les pages, au centre de la barre, jamais sur le
+    // titre ni sur les icônes de droite ; seconde ligne quand la place manque (portrait). Hors de
+    // l'accueil, aucun n'est en avant, et en choisir un y ramène, sur cet onglet.
+    if root.tabs-on: HorizontalLayout {
+        width: self.preferred-width;
+        y: root.two-line ? root.header-row - 10px * root.k : root.chrome-top;
+        height: root.two-line ? 54px * root.k : 72px * root.k;
+        x: root.two-line ? (parent.width - self.width) / 2 : max(root.tabs-lo, min((parent.width - self.width) / 2, root.tabs-hi - self.width));
+        spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
+        // Position réelle des onglets : titre de la barre, visite guidée.
+        init => {
+            root.tabs-x = self.x;
+            root.tabs-w = self.width;
+        }
+        changed x => {
+            root.tabs-x = self.x;
+        }
+        changed width => {
+            root.tabs-w = self.width;
+        }
+
+        Tab {
+            text: Tr.t(Tr.k, "Accueil");
+            k: root.on-home ? root.k : root.bar-k;
+            active: root.on-home && root.tab == "home";
+            focused: root.h-focus && root.h-sel == root.nav-n + 0;
+            clicked => {
+                root.h-sel = root.nav-n + 0;
+                root.header-activate(0);
+            }
+        }
+        Tab {
+            text: Tr.t(Tr.k, "Favoris");
+            k: root.on-home ? root.k : root.bar-k;
+            active: root.on-home && root.tab == "favorites";
+            focused: root.h-focus && root.h-sel == root.nav-n + 1;
+            clicked => {
+                root.h-sel = root.nav-n + 1;
+                root.header-activate(1);
+            }
+        }
+        if root.has-requests: Tab {
+            text: Tr.t(Tr.k, "Demandes");
+            k: root.on-home ? root.k : root.bar-k;
+            active: root.on-home && root.tab == "requests";
+            focused: root.h-focus && root.h-sel == root.nav-n + 2;
+            clicked => {
+                root.h-sel = root.nav-n + 2;
+                root.header-activate(2);
+            }
         }
     }
     if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): HeaderRight {
