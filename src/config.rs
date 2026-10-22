@@ -491,6 +491,17 @@ pub struct UiPrefs {
     /// connexion par une adresse locale : donnée aux écrans de diffusion même quand l'appareil passe
     /// par Tailscale ou Internet (l'écran, lui, ne joint que le réseau local).
     pub lan_servers: std::collections::BTreeMap<String, String>,
+    /// Serveurs déjà trouvés (identifiant -> nom et adresses vues) : réessayés à chaque recherche,
+    /// même depuis un autre réseau (voir discovery::discover).
+    pub known_servers: std::collections::BTreeMap<String, KnownServer>,
+}
+
+/// Serveur déjà trouvé par la recherche : son nom et les adresses où il a répondu (6 au plus).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct KnownServer {
+    pub name: String,
+    pub addrs: Vec<String>,
 }
 
 /// Écran de diffusion connu : télé DLNA ou appareil Google Cast.
@@ -624,6 +635,7 @@ impl Default for UiPrefs {
             themes: Vec::new(),
             cast_screens: Vec::new(),
             lan_servers: std::collections::BTreeMap::new(),
+            known_servers: std::collections::BTreeMap::new(),
         }
     }
 }

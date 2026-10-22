@@ -17,9 +17,10 @@ pub struct Renderer {
     pub name: String,
     /// Identifiant stable de la télé (UDN de sa description) : garde son nom choisi dans Turtlefin.
     pub id: String,
-    /// Adresses de commande (complètes) des services AVTransport et RenderingControl.
+    /// Adresses de commande (complètes) des services AVTransport, RenderingControl et ConnectionManager.
     pub av_control: String,
     pub rc_control: Option<String>,
+    pub cm_control: Option<String>,
 }
 
 fn private(ip: IpAddr) -> bool {
@@ -70,6 +71,9 @@ pub fn lan_ipv4s() -> Vec<Ipv4Addr> {
 /// Prise UDP liée à l'adresse `ip`, qui envoie ses messages multidiffusés par la carte de cette adresse.
 pub fn multicast_socket(ip: Ipv4Addr) -> Option<tokio::net::UdpSocket> {
     let s = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)).ok()?;
+    // Android, VPN actif (Tailscale) : la recherche passe par le Wi-Fi, pas par le VPN.
+    #[cfg(target_os = "android")]
+    crate::android_entry::bind_to_lan(std::os::fd::AsRawFd::as_raw_fd(&s));
     if !ip.is_unspecified() {
         s.set_multicast_if_v4(&ip).ok()?;
     }
@@ -77,6 +81,26 @@ pub fn multicast_socket(ip: Ipv4Addr) -> Option<tokio::net::UdpSocket> {
     s.bind(&SocketAddr::from((ip, 0)).into()).ok()?;
     s.set_nonblocking(true).ok()?;
     tokio::net::UdpSocket::from_std(s.into()).ok()
+}
+
+/// L'adresse `base` (serveur) se joint-elle par le réseau local de l'écran `screen` lui-même, sans
+/// VPN ? Connexion d'essai partie de l'adresse de cette machine sur ce réseau (Android : attachée au
+/// Wi-Fi). Tailscale peut faire suivre tout le réseau de la maison (routage de sous-réseau) : chez
+/// quelqu'un, l'adresse 192.168.1.x du serveur répondait alors par le VPN, et la télé recevait une
+/// adresse qu'elle ne pouvait pas joindre.
+pub async fn lan_reachable(base: &str, screen: Ipv4Addr) -> bool {
+    let Ok(u) = reqwest::Url::parse(base) else { return false };
+    let Some(Ok(host)) = u.host_str().map(|h| h.parse::<Ipv4Addr>()) else { return false };
+    let port = u.port_or_known_default().unwrap_or(80);
+    let Some(me) = lan_ipv4s().into_iter().find(|ip| ip.octets()[..3] == screen.octets()[..3]) else { return false };
+    tokio::task::spawn_blocking(move || -> bool {
+        let Ok(s) = socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, Some(socket2::Protocol::TCP)) else { return false };
+        #[cfg(target_os = "android")]
+        crate::android_entry::bind_to_lan(std::os::fd::AsRawFd::as_raw_fd(&s));
+        s.bind(&SocketAddr::from((me, 0)).into()).is_ok() && s.connect_timeout(&SocketAddr::from((host, port)).into(), Duration::from_millis(1500)).is_ok()
+    })
+    .await
+    .unwrap_or(false)
 }
 
 /// Recherche des télés DLNA pendant `wait`.
@@ -150,7 +174,16 @@ async fn describe(http: &reqwest::Client, loc: &str) -> Option<Renderer> {
         None
     };
     let id = tag(&xml, "UDN", 0).map(|(u, _)| clean(u)).filter(|u| !u.is_empty()).unwrap_or_else(|| base.host_str().unwrap_or("").to_string());
-    Some(Renderer { name, id, av_control: control(":AVTransport:")?, rc_control: control(":RenderingControl:") })
+    Some(Renderer { name, id, av_control: control(":AVTransport:")?, rc_control: control(":RenderingControl:"), cm_control: control(":ConnectionManager:") })
+}
+
+/// La télé lit-elle le HEVC (H.265) ? D'après les formats qu'elle déclare (GetProtocolInfo) ; sans
+/// réponse, non (une télé de 2015 comme la Samsung J5200 ne lit que le H.264, et refuse sans rien dire).
+pub async fn supports_hevc(r: &Renderer) -> bool {
+    let Some(cm) = &r.cm_control else { return false };
+    let Ok(t) = soap_in(cm, "ConnectionManager", "GetProtocolInfo", "", 4).await else { return false };
+    let sink = tag(&t, "Sink", 0).map(|(s, _)| s.to_ascii_uppercase()).unwrap_or_default();
+    ["HEVC", "H265", "H.265"].iter().any(|k| sink.contains(k))
 }
 
 fn xml_escape(s: &str) -> String {
@@ -159,10 +192,18 @@ fn xml_escape(s: &str) -> String {
 
 /// Action SOAP ; renvoie le corps de la réponse.
 async fn soap(url: &str, service: &str, action: &str, args: &str) -> Result<String> {
+    // Une télé ne répond à SetAVTransportURI / Play qu'après avoir ouvert le flux : avec une
+    // conversion du serveur qui démarre, plus de 10 s (Samsung).
+    let wait = if matches!(action, "SetAVTransportURI" | "Play") { 30 } else { 6 };
+    soap_in(url, service, action, args, wait).await
+}
+
+/// Action SOAP, réponse attendue `wait` secondes au plus.
+async fn soap_in(url: &str, service: &str, action: &str, args: &str, wait: u64) -> Result<String> {
     let body = format!(
         "<?xml version=\"1.0\" encoding=\"utf-8\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:{action} xmlns:u=\"urn:schemas-upnp-org:service:{service}:1\">{args}</u:{action}></s:Body></s:Envelope>"
     );
-    let http = crate::api::http_builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(6)).build()?;
+    let http = crate::api::http_builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(wait)).build()?;
     let resp = http
         .post(url)
         .header("Content-Type", "text/xml; charset=\"utf-8\"")
@@ -206,6 +247,9 @@ pub async fn play_url(r: &Renderer, url: &str, mime: &str, title: &str, subs: Op
         xml_escape(url)
     );
     let _ = soap(&r.av_control, "AVTransport", "Stop", "<InstanceID>0</InstanceID>").await;
+    // Une vidéo arrive aussitôt après l'arrêt de la précédente (changement de piste) : une Samsung
+    // garde alors l'image figée (le son passe). Elle a besoin d'un instant pour libérer son décodeur.
+    tokio::time::sleep(Duration::from_millis(1200)).await;
     soap(
         &r.av_control,
         "AVTransport",
@@ -258,6 +302,17 @@ pub async fn status(r: &Renderer) -> Option<(bool, f64, f64, Option<u32>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Essai réel (réseau de la machine) : LANR_BASE=http://ip:port LANR_SCREEN=ip
+    /// cargo test --release cast::tests::lan_reach -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn lan_reach() {
+        let base = std::env::var("LANR_BASE").unwrap();
+        let screen = std::env::var("LANR_SCREEN").unwrap().parse().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        println!("{base} depuis le réseau de {screen} : {}", rt.block_on(lan_reachable(&base, screen)));
+    }
 
     #[test]
     fn parsing() {

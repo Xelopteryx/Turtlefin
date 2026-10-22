@@ -1691,21 +1691,35 @@ impl Client {
     /// recopie ce qui est déjà compatible au lieu de le convertir). Adresse complète, jeton compris :
     /// l'appareil la lit lui-même. Renvoie (adresse, type MIME).
     /// `dlna` : télé DLNA (Samsung, LG…) au lieu d'un Chromecast : MKV / MP4 / AVI tels quels (H.264,
-    /// HEVC, MPEG-4 ; AAC, AC3, MP3), sinon un flux MPEG-TS H.264 continu (pas de HLS : peu de télés le lisent).
+    /// MPEG-4 ; HEVC si `hevc` ; AAC, AC3, MP3), sinon un flux MPEG-TS continu (pas de HLS : peu de
+    /// télés le lisent).
     /// `audio` : piste audio voulue quand ce n'est pas celle par défaut du fichier (le flux est alors
-    /// réassemblé par le serveur, l'image recopiée telle quelle). `burn` : sous-titres en images
-    /// (PGS…) incrustés dans la vidéo (conversion complète, lente sur un petit serveur).
-    pub async fn cast_stream(&self, item_id: &str, dlna: bool, audio: Option<i32>, burn: Option<i32>) -> Result<(String, String)> {
-        let force = audio.is_some() || burn.is_some();
+    /// réassemblé par le serveur, l'image recopiée telle quelle). `burn` : sous-titres incrustés dans
+    /// la vidéo (conversion complète, lente sur un petit serveur). `force` : flux réassemblé même sans
+    /// piste à changer (télé qui afficherait d'elle-même des sous-titres non voulus du fichier).
+    pub async fn cast_stream(&self, item_id: &str, source_id: &str, dlna: bool, hevc: bool, audio: Option<i32>, burn: Option<i32>, force: bool) -> Result<(String, String)> {
+        let force = force || audio.is_some() || burn.is_some();
+        let dlna_video = if hevc { "h264,hevc,mpeg4" } else { "h264,mpeg4" };
         let mut profile = if dlna {
             serde_json::json!({
                 "MaxStreamingBitrate": 40_000_000u64,
                 "DirectPlayProfiles": [
-                    { "Type": "Video", "Container": "mkv,mp4,m4v,avi", "VideoCodec": "h264,hevc,mpeg4", "AudioCodec": "aac,ac3,eac3,mp3" }
+                    { "Type": "Video", "Container": "mkv,mp4,m4v,avi", "VideoCodec": dlna_video, "AudioCodec": "aac,ac3,eac3,mp3" }
                 ],
                 "TranscodingProfiles": [{
                     "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,ac3,mp3",
                     "Context": "Streaming", "Protocol": "http", "MaxAudioChannels": "6", "EstimateContentLength": false
+                }],
+                // H.264 que lisent les télés : niveau 4.1 au plus, 8 bits (au-delà, une Samsung de 2015
+                // joue le son mais pas l'image). Le serveur encode à ce niveau, et convertit les fichiers
+                // qui le dépassent au lieu de les envoyer tels quels.
+                "CodecProfiles": [{
+                    "Type": "Video", "Codec": "h264",
+                    "Conditions": [
+                        { "Condition": "LessThanEqual", "Property": "VideoLevel", "Value": "41", "IsRequired": false },
+                        { "Condition": "LessThanEqual", "Property": "VideoBitDepth", "Value": "8", "IsRequired": false },
+                        { "Condition": "EqualsAny", "Property": "VideoProfile", "Value": "high|main|baseline|constrained baseline", "IsRequired": false }
+                    ]
                 }],
             })
         } else {
@@ -1726,7 +1740,7 @@ impl Client {
             // Plus de lecture directe : le serveur doit garder la piste voulue (ou incruster les
             // sous-titres) ; l'image H.264 / HEVC est recopiée sans conversion quand c'est possible.
             profile["DirectPlayProfiles"] = serde_json::json!([]);
-            profile["TranscodingProfiles"][0]["VideoCodec"] = serde_json::json!(if dlna { "h264,hevc" } else { "h264" });
+            profile["TranscodingProfiles"][0]["VideoCodec"] = serde_json::json!(if dlna && hevc { "h264,hevc" } else { "h264" });
             profile["SubtitleProfiles"] = serde_json::json!(["srt", "subrip", "ass", "ssa", "vtt", "pgssub", "dvdsub", "dvbsub"]
                 .iter()
                 .map(|f| serde_json::json!({ "Format": f, "Method": "Encode" }))
@@ -1734,16 +1748,26 @@ impl Client {
         }
         let audio_s = audio.map(|a| a.to_string());
         let sub_s = burn.map(|s| s.to_string()).unwrap_or_else(|| "-1".into());
-        let mut q: Vec<(&str, &str)> = vec![("userId", self.user_id.as_str()), ("MaxStreamingBitrate", "40000000"), ("SubtitleStreamIndex", &sub_s)];
+        // Le serveur ne garde les pistes demandées que si la source est nommée (sinon : celles par
+        // défaut du fichier).
+        let mut q: Vec<(&str, &str)> =
+            vec![("userId", self.user_id.as_str()), ("MediaSourceId", source_id), ("MaxStreamingBitrate", "40000000"), ("SubtitleStreamIndex", &sub_s)];
         if let Some(a) = &audio_s {
             q.push(("AudioStreamIndex", a));
+        }
+        let mut body = serde_json::json!({
+            "DeviceProfile": profile, "UserId": self.user_id, "MediaSourceId": source_id,
+            "MaxStreamingBitrate": 40_000_000u64, "SubtitleStreamIndex": burn.unwrap_or(-1),
+        });
+        if let Some(a) = audio {
+            body["AudioStreamIndex"] = serde_json::json!(a);
         }
         let resp = self
             .http
             .post(format!("{}/Items/{}/PlaybackInfo", self.server, seg(item_id)))
             .query(&q)
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
-            .json(&serde_json::json!({ "DeviceProfile": profile }))
+            .json(&body)
             .send()
             .await
             .map_err(|e| anyhow!("PlaybackInfo (diffuser) : {e}"))?;

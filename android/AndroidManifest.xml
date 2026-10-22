@@ -26,7 +26,7 @@
         android:hasCode="false"
         android:extractNativeLibs="true"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        android:theme="@style/Turtlefin">
         <activity
             android:name="android.app.NativeActivity"
             android:exported="true"

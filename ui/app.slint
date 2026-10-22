@@ -3357,6 +3357,7 @@ export component AppWindow inherits Window {
     // Lecteur en télécommande d'un écran de diffusion (voir PlayerView.remote).
     in-out property <bool> p-remote;
     in property <bool> p-remote-nodur;
+    in property <string> p-remote-busy;
     callback cast-reopen();
     callback cast-track(string, string);
     callback player-cast();
@@ -3387,13 +3388,37 @@ export component AppWindow inherits Window {
     changed cast-pop => {
         if (!root.cast-pop) {
             root.refocus += 1;
+        } else {
+            root.drop-to(1);
         }
     }
     changed party-pop => {
         if (!root.party-pop) {
             root.refocus += 1;
+        } else {
+            root.drop-to(2);
         }
     }
+    // Cadre commun des panneaux du haut à droite (0 ⋯, 1 Diffuser, 2 Watch party) : passer de l'un à
+    // l'autre le redimensionne au lieu de le faire disparaître puis réapparaître ; seul le contenu
+    // change, en fondu. Ouvert depuis rien, il prend sa taille tout de suite (et descend, comme avant).
+    property <bool> drop-open: (root.more-open && !root.playing) || root.cast-pop || (root.party-pop && !root.playing);
+    property <float> drop-p: root.drop-open ? 1 : 0;
+    animate drop-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    property <int> drop-kind;
+    property <bool> drop-morph;
+    function drop-to(kind: int) {
+        // Un autre panneau était ouvert (il se referme dans le même geste) : le cadre se redimensionne.
+        root.drop-morph = root.drop-p > 0.5;
+        root.drop-kind = kind;
+    }
+    // Hauteur voulue par le contenu de Diffuser et de la watch party (donnée par le panneau).
+    in-out property <length> cast-h: 280px * root.k;
+    in-out property <length> party-h: 200px * root.k;
+    property <length> drop-w: min((root.drop-kind == 0 ? 260px : 460px) * root.k, root.width - 32px * root.k);
+    property <length> drop-h: root.drop-kind == 0 ? 4 * 56px * root.k + 16px * root.k : root.drop-kind == 1 ? root.cast-h : root.party-h;
+    animate drop-w, drop-h { duration: Motion.panels && root.drop-morph ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    property <length> drop-y: (root.playing ? root.chrome-top + 16px * root.k : root.header-row - 6px * root.k) - (1 - root.drop-p) * 18px * root.k;
     changed remote-open => {
         if (!root.remote-open) {
             root.refocus += 1;
@@ -8718,233 +8743,6 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Menu « ⋯ » (petit écran) : diffuser, watch party, hasard, recherche, en liste sous le bouton.
-    changed more-open => {
-        if (!root.more-open) {
-            root.refocus += 1;
-        }
-    }
-    if root.more-p > 0.01 && !root.playing: Rectangle {
-        background: Theme.scrim.with-alpha(0.3 * root.more-p);
-        TouchArea {
-            clicked => {
-                root.more-open = false;
-            }
-        }
-        property <[string]> icons: ["cast", "party", "dice", "search"];
-        Rectangle {
-            width: min(260px * root.k, parent.width - 32px * root.k);
-            height: 4 * 56px * root.k + 16px * root.k;
-            x: parent.width - self.width - 16px * root.k;
-            y: root.header-row - 6px * root.k - (1 - root.more-p) * 14px * root.k;
-            opacity: root.more-p;
-            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-            background: Theme.win7 ? transparent : Theme.glass;
-            border-width: Theme.win7 ? 0px : 1px;
-            border-color: Theme.glass-border;
-            Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
-            WinFrame { r: parent.border-radius; k: root.k; }
-            FocusScope {
-                init => {
-                    self.focus();
-                }
-                key-pressed(event) => {
-                    if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.more-open = false;
-                    } else if (event.text == Key.UpArrow) {
-                        root.more-sel = max(0, root.more-sel - 1);
-                    } else if (event.text == Key.DownArrow) {
-                        root.more-sel = min(3, root.more-sel + 1);
-                    } else if (event.text == Key.Return) {
-                        root.right-activate(root.more-sel);
-                    }
-                    return EventResult.accept;
-                }
-            }
-            for ic[i] in parent.icons: Rectangle {
-                x: 8px * root.k;
-                y: 8px * root.k + i * 56px * root.k;
-                width: parent.width - 16px * root.k;
-                height: 52px * root.k;
-                border-radius: 10px * root.k;
-                property <bool> lit: Nav.kb ? root.more-sel == i : m-area.has-hover && !Nav.touch;
-                property <bool> on: (i == 0 && root.cast-on) || (i == 1 && root.sp-active);
-                background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : self.on ? Theme.fg.with-alpha(0.14) : transparent;
-                HeaderIcon {
-                    x: 6px * root.k;
-                    y: (parent.height - self.height) / 2;
-                    k: root.k;
-                    icon: ic;
-                    on: parent.on;
-                }
-                Text {
-                    x: 60px * root.k;
-                    width: parent.width - self.x - 10px * root.k;
-                    text: i == 0 ? Tr.t(Tr.k, "Diffuser") : i == 1 ? Tr.t(Tr.k, "Watch party") : i == 2 ? Tr.t(Tr.k, "Au hasard") : Tr.t(Tr.k, "Recherche");
-                    color: parent.lit ? Theme.on-accent : Theme.fg;
-                    font-size: 16px * root.k;
-                    font-weight: 600;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                m-area := TouchArea {
-                    clicked => {
-                        root.more-sel = i;
-                        root.right-activate(i);
-                    }
-                }
-            }
-        }
-    }
-
-    // Diffuser : panneau qui descend sous son icône (toucher à côté, Échap ou Retour le referment).
-    // Écrans où envoyer les vidéos (télés DLNA du réseau, Turtlefin ou applis Jellyfin du compte) ; l'écran
-    // choisi, le panneau montre ce qui y passe, avec lecture, avance, arrêt et volume.
-    // Clavier : ↑ ↓ entre les écrans, les deux rangées de commandes et « Ne plus diffuser » ; ← → dans une rangée.
-    if root.cast-p > 0.01: Rectangle {
-        background: Theme.scrim.with-alpha(0.35 * root.cast-p);
-        TouchArea {
-            clicked => {
-                root.close-cast();
-            }
-            scroll-event(e) => {
-                return EventResult.accept;
-            }
-        }
-        cast-panel := Rectangle {
-            // Indices du clavier : 0..n-1 écrans · n commandes de lecture · n+1 volume · n+2 « Ne plus diffuser ».
-            property <int> n: root.cast-items.length;
-            // Commandes : 0 précédent · 1 recul · 2 lecture · 3 avance · 4 suivant · 5 arrêt · 6 vol- · 7 muet · 8 vol+
-            property <[string]> codes: ["prev", "rew", "playpause", "ff", "next", "stop", "vol-", "mute", "vol+"];
-            // Boutons de lecture réduits si la rangée (310 px à k = 1) ne tient pas (téléphone).
-            property <float> bk: root.k * min(1, (self.width - 40px * root.k) / (310px * root.k));
-            width: min(460px * root.k, parent.width - 32px * root.k);
-            height: cast-col.preferred-height + 40px * root.k;
-            x: parent.width - self.width - 16px * root.k;
-            y: (root.playing ? root.chrome-top + 16px * root.k : root.header-row - 6px * root.k) - (1 - root.cast-p) * 18px * root.k;
-            opacity: root.cast-p;
-            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-            background: Theme.win7 ? transparent : Theme.glass;
-            border-width: Theme.win7 ? 0px : 1px;
-            border-color: Theme.glass-border;
-            drop-shadow-blur: Nav.no-shadow ? 0px : (24px * root.k);
-            drop-shadow-color: #00000080;
-            Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
-            WinFrame { r: parent.border-radius; k: root.k; }
-            TouchArea {
-                scroll-event(e) => {
-                    return EventResult.accept;
-                }
-            }
-            FocusScope {
-                init => {
-                    self.focus();
-                }
-                key-pressed(event) => {
-                    // Indices : 0..n-1 écrans · n « Voir la lecture » · n+1 « Ne plus diffuser ».
-                    if (event.text == Key.Escape || event.text == Key.Backspace) {
-                        root.close-cast();
-                    } else if (event.text == Key.UpArrow) {
-                        root.cast-sel = max(0, root.cast-sel - 1);
-                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
-                            root.cast-sel -= 1;
-                        }
-                    } else if (event.text == Key.DownArrow) {
-                        root.cast-sel = min(root.cast-on ? cast-panel.n + 1 : cast-panel.n - 1, root.cast-sel + 1);
-                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
-                            root.cast-sel += 1;
-                        }
-                    } else if (event.text == Key.Return) {
-                        if (root.cast-sel < cast-panel.n) {
-                            root.cast-pick(root.cast-items[root.cast-sel].id);
-                        } else if (root.cast-sel == cast-panel.n) {
-                            root.cast-reopen();
-                        } else if (root.cast-on) {
-                            root.cast-stop();
-                        }
-                    }
-                    return EventResult.accept;
-                }
-            }
-            cast-col := VerticalLayout {
-                x: 20px * root.k;
-                y: 20px * root.k;
-                width: parent.width - 40px * root.k;
-                alignment: start;
-                spacing: 10px * root.k;
-                Text {
-                    text: Tr.t(Tr.k, "Diffuser");
-                    color: Theme.fg;
-                    font-size: 20px * root.k;
-                    font-weight: 700;
-                }
-                Text {
-                    text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
-                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
-                        : root.cast-on ? Tr.t(Tr.k, "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran.")
-                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches.");
-                    color: Theme.muted;
-                    font-size: 13px * root.k;
-                    wrap: word-wrap;
-                }
-                for c[i] in root.cast-items: Rectangle {
-                    height: 56px * root.k;
-                    border-radius: 10px * root.k;
-                    property <bool> lit: (Nav.kb ? i == root.cast-sel : c-area.has-hover && !Nav.touch);
-                    property <bool> chosen: root.cast-on && root.cast-target == c.name;
-                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(self.chosen ? 0.16 : 0.07);
-                    border-width: self.chosen && !self.lit ? 1px : 0px;
-                    border-color: Theme.accent2;
-                    opacity: 1 - (1 - root.cast-p) * min(1, i * 0.4);
-                    Text {
-                        x: 16px * root.k;
-                        y: 8px * root.k;
-                        width: parent.width - 32px * root.k;
-                        text: (c.kind != "jf" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
-                        color: parent.lit ? Theme.on-accent : Theme.fg;
-                        font-size: 16px * root.k;
-                        font-weight: 700;
-                        overflow: elide;
-                    }
-                    Text {
-                        x: 16px * root.k;
-                        y: 31px * root.k;
-                        width: parent.width - 32px * root.k;
-                        text: c.sub;
-                        color: (parent.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
-                        font-size: 12px * root.k;
-                        overflow: elide;
-                    }
-                    c-area := TouchArea {
-                        clicked => {
-                            root.cast-sel = i;
-                            root.cast-pick(c.id);
-                        }
-                    }
-                }
-                // Écran choisi : la vidéo en cours, et le lecteur-télécommande pour la piloter.
-                if root.cast-on && root.cast-now != "": ActionButton {
-                    height: 42px * root.k;
-                    text: Tr.f(Tr.k, "Voir la lecture · {}", root.cast-now, "");
-                    font: 15px * root.k;
-                    focused: Nav.kb && root.cast-sel == cast-panel.n;
-                    clicked => {
-                        root.cast-reopen();
-                    }
-                }
-                if root.cast-on: ActionButton {
-                    height: 42px * root.k;
-                    text: Tr.f(Tr.k, "Ne plus diffuser sur {}", root.cast-target, "");
-                    font: 15px * root.k;
-                    focused: Nav.kb && root.cast-sel == cast-panel.n + 1;
-                    clicked => {
-                        root.cast-stop();
-                    }
-                }
-            }
-        }
-    }
-
     // Télécommande (menu) : d'abord le Turtlefin à piloter, puis ses boutons (flèches, OK, retour,
     // accueil, lecture, volume), comme la télécommande de la télé.
     if root.remote-p > 0.01: Rectangle {
@@ -9089,244 +8887,6 @@ export component AppWindow inherits Window {
                 root.close-remote();
             }
         }
-    }
-
-    // Watch party : panneau qui descend sous son icône, en haut à droite (toucher à côté, Échap ou
-    // Retour le referment). Contenu : le groupe en cours, ou les groupes à rejoindre et « Créer ».
-    if root.party-p > 0.01 && !root.playing: Rectangle {
-        background: Theme.scrim.with-alpha(0.35 * root.party-p);
-        TouchArea {
-            clicked => {
-                root.close-party();
-            }
-            scroll-event(e) => {
-                return EventResult.accept;
-            }
-        }
-    party := Rectangle {
-        width: min(460px * root.k, parent.width - 32px * root.k);
-        height: party-col.preferred-height + 40px * root.k;
-        x: parent.width - self.width - 16px * root.k;
-        y: root.header-row - 6px * root.k - (1 - root.party-p) * 18px * root.k;
-        opacity: root.party-p;
-        border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-        background: Theme.win7 ? transparent : Theme.glass;
-        border-width: Theme.win7 ? 0px : 1px;
-        border-color: Theme.glass-border;
-        drop-shadow-blur: Nav.no-shadow ? 0px : (24px * root.k);
-        drop-shadow-color: #00000080;
-        Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
-        WinFrame { r: parent.border-radius; k: root.k; }
-        // Le panneau garde les touchers (ils ne ferment pas).
-        TouchArea {
-            scroll-event(e) => {
-                return EventResult.accept;
-            }
-        }
-
-        // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
-        property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
-        // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
-        property <float> in-e: 0;
-        init => {
-            self.in-e = 1;
-        }
-        animate in-e { duration: Motion.panels ? 520ms : 0ms; delay: Motion.panels ? 60ms : 0ms; easing: ease-out; }
-        pure function step(i: int) -> float {
-            let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
-            return 1 - (1 - x) * (1 - x);
-        }
-
-        FocusScope {
-            property <int> tick: root.refocus;
-            changed tick => {
-                // Panneau en train de partir (fermé) : il ne reprend pas le clavier (il l'emporterait
-                // en disparaissant, et plus rien ne répondrait).
-                if (root.party-pop && !root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            init => {
-                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            key-pressed(event) => {
-                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
-                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
-                    return EventResult.accept;
-                }
-                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
-                if (root.loading && event.text == Key.Escape) {
-                    root.cancel-open();
-                    return EventResult.accept;
-                }
-                if (event.text == Key.UpArrow) {
-                    if (root.sp-sel == 0) {
-                        root.close-party();
-                    } else {
-                        root.sp-sel -= 1;
-                    }
-                } else if (event.text == Key.DownArrow) {
-                    root.sp-sel = min(party.n - 1, root.sp-sel + 1);
-                } else if (event.text == Key.Return) {
-                    if (root.sp-active) {
-                        root.party-action("leave");
-                    } else if (root.sp-sel < root.sp-groups.length) {
-                        root.party-action(root.sp-groups[root.sp-sel].action);
-                    } else {
-                        root.party-action("create");
-                    }
-                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.close-party();
-                }
-                return EventResult.accept;
-            }
-        }
-
-        party-col := VerticalLayout {
-            x: 20px * root.k + (1 - party.step(0)) * 24px * root.k;
-            y: 20px * root.k;
-            width: parent.width - 40px * root.k;
-            alignment: start;
-            spacing: 14px * root.k;
-
-            Text {
-                text: Tr.t(Tr.k, "Watch party");
-                color: Theme.fg;
-                font-size: 20px * root.k;
-                font-weight: 700;
-            }
-            Text {
-                opacity: party.step(0);
-                text: root.sp-active
-                    ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
-                    : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
-                color: Theme.muted;
-                font-size: 15px * root.k;
-                wrap: word-wrap;
-            }
-            // Le groupe : état, ce qu'il regarde, participants.
-            if root.sp-active: Rectangle {
-                opacity: party.step(1);
-                height: party-card.preferred-height;
-                border-radius: 16px * root.k;
-                background: Theme.fg.with-alpha(0.07);
-                border-width: 1px;
-                border-color: Theme.glass-border;
-                party-card := VerticalLayout {
-                    padding: 20px * root.k;
-                    spacing: 10px * root.k;
-                    HorizontalLayout {
-                        spacing: 10px * root.k;
-                        alignment: start;
-                        Rectangle {
-                            y: (parent.height - self.height) / 2;
-                            width: 10px * root.k;
-                            height: self.width;
-                            border-radius: self.width / 2;
-                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? Theme.ok : root.sp-state == Tr.t(Tr.k, "En pause") ? Theme.warn : Theme.accent2;
-                        }
-                        Text {
-                            text: root.sp-state;
-                            color: Theme.fg;
-                            font-size: 16px * root.k;
-                            font-weight: 700;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Text {
-                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
-                        color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
-                        font-size: 16px * root.k;
-                        font-weight: 600;
-                        wrap: word-wrap;
-                    }
-                    Text {
-                        text: Tr.p(Tr.k, "{n} participant", "{n} participants", root.sp-count);
-                        color: Theme.muted;
-                        font-size: 13px * root.k;
-                        font-weight: 700;
-                    }
-                    HorizontalLayout {
-                        spacing: 8px * root.k;
-                        alignment: start;
-                        height: 32px * root.k;
-                        for who[wi] in root.sp-list: Rectangle {
-                            width: who-t.preferred-width + 44px * root.k;
-                            border-radius: self.height / 2;
-                            background: Theme.fg.with-alpha(0.1);
-                            Rectangle {
-                                x: 4px * root.k;
-                                y: 4px * root.k;
-                                width: parent.height - 8px * root.k;
-                                height: self.width;
-                                border-radius: self.width / 2;
-                                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-                                Gloss { r: parent.border-radius; strength: 0.8; }
-                                Text {
-                                    text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
-                                    color: Theme.on-accent;
-                                    font-size: 12px * root.k;
-                                    font-weight: 700;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
-                            who-t := Text {
-                                x: parent.height + 2px * root.k;
-                                text: who;
-                                color: Theme.fg;
-                                font-size: 14px * root.k;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-                }
-            }
-            if !root.sp-active && root.sp-groups.length > 0: Text {
-                opacity: party.step(1);
-                text: Tr.t(Tr.k, "REJOINDRE");
-                color: Theme.muted;
-                font-size: 12px * root.k;
-                font-weight: 700;
-            }
-            for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
-                opacity: party.step(2 + i);
-                height: 56px * root.k;
-                border-radius: 12px * root.k;
-                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
-                Gloss { r: parent.border-radius; strength: 0.8; }
-                Text {
-                    x: 20px * root.k;
-                    height: parent.height;
-                    text: g.label;
-                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
-                    font-size: 16px * root.k;
-                    vertical-alignment: center;
-                }
-                g-area := TouchArea {
-                    clicked => {
-                        root.party-action(g.action);
-                    }
-                }
-            }
-            HorizontalLayout {
-                alignment: start;
-                height: 46px * root.k;
-                opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
-                ActionButton {
-                    text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
-                    font: 16px * root.k;
-                    focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
-                    clicked => {
-                        root.party-action(root.sp-active ? "leave" : "create");
-                    }
-                }
-            }
-        }
-    }
     }
 
     // ------------------------------------------------------------ Menu latéral
@@ -9810,6 +9370,7 @@ export component AppWindow inherits Window {
         remote: root.p-remote;
         remote-name: root.cast-target;
         remote-nodur: root.p-remote-nodur;
+        remote-busy: root.p-remote-busy;
         cast => {
             root.player-cast();
         }
@@ -9874,6 +9435,486 @@ export component AppWindow inherits Window {
         toggle-fullscreen => {
             root.toggle-full();
         }
+    }
+
+    // Panneaux du haut à droite (⋯, Diffuser, Watch party), après le lecteur : Diffuser s'ouvre aussi
+    // depuis le lecteur, par-dessus.
+    // Menu « ⋯ » (petit écran) : diffuser, watch party, hasard, recherche, en liste sous le bouton.
+    changed more-open => {
+        if (!root.more-open) {
+            root.refocus += 1;
+        } else {
+            root.drop-to(0);
+        }
+    }
+    // Le cadre commun (voir drop-kind) et le voile de la page ; les panneaux, dessus, n'ont que leur contenu.
+    if root.drop-p > 0.01: Rectangle {
+        background: Theme.scrim.with-alpha(0.35 * root.drop-p);
+        Rectangle {
+            width: root.drop-w;
+            height: root.drop-h;
+            x: parent.width - self.width - 16px * root.k;
+            y: root.drop-y;
+            opacity: root.drop-p;
+            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+            background: Theme.win7 ? transparent : Theme.glass;
+            border-width: Theme.win7 ? 0px : 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : (24px * root.k);
+            drop-shadow-color: #00000080;
+            Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+            WinFrame { r: parent.border-radius; k: root.k; }
+        }
+    }
+    if root.more-p > 0.01 && !root.playing: Rectangle {
+        TouchArea {
+            clicked => {
+                root.more-open = false;
+            }
+        }
+        property <[string]> icons: ["cast", "party", "dice", "search"];
+        Rectangle {
+            width: root.drop-w;
+            height: root.drop-h;
+            x: parent.width - self.width - 16px * root.k;
+            y: root.drop-y;
+            opacity: root.more-p;
+            clip: true;
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.more-open = false;
+                    } else if (event.text == Key.UpArrow) {
+                        root.more-sel = max(0, root.more-sel - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.more-sel = min(3, root.more-sel + 1);
+                    } else if (event.text == Key.Return) {
+                        root.right-activate(root.more-sel);
+                    }
+                    return EventResult.accept;
+                }
+            }
+            for ic[i] in parent.icons: Rectangle {
+                x: 8px * root.k;
+                y: 8px * root.k + i * 56px * root.k;
+                width: parent.width - 16px * root.k;
+                height: 52px * root.k;
+                border-radius: 10px * root.k;
+                property <bool> lit: Nav.kb ? root.more-sel == i : m-area.has-hover && !Nav.touch;
+                property <bool> on: (i == 0 && root.cast-on) || (i == 1 && root.sp-active);
+                background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : self.on ? Theme.fg.with-alpha(0.14) : transparent;
+                HeaderIcon {
+                    x: 6px * root.k;
+                    y: (parent.height - self.height) / 2;
+                    k: root.k;
+                    icon: ic;
+                    on: parent.on;
+                }
+                Text {
+                    x: 60px * root.k;
+                    width: parent.width - self.x - 10px * root.k;
+                    text: i == 0 ? Tr.t(Tr.k, "Diffuser") : i == 1 ? Tr.t(Tr.k, "Watch party") : i == 2 ? Tr.t(Tr.k, "Au hasard") : Tr.t(Tr.k, "Recherche");
+                    color: parent.lit ? Theme.on-accent : Theme.fg;
+                    font-size: 16px * root.k;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                m-area := TouchArea {
+                    clicked => {
+                        root.more-sel = i;
+                        root.right-activate(i);
+                    }
+                }
+            }
+        }
+    }
+
+    // Diffuser : panneau qui descend sous son icône (toucher à côté, Échap ou Retour le referment).
+    // Écrans où envoyer les vidéos (télés DLNA du réseau, Turtlefin ou applis Jellyfin du compte) ; l'écran
+    // choisi, le panneau montre ce qui y passe, avec lecture, avance, arrêt et volume.
+    // Clavier : ↑ ↓ entre les écrans, les deux rangées de commandes et « Ne plus diffuser » ; ← → dans une rangée.
+    if root.cast-p > 0.01: Rectangle {
+        TouchArea {
+            clicked => {
+                root.close-cast();
+            }
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+        cast-panel := Rectangle {
+            // Indices du clavier : 0..n-1 écrans · n commandes de lecture · n+1 volume · n+2 « Ne plus diffuser ».
+            property <int> n: root.cast-items.length;
+            // Commandes : 0 précédent · 1 recul · 2 lecture · 3 avance · 4 suivant · 5 arrêt · 6 vol- · 7 muet · 8 vol+
+            property <[string]> codes: ["prev", "rew", "playpause", "ff", "next", "stop", "vol-", "mute", "vol+"];
+            // Boutons de lecture réduits si la rangée (310 px à k = 1) ne tient pas (téléphone).
+            property <float> bk: root.k * min(1, (self.width - 40px * root.k) / (310px * root.k));
+            // Taille : celle du cadre commun (voir drop-kind), qui suit la hauteur voulue ici.
+            property <length> want-h: cast-col.preferred-height + 40px * root.k;
+            init => {
+                root.cast-h = self.want-h;
+            }
+            changed want-h => {
+                root.cast-h = self.want-h;
+            }
+            width: root.drop-w;
+            height: root.drop-h;
+            x: parent.width - self.width - 16px * root.k;
+            y: root.drop-y;
+            opacity: root.cast-p;
+            clip: true;
+            TouchArea {
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    // Indices : 0..n-1 écrans · n « Voir la lecture » · n+1 « Ne plus diffuser ».
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.close-cast();
+                    } else if (event.text == Key.UpArrow) {
+                        root.cast-sel = max(0, root.cast-sel - 1);
+                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
+                            root.cast-sel -= 1;
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        root.cast-sel = min(root.cast-on ? cast-panel.n + 1 : cast-panel.n - 1, root.cast-sel + 1);
+                        if (root.cast-sel == cast-panel.n && root.cast-now == "") {
+                            root.cast-sel += 1;
+                        }
+                    } else if (event.text == Key.Return) {
+                        if (root.cast-sel < cast-panel.n) {
+                            root.cast-pick(root.cast-items[root.cast-sel].id);
+                        } else if (root.cast-sel == cast-panel.n) {
+                            root.cast-reopen();
+                        } else if (root.cast-on) {
+                            root.cast-stop();
+                        }
+                    }
+                    return EventResult.accept;
+                }
+            }
+            cast-col := VerticalLayout {
+                x: 20px * root.k;
+                y: 20px * root.k;
+                width: parent.width - 40px * root.k;
+                alignment: start;
+                spacing: 10px * root.k;
+                Text {
+                    text: Tr.t(Tr.k, "Diffuser");
+                    color: Theme.fg;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
+                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
+                        : root.cast-on ? Tr.t(Tr.k, "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran.")
+                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches.");
+                    color: Theme.muted;
+                    font-size: 13px * root.k;
+                    wrap: word-wrap;
+                }
+                for c[i] in root.cast-items: Rectangle {
+                    height: 56px * root.k;
+                    border-radius: 10px * root.k;
+                    property <bool> lit: (Nav.kb ? i == root.cast-sel : c-area.has-hover && !Nav.touch);
+                    property <bool> chosen: root.cast-on && root.cast-target == c.name;
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(self.chosen ? 0.16 : 0.07);
+                    border-width: self.chosen && !self.lit ? 1px : 0px;
+                    border-color: Theme.accent2;
+                    opacity: 1 - (1 - root.cast-p) * min(1, i * 0.4);
+                    Text {
+                        x: 16px * root.k;
+                        y: 8px * root.k;
+                        width: parent.width - 32px * root.k;
+                        text: (c.kind != "jf" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
+                        color: parent.lit ? Theme.on-accent : Theme.fg;
+                        font-size: 16px * root.k;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: 16px * root.k;
+                        y: 31px * root.k;
+                        width: parent.width - 32px * root.k;
+                        text: c.sub;
+                        color: (parent.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
+                        font-size: 12px * root.k;
+                        overflow: elide;
+                    }
+                    c-area := TouchArea {
+                        clicked => {
+                            root.cast-sel = i;
+                            root.cast-pick(c.id);
+                        }
+                    }
+                }
+                // Écran choisi : la vidéo en cours, et le lecteur-télécommande pour la piloter.
+                if root.cast-on && root.cast-now != "": ActionButton {
+                    height: 42px * root.k;
+                    text: Tr.f(Tr.k, "Voir la lecture · {}", root.cast-now, "");
+                    font: 15px * root.k;
+                    focused: Nav.kb && root.cast-sel == cast-panel.n;
+                    clicked => {
+                        root.cast-reopen();
+                    }
+                }
+                if root.cast-on: ActionButton {
+                    height: 42px * root.k;
+                    text: Tr.f(Tr.k, "Ne plus diffuser sur {}", root.cast-target, "");
+                    font: 15px * root.k;
+                    focused: Nav.kb && root.cast-sel == cast-panel.n + 1;
+                    clicked => {
+                        root.cast-stop();
+                    }
+                }
+            }
+        }
+    }
+
+    // Watch party : panneau qui descend sous son icône, en haut à droite (toucher à côté, Échap ou
+    // Retour le referment). Contenu : le groupe en cours, ou les groupes à rejoindre et « Créer ».
+    if root.party-p > 0.01 && !root.playing: Rectangle {
+        TouchArea {
+            clicked => {
+                root.close-party();
+            }
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+    party := Rectangle {
+        // Taille : celle du cadre commun (voir drop-kind), qui suit la hauteur voulue ici.
+        property <length> want-h: party-col.preferred-height + 40px * root.k;
+        changed want-h => {
+            root.party-h = self.want-h;
+        }
+        width: root.drop-w;
+        height: root.drop-h;
+        x: parent.width - self.width - 16px * root.k;
+        y: root.drop-y;
+        opacity: root.party-p;
+        clip: true;
+        // Le panneau garde les touchers (ils ne ferment pas).
+        TouchArea {
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+
+        // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
+        property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
+        // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
+        property <float> in-e: 0;
+        init => {
+            self.in-e = 1;
+            root.party-h = self.want-h;
+        }
+        animate in-e { duration: Motion.panels ? 520ms : 0ms; delay: Motion.panels ? 60ms : 0ms; easing: ease-out; }
+        pure function step(i: int) -> float {
+            let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
+            return 1 - (1 - x) * (1 - x);
+        }
+
+        FocusScope {
+            property <int> tick: root.refocus;
+            changed tick => {
+                // Panneau en train de partir (fermé) : il ne reprend pas le clavier (il l'emporterait
+                // en disparaissant, et plus rien ne répondrait).
+                if (root.party-pop && !root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            init => {
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            key-pressed(event) => {
+                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
+                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    if (root.sp-sel == 0) {
+                        root.close-party();
+                    } else {
+                        root.sp-sel -= 1;
+                    }
+                } else if (event.text == Key.DownArrow) {
+                    root.sp-sel = min(party.n - 1, root.sp-sel + 1);
+                } else if (event.text == Key.Return) {
+                    if (root.sp-active) {
+                        root.party-action("leave");
+                    } else if (root.sp-sel < root.sp-groups.length) {
+                        root.party-action(root.sp-groups[root.sp-sel].action);
+                    } else {
+                        root.party-action("create");
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.close-party();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        party-col := VerticalLayout {
+            x: 20px * root.k + (1 - party.step(0)) * 24px * root.k;
+            y: 20px * root.k;
+            width: parent.width - 40px * root.k;
+            alignment: start;
+            spacing: 14px * root.k;
+
+            Text {
+                text: Tr.t(Tr.k, "Watch party");
+                color: Theme.fg;
+                font-size: 20px * root.k;
+                font-weight: 700;
+            }
+            Text {
+                opacity: party.step(0);
+                text: root.sp-active
+                    ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
+                    : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
+                color: Theme.muted;
+                font-size: 15px * root.k;
+                wrap: word-wrap;
+            }
+            // Le groupe : état, ce qu'il regarde, participants.
+            if root.sp-active: Rectangle {
+                opacity: party.step(1);
+                height: party-card.preferred-height;
+                border-radius: 16px * root.k;
+                background: Theme.fg.with-alpha(0.07);
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                party-card := VerticalLayout {
+                    padding: 20px * root.k;
+                    spacing: 10px * root.k;
+                    HorizontalLayout {
+                        spacing: 10px * root.k;
+                        alignment: start;
+                        Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            width: 10px * root.k;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            background: root.sp-state == Tr.t(Tr.k, "En lecture") ? Theme.ok : root.sp-state == Tr.t(Tr.k, "En pause") ? Theme.warn : Theme.accent2;
+                        }
+                        Text {
+                            text: root.sp-state;
+                            color: Theme.fg;
+                            font-size: 16px * root.k;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Text {
+                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
+                        color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
+                        font-size: 16px * root.k;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: Tr.p(Tr.k, "{n} participant", "{n} participants", root.sp-count);
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px * root.k;
+                        alignment: start;
+                        height: 32px * root.k;
+                        for who[wi] in root.sp-list: Rectangle {
+                            width: who-t.preferred-width + 44px * root.k;
+                            border-radius: self.height / 2;
+                            background: Theme.fg.with-alpha(0.1);
+                            Rectangle {
+                                x: 4px * root.k;
+                                y: 4px * root.k;
+                                width: parent.height - 8px * root.k;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                                Gloss { r: parent.border-radius; strength: 0.8; }
+                                Text {
+                                    text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
+                                    color: Theme.on-accent;
+                                    font-size: 12px * root.k;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            who-t := Text {
+                                x: parent.height + 2px * root.k;
+                                text: who;
+                                color: Theme.fg;
+                                font-size: 14px * root.k;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+            if !root.sp-active && root.sp-groups.length > 0: Text {
+                opacity: party.step(1);
+                text: Tr.t(Tr.k, "REJOINDRE");
+                color: Theme.muted;
+                font-size: 12px * root.k;
+                font-weight: 700;
+            }
+            for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
+                opacity: party.step(2 + i);
+                height: 56px * root.k;
+                border-radius: 12px * root.k;
+                background: (Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.08);
+                Gloss { r: parent.border-radius; strength: 0.8; }
+                Text {
+                    x: 20px * root.k;
+                    height: parent.height;
+                    text: g.label;
+                    color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
+                    font-size: 16px * root.k;
+                    vertical-alignment: center;
+                }
+                g-area := TouchArea {
+                    clicked => {
+                        root.party-action(g.action);
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                height: 46px * root.k;
+                opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
+                ActionButton {
+                    text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
+                    font: 16px * root.k;
+                    focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
+                    clicked => {
+                        root.party-action(root.sp-active ? "leave" : "create");
+                    }
+                }
+            }
+        }
+    }
     }
 
     // Départ vers la lecture : tout plonge dans le noir (le lecteur est noir dessous).

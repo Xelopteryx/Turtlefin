@@ -1924,3 +1924,9 @@ msgstr "Kontynuuj na tym urządzeniu"
 
 msgid "Voir la lecture · {}"
 msgstr "Pokaż odtwarzanie · {}"
+
+msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
+msgstr "{} nie odtwarza HEVC: serwer konwertuje obraz, odtwarzanie może się zacinać lub nie ruszyć."
+
+msgid "Changement de piste…"
+msgstr "Zmiana ścieżki…"

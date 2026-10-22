@@ -1918,3 +1918,9 @@ msgstr "Continuar en este dispositivo"
 
 msgid "Voir la lecture · {}"
 msgstr "Ver la reproducción · {}"
+
+msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
+msgstr "{} no reproduce HEVC: el servidor convierte la imagen, la reproducción puede ir a tirones o no empezar."
+
+msgid "Changement de piste…"
+msgstr "Cambiando de pista…"

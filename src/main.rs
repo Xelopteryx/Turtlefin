@@ -21,6 +21,7 @@ mod mpv;
 mod password;
 mod paths;
 mod player;
+mod relay;
 mod syncplay;
 mod theme;
 mod update;
@@ -244,6 +245,14 @@ struct App {
     remote_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Télé DLNA : (en pause, position, durée, volume) à la dernière lecture de son état.
     dlna_state: Mutex<(bool, f64, f64, u32)>,
+    /// Télé DLNA qui lit une conversion du serveur : position (s) où la conversion a commencé. La
+    /// télé compte depuis là et ne sait pas s'y déplacer (la vidéo lui est renvoyée plus loin).
+    cast_live: Mutex<Option<f64>>,
+    /// Télé DLNA « en pause » sur une conversion (qu'elle ne sait pas mettre en pause) : arrêtée, à
+    /// relancer depuis cette position.
+    cast_held: Mutex<Option<f64>>,
+    /// Vidéo diffusée : intro et générique (segments du serveur) et ce qui en a déjà été proposé.
+    cast_marks: Mutex<CastMarks>,
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
     lx_mode: Mutex<&'static str>,
     /// Accueil rechargé au retour : carte à resélectionner (titre de la rangée, id de l'élément).
@@ -2016,6 +2025,10 @@ fn cast_refresh(app: &Arc<App>) {
 /// serveurs trouvés sur le réseau), et l'adresse de la vidéo y est reportée.
 async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::IpAddr>) -> String {
     let Some(std::net::IpAddr::V4(scr)) = screen else { return url.to_string() };
+    // Essais : TURTLEFIN_RELAY=1 fait passer par le relais même quand l'écran joint le serveur.
+    if std::env::var_os("TURTLEFIN_RELAY").is_some() {
+        return relay::url_for(url, scr).await.unwrap_or_else(|_| url.to_string());
+    }
     let same_net = |base: &str| -> bool {
         reqwest::Url::parse(base)
             .ok()
@@ -2024,26 +2037,51 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
     };
     let saved = config::load();
     let server_id = saved.server_id.clone();
-    if same_net(&client.server) {
+    // Même réseau que l'écran, et joint par ce réseau (pas par Tailscale, qui peut faire suivre le
+    // réseau de la maison jusqu'ici, voir cast::lan_reachable).
+    if same_net(&client.server) && cast::lan_reachable(&client.server, scr).await {
         note_lan_server(&server_id, &client.server);
         return url.to_string();
     }
     let known = config::ui_prefs().lan_servers.get(&server_id).cloned();
-    let mut base = known.into_iter().chain([saved.server_main.clone(), saved.server_backup.clone()]).find(|b| !b.is_empty() && same_net(b));
+    // Adresse locale mémorisée : seulement si elle répond, et que c'est bien ce serveur. Ailleurs (chez
+    // quelqu'un), le réseau a souvent les mêmes adresses (192.168.1.x) sans que le serveur y soit :
+    // la télé recevait une adresse injoignable et rien ne passait (le relais n'était pas proposé).
+    let http = api::http_client();
+    let mut base = None;
+    for b in known.into_iter().chain([saved.server_main.clone(), saved.server_backup.clone()]) {
+        if b.is_empty() || !same_net(&b) || !cast::lan_reachable(&b, scr).await {
+            continue;
+        }
+        if discovery::probe(&http, &b).await.is_some_and(|(id, ..)| server_id.is_empty() || id == server_id) {
+            base = Some(b);
+            break;
+        }
+    }
     if base.is_none() {
         for f in discovery::discover().await {
             if !server_id.is_empty() && f.id != server_id {
                 continue;
             }
-            if let Some(b) = [f.main, f.backup].into_iter().flatten().find(|b| same_net(b)) {
-                base = Some(b);
+            for b in [f.main, f.backup].into_iter().flatten() {
+                if same_net(&b) && cast::lan_reachable(&b, scr).await {
+                    base = Some(b);
+                    break;
+                }
+            }
+            if base.is_some() {
                 break;
             }
         }
     }
-    eprintln!("turtlefin : diffuser vers {scr} : serveur {}", base.as_deref().unwrap_or("(aucune adresse locale trouvée)"));
+    eprintln!("turtlefin : diffuser vers {scr} : serveur {}", base.as_deref().unwrap_or("(aucune adresse locale : relais)"));
     match base {
         Some(b) if url.starts_with(&client.server) => format!("{}{}", b.trim_end_matches('/'), &url[client.server.len()..]),
+        // Serveur hors du réseau de l'écran (Tailscale, Internet) : cet appareil relaie le flux.
+        None => relay::url_for(url, scr).await.unwrap_or_else(|e| {
+            eprintln!("turtlefin : relais impossible : {e}");
+            url.to_string()
+        }),
         _ => url.to_string(),
     }
 }
@@ -2181,7 +2219,9 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     *app.cast.lock().unwrap() = Some(target);
     let detail_id = (u.get_screen().as_str() == "detail").then(|| u.get_detail().id.to_string()).filter(|i| !i.is_empty());
     refresh_detail_buttons(app);
-    if dlna {
+    // Choisi depuis le lecteur : c'est la vidéo en cours qui part (plus bas), pas la fiche restée
+    // dessous (deux envois à la fois : la télé les refusait tous les deux).
+    if dlna && !u.get_cast_handoff() {
         if let Some(id) = detail_id {
             cast_play_item(app, id, None);
         }
@@ -2243,6 +2283,18 @@ struct CastNow {
     item: api::Item,
     audio: i32,
     sub: i32,
+}
+
+/// Intro et générique de la vidéo diffusée (pour « Passer l'intro » et « Épisode suivant » du
+/// lecteur-télécommande), et ce qui en a déjà été proposé.
+#[derive(Default)]
+struct CastMarks {
+    id: String,
+    intro: Option<(f64, f64)>,
+    outro: Option<f64>,
+    intro_shown: bool,
+    up_shown: bool,
+    advanced: bool,
 }
 
 /// Pistes d'un élément : audio et sous-titres de la première source.
@@ -2313,52 +2365,117 @@ fn push_cast_tracks(app: &Arc<App>) {
     }
 }
 
-/// Envoie la vidéo (avec ses pistes) à l'écran, à partir de `start` secondes.
-async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, start: Option<f64>) -> anyhow::Result<()> {
+/// Envoie la vidéo (avec ses pistes) à l'écran, à partir de `start` secondes. Renvoie, pour une
+/// télé DLNA à qui part une conversion du serveur, la position où elle commence (voir App::cast_live),
+/// et si l'image elle-même doit être convertie (HEVC vers une télé qui ne lit que le H.264 : lent).
+async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, start: Option<f64>) -> anyhow::Result<(Option<f64>, bool)> {
     let item = &now.item;
     let (title, _) = item.titles();
     let source = item.media_sources.as_ref().and_then(|m| m.first()).map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
     let audios = item_streams(item, "Audio");
     let default_audio = audios.iter().find(|s| s.is_default).or(audios.first()).map(|s| s.index).unwrap_or(-1);
     let audio = (now.audio >= 0 && now.audio != default_audio).then_some(now.audio);
-    let sub = item_streams(item, "Subtitle").into_iter().find(|s| s.index == now.sub).cloned();
-    // Sous-titres en texte : fichier à part (rien à convertir) ; en images : incrustés.
-    let burn = sub.as_ref().filter(|s| !s.is_text_subtitle_stream).map(|s| s.index);
-    let text_sub = sub.as_ref().filter(|s| s.is_text_subtitle_stream).map(|s| s.index);
+    let subs = item_streams(item, "Subtitle");
+    let sub = subs.iter().find(|s| s.index == now.sub).map(|s| (*s).clone());
+    let mut live = None;
+    let mut slow = false;
     match target {
         CastTarget::Jf { session, .. } => client.remote_play(session, &item.id, start).await?,
         CastTarget::Dlna(r) => {
+            // La télé lit le fichier tel quel et y prend d'elle-même les sous-titres marqués par
+            // défaut ; elle ignore les sous-titres donnés à part (Samsung). Les sous-titres voulus
+            // sont donc incrustés, et le flux réassemblé sans eux quand ils sont désactivés.
+            let default_sub = subs.iter().find(|s| s.is_default).map(|s| s.index).unwrap_or(-1);
+            let burn = sub.as_ref().map(|s| s.index);
+            let force = now.sub != default_sub;
             // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le fait
             // Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
-            let (url, mime) = client.cast_stream(&item.id, true, audio, burn).await?;
+            let hevc = cast::supports_hevc(r).await;
+            slow = !hevc && item_streams(item, "Video").first().and_then(|s| s.codec.as_deref()).is_some_and(|c| c.eq_ignore_ascii_case("hevc") || c.eq_ignore_ascii_case("h265"));
+            let (mut url, mime) = client.cast_stream(&item.id, &source, true, hevc, audio, burn, force).await?;
+            // Conversion (flux continu, où la télé ne se déplace pas) : le serveur la commence à la
+            // bonne position. Fichier lu tel quel : la télé y va elle-même.
+            let converted = mime == "video/mpeg";
+            let at = start.filter(|s| *s > 1.0);
+            if converted {
+                if let Some(s) = at {
+                    url.push_str(&format!("&StartTimeTicks={}", (s * 1e7) as i64));
+                }
+                live = Some(at.unwrap_or(0.0));
+            }
             let screen = reqwest::Url::parse(&r.av_control).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::IpAddr>().ok()));
-            let url = screen_url(client, &url, screen).await;
-            let subs = match text_sub {
-                Some(i) => Some(screen_url(client, &client.cast_subtitle_url(&item.id, &source, i, "srt"), screen).await),
-                None => None,
+            // Conversion reprise en cours de vidéo : ses horodatages partent de la reprise, et une
+            // Samsung attend alors l'image sans fin (le son passe, pause refusée). Elle passe par le
+            // relais, qui les ramène à 0.
+            let url = match (converted, at, screen) {
+                (true, Some(_), Some(std::net::IpAddr::V4(scr))) => match relay::url_rebased(&url, scr).await {
+                    Ok(u) => u,
+                    Err(_) => screen_url(client, &url, screen).await,
+                },
+                _ => screen_url(client, &url, screen).await,
             };
-            cast::play_url(r, &url, &mime, &title, subs.as_deref()).await?;
-            if let Some(s) = start {
+            cast::play_url(r, &url, &mime, &title, None).await?;
+            if let (Some(s), false) = (at, converted) {
                 let _ = cast::control(r, "seek", s).await;
             }
         }
         CastTarget::Gcast(d) => {
-            let (url, mime) = client.cast_stream(&item.id, false, audio, burn).await?;
+            // Sous-titres en texte : tous donnés à l'appareil (on passe de l'un à l'autre sans
+            // recharger, voir cast_track) ; en images : incrustés.
+            let burn = sub.as_ref().filter(|s| !s.is_text_subtitle_stream).map(|s| s.index);
+            let (url, mime) = client.cast_stream(&item.id, &source, false, false, audio, burn, false).await?;
             let url = screen_url(client, &url, Some(d.addr.ip())).await;
-            let subs = match text_sub {
-                Some(i) => Some(screen_url(client, &client.cast_subtitle_url(&item.id, &source, i, "vtt"), Some(d.addr.ip())).await),
-                None => None,
-            };
-            chromecast::play_url(d, &url, &mime, &title, start, subs.as_deref()).await?;
+            let mut tracks = Vec::new();
+            if burn.is_none() {
+                for s in subs.iter().filter(|s| s.is_text_subtitle_stream) {
+                    let url = screen_url(client, &client.cast_subtitle_url(&item.id, &source, s.index, "vtt"), Some(d.addr.ip())).await;
+                    tracks.push(chromecast::TextTrack { id: gcast_track(s.index), url, name: stream_label(s), lang: s.language.clone() });
+                }
+            }
+            let active = sub.as_ref().filter(|s| s.is_text_subtitle_stream).map(|s| gcast_track(s.index));
+            chromecast::play_url(d, &url, &mime, &title, start, &tracks, active).await?;
         }
     }
+    Ok((live, slow))
+}
+
+/// Numéro de piste Google Cast d'un sous-titre (index Jellyfin, qui peut valoir 0 ; il faut > 0).
+fn gcast_track(index: i32) -> i32 {
+    index + 1
+}
+
+/// Envoie la vidéo diffusée à l'écran à partir de `at` secondes et note où elle reprend.
+async fn cast_resend(a: &Arc<App>, client: &api::Client, target: &CastTarget, now: &CastNow, at: Option<f64>) -> anyhow::Result<()> {
+    let (live, slow) = cast_send(client, target, now, at).await?;
+    *a.cast_live.lock().unwrap() = live;
+    *a.cast_held.lock().unwrap() = None;
+    if slow {
+        let msg = trf("{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer.", &[&target.name()]);
+        let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+    }
     Ok(())
+}
+
+/// Télé DLNA qui lit une conversion : aller à `to` secondes, c'est lui renvoyer la vidéo depuis là
+/// (None : la télé sait se déplacer elle-même).
+async fn cast_live_seek(a: &Arc<App>, target: &CastTarget, to: f64) -> Option<anyhow::Result<()>> {
+    if !matches!(target, CastTarget::Dlna(_)) || a.cast_live.lock().unwrap().is_none() {
+        return None;
+    }
+    let now = a.cast_now.lock().unwrap().clone()?;
+    let client = a.client()?;
+    Some(cast_resend(a, &client, target, &now, Some(to.max(0.0))).await)
 }
 
 /// Lire un élément sur l'appareil piloté (série / saison : l'épisode à suivre), avec les pistes
 /// préférées. `at` : position imposée (vidéo passée depuis le lecteur), sinon là où on en était.
 fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
     let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
+    // Le serveur peut mettre un moment à préparer la vidéo (sous-titres extraits, conversion) :
+    // le lecteur-télécommande le dit.
+    if let Some(u) = app.ui().upgrade().filter(|u| u.get_p_remote()) {
+        u.set_p_remote_busy(tr("Chargement…").into());
+    }
     let a = app.clone();
     app.rt.spawn(async move {
         let res: anyhow::Result<String> = async {
@@ -2366,7 +2483,7 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
             let start = at.or_else(|| item.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).filter(|s| *s > 5.0));
             let (audio, sub) = cast_tracks(&item);
             let now = CastNow { item, audio, sub };
-            cast_send(&client, &target, &now, start).await?;
+            cast_resend(&a, &client, &target, &now, start).await?;
             let title = now.item.titles().0;
             *a.cast_now.lock().unwrap() = Some(now);
             Ok(title)
@@ -2379,6 +2496,7 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
         };
         let a2 = a.clone();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_p_remote_busy("".into());
             if ok {
                 push_cast_tracks(&a2);
                 open_remote_player(&a2);
@@ -2394,6 +2512,7 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
 fn cast_track(app: &Arc<App>, kind: &str, id: i32) {
     let (Some(client), Some(target)) = (app.client(), app.cast.lock().unwrap().clone()) else { return };
     let Some(mut now) = app.cast_now.lock().unwrap().clone() else { return };
+    let old_sub = now.sub;
     if kind == "audio" {
         now.audio = id;
     } else {
@@ -2413,13 +2532,36 @@ fn cast_track(app: &Arc<App>, kind: &str, id: i32) {
     }
     *app.cast_now.lock().unwrap() = Some(now.clone());
     push_cast_tracks(app);
+    // Chromecast, sous-titres en texte (ou aucun) avant comme après : l'appareil a déjà toutes les
+    // pistes de texte, il change d'affichage sans recharger la vidéo.
+    let text = |i: i32| i < 0 || item_streams(&now.item, "Subtitle").iter().any(|s| s.index == i && s.is_text_subtitle_stream);
+    let switch = matches!(target, CastTarget::Gcast(_)) && kind == "sub" && text(old_sub) && text(id);
     let a = app.clone();
-    app.rt.spawn(async move {
-        let pos = target_state(&a, &target).await.map(|s| s.2).filter(|p| *p > 1.0);
-        if let Err(e) = cast_send(&client, &target, &now, pos).await {
-            let msg = trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]);
-            let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+    if let Some(u) = app.ui().upgrade() {
+        // Le lecteur-télécommande coche la nouvelle piste.
+        if u.get_p_remote() {
+            push_remote_tracks(&u, &now);
         }
+        if !switch {
+            u.set_p_remote_busy(tr("Changement de piste…").into());
+        }
+    }
+    app.rt.spawn(async move {
+        let res = match (&target, switch) {
+            (CastTarget::Gcast(d), true) => chromecast::set_text_track(d, (id >= 0).then(|| gcast_track(id))).await,
+            _ => {
+                // La vidéo repart sur l'écran au même endroit, avec la nouvelle piste.
+                let pos = target_state(&a, &target).await.map(|s| s.2).filter(|p| *p > 1.0);
+                cast_resend(&a, &client, &target, &now, pos).await
+            }
+        };
+        let msg = res.err().map(|e| trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]));
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_p_remote_busy("".into());
+            if let Some(m) = msg {
+                u.set_toast(m.into());
+            }
+        });
     });
 }
 
@@ -2442,17 +2584,7 @@ fn open_remote_player(app: &Arc<App>) {
     u.set_p_episodes(ModelRc::default());
     u.set_p_has_bg(false);
     u.set_p_volume(app.dlna_state.lock().unwrap().3 as i32);
-    // Pistes : celles de la vidéo (index Jellyfin) ; « no » : sans sous-titres.
-    let audio: Vec<TrackData> = item_streams(&now.item, "Audio")
-        .into_iter()
-        .map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.audio })
-        .collect();
-    let mut subs = vec![TrackData { id: "no".into(), label: tr("Désactivés").into(), current: now.sub < 0 }];
-    subs.extend(item_streams(&now.item, "Subtitle").into_iter().map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.sub }));
-    u.set_audio_current(audio.iter().position(|t| t.current).unwrap_or(0) as i32);
-    u.set_sub_current(subs.iter().position(|t| t.current).unwrap_or(0) as i32);
-    u.set_audio_tracks(ModelRc::new(VecModel::from(audio)));
-    u.set_sub_tracks(ModelRc::new(VecModel::from(subs)));
+    push_remote_tracks(&u, &now);
     u.set_cast_pop(false);
     u.set_p_remote(true);
     u.set_playing(true);
@@ -2460,6 +2592,11 @@ fn open_remote_player(app: &Arc<App>) {
     let (Some(client), a) = (app.client(), app.clone()) else { return };
     let item = now.item.clone();
     app.rt.spawn(async move {
+        // Intro et générique de cette vidéo (rien n'est encore proposé).
+        if a.cast_marks.lock().unwrap().id != item.id {
+            let (intro, outro) = client.segments(&item.id).await;
+            *a.cast_marks.lock().unwrap() = CastMarks { id: item.id.clone(), intro, outro, ..Default::default() };
+        }
         let eps = player::series_episodes(Some(&client), Some(&item)).await;
         let i = eps.iter().position(|e| *e == item.id);
         let (prev, next) = (i.is_some_and(|i| i > 0), i.is_some_and(|i| i + 1 < eps.len()));
@@ -2482,6 +2619,21 @@ fn open_remote_player(app: &Arc<App>) {
     });
 }
 
+/// Pistes du lecteur-télécommande : celles de la vidéo diffusée (index Jellyfin), la choisie
+/// cochée ; « no » : sans sous-titres.
+fn push_remote_tracks(u: &AppWindow, now: &CastNow) {
+    let audio: Vec<TrackData> = item_streams(&now.item, "Audio")
+        .into_iter()
+        .map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.audio })
+        .collect();
+    let mut subs = vec![TrackData { id: "no".into(), label: tr("Désactivés").into(), current: now.sub < 0 }];
+    subs.extend(item_streams(&now.item, "Subtitle").into_iter().map(|s| TrackData { id: s.index.to_string().into(), label: stream_label(s).into(), current: s.index == now.sub }));
+    u.set_audio_current(audio.iter().position(|t| t.current).unwrap_or(0) as i32);
+    u.set_sub_current(subs.iter().position(|t| t.current).unwrap_or(0) as i32);
+    u.set_audio_tracks(ModelRc::new(VecModel::from(audio)));
+    u.set_sub_tracks(ModelRc::new(VecModel::from(subs)));
+}
+
 /// Le lecteur-télécommande se ferme (la vidéo continue sur l'écran ; le bandeau du bas y ramène).
 fn close_remote_player(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
@@ -2501,7 +2653,27 @@ fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
     match verb {
         "stop" | "home" => close_remote_player(app),
         "pause" => send_cmd(app, target, "playpause"),
-        "seek" | "seek-to" | "volume" => {
+        // « Passer l'intro » : à la fin de l'intro (segment du serveur).
+        "skip-intro" => {
+            if let Some(u) = app.ui().upgrade() {
+                u.set_p_skip_intro(false);
+            }
+            let end = app.cast_marks.lock().unwrap().intro.map(|i| i.1);
+            if let Some(e) = end {
+                remote_player_cmd(app, &format!("seek-abs:{e}"));
+            }
+        }
+        // Carte « Épisode suivant » : le lancer, ou la fermer.
+        "up" => {
+            if let Some(u) = app.ui().upgrade() {
+                u.set_p_up_mode("".into());
+            }
+            if arg == "play" {
+                app.cast_marks.lock().unwrap().advanced = true;
+                remote_player_cmd(app, "episode:1");
+            }
+        }
+        "seek" | "seek-to" | "seek-abs" | "volume" => {
             let a = app.clone();
             let (verb, arg) = (verb.to_string(), arg.to_string());
             app.rt.spawn(async move {
@@ -2518,9 +2690,16 @@ fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
                         }
                     }
                     _ => {
-                        let to = if verb == "seek" { pos + arg.parse::<f64>().unwrap_or(0.0) } else { arg.parse::<f64>().unwrap_or(0.0) * dur };
+                        let x = arg.parse::<f64>().unwrap_or(0.0);
+                        let to = match verb.as_str() {
+                            "seek" => pos + x,
+                            "seek-abs" => x,
+                            _ => x * dur,
+                        };
                         if verb == "seek-to" && dur <= 0.0 {
                             Ok(())
+                        } else if let Some(r) = cast_live_seek(&a, &target, to).await {
+                            r
                         } else {
                             match &target {
                                 CastTarget::Dlna(r) => cast::control(r, "seek", to.max(0.0)).await,
@@ -2622,11 +2801,89 @@ async fn target_state(a: &Arc<App>, target: &CastTarget) -> Option<(String, bool
             (String::new(), paused, pos, dur)
         }),
         CastTarget::Dlna(r) => cast::status(r).await.map(|(paused, pos, dur, vol)| {
+            let len = || a.cast_now.lock().unwrap().as_ref().and_then(|n| n.item.run_time_ticks).map(|t| t as f64 / 1e7).unwrap_or(0.0);
+            // En pause par arrêt (voir App::cast_held) : la position notée, en pause.
+            if let Some(at) = *a.cast_held.lock().unwrap() {
+                let mut st = a.dlna_state.lock().unwrap();
+                let v = vol.unwrap_or(st.3);
+                *st = (true, at, len(), v);
+                return (String::new(), true, at, len());
+            }
+            // Conversion : la télé compte depuis son début et n'en connaît pas la durée (celle de la
+            // vidéo, donnée par le serveur).
+            let (pos, dur) = match *a.cast_live.lock().unwrap() {
+                Some(off) => (pos + off, if dur > 0.0 { dur + off } else { len() }),
+                None => (pos, dur),
+            };
             let mut st = a.dlna_state.lock().unwrap();
             let v = vol.unwrap_or(st.3);
             *st = (paused, pos, dur, v);
             (String::new(), paused, pos, dur)
         }),
+    }
+}
+
+/// Vidéo diffusée à `pos` / `dur` secondes : comme le lecteur, « Passer l'intro » quand l'intro
+/// commence (ou intro sautée, selon le réglage), « Épisode suivant » au générique, et l'épisode
+/// suivant lancé à la fin (réglage du compte Jellyfin).
+fn cast_marks_tick(a: &Arc<App>, pos: f64, dur: f64, paused: bool) {
+    let Some(now) = a.cast_now.lock().unwrap().clone() else { return };
+    let next = {
+        let eps = a.cast_eps.lock().unwrap();
+        eps.iter().position(|e| *e == now.item.id).and_then(|i| eps.get(i + 1)).cloned()
+    };
+    let (mut skip_to, mut show_skip, mut show_up, mut go_next) = (None, false, false, false);
+    {
+        let mut m = a.cast_marks.lock().unwrap();
+        if m.id != now.item.id || dur <= 0.0 {
+            return;
+        }
+        if let Some((s, e)) = m.intro {
+            if !m.intro_shown && pos >= s && pos < e - 2.0 {
+                m.intro_shown = true;
+                if config::ui_prefs().auto_skip_intro {
+                    skip_to = Some(e);
+                } else {
+                    show_skip = true;
+                }
+            }
+        }
+        // Générique : début du segment « Outro », sinon les 3 dernières % (au moins 40 s).
+        let outro_at = m.outro.unwrap_or(dur - (dur * 0.03).max(40.0));
+        if !m.up_shown && dur > 120.0 && pos >= outro_at && pos < dur - 2.0 {
+            m.up_shown = true;
+            show_up = true;
+        }
+        if !m.advanced && next.is_some() && pos >= dur - 2.5 && (paused || pos >= dur - 1.0) && player::autonext(a) {
+            m.advanced = true;
+            go_next = true;
+        }
+    }
+    if let Some(e) = skip_to {
+        remote_player_cmd(a, &format!("seek-abs:{e}"));
+        let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Intro passée").into()));
+    }
+    if show_skip {
+        let _ = a.ui().upgrade_in_event_loop(|u| u.set_p_skip_intro(true));
+        let a2 = a.clone();
+        a.rt.spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let _ = a2.ui().upgrade_in_event_loop(|u| u.set_p_skip_intro(false));
+        });
+    }
+    if show_up {
+        if let Some(c) = a.client() {
+            player::show_up_next(a, Some(&c), Some(&now.item), next.clone(), false);
+        }
+    }
+    if go_next {
+        if let Some(n) = next {
+            let a2 = a.clone();
+            let _ = a.ui().upgrade_in_event_loop(move |u| {
+                u.set_p_up_mode("".into());
+                cast_play_item(&a2, n, Some(0.0));
+            });
+        }
     }
 }
 
@@ -2645,6 +2902,9 @@ fn start_cast_poll(app: &Arc<App>) {
         loop {
             let Some(target) = a.cast.lock().unwrap().clone() else { return };
             if let Some((now, paused, pos, dur)) = target_state(&a, &target).await {
+                cast_marks_tick(&a, pos, dur, paused);
+                // Volume de l'écran (DLNA, Chromecast), relu avec le reste.
+                let vol = (!matches!(target, CastTarget::Jf { .. })).then(|| a.dlna_state.lock().unwrap().3 as i32);
                 let _ = a.ui().upgrade_in_event_loop(move |u| {
                     let (p, t) = clock_pair(pos, dur);
                     if !now.is_empty() {
@@ -2654,6 +2914,9 @@ fn start_cast_poll(app: &Arc<App>) {
                     u.set_cast_pos(p);
                     u.set_cast_time(t.into());
                     if u.get_p_remote() {
+                        if let Some(v) = vol {
+                            u.set_p_volume(v);
+                        }
                         u.set_p_paused(paused);
                         u.set_p_progress(p);
                         u.set_p_pos_text(fmt_clock(pos).into());
@@ -2806,11 +3069,31 @@ fn send_cmd(app: &Arc<App>, target: CastTarget, c: &str) {
             CastTarget::Dlna(r) => {
                 let (paused, pos, _dur, vol) = *a.dlna_state.lock().unwrap();
                 let r2 = r.clone();
+                let jump = match c.as_str() {
+                    "ff" => Some(pos + 30.0),
+                    "rew" => Some((pos - 10.0).max(0.0)),
+                    _ => None,
+                };
+                let live = match jump {
+                    Some(to) => cast_live_seek(&a, &target, to).await,
+                    None => None,
+                };
+                let held = *a.cast_held.lock().unwrap();
                 match c.as_str() {
-                    "playpause" => cast::control(&r2, if paused { "play" } else { "pause" }, 0.0).await,
+                    _ if live.is_some() => live.unwrap_or(Ok(())),
+                    // Reprise d'une pause faite en arrêtant (voir plus bas) : la vidéo repart d'où elle était.
+                    "playpause" if held.is_some() => cast_live_seek(&a, &target, held.unwrap_or(pos)).await.unwrap_or(Ok(())),
+                    // Conversion en cours (flux continu) : une Samsung accepte la pause puis reste
+                    // bloquée en chargement (seul « Stop » permis). Elle s'arrête plutôt ; la
+                    // lecture reprendra au même endroit.
+                    "playpause" if a.cast_live.lock().unwrap().is_some() => {
+                        *a.cast_held.lock().unwrap() = Some(pos);
+                        cast::control(&r2, "stop", 0.0).await
+                    }
+                    "playpause" if paused => cast::control(&r2, "play", 0.0).await,
+                    "playpause" => cast::control(&r2, "pause", 0.0).await,
                     "stop" => cast::control(&r2, "stop", 0.0).await,
-                    "ff" => cast::control(&r2, "seek", pos + 30.0).await,
-                    "rew" => cast::control(&r2, "seek", (pos - 10.0).max(0.0)).await,
+                    "ff" | "rew" => cast::control(&r2, "seek", jump.unwrap_or(pos)).await,
                     "vol+" | "vol-" | "mute" => {
                         let v = match c.as_str() { "vol+" => (vol + 5).min(100), "vol-" => vol.saturating_sub(5), _ => 0 };
                         a.dlna_state.lock().unwrap().3 = v;
@@ -6495,6 +6778,12 @@ impl Swipe {
                     self.id = None;
                     return false;
                 }
+                // Lecteur-télécommande : pas de vidéo ici, donc pas de geste ; les touchers vont aux
+                // boutons et aux barres (volume de l'écran, temps).
+                if u.get_playing() && u.get_p_remote() {
+                    self.id = None;
+                    return false;
+                }
                 // Lecture : doigt posé sur la barre de temps ou de volume : il la règle (pas de geste).
                 if u.get_playing() {
                     let (x, y) = ((p.0 / s) as f32 - u.get_p_ox(), (p.1 / s) as f32 - u.get_p_oy());
@@ -6924,6 +7213,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),
         dlna_state: Mutex::new((false, 0.0, 0.0, 30)),
+        cast_live: Mutex::new(None),
+        cast_held: Mutex::new(None),
+        cast_marks: Mutex::new(CastMarks::default()),
         lx_paths: Mutex::new(Vec::new()),
         lx_mode: Mutex::new("lang"),
         home_keep: Mutex::new(None),

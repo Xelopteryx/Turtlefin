@@ -364,9 +364,18 @@ impl Conn {
     }
 }
 
+/// Piste de sous-titres WebVTT donnée à l'appareil : numéro (> 0), adresse, nom, langue.
+pub struct TextTrack {
+    pub id: i32,
+    pub url: String,
+    pub name: String,
+    pub lang: Option<String>,
+}
+
 /// Fait lire `url` par l'appareil (type MIME `mime`), à partir de `start` secondes.
-/// `subs` : adresse d'un fichier de sous-titres WebVTT, affiché par l'appareil (piste de texte).
-pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: Option<f64>, subs: Option<&str>) -> Result<()> {
+/// `subs` : sous-titres WebVTT de la vidéo, tous donnés à l'appareil (on passe de l'un à l'autre
+/// ensuite sans recharger, voir set_text_track) ; `active` : celui affiché.
+pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: Option<f64>, subs: &[TextTrack], active: Option<i32>) -> Result<()> {
     let mut c = Conn::open(dev).await?;
     let tid = c.media_app(true).await?.ok_or_else(|| anyhow!("lecteur indisponible"))?;
     let mut load = json!({
@@ -383,15 +392,35 @@ pub async fn play_url(dev: &Device, url: &str, mime: &str, title: &str, start: O
     if let Some(s) = start {
         load["currentTime"] = json!(s);
     }
-    if let Some(vtt) = subs {
-        load["media"]["tracks"] = json!([{
-            "trackId": 1, "type": "TEXT", "trackContentId": vtt, "trackContentType": "text/vtt", "subtype": "SUBTITLES", "name": "Sous-titres"
-        }]);
-        load["activeTrackIds"] = json!([1]);
+    if !subs.is_empty() {
+        load["media"]["tracks"] = subs
+            .iter()
+            .map(|t| {
+                let mut j = json!({ "trackId": t.id, "type": "TEXT", "trackContentId": t.url, "trackContentType": "text/vtt", "subtype": "SUBTITLES", "name": t.name });
+                if let Some(l) = &t.lang {
+                    j["language"] = json!(l);
+                }
+                j
+            })
+            .collect();
+        load["activeTrackIds"] = json!(active.into_iter().collect::<Vec<_>>());
     }
     let r = c.request(&tid, NS_MEDIA, load).await?;
     match r["type"].as_str() {
         Some("LOAD_FAILED" | "LOAD_CANCELLED" | "INVALID_REQUEST") => Err(anyhow!("la vidéo a été refusée par l'appareil")),
+        _ => Ok(()),
+    }
+}
+
+/// Sous-titres affichés : une des pistes données à la lecture (play_url), ou aucune ; sans recharger.
+pub async fn set_text_track(dev: &Device, track: Option<i32>) -> Result<()> {
+    let mut c = Conn::open(dev).await?;
+    let tid = c.media_app(false).await?.ok_or_else(|| anyhow!("rien en lecture"))?;
+    let (id, ..) = c.media_status(&tid).await?.ok_or_else(|| anyhow!("rien en lecture"))?;
+    let ids: Vec<i32> = track.into_iter().collect();
+    let r = c.request(&tid, NS_MEDIA, json!({ "type": "EDIT_TRACKS_INFO", "mediaSessionId": id, "activeTrackIds": ids })).await?;
+    match r["type"].as_str() {
+        Some("INVALID_REQUEST" | "LOAD_FAILED") => Err(anyhow!("piste refusée par l'appareil")),
         _ => Ok(()),
     }
 }
@@ -461,7 +490,8 @@ mod tests {
         let dev = Device { name: "essai".into(), id: String::new(), addr };
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            play_url(&dev, &url, &mime, "Essai Turtlefin", Some(60.0), vtt.as_deref()).await.unwrap();
+            let subs: Vec<TextTrack> = vtt.into_iter().map(|url| TextTrack { id: 1, url, name: "Sous-titres".into(), lang: None }).collect();
+            play_url(&dev, &url, &mime, "Essai Turtlefin", Some(60.0), &subs, subs.first().map(|t| t.id)).await.unwrap();
             for _ in 0..6 {
                 tokio::time::sleep(Duration::from_secs(4)).await;
                 println!("état : {:?}", status(&dev).await);

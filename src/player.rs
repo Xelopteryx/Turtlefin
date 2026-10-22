@@ -967,7 +967,7 @@ fn card_data(c: &api::CardInfo) -> CardData {
 }
 
 /// Réglage du compte « Épisode suivant automatique » (activé par défaut).
-fn autonext(app: &Arc<App>) -> bool {
+pub fn autonext(app: &Arc<App>) -> bool {
     app.user_cfg.lock().unwrap()["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)
 }
 
@@ -975,7 +975,7 @@ fn autonext(app: &Arc<App>) -> bool {
 /// - un épisode suit : « Épisode suivant » (ou « Saison suivante » s'il ouvre une autre saison) ;
 /// - sinon (fin de série, film) : 3 titres au hasard parmi « Plus de ce genre », la vidéo réduite
 ///   en haut à gauche ; à la fin du fichier (`ended`), écran de fin avec « Retour à l'accueil ».
-fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, next: Option<String>, ended: bool) {
+pub fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, next: Option<String>, ended: bool) {
     let (Some(c), Some(it)) = (client.cloned(), item.cloned()) else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {

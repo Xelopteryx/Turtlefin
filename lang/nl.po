@@ -1918,3 +1918,9 @@ msgstr "Verder op dit apparaat"
 
 msgid "Voir la lecture · {}"
 msgstr "Afspelen tonen · {}"
+
+msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
+msgstr "{} speelt geen HEVC af: de server zet het beeld om, het afspelen kan haperen of niet starten."
+
+msgid "Changement de piste…"
+msgstr "Spoor wisselen…"

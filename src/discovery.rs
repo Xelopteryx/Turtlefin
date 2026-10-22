@@ -33,7 +33,12 @@ pub struct Found {
 }
 
 fn http() -> reqwest::Client {
-    let mut b = crate::api::http_builder().timeout(Duration::from_millis(2500)).connect_timeout(Duration::from_millis(700)).redirect(crate::api::redirect_policy());
+    http_with(Duration::from_millis(1500))
+}
+
+/// Client des sondages, connexion limitée à `connect` (le total l'est par probe).
+fn http_with(connect: Duration) -> reqwest::Client {
+    let mut b = crate::api::http_builder().timeout(Duration::from_millis(2500)).connect_timeout(connect).redirect(crate::api::redirect_policy());
     if std::env::var("TURTLEFIN_INSECURE").is_ok() {
         b = b.danger_accept_invalid_certs(true);
     }
@@ -80,8 +85,11 @@ fn interface_hosts() -> Vec<(Ipv4Addr, Vec<Ipv4Addr>)> {
         if a.ip.is_loopback() || a.ip.is_link_local() || a.ip.is_unspecified() || !itf.is_oper_up() {
             continue;
         }
-        // Pas de sous-réseau utile (/31, /32 : VPN maillé) : rien à balayer ici.
-        if a.prefixlen >= 31 {
+        // Pas de sous-réseau utile (/31, /32 : VPN maillé) : rien à balayer ici. Seuls les réseaux
+        // privés (192.168…, 10…, 172.16…) sont balayés : les données mobiles d'un téléphone ont souvent
+        // une adresse d'opérateur en 100.64/10 avec un /24, et on sondait alors les appareils d'autres
+        // abonnés (lent, et indiscret).
+        if a.prefixlen >= 31 || !a.ip.is_private() {
             out.push((a.ip, Vec::new()));
             continue;
         }
@@ -196,8 +204,54 @@ pub async fn discover() -> Vec<Found> {
         tokio::task::spawn_blocking(move || udp_discovery(&direct))
     };
 
+    // Adresses déjà connues (session, adresses locales notées) : sondées telles quelles, avec un
+    // délai généreux. Sur un téléphone, un serveur joint par Tailscale n'est trouvé que par elles
+    // (pas de liste des pairs Tailscale sur Android, interface en /32, table des voisins interdite).
+    // Serveurs déjà trouvés : leurs adresses vues, et leur nom comme nom Tailscale (MagicDNS : un
+    // serveur « ABYDOS » sur la machine « abydos » se joint par http://abydos:8096 où qu'on soit ; le
+    // téléphone, lui, ne connaissait que son adresse locale). Un nom deviné n'est gardé que s'il mène
+    // au même serveur (même identifiant).
+    let known_tasks: Vec<_> = {
+        let s = crate::config::load();
+        let prefs = crate::config::ui_prefs();
+        let mut known: Vec<(String, Option<String>)> = [s.server, s.server_main, s.server_backup].into_iter().map(|b| (b, None)).collect();
+        known.extend(prefs.lan_servers.into_values().map(|b| (b, None)));
+        for (id, k) in &prefs.known_servers {
+            known.extend(k.addrs.iter().map(|b| (b.clone(), None)));
+            if let Some(host) = magic_name(&k.name) {
+                let mut ports: Vec<String> = k.addrs.iter().filter_map(|a| a.rsplit(':').next().filter(|p| p.parse::<u16>().is_ok()).map(str::to_string)).collect();
+                ports.sort();
+                ports.dedup();
+                if ports.is_empty() {
+                    ports.push("8096".into());
+                }
+                known.extend(ports.into_iter().map(|p| (format!("http://{host}:{p}"), Some(id.clone()))));
+            }
+        }
+        known.retain(|(b, _)| b.starts_with("http://") || b.starts_with("https://"));
+        known.iter_mut().for_each(|(b, _)| *b = b.trim_end_matches('/').to_string());
+        known.sort();
+        known.dedup_by(|a, b| a.0 == b.0);
+        let slow = http_with(Duration::from_secs(3));
+        known
+            .into_iter()
+            .map(|(base, want)| {
+                let slow = slow.clone();
+                tokio::spawn(async move {
+                    let (id, name, version) = probe(&slow, &base).await?;
+                    if want.is_some_and(|w| w != id) {
+                        return None;
+                    }
+                    Some((base, id, name, version))
+                })
+            })
+            .collect()
+    };
+
     // Sondage : connexion TCP rapide, puis requête HTTP(S) seulement si le port répond.
-    let permits = Arc::new(tokio::sync::Semaphore::new(192));
+    // 512 essais à la fois : avec 1 s par hôte muet, plusieurs /24 (cartes virtuelles…) restent
+    // sondés en quelques secondes.
+    let permits = Arc::new(tokio::sync::Semaphore::new(512));
     let mut tasks = Vec::new();
     for ip in hosts {
         for port in PORTS {
@@ -205,7 +259,9 @@ pub async fn discover() -> Vec<Found> {
             tasks.push(tokio::spawn(async move {
                 let _p = permits.acquire().await.ok()?;
                 let addr = SocketAddr::new(IpAddr::V4(ip), port);
-                tokio::time::timeout(Duration::from_millis(400), tokio::net::TcpStream::connect(addr)).await.ok()?.ok()?;
+                // Un téléphone en Wi-Fi (économie d'énergie) ou un VPN répondent parfois en plus de
+                // 400 ms : le serveur n'était alors trouvé qu'une fois sur deux.
+                tokio::time::timeout(Duration::from_millis(1000), tokio::net::TcpStream::connect(addr)).await.ok()?.ok()?;
                 let scheme = if port == 8920 { "https" } else { "http" };
                 let base = format!("{scheme}://{ip}:{port}");
                 let (id, name, version) = probe(&client, &base).await?;
@@ -215,9 +271,11 @@ pub async fn discover() -> Vec<Found> {
     }
 
     let mut hits: Vec<(String, String, String, String)> = Vec::new();
-    for t in tasks {
+    for t in tasks.into_iter().chain(known_tasks) {
         if let Ok(Some(h)) = t.await {
-            hits.push(h);
+            if !hits.iter().any(|x| x.0 == h.0) {
+                hits.push(h);
+            }
         }
     }
     for (addr, id, name) in udp.await.unwrap_or_default() {
@@ -267,7 +325,37 @@ pub async fn discover() -> Vec<Found> {
         }
     }
     found.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    remember(&found);
     found
+}
+
+/// Nom de machine (MagicDNS) tiré du nom d'un serveur : « ABYDOS » -> « abydos ». Rien si le nom
+/// n'en est pas un (espaces, accents…) ou si c'est une adresse.
+fn magic_name(name: &str) -> Option<String> {
+    let h = name.trim().to_ascii_lowercase();
+    let ok = !h.is_empty() && h.len() <= 63 && h.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && !h.starts_with('-') && h.parse::<Ipv4Addr>().is_err();
+    ok.then_some(h)
+}
+
+/// Note les serveurs trouvés et leurs adresses (les plus récentes d'abord, 6 au plus par serveur).
+fn remember(found: &[Found]) {
+    if found.is_empty() {
+        return;
+    }
+    let mut p = crate::config::ui_prefs();
+    let before = p.known_servers.clone();
+    for f in found {
+        let k = p.known_servers.entry(f.id.clone()).or_default();
+        k.name = f.name.clone();
+        for a in [&f.main, &f.backup].into_iter().flatten().rev() {
+            k.addrs.retain(|x| x != a);
+            k.addrs.insert(0, a.clone());
+        }
+        k.addrs.truncate(6);
+    }
+    if p.known_servers != before {
+        crate::config::save_ui_prefs(&p);
+    }
 }
 
 /// Hôte d'une adresse (« http://192.168.1.32:8097 » -> « 192.168.1.32 »).
@@ -350,4 +438,17 @@ pub async fn pick(main: &str, backup: &str) -> String {
         }
     }
     candidates[0].to_string()
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn magic_names() {
+        assert_eq!(super::magic_name("ABYDOS").as_deref(), Some("abydos"));
+        assert_eq!(super::magic_name("pc-salon").as_deref(), Some("pc-salon"));
+        // Pas un nom de machine : rien n'est deviné.
+        assert_eq!(super::magic_name("Mon serveur"), None);
+        assert_eq!(super::magic_name("Médiathèque"), None);
+        assert_eq!(super::magic_name("192.168.1.32"), None);
+        assert_eq!(super::magic_name(""), None);
+    }
 }

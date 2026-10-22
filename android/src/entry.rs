@@ -178,6 +178,69 @@ pub fn multicast_for(secs: u64) {
     });
 }
 
+#[link(name = "android")]
+extern "C" {
+    fn android_setsocknetwork(network: u64, fd: std::os::raw::c_int) -> std::os::raw::c_int;
+}
+
+/// Réseau local (Wi-Fi, sinon Ethernet) : son identifiant système (Network.getNetworkHandle).
+fn lan_network() -> Option<u64> {
+    let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed) as usize;
+    if act == 0 {
+        return None;
+    }
+    let ctx = ndk_context::android_context();
+    // SAFETY : comme lock_landscape (machine virtuelle et activité valables toute la vie du processus).
+    let result = (|| -> jni::errors::Result<Option<u64>> {
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+        let mut env = vm.attach_current_thread()?;
+        let activity = unsafe { jni::objects::JObject::from_raw(act as *mut _) };
+        env.with_local_frame(32, |env| {
+            let name = env.new_string("connectivity")?;
+            let cm = env.call_method(&activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&name).into()])?.l()?;
+            let nets = jni::objects::JObjectArray::from(env.call_method(&cm, "getAllNetworks", "()[Landroid/net/Network;", &[])?.l()?);
+            let mut found = None;
+            for i in 0..env.get_array_length(&nets)? {
+                let net = env.get_object_array_element(&nets, i)?;
+                let caps = env.call_method(&cm, "getNetworkCapabilities", "(Landroid/net/Network;)Landroid/net/NetworkCapabilities;", &[(&net).into()])?.l()?;
+                if caps.is_null() {
+                    continue;
+                }
+                // 1 : Wi-Fi, 3 : Ethernet, 4 : VPN (exclu).
+                let has = |env: &mut jni::JNIEnv, t: i32| env.call_method(&caps, "hasTransport", "(I)Z", &[t.into()]).and_then(|v| v.z());
+                if has(env, 4)? {
+                    continue;
+                }
+                let wifi = has(env, 1)?;
+                if wifi || has(env, 3)? {
+                    let h = env.call_method(&net, "getNetworkHandle", "()J", &[])?.j()? as u64;
+                    found = Some(h);
+                    if wifi {
+                        break;
+                    }
+                }
+            }
+            Ok(found)
+        })
+    })();
+    result.unwrap_or_else(|e| {
+        eprintln!("turtlefin : réseau local : {e}");
+        None
+    })
+}
+
+/// Attache la prise `fd` au réseau local (Wi-Fi) : avec un VPN actif (Tailscale), Android pouvait
+/// envoyer les recherches d'écrans et leurs réponses par le VPN, et les écrans n'apparaissaient
+/// qu'au hasard. Sans réseau local trouvé, rien n'est changé.
+pub fn bind_to_lan(fd: std::os::raw::c_int) {
+    if let Some(net) = lan_network() {
+        // SAFETY : `fd` est une prise ouverte qui appartient à l'appelant ; seul son réseau change.
+        if unsafe { android_setsocknetwork(net, fd) } != 0 {
+            eprintln!("turtlefin : prise non attachée au réseau local");
+        }
+    }
+}
+
 /// Icône du lanceur aux couleurs du thème `key` : active son entrée (activity-alias « .Icon_<key> »
 /// du manifeste) et désactive les autres, sans fermer l'appli. Rien n'est fait si c'est déjà la bonne.
 pub fn set_launcher_icon(key: &str) {
