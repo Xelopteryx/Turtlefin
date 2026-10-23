@@ -1,6 +1,6 @@
 [package]
 name = "turtlefin"
-version = "1.2.0"
+version = "1.9.5"
 edition = "2021"
 description = "Client Jellyfin natif (Rust + Slint), sans Qt ni navigateur embarqué"
 repository = "https://github.com/Xelopteryx/Turtlefin"
