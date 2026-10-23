@@ -336,6 +336,71 @@ fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
     u.set_detail(new);
 }
 
+/// Rangées du bas d'une fiche remplacées par celles d'un autre média : mises à jour sur place. Les
+/// cartes changent de média (elles se retournent, voir Card) ; une rangée en trop s'en va en glissant
+/// avant d'être retirée ; une rangée en plus arrive comme à l'ouverture.
+fn set_rows_in_place(u: &AppWindow, sections: Vec<Section>) {
+    let cur = u.get_detail_rows();
+    let Some(vm) = cur.as_any().downcast_ref::<VecModel<Section>>() else {
+        u.set_detail_rows(ModelRc::new(VecModel::from(sections)));
+        return;
+    };
+    if vm.row_count() == 0 {
+        u.set_detail_rows(ModelRc::new(VecModel::from(sections)));
+        return;
+    }
+    let n = sections.len();
+    for (i, s) in sections.into_iter().enumerate() {
+        match vm.row_data(i) {
+            Some(mut old) => {
+                // Mêmes cartes à jour une à une (les places existantes se retournent).
+                if let Some(items) = old.items.as_any().downcast_ref::<VecModel<CardData>>() {
+                    let new_items: Vec<CardData> = (0..s.items.row_count()).filter_map(|j| s.items.row_data(j)).collect();
+                    while items.row_count() > new_items.len() {
+                        items.remove(items.row_count() - 1);
+                    }
+                    for (j, c) in new_items.into_iter().enumerate() {
+                        if j < items.row_count() {
+                            if items.row_data(j).is_some_and(|o| o != c) {
+                                items.set_row_data(j, c);
+                            }
+                        } else {
+                            items.push(c);
+                        }
+                    }
+                } else {
+                    old.items = s.items.clone();
+                }
+                old.title = s.title;
+                old.y_px = s.y_px;
+                old.h_px = s.h_px;
+                old.leaving = false;
+                vm.set_row_data(i, old);
+            }
+            None => vm.push(s),
+        }
+    }
+    // Rangées en trop : elles partent (300 ms), puis sont retirées.
+    if vm.row_count() > n {
+        for i in n..vm.row_count() {
+            if let Some(mut r) = vm.row_data(i) {
+                r.leaving = true;
+                vm.set_row_data(i, r);
+            }
+        }
+        let weak = u.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(320), move || {
+            let Some(u) = weak.upgrade() else { return };
+            let rows = u.get_detail_rows();
+            if let Some(vm) = rows.as_any().downcast_ref::<VecModel<Section>>() {
+                while vm.row_count() > n && vm.row_data(vm.row_count() - 1).is_some_and(|r| r.leaving) {
+                    vm.remove(vm.row_count() - 1);
+                }
+            }
+        });
+    }
+}
+
 /// Signature d'une liste de boutons (seuls les changements réels s'animent).
 /// Une pastille de texte posée sur la ligne des icônes (« label », la saison : « Voir la série ») compte
 /// avec les pastilles : sinon les icônes, identiques, se croyaient changées et s'animaient.
@@ -1669,6 +1734,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
             .map(|s| {
                 let h = row_h(s.landscape);
                 let row = Section {
+                    leaving: false,
                     title: s.title.clone().into(),
                     landscape: s.landscape,
                     y_px: y,
@@ -1785,6 +1851,13 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             }
         }
         if rows.is_empty() {
+            // Rien pour ce média : les rangées de la fiche précédente (gardées en attendant) s'en vont.
+            let id_check = item.id.clone();
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                if u.get_detail().id.as_str() == id_check {
+                    set_rows_in_place(&u, Vec::new());
+                }
+            });
             return;
         }
 
@@ -1806,6 +1879,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                 .iter()
                 .enumerate()
                 .map(|(i, s)| Section {
+                    leaving: false,
                     title: s.title.clone().into(),
                     landscape: false,
                     y_px: i as f32 * row_h,
@@ -1831,7 +1905,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                     )),
                 })
                 .collect();
-            u.set_detail_rows(ModelRc::new(VecModel::from(sections)));
+            set_rows_in_place(&u, sections);
         });
         let apply: Apply = Arc::new(move |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
             let rows = u.get_detail_rows();
@@ -6465,9 +6539,12 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             })
             .collect();
 
+        // Rangées du bas d'un autre média : gardées jusqu'à l'arrivée des nouvelles, qui les remplacent
+        // sur place (les affiches se retournent, voir set_rows_in_place). Hors d'une fiche : vidées.
+        let from_detail = u.get_screen().as_str() == "detail";
         set_detail_smooth(&u, detail);
         u.set_child_items(ModelRc::new(VecModel::from(cards)));
-        if !keep_rows {
+        if !keep_rows && !from_detail {
             u.set_detail_rows(ModelRc::default());
         }
         u.set_d_x(0);
@@ -8777,6 +8854,7 @@ fn refresh_downloads(app: &Arc<App>) {
             .map(|(title, landscape, cards)| {
                 let h = row_h(*landscape);
                 let s = Section {
+                    leaving: false,
                     title: title.clone().into(),
                     landscape: *landscape,
                     y_px: y,

@@ -39,6 +39,7 @@ export struct Section {
     landscape: bool, // rangée de vignettes 16:9 (« Mes médias », « Reprendre »...)
     y-px: float,     // position verticale de la rangée, en pixels logiques (calculée en Rust)
     h-px: float,     // hauteur de la rangée, en pixels logiques
+    leaving: bool,   // rangée qui s'en va (fiche suivante qui en a moins) : elle part en glissant
 }
 
 export struct ServerData {
@@ -537,6 +538,70 @@ component CardArt inherits Rectangle {
 component Card inherits Rectangle {
     in property <CardData> data;
     in property <bool> focused;
+    // Arrivée (rangées des fiches) : chaque carte à son tour (`in-delay`), en fondu en remontant un peu.
+    in property <bool> cascade;
+    in property <duration> in-delay;
+    property <duration> in-t0;
+    property <bool> in-live: root.cascade;
+    init => {
+        self.in-t0 = animation-tick();
+    }
+    Timer {
+        interval: root.in-delay + 500ms;
+        running: root.in-live;
+        triggered => {
+            root.in-live = false;
+        }
+    }
+    property <float> ap-x: root.in-live && Motion.pages ? clamp((animation-tick() - root.in-t0 - root.in-delay) / 380ms, 0, 1) : 1;
+    property <float> ap: 1 - (1 - root.ap-x) * (1 - root.ap-x);
+    // Autre média à cette place (rangée mise à jour) : la carte se retourne (l'ancien jusqu'à la
+    // moitié du tour, le nouveau ensuite), une fois la nouvelle image chargée (0,8 s au plus).
+    property <CardData> prev;
+    property <CardData> old;
+    property <bool> flip-pend;
+    property <bool> flip-on;
+    property <duration> flip-t0;
+    changed data => {
+        if (root.data.id != root.prev.id && root.prev.id != "" && Motion.select) {
+            root.old = root.prev;
+            root.flip-pend = true;
+            root.flip-on = false;
+            // Départ commun à la rangée (le moment du changement) : chacune à son tour (in-delay),
+            // même si les images arrivent dans le désordre.
+            root.flip-base = animation-tick();
+        }
+        root.prev = root.data;
+    }
+    property <duration> flip-base;
+    property <bool> flip-go: root.flip-pend && (root.data.has-image || root.flip-waited);
+    property <bool> flip-waited;
+    Timer {
+        interval: 800ms;
+        running: root.flip-pend && !root.flip-waited;
+        triggered => {
+            root.flip-waited = true;
+        }
+    }
+    changed flip-go => {
+        if (root.flip-go) {
+            root.flip-pend = false;
+            root.flip-waited = false;
+            root.flip-t0 = max(animation-tick(), root.flip-base + root.in-delay * 1.5);
+            root.flip-on = true;
+        }
+    }
+    Timer {
+        interval: root.in-delay * 1.5 + 460ms;
+        running: root.flip-on;
+        triggered => {
+            root.flip-on = false;
+        }
+    }
+    property <float> fq: root.flip-on ? clamp((animation-tick() - root.flip-t0) / 420ms, 0, 1) : 1;
+    // La carte attend son tour : elle montre encore l'ancien média, à plat.
+    // Ce que montre la carte : l'ancien média tant qu'elle n'a pas fait la moitié du tour.
+    property <CardData> shown: root.flip-pend || (root.flip-on && root.fq < 0.5) ? root.old : root.data;
     // Sélection montrée (au bureau : seulement après une touche de navigation, voir Nav) ; à la
     // souris, la carte survolée est mise en avant de la même façon.
     property <bool> lit: (Nav.kb ? (root.focused) : card-area.has-hover && !Nav.touch);
@@ -589,10 +654,14 @@ component Card inherits Rectangle {
     // Pas de cache-rendering-hint ici : quand la carte est réutilisée pour un autre élément (pages
     // des bibliothèques), Slint gardait l'ancienne image en cache (affiches mélangées).
     content := Rectangle {
+    opacity: root.ap;
+    y: (1 - root.ap) * 24px * root.k;
+    // Retournement : la carte s'amincit jusqu'à la tranche, puis se rouvre sur l'autre média.
+    transform-scale-x: (root.flip-on ? max(0.02, abs(cos(root.fq * 180deg))) : 1) * 100%;
     CardArt {
         y: 0px;
         height: root.img-h;
-        data: root.data;
+        data: root.shown;
         k: root.k;
         // Pendant qu'elle vole (ouverture / retour), l'image partagée remplace celle-ci.
         visible: Hero.hide-id == "" || root.data.id != Hero.hide-id;
@@ -620,7 +689,7 @@ component Card inherits Rectangle {
         y: root.img-h + (root.data.subtitle == "" ? (parent.height - root.img-h - self.height) / 2 : 8px * root.k);
         width: parent.width - 16px * root.k;
         height: 22px * root.k;
-        text: root.data.title;
+        text: root.shown.title;
         active: root.lit;
         text-color: Theme.text;
         font-size: 15px * root.k;
@@ -632,7 +701,7 @@ component Card inherits Rectangle {
         y: root.img-h + 30px * root.k;
         width: parent.width - 16px * root.k;
         height: 18px * root.k;
-        text: root.data.subtitle;
+        text: root.shown.subtitle;
         active: root.lit;
         text-color: Theme.muted;
         font-size: 12px * root.k;
@@ -658,6 +727,26 @@ component SectionRow inherits Rectangle {
     in property <int> focus-index;
     in property <float> k: 1.0;
     in property <int> key;                  // voir Rows
+    // Rangées d'une fiche : cartes l'une après l'autre, titre qui glisse vers la droite en arrivant ;
+    // `leaving` : la rangée s'en va (titre vers la gauche, cartes en fondu).
+    in property <bool> cascade;
+    in property <bool> leaving;
+    property <duration> t-t0;
+    property <bool> t-live: root.cascade;
+    init => {
+        self.t-t0 = animation-tick();
+    }
+    Timer {
+        interval: 600ms;
+        running: root.t-live;
+        triggered => {
+            root.t-live = false;
+        }
+    }
+    property <float> t-x: root.t-live && Motion.pages ? clamp((animation-tick() - root.t-t0) / 420ms, 0, 1) : 1;
+    property <float> out: root.leaving ? 1 : 0;
+    animate out { duration: Motion.pages ? 300ms : 0ms; easing: ease-in; }
+    property <float> te: (1 - (1 - root.t-x) * (1 - root.t-x)) * (1 - root.out);
     callback activated(int);
     callback touched(int);                  // carte touchée du doigt (sans l'ouvrir)
 
@@ -693,7 +782,8 @@ component SectionRow inherits Rectangle {
 
     // Titre précédé d'un trait (comme .sectionTitle:before de JellySkin)
     Rectangle {
-        x: root.pad;
+        x: root.pad - (1 - root.te) * 40px * root.k;
+        opacity: root.te;
         y: root.title-h / 2 - 1px;
         width: 22px * root.k;
         height: 2px;
@@ -701,7 +791,8 @@ component SectionRow inherits Rectangle {
     }
 
     Text {
-        x: root.pad + 32px * root.k;
+        x: root.pad + 32px * root.k - (1 - root.te) * 40px * root.k;
+        opacity: root.te;
         y: 0px;
         height: root.title-h;
         text: root.title;
@@ -715,6 +806,7 @@ component SectionRow inherits Rectangle {
         y: root.title-h;
         height: root.height - root.title-h;
         clip: true;
+        opacity: 1 - root.out;
 
         // Doigt, molette horizontale (ou Maj + molette) : la rangée défile librement, sans rien choisir.
         TouchArea {
@@ -746,6 +838,8 @@ component SectionRow inherits Rectangle {
                 data: card;
                 ratio: root.ratio;
                 k: root.k;
+                cascade: root.cascade;
+                in-delay: min(i, 10) * 60ms;
                 focused: root.active && i == root.focus-index;
                 clicked => {
                     root.activated(i);
@@ -6855,8 +6949,10 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
+            cascade: true;
+            leaving: row.leaving;
             opacity: root.rev(4);
-            y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k + (1 - root.rev(4)) * 60px * root.k + root.po-down;
+            y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
             title: row.title;
