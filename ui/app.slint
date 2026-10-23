@@ -743,6 +743,18 @@ component NavIcon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 6 3.5 L 18 3.5 L 18 20.5 L 12 16 L 6 20.5 Z";
     }
+    if root.name == "cast": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 3 8 L 3 6 Q 3 4 5 4 L 19 4 Q 21 4 21 6 L 21 18 Q 21 20 19 20 L 14 20 M 3 12 A 8 8 0 0 1 11 20 M 3 16 A 4 4 0 0 1 7 20 M 3 20 L 3.1 20";
+    }
     if root.name == "requests": Path {
         width: parent.width;
         height: parent.height;
@@ -7572,8 +7584,8 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "motion", "about"];
-        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
+        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "cast", "motion", "about"];
+        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
         // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
         // set-in (sélection dans les lignes) dit laquelle est affichée.
@@ -8078,8 +8090,10 @@ export component AppWindow inherits Window {
                     padding: sets.pad;
 
                     for r[i] in root.set-rows: set-row-box := Rectangle {
-                        // Portrait : la pastille d'un choix passe sous le libellé (ligne plus haute).
-                        property <bool> stack: sets.one && r.kind == "choice";
+                        // Ligne étroite (portrait, tablette tournée) : la pastille d'un choix passe sous le
+                        // libellé (ligne plus haute) au lieu de lui prendre la moitié de la place.
+                        property <bool> slim: sets.one || self.width < 620px * root.k;
+                        property <bool> stack: self.slim && r.kind == "choice";
                         // Grandit avec son texte (description sur plusieurs lignes, texte agrandi par le système).
                         height: max(r.kind == "profile" ? 104px * root.k : r.kind == "info" ? 26px * root.k : r.hint != "" ? 72px * root.k : 56px * root.k,
                                 row-col.preferred-height + (r.kind == "info" ? 4px : 22px) * root.k)
@@ -8150,14 +8164,17 @@ export component AppWindow inherits Window {
                             // Place à droite seulement pour une valeur, un choix ou un interrupteur (portrait :
                             // juste la place de l'interrupteur ou de la valeur, le choix est dessous).
                             width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") || set-row-box.stack ? 20px * root.k
-                                : sets.one && r.kind == "toggle" ? 90px * root.k : sets.one ? 130px * root.k : 280px * root.k);
+                                : r.kind == "toggle" ? 90px * root.k : set-row-box.slim ? 130px * root.k : 280px * root.k);
                             alignment: center;
                             spacing: 3px * root.k;
+                            // Titre sur deux lignes au plus (tablette en portrait : il était coupé).
                             if r.label != "": Text {
                                 text: r.label;
                                 color: (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg);
                                 font-size: r.kind == "profile" ? 24px * root.k : 16px * root.k;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
+                                wrap: word-wrap;
+                                height: min(self.preferred-height, 44px * root.k);
                                 overflow: elide;
                             }
                             if r.hint != "": Text {
@@ -8207,8 +8224,8 @@ export component AppWindow inherits Window {
                         }
                         // Action avec une valeur (taille du cache, « Modifier »...)
                         if r.kind == "action" && r.value != "": Text {
-                            x: parent.width - (sets.one ? 130px : 260px) * root.k;
-                            width: (sets.one ? 110px : 240px) * root.k;
+                            x: parent.width - (set-row-box.slim ? 130px : 260px) * root.k;
+                            width: (set-row-box.slim ? 110px : 240px) * root.k;
                             height: parent.height;
                             text: r.value;
                             color: ((set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);

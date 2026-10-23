@@ -1981,3 +1981,39 @@ msgstr "nessun trailer per questo titolo"
 
 msgid "vidéo YouTube indisponible ({})"
 msgstr "video YouTube non disponibile ({})"
+
+msgid "Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."
+msgstr "Trailer: quelli del server. Per quelli di YouTube (senza pubblicità né account), installa yt-dlp su questo dispositivo."
+
+msgid "Bandes-annonces YouTube"
+msgstr "Trailer di YouTube"
+
+msgid "Diffusion"
+msgstr "Trasmissione"
+
+msgid "Jamais"
+msgstr "Mai"
+
+msgid "Leurs adresses et les noms choisis ; la recherche repart de zéro (le serveur connecté reste)."
+msgstr "I loro indirizzi e i nomi scelti; la ricerca riparte da zero (il server connesso resta)."
+
+msgid "Oublier les serveurs trouvés"
+msgstr "Dimentica i server trovati"
+
+msgid "Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."
+msgstr "Quando lo schermo non raggiunge il server (TV fuori casa), il video passa da questo dispositivo, che deve restare acceso sulla stessa rete dello schermo."
+
+msgid "Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."
+msgstr "Quando il server non ne ha: riprodotti con yt-dlp (installato su questo dispositivo), senza pubblicità né account."
+
+msgid "Relais par cet appareil"
+msgstr "Inoltro tramite questo dispositivo"
+
+msgid "Serveurs trouvés oubliés."
+msgstr "Server trovati dimenticati."
+
+msgid "Si besoin"
+msgstr "Se serve"
+
+msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
+msgstr "TV DLNA: i sottotitoli sono impressi nell'immagine dal server. Chromecast: cambiano senza ricaricare il video."

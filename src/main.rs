@@ -2162,8 +2162,10 @@ fn cast_refresh(app: &Arc<App>) {
 /// serveurs trouvés sur le réseau), et l'adresse de la vidéo y est reportée.
 async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::IpAddr>) -> String {
     let Some(std::net::IpAddr::V4(scr)) = screen else { return url.to_string() };
-    // Essais : TURTLEFIN_RELAY=1 fait passer par le relais même quand l'écran joint le serveur.
-    if std::env::var_os("TURTLEFIN_RELAY").is_some() {
+    // Paramètres → Diffusion « Toujours » (ou TURTLEFIN_RELAY=1, essais) : par le relais même quand
+    // l'écran joint le serveur.
+    let relay_mode = config::ui_prefs().relay_mode;
+    if relay_mode == "always" || std::env::var_os("TURTLEFIN_RELAY").is_some() {
         return relay::url_for(url, scr).await.unwrap_or_else(|_| url.to_string());
     }
     let same_net = |base: &str| -> bool {
@@ -2214,7 +2216,9 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
     eprintln!("turtlefin : diffuser vers {scr} : serveur {}", base.as_deref().unwrap_or("(aucune adresse locale : relais)"));
     match base {
         Some(b) if url.starts_with(&client.server) => format!("{}{}", b.trim_end_matches('/'), &url[client.server.len()..]),
-        // Serveur hors du réseau de l'écran (Tailscale, Internet) : cet appareil relaie le flux.
+        // Serveur hors du réseau de l'écran (Tailscale, Internet) : cet appareil relaie le flux
+        // (sauf réglage « Jamais » : l'adresse du serveur telle quelle).
+        None if relay_mode == "never" => url.to_string(),
         None => relay::url_for(url, scr).await.unwrap_or_else(|e| {
             eprintln!("turtlefin : relais impossible : {e}");
             url.to_string()
@@ -4105,7 +4109,8 @@ fn cache_size() -> u64 {
 
 /// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » /
 /// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
-/// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Animations · 6 À propos.
+/// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Diffusion · 6 Animations
+/// · 7 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let mut rows = settings_rows_all(app, cat);
     // Android : ni plein écran (une appli y est toujours en plein écran), ni dossiers de langues,
@@ -4188,10 +4193,11 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
             row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
-        ]
-        .into_iter()
-        .chain(screen_rows(&prefs).into_iter().map(|(k, l, h, v, kind)| row(&k, &l, &h, v, kind, false)))
-        .collect(),
+            match ytdlp() {
+                Some(_) => row("yttrailers", tr("Bandes-annonces YouTube"), tr("Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."), String::new(), "toggle", !prefs.no_yt_trailers),
+                None => row("info", "", tr("Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."), String::new(), "info", false),
+            },
+        ],
         2 => vec![
             row("slang", tr("Langue des sous-titres préférée"), tr("Utilisée selon le mode ci-dessous."), label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
             row("submode", tr("Quand afficher les sous-titres"), tr("Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."), label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
@@ -4242,9 +4248,18 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 let hint = if k.custom.is_empty() { tr("Renomme-le pour le reconnaître dans la liste des serveurs.").to_string() } else { trf("Nom d'origine : {}", &[&k.name]) };
                 v.push(row(&format!("srvname:{id}"), &shown, &hint, tr("Renommer").into(), "action", false));
             }
+            if !prefs.known_servers.is_empty() {
+                v.push(row("forgetsrv", tr("Oublier les serveurs trouvés"), tr("Leurs adresses et les noms choisis ; la recherche repart de zéro (le serveur connecté reste)."), String::new(), "action", false));
+            }
             v
         }
         5 => {
+            let mut v: Vec<SettingRow> = screen_rows(&prefs).into_iter().map(|(k, l, h, v, kind)| row(&k, &l, &h, v, kind, false)).collect();
+            v.push(row("relay", tr("Relais par cet appareil"), tr("Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."), relay_label(&prefs.relay_mode).into(), "choice", false));
+            v.push(row("info", "", tr("Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."), String::new(), "info", false));
+            v
+        }
+        6 => {
             let mut v = vec![row("animpreset", tr("Preset"), tr("Ensemble d'animations : intégré, ou créé ici."), anim_preset_name(&prefs), "choice", false)];
             for k in config::AnimFlags::KEYS {
                 let (label, hint) = anim_label(k);
@@ -4259,7 +4274,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             v.push(row("animimport", tr("Importer un preset"), tr("Choisis un fichier de preset (.json) dans ce dossier."), String::new(), "action", false));
             v
         }
-        6 => {
+        7 => {
             let size = cache_size();
             let srv = app.client().map(|c| c.server).unwrap_or_default();
             let up = app.update_state.lock().unwrap().clone();
@@ -4348,12 +4363,27 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             let list: Vec<(String, String)> = api::BITRATES.iter().map(|&k| (k.to_string(), player::bitrate_label(k))).collect();
             Some((tr("Débit maximal").into(), list, config::ui_prefs().max_bitrate.to_string()))
         }
+        "relay" => {
+            let list = RELAY_MODES.iter().map(|k| (k.to_string(), relay_label(k).to_string())).collect();
+            Some((tr("Relais par cet appareil").into(), list, config::ui_prefs().relay_mode))
+        }
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
             Some((tr("Taille des sous-titres").into(), own(&SUB_SIZES), v.into()))
         }
         _ => None,
+    }
+}
+
+/// Relais de la diffusion (Paramètres → Diffusion) : si besoin, toujours, jamais.
+const RELAY_MODES: [&str; 3] = ["", "always", "never"];
+
+fn relay_label(mode: &str) -> &'static str {
+    match mode {
+        "always" => tr("Toujours"),
+        "never" => tr("Jamais"),
+        _ => tr("Si besoin"),
     }
 }
 
@@ -4436,6 +4466,13 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
     if key == "subsize" {
         let mut p = config::ui_prefs();
         p.sub_scale = value.parse().unwrap_or(1.0);
+        config::save_ui_prefs(&p);
+        refresh_settings(app);
+        return;
+    }
+    if key == "relay" {
+        let mut p = config::ui_prefs();
+        p.relay_mode = if RELAY_MODES.contains(&value) { value.to_string() } else { String::new() };
         config::save_ui_prefs(&p);
         refresh_settings(app);
         return;
@@ -4857,7 +4894,7 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "language" | "animpreset" | "theme" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "relay" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();
@@ -4997,6 +5034,17 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             save_user_cfg(app, cfg);
         }
         "autoskip" => toggle_ui_pref(app, |p| p.auto_skip_intro = !p.auto_skip_intro),
+        "yttrailers" => toggle_ui_pref(app, |p| p.no_yt_trailers = !p.no_yt_trailers),
+        "forgetsrv" => {
+            let mut p = config::ui_prefs();
+            p.known_servers.clear();
+            p.lan_servers.clear();
+            config::save_ui_prefs(&p);
+            refresh_settings(app);
+            if let Some(u) = app.ui().upgrade() {
+                u.set_toast(tr("Serveurs trouvés oubliés.").into());
+            }
+        }
         "ratings" => toggle_ui_pref(app, |p| p.show_ratings = !p.show_ratings),
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
@@ -6241,7 +6289,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         }
     }
     // Bande-annonce : celle du serveur, sinon celle de YouTube s'il y a yt-dlp pour la lire.
-    if matches!(item.kind.as_str(), "Movie" | "Series") && (item.local_trailer_count.unwrap_or(0) > 0 || (item.youtube_trailer().is_some() && ytdlp().is_some())) {
+    if matches!(item.kind.as_str(), "Movie" | "Series") && (item.local_trailer_count.unwrap_or(0) > 0 || (item.youtube_trailer().is_some() && yt_trailers_on())) {
         let at = buttons.iter().take_while(|b| b.0.is_empty()).count();
         buttons.insert(at, (tr("Bande-annonce").into(), "trailer".into(), String::new(), false));
     }
@@ -6567,6 +6615,11 @@ fn ytdlp() -> Option<&'static std::path::Path> {
         .as_deref()
 }
 
+/// Bandes-annonces YouTube possibles : yt-dlp présent et pas refusées (Paramètres → Lecture).
+fn yt_trailers_on() -> bool {
+    ytdlp().is_some() && !config::ui_prefs().no_yt_trailers
+}
+
 /// Adresses directes (image, son) d'une vidéo YouTube, par yt-dlp : sans compte ni cookies ni
 /// configuration de l'utilisateur (lecture anonyme), et sans publicité (flux bruts). 1080p au plus,
 /// en H.264 (décodé partout, y compris sur le Pi).
@@ -6608,7 +6661,7 @@ fn play_trailer(app: &Arc<App>) {
                     return Ok(());
                 }
             }
-            let (Some(yt), Some(tool)) = (item.youtube_trailer(), ytdlp()) else {
+            let (Some(yt), Some(tool), true) = (item.youtube_trailer(), ytdlp(), yt_trailers_on()) else {
                 return Err(anyhow::anyhow!("{}", tr("aucune bande-annonce pour ce titre")));
             };
             let urls = youtube_streams(tool, &yt).await?;

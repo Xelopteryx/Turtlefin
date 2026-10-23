@@ -485,7 +485,7 @@ pub struct UiPrefs {
     /// Thème : clé intégrée (« turtlefin », « aero »…) ou « custom:<nom> » ; thèmes importés.
     pub theme: String,
     pub themes: Vec<crate::theme::ThemeDef>,
-    /// Écrans de diffusion déjà vus (Paramètres → Lecture) : nom d'origine et nom choisi.
+    /// Écrans de diffusion déjà vus (Paramètres → Diffusion) : nom d'origine et nom choisi.
     pub cast_screens: Vec<CastScreen>,
     /// Adresse du serveur sur le réseau local (identifiant du serveur -> adresse), notée à chaque
     /// connexion par une adresse locale : donnée aux écrans de diffusion même quand l'appareil passe
@@ -494,6 +494,11 @@ pub struct UiPrefs {
     /// Serveurs déjà trouvés (identifiant -> nom et adresses vues) : réessayés à chaque recherche,
     /// même depuis un autre réseau (voir discovery::discover).
     pub known_servers: std::collections::BTreeMap<String, KnownServer>,
+    /// Relais de la diffusion par cet appareil (Paramètres → Diffusion) : « » automatique (quand
+    /// l'écran ne joint pas le serveur), « always » toujours, « never » jamais.
+    pub relay_mode: String,
+    /// Bandes-annonces YouTube (par yt-dlp) refusées : seulement celles du serveur.
+    pub no_yt_trailers: bool,
 }
 
 /// Serveur déjà trouvé par la recherche : son nom et les adresses où il a répondu (6 au plus).
@@ -643,6 +648,8 @@ impl Default for UiPrefs {
             cast_screens: Vec::new(),
             lan_servers: std::collections::BTreeMap::new(),
             known_servers: std::collections::BTreeMap::new(),
+            relay_mode: String::new(),
+            no_yt_trailers: false,
         }
     }
 }
