@@ -317,7 +317,8 @@ fn show_screen(u: &AppWindow, name: &str) {
 /// d'origine) sont repris tels quels ; une affiche différente fait un fondu enchaîné avec l'ancienne.
 fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
     let old = u.get_detail();
-    if old.id != new.id {
+    // Fiche suivante ouverte d'un clic dans ses rangées : on reste au même endroit de la page.
+    if old.id != new.id && !u.get_keep_scroll() {
         u.set_d_free(false);
     }
     let on_detail = u.get_screen().as_str() == "detail";
@@ -6544,9 +6545,14 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         if !keep_rows && !from_detail {
             u.set_detail_rows(ModelRc::default());
         }
-        u.set_d_x(0);
-        u.set_d_zone(0);
-        u.set_d_button(0);
+        if u.get_keep_scroll() {
+            // Ouverte d'un clic dans les rangées du bas : la sélection et la position restent.
+            u.set_keep_scroll(false);
+        } else {
+            u.set_d_x(0);
+            u.set_d_zone(0);
+            u.set_d_button(0);
+        }
         u.set_d_child(0);
         u.set_overview_open(false);
         show_screen(&u, "detail");
