@@ -519,11 +519,12 @@ component Card inherits Rectangle {
             ? @linear-gradient(180deg, rgba(150, 215, 255, 0.55) 0%, rgba(70, 160, 240, 0.45) 55%, rgba(30, 110, 210, 0.55) 100%)
             : @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(0, 12, 34, 0.32) 100%))
         : root.lit ? Theme.card-focus : Theme.card;
-    // Contour et lueur de la carte choisie, selon le thème (transparents par défaut).
-    border-width: 1px;
-    border-color: Theme.win7 ? rgba(0, 8, 26, 0.85) : Theme.card-border;
-    drop-shadow-blur: Nav.no-shadow ? 0px : (root.lit ? (Theme.win7 ? 28px : 22px) * root.k : Theme.win7 ? 8px * root.k : 0px);
-    drop-shadow-color: Theme.win7 ? (root.lit ? #6fd2ffd0 : #00000070) : Theme.glow;
+    // Contour au bord exact de la carte (Windows 7 : clair, bleu lumineux si choisie). Pas de halo
+    // autour de la carte choisie : seulement une ombre discrète sous les cartes en verre.
+    border-width: Theme.win7 && root.lit ? 2px * root.k : 1px;
+    border-color: Theme.win7 ? (root.lit ? #9ee0ff : rgba(255, 255, 255, 0.38)) : Theme.card-border;
+    drop-shadow-blur: Nav.no-shadow ? 0px : Theme.win7 ? 8px * root.k : 0px;
+    drop-shadow-color: #00000070;
 
     // Pas de cache-rendering-hint ici : quand la carte est réutilisée pour un autre élément (pages
     // des bibliothèques), Slint gardait l'ancienne image en cache (affiches mélangées).
@@ -552,16 +553,6 @@ component Card inherits Rectangle {
         border-top-right-radius: Theme.radius;
         background: @linear-gradient(180deg, rgba(255, 255, 255, root.lit ? 0.30 : 0.20) 0%, rgba(255, 255, 255, 0.04) 100%);
     }
-    if Theme.win7: Rectangle {
-        x: 1px;
-        y: 1px;
-        width: parent.width - 2px;
-        height: parent.height - 2px;
-        border-radius: Theme.radius - 1px;
-        border-width: root.lit ? 2px * root.k : 1px;
-        border-color: root.lit ? #9ee0ff : rgba(255, 255, 255, 0.42);
-    }
-
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
     Marquee {
         x: 8px * root.k;
@@ -2790,7 +2781,7 @@ export component AppWindow inherits Window {
     // Bibliothèque ouverte (pas un retour) : ses films et séries sont distribués de la même façon,
     // depuis le centre de l'écran (Rust, à l'arrivée de la première page).
     public function lib-deal() {
-        if (!root.hero-deck && Motion.pages) {
+        if (!(root.hero-deck && root.hero-on) && Motion.pages) {
             root.deal-t0 = animation-tick();
             root.deal-anim = true;
         }
@@ -2798,7 +2789,48 @@ export component AppWindow inherits Window {
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
+    // Bibliothèque / collection ouverte en distribuant : au retour, ses affiches sont ramassées par la
+    // carte (au centre), qui regagne ensuite sa place.
+    property <bool> deck-back;
+    property <bool> undeal-anim;
+    property <duration> undeal-t0;
+    property <duration> undeal-len: 360ms + max(0, min(root.lib-items.length, root.deal-n) - 1) * 35ms + 160ms;
+    function undeal-start() {
+        // La carte reparaît au centre (paquet), les affiches s'y tassent.
+        root.hero-deck = true;
+        root.hero-dest = true;
+        root.hero-anim = false;
+        root.hero-out = false;
+        root.hero-flying = false;
+        root.hero-on = true;
+        root.undeal-t0 = animation-tick();
+        root.undeal-anim = true;
+    }
+    Timer {
+        interval: root.undeal-len;
+        running: root.undeal-anim;
+        triggered => {
+            root.undeal-anim = false;
+            root.deck-back = false;
+            // La carte regagne sa place sur la page précédente (depuis le centre), pendant que la
+            // bibliothèque s'efface.
+            Hero.want-id = root.hero-data.id;
+            Hero.want-group = root.hero-data.group;
+            root.hero-dest = false;
+            root.hero-flying = false;
+            root.hero-gave-up = false;
+            root.hero-id = "";
+            root.hero-from-id = "";
+            root.nav-out("back", "");
+        }
+    }
     pure function deal-p(i: int) -> float {
+        // Retour : les affiches visibles se tassent au centre, sur la carte (voir undeal).
+        if (root.undeal-anim && Motion.detail) {
+            let n = min(root.lib-items.length, root.deal-n);
+            let t = clamp((animation-tick() - root.undeal-t0 - max(0, n - 1 - i) * 35ms) / 360ms, 0, 1);
+            return 1 - t * t;
+        }
         // Hors de l'écran à l'arrivée : déjà à sa place (jamais vue en vol).
         if (i >= root.deal-n) {
             return 1;
@@ -2868,7 +2900,7 @@ export component AppWindow inherits Window {
     property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.header-h + 24px;
     property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
     property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
-    property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door;
+    property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
         ? round(min(1, 5 * root.hero-p) * root.hero-img.width * Theme.radius * 1.15 / (root.hero-fw / 1.06)) : 0;
@@ -2976,8 +3008,7 @@ export component AppWindow inherits Window {
         let kid = root.screen == "detail" && root.d-zone == 2 && !root.detail.children-landscape;
         // Bibliothèque (vignette 16:9) en portrait : pas d'image partagée (il n'y a pas d'affiche à
         // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
-        let folder = root.narrow && root.is-folder(id);
-        if (!folder && (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
+        if ((root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
             Hero.tick += 1;
@@ -3055,13 +3086,14 @@ export component AppWindow inherits Window {
             root.hero-k = Hero.k;
             root.hero-seerr = root.is-seerr(root.hero-pending);
             root.hero-wide = Hero.wide;
-            root.door-mode = Hero.wide && root.narrow && !root.hero-seerr;
+            root.door-mode = Hero.wide && root.narrow && !root.hero-seerr && !Hero.data.deck;
             root.door-has-poster = false;
             // Fiche à venir : cachée jusqu'à son arrivée (pas pour un grand fond ni une collection).
             root.rev-hold = !(Hero.wide && !root.door-mode) && !Hero.data.deck && !root.hero-seerr && root.screen != "detail";
             // D'une fiche à une autre : l'affiche affichée reste en place jusqu'à l'arrivée de la nouvelle.
             root.hero-from-detail = root.screen == "detail";
             root.hero-deck = Hero.data.deck;
+            root.deck-back = Hero.data.deck;
             root.deal-anim = false;
             root.hero-faded = false;
             root.hero-gave-up = false;
@@ -3102,8 +3134,12 @@ export component AppWindow inherits Window {
         root.hero-id = "";
     }
     function back-anim() {
-        if (root.veil-hold) {
+        if (root.veil-hold || root.undeal-anim) {
             return; // retour déjà en cours
+        }
+        if (root.screen == "library" && root.deck-back && Motion.detail && root.lib-items.length > 0) {
+            root.undeal-start();
+            return;
         }
         // Fiche descendue (rangées du bas, épisodes) : son affiche n'est plus à l'écran, rien ne
         // revole vers la carte (l'image réapparaîtrait de nulle part).
@@ -3187,6 +3223,11 @@ export component AppWindow inherits Window {
 
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
+        root.ep-btn = -1;
+        // Bibliothèque distribuée quittée autrement que par Retour : plus de ramassage à faire.
+        if (root.screen != "library") {
+            root.deck-back = false;
+        }
         root.party-pop = false;
         root.cast-pop = false;
         root.drop-keyboard();
@@ -4220,12 +4261,31 @@ export component AppWindow inherits Window {
     property <bool> ep-list: root.detail.children-landscape;
     // Raccourci de la liste d'épisodes : la sélection (et la fiche) saute à la première rangée du bas.
     function ep-skip() {
+        root.ep-btn = -1;
+        root.d-free = false;
         if (root.detail-rows.length > 0) {
-            root.d-free = false;
             root.d-zone = 4;
             root.d-x = 0;
+        } else {
+            root.d-zone = 2;
+            root.d-child = root.child-items.length - 1;
         }
     }
+    // Haut de la fiche (boutons Lecture, favori…).
+    function ep-top() {
+        root.ep-btn = -1;
+        root.d-free = false;
+        root.d-zone = 0;
+        root.d-button = 0;
+    }
+    // Longue saison (30 épisodes et plus) : boutons flottants pour monter / descendre d'un coup,
+    // visibles tant que la liste est à l'écran. ep-btn : bouton choisi au clavier (-1 : aucun ·
+    // 0 monter · 1 descendre).
+    property <bool> ep-many: root.ep-list && root.child-items.length >= 30;
+    in-out property <int> ep-btn: -1;
+    property <bool> ep-in-view: root.screen == "detail" && root.ep-many
+        && root.d-view-y + root.d-view-h > root.d-children-y + root.ep-head-h
+        && root.d-view-y < root.d-children-y + root.ep-block-h - root.ep-row-h;
     property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
     property <length> ep-row-h: root.ep-thumb-w * 0.5625 + 16px * root.k;
     property <length> ep-gap: 8px * root.k;
@@ -5972,7 +6032,24 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Zone 2, épisodes en liste : ↑ ↓ d'un épisode à l'autre, → saute à la suite (rangées du bas).
+        // Boutons flottants de la liste (longue saison) : ↑ ↓ de l'un à l'autre, Entrée, ← la liste.
+        if (root.ep-btn >= 0) {
+            if (t == Key.UpArrow) {
+                root.ep-btn = 0;
+            } else if (t == Key.DownArrow) {
+                root.ep-btn = 1;
+            } else if (t == Key.LeftArrow || t == Key.Escape || t == Key.Backspace) {
+                root.ep-btn = -1;
+            } else if (t == Key.Return) {
+                if (root.ep-btn == 0) {
+                    root.ep-top();
+                } else {
+                    root.ep-skip();
+                }
+            }
+            return true;
+        }
+        // Zone 2, épisodes en liste : ↑ ↓ d'un épisode à l'autre, → les boutons flottants (longue saison).
         if (root.d-zone == 2 && root.ep-list) {
             if (t == Key.DownArrow) {
                 if (root.d-child < root.child-items.length - 1) {
@@ -5992,7 +6069,9 @@ export component AppWindow inherits Window {
                 return true;
             }
             if (t == Key.RightArrow) {
-                root.ep-skip();
+                if (root.ep-many) {
+                    root.ep-btn = 1;
+                }
                 return true;
             }
             if (t == Key.LeftArrow) {
@@ -6465,8 +6544,7 @@ export component AppWindow inherits Window {
                 background: parent.nsel ? Theme.card-focus : Theme.card;
                 border-width: 1px;
                 border-color: Theme.card-border;
-                drop-shadow-blur: Nav.no-shadow ? 0px : (parent.nsel ? 22px * root.k : 0px);
-                drop-shadow-color: Theme.glow;
+                // Pas de halo autour de la carte choisie (comme les cartes des rangées).
             }
             Rectangle {
                 y: 24px * root.k;
@@ -6536,11 +6614,13 @@ export component AppWindow inherits Window {
         if root.child-items.length > 0 && root.ep-list: Rectangle {
             // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
             opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3);
-            x: (root.narrow ? 16px : 32px) + root.po-right;
+            // Place laissée de chaque côté aux boutons flottants d'une longue saison (liste toujours centrée).
+            width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 76px * root.k : 0px)), 1200px * root.k);
+            // Centrée dans la fenêtre.
+            x: (parent.width - self.width) / 2 + root.po-right;
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
-            width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1200px * root.k);
             height: root.ep-block-h;
-            // Titre de la liste (« Épisodes »), et raccourci vers la suite quand la liste est longue.
+            // Titre de la liste (« Épisodes »).
             Text {
                 x: 0px;
                 y: 0px;
@@ -6549,31 +6629,6 @@ export component AppWindow inherits Window {
                 color: Theme.text;
                 font-size: 22px * root.k;
                 vertical-alignment: center;
-            }
-            if root.detail-rows.length > 0 && root.child-items.length > 6: Rectangle {
-                property <bool> hot: skip-area.has-hover && !Nav.touch;
-                x: parent.width - self.width;
-                y: (root.ep-head-h - 12px * root.k - self.height) / 2;
-                width: skip-t.preferred-width + 32px * root.k;
-                height: 38px * root.k;
-                border-radius: Theme.win7 ? 4px : self.height / 2;
-                background: Theme.win7 ? transparent : self.hot ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.1);
-                if Theme.win7: Win7Glass {
-                    lit: parent.hot;
-                }
-                skip-t := Text {
-                    text: Tr.f(Tr.k, "Aller à « {} »", root.detail-rows[0].title, "") + "  ↓";
-                    color: parent.hot ? Theme.on-accent : Theme.fg;
-                    font-size: 14px * root.k;
-                    font-weight: 600;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                skip-area := TouchArea {
-                    clicked => {
-                        root.ep-skip();
-                    }
-                }
             }
             for ep[i] in root.child-items: ep-row := Rectangle {
                 property <bool> lit: (!root.h-focus && root.d-zone == 2 && root.d-child == i && Nav.kb) || (ep-area.has-hover && !Nav.touch);
@@ -10774,6 +10829,48 @@ export component AppWindow inherits Window {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
     }
+    }
+
+    // Longue saison : monter en haut de la fiche / descendre à la suite (voir ep-many). Fixes à droite
+    // pendant tout le défilement de la liste ; ils arrivent et partent en glissant depuis le bord.
+    property <float> ep-btn-p: root.ep-in-view && !root.playing && !root.menu-open ? 1 : 0;
+    animate ep-btn-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    if root.ep-btn-p > 0.01: VerticalLayout {
+        x: root.width - 76px * root.k + (1 - root.ep-btn-p) * 90px * root.k;
+        y: root.header-h + (root.height - root.header-h - self.preferred-height) / 2;
+        width: 56px * root.k;
+        spacing: 14px * root.k;
+        opacity: root.ep-btn-p;
+        for b[i] in ["↑", "↓"]: Rectangle {
+            property <bool> lit: (Nav.kb && root.ep-btn == i) || (eb-area.has-hover && !Nav.touch);
+            height: 56px * root.k;
+            border-radius: Theme.win7 ? 4px : self.height / 2;
+            background: Theme.win7 ? transparent : self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.panel;
+            border-width: Theme.win7 ? 0px : 1px;
+            border-color: Theme.glass-border;
+            transform-scale: self.lit ? 1.1 : 1.0;
+            animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            if Theme.win7: Win7Glass {
+                lit: parent.lit;
+            }
+            Text {
+                text: b;
+                color: parent.lit ? Theme.on-accent : Theme.fg;
+                font-size: 24px * root.k;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            eb-area := TouchArea {
+                clicked => {
+                    if (i == 0) {
+                        root.ep-top();
+                    } else {
+                        root.ep-skip();
+                    }
+                }
+            }
+        }
     }
 
     // Porte (portrait, vignette 16:9 ouverte, voir hero-door) : sous la barre du haut, qui reste nette.

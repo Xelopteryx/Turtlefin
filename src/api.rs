@@ -489,7 +489,8 @@ impl Item {
                 _ => 0,
             },
             played: self.user_data.as_ref().is_some_and(|u| u.played),
-            deck: self.kind == "BoxSet",
+            // Collection, ou bibliothèque (« Mes médias ») : ouverte en distribuant son contenu.
+            deck: matches!(self.kind.as_str(), "BoxSet" | "CollectionFolder" | "UserView"),
             overview: String::new(),
         }
     }

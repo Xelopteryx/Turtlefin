@@ -1084,7 +1084,28 @@ fn apply_login_tiles(u: &AppWindow, rows: &[(String, String, String, String)]) {
         })
         .collect();
     let saved = rows.iter().filter(|r| r.0.starts_with("acc:")).count() as i32;
-    u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+    // Tuiles déjà là : gardées telles quelles (photo, animation d'arrivée déjà jouée) ; seules les
+    // nouvelles sont insérées à leur place et les disparues retirées. Reconstruire la liste refaisait
+    // apparaître toutes les tuiles une seconde fois.
+    let cur = u.get_login_tiles();
+    if let Some(vm) = cur.as_any().downcast_ref::<VecModel<CardData>>() {
+        let ids: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+        let mut i = 0;
+        while i < vm.row_count() {
+            if vm.row_data(i).is_some_and(|r| !ids.contains(&r.id.as_str())) {
+                vm.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        for (i, c) in cards.into_iter().enumerate() {
+            if vm.row_data(i).map(|r| r.id) != Some(c.id.clone()) {
+                vm.insert(i, c);
+            }
+        }
+    } else {
+        u.set_login_tiles(ModelRc::new(VecModel::from(cards)));
+    }
     for (i, (key, _, _, uid)) in rows.iter().enumerate() {
         if let Some(frames) = (!uid.is_empty()).then(|| avatar_thumb(uid)).flatten() {
             show_frames(u, AnimSlot::Login(i), key, frames);
@@ -1117,6 +1138,9 @@ fn login_opened(app: &Arc<App>) {
     // compte), le temps que le serveur réponde.
     let known_pub = app.login_pub.lock().unwrap().clone();
     let first = login_tiles(&config::load().server_id, &known_pub);
+    // Aucun compte connu : rien tant que le serveur n'a pas répondu (« Autre compte » vient après les
+    // comptes, seul s'il n'y en a aucun).
+    let first: Vec<_> = if first.len() > 1 { first } else { Vec::new() };
     apply_login_tiles(&u, &first);
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -3760,12 +3784,19 @@ fn open_servers(app: &Arc<App>) {
     search_servers(app);
 }
 
+/// Recherche de serveurs en cours : une seconde demande (clics répétés) attend la fin de la première.
+static SRV_SEARCHING: AtomicBool = AtomicBool::new(false);
+
 fn search_servers(app: &Arc<App>) {
+    if SRV_SEARCHING.swap(true, Ordering::SeqCst) {
+        return;
+    }
     let ui = app.ui();
     let _ = ui.upgrade_in_event_loop(|u| u.set_srv_searching(true));
     let app2 = app.clone();
     app.rt.spawn(async move {
         let found = discovery::discover().await;
+        SRV_SEARCHING.store(false, Ordering::SeqCst);
         *app2.found.lock().unwrap() = found.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             let rows: Vec<ServerData> = found
@@ -3779,7 +3810,32 @@ fn search_servers(app: &Arc<App>) {
                 })
                 .collect();
             let n = rows.len() as i32;
-            u.set_servers(ModelRc::new(VecModel::from(rows)));
+            // Liste mise à jour sur place : les serveurs déjà affichés restent (pas de disparition puis
+            // réapparition), les nouveaux sont insérés, les disparus retirés.
+            let cur = u.get_servers();
+            if let Some(vm) = cur.as_any().downcast_ref::<VecModel<ServerData>>() {
+                let ids: Vec<slint::SharedString> = rows.iter().map(|r| r.id.clone()).collect();
+                let mut i = 0;
+                while i < vm.row_count() {
+                    if vm.row_data(i).is_some_and(|r| !ids.contains(&r.id)) {
+                        vm.remove(i);
+                    } else {
+                        i += 1;
+                    }
+                }
+                for (i, r) in rows.into_iter().enumerate() {
+                    match vm.row_data(i) {
+                        Some(old) if old.id == r.id => {
+                            if old != r {
+                                vm.set_row_data(i, r);
+                            }
+                        }
+                        _ => vm.insert(i, r),
+                    }
+                }
+            } else {
+                u.set_servers(ModelRc::new(VecModel::from(rows)));
+            }
             u.set_srv_searching(false);
             // Rien trouvé : sélection sur « Saisir une adresse ».
             u.set_srv_sel(if n == 0 { 1 } else { 0 });
@@ -6820,7 +6876,10 @@ static FULL_NOW: AtomicBool = AtomicBool::new(false);
 /// Frutiger Aero (thème à `win7`) en fenêtre, au bureau : fenêtre sans bordure du système, cadre et
 /// boutons de Windows 7 dessinés par Turtlefin (WinCaption, app.slint). Sinon, la bordure du système.
 fn update_chrome(u: &AppWindow) {
-    let on = !cfg!(target_os = "android") && u.global::<Theme>().get_win7() && !FULL_NOW.load(Ordering::Relaxed) && !u.get_tv_mode();
+    // Cadre de Windows 7 dessiné par Turtlefin : retiré (trop de défauts au redimensionnement :
+    // fenêtre transparente, barre blanche). Toujours le cadre du système ; le verre flou et les coins
+    // arrondis qui l'accompagnaient sont coupés ci-dessous.
+    let on = false;
     if u.get_chrome() != on {
         u.set_chrome(on);
     }
