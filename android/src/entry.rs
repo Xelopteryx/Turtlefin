@@ -244,7 +244,7 @@ pub fn bind_to_lan(fd: std::os::raw::c_int) {
 /// Icône du lanceur aux couleurs du thème `key` : active son entrée (activity-alias « .Icon_<key> »
 /// du manifeste) et désactive les autres, sans fermer l'appli. Rien n'est fait si c'est déjà la bonne.
 pub fn set_launcher_icon(key: &str) {
-    const KEYS: [&str; 5] = ["turtlefin", "sombre", "clair", "aero", "vert"];
+    const KEYS: [&str; 4] = ["turtlefin", "aero", "nerd", "gate"];
     let key = if KEYS.contains(&key) { key.to_string() } else { "turtlefin".to_string() };
     let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed) as usize;
     if act == 0 {

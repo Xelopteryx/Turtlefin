@@ -56,10 +56,10 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
-            android:name=".Icon_sombre"
+            android:name=".Icon_nerd"
             android:targetActivity="android.app.NativeActivity"
-            android:icon="@mipmap/ic_sombre"
-            android:banner="@mipmap/ic_sombre"
+            android:icon="@mipmap/ic_nerd"
+            android:banner="@mipmap/ic_nerd"
             android:enabled="false"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
@@ -72,10 +72,10 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
-            android:name=".Icon_clair"
+            android:name=".Icon_gate"
             android:targetActivity="android.app.NativeActivity"
-            android:icon="@mipmap/ic_clair"
-            android:banner="@mipmap/ic_clair"
+            android:icon="@mipmap/ic_gate"
+            android:banner="@mipmap/ic_gate"
             android:enabled="false"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
@@ -92,22 +92,6 @@
             android:targetActivity="android.app.NativeActivity"
             android:icon="@mipmap/ic_aero"
             android:banner="@mipmap/ic_aero"
-            android:enabled="false"
-            android:exported="true">
-            <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
-                 plantage au démarrage). -->
-            <meta-data android:name="android.app.lib_name" android:value="turtlefin" />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-        <activity-alias
-            android:name=".Icon_vert"
-            android:targetActivity="android.app.NativeActivity"
-            android:icon="@mipmap/ic_vert"
-            android:banner="@mipmap/ic_vert"
             android:enabled="false"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :

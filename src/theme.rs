@@ -63,7 +63,8 @@ pub struct ThemeDef {
     pub gloss: f32,
     /// Décor de bulles et de ciel (ancien nom du décor « sky »).
     pub bubbles: bool,
-    /// Décor : « » aucun, « sky » ciel, herbe et bulles, « harmony » gerbe de lumière (Windows 7).
+    /// Décor : « » aucun, « sky » ciel, herbe et bulles, « harmony » gerbe de lumière (Windows 7),
+    /// « circuit » pistes de carte mère, « stars » ciel étoilé.
     pub scenery: String,
     /// Barre de verre derrière l'en-tête.
     pub header_glass: bool,
@@ -71,9 +72,11 @@ pub struct ThemeDef {
     pub edge: String,
     /// Reflets en biais sur les grands panneaux.
     pub streaks: bool,
-    /// Animation de démarrage : « » logo qui se relie, « aero » billes de verre qui tourbillonnent.
+    /// Animation de démarrage : « » logo qui se relie, « aero » billes de verre qui tourbillonnent,
+    /// « nerd » machine qui s'allume module par module, « gate » porte qui compose son adresse.
     pub boot: String,
-    /// Logo (icône, démarrage) : « » carapace en dégradé, « orb » orbe de verre.
+    /// Logo (icône, démarrage) : « » carapace en dégradé, « orb » orbe de verre, « chip » pistes de
+    /// circuit, « gate » anneau à sept chevrons.
     pub logo: String,
     /// Police de l'interface : « » Montserrat, « selawik » (proche de Segoe UI, celle de Windows 7).
     pub font: String,
@@ -140,59 +143,6 @@ pub fn turtlefin() -> ThemeDef {
     }
 }
 
-/// Noir profond, neutre : pour les écrans OLED et le noir complet.
-fn sombre() -> ThemeDef {
-    ThemeDef {
-        name: s("Sombre"),
-        bg: s("#000000"),
-        bg_mid: s("#050507"),
-        bg_end: s("#0a0b0e"),
-        text: s("#ffffffeb"),
-        muted: s("#ffffff8c"),
-        accent1: s("#6366f1"),
-        accent2: s("#38bdf8"),
-        glass: s("#121216e6"),
-        glass_border: s("#ffffff1f"),
-        panel: s("#0e0f12f7"),
-        card: s("#ffffff0a"),
-        card_focus: s("#ffffff1c"),
-        placeholder1: s("#1d1e2a"),
-        placeholder2: s("#11161d"),
-        veil: 1.15,
-        ..turtlefin()
-    }
-}
-
-/// Clair : fond blanc bleuté, encre marine.
-fn clair() -> ThemeDef {
-    ThemeDef {
-        name: s("Clair"),
-        dark: false,
-        bg: s("#f5f8fc"),
-        bg_mid: s("#eef3f9"),
-        bg_end: s("#e7eef6"),
-        fg: s("#0f1a2a"),
-        text: s("#0f1a2ae8"),
-        muted: s("#0f1a2a99"),
-        accent1: s("#8b3fd1"),
-        accent2: s("#0284c7"),
-        glass: s("#ffffffe0"),
-        glass_border: s("#0f1a2a1f"),
-        panel: s("#fbfcfef7"),
-        card: s("#ffffffa6"),
-        card_focus: s("#ffffff"),
-        placeholder1: s("#ddd3ee"),
-        placeholder2: s("#cde1ee"),
-        scrim: s("#0f1a2a"),
-        danger: s("#dc2626"),
-        danger_text: s("#b91c1c"),
-        ok: s("#16a34a"),
-        warn: s("#d97706"),
-        veil: 1.6,
-        ..turtlefin()
-    }
-}
-
 /// Frutiger Aero, façon Windows 7 : fond « Harmony » (gerbe de lumière sur bleu profond), verre
 /// bleuté à liseré clair et reflets en biais, sélection bleu-cyan brillante, barre de verre en haut,
 /// lecteur à orbe, démarrage en billes de verre qui tourbillonnent.
@@ -242,28 +192,88 @@ fn aero() -> ThemeDef {
     }
 }
 
-/// Turtlefin vert : nuit des fonds marins, accents vert tortue et vert tendre.
-fn vert() -> ThemeDef {
+/// Nerd : carte mère la nuit. Fond de circuit imprimé vert sombre parcouru de pistes, accents vert
+/// phosphore et cyan, angles vifs ; démarrage : une machine qui s'allume module par module ; logo :
+/// l'hexagone gravé en pistes de cuivre.
+fn nerd() -> ThemeDef {
     ThemeDef {
-        name: s("Turtlefin vert"),
-        bg: s("#02140f"),
-        bg_mid: s("#031b14"),
-        bg_end: s("#04211a"),
-        accent1: s("#1f9d5c"),
-        accent2: s("#52c96b"),
-        glass: s("#0d1f19e0"),
-        glass_border: s("#ffffff21"),
-        panel: s("#072019f5"),
-        placeholder1: s("#173a2a"),
-        placeholder2: s("#0f2c33"),
-        ok: s("#86efac"),
+        name: s("Nerd"),
+        dark: true,
+        bg: s("#010805"),
+        bg_mid: s("#03120b"),
+        bg_end: s("#020c07"),
+        fg: s("#e6fff2"),
+        text: s("#e6fff2e6"),
+        muted: s("#9fe3c08c"),
+        accent1: s("#00b864"),
+        accent2: s("#2ef0c8"),
+        on_accent: s("#001a0d"),
+        glass: s("#04170ee0"),
+        glass_border: s("#2ef0c840"),
+        panel: s("#03140cf5"),
+        card: s("#0b2a1a66"),
+        card_focus: s("#0f3a24b3"),
+        card_border: s("#2ef0c833"),
+        glow: s("#2ef0c800"),
+        player_bar: s("#020d08e6"),
+        player_ink: s("#e6fff2"),
+        placeholder1: s("#0b3a24"),
+        placeholder2: s("#06241a"),
+        scrim: s("#000502"),
+        danger: s("#ff5c5c"),
+        danger_text: s("#ff9a9a"),
+        ok: s("#4dff9a"),
+        warn: s("#ffc23d"),
+        veil: 1.4,
+        radius: 4.0,
+        scenery: s("circuit"),
+        boot: s("nerd"),
+        logo: s("chip"),
+        ..turtlefin()
+    }
+}
+
+/// Sept chevrons : une porte antique au milieu des étoiles. Bleu nuit, pierre grise et chevrons
+/// orange ; démarrage : la porte compose son adresse, sept chevrons s'enclenchent (les sept
+/// vérifications), le vortex jaillit et le logo apparaît dans l'horizon des événements.
+fn gate() -> ThemeDef {
+    ThemeDef {
+        name: s("Sept chevrons"),
+        dark: true,
+        bg: s("#02040b"),
+        bg_mid: s("#060b1d"),
+        bg_end: s("#030614"),
+        fg: s("#eef4ff"),
+        text: s("#eef4ffe6"),
+        muted: s("#b9c6e099"),
+        accent1: s("#ff8a2a"),
+        accent2: s("#58b8ff"),
+        on_accent: s("#ffffff"),
+        glass: s("#0a1124e0"),
+        glass_border: s("#8fb2ff33"),
+        panel: s("#070c1df5"),
+        card: s("#ffffff0d"),
+        card_focus: s("#58b8ff33"),
+        card_border: s("#8fa0c040"),
+        glow: s("#58b8ff00"),
+        player_bar: s("#050916e6"),
+        placeholder1: s("#1c2440"),
+        placeholder2: s("#0d1630"),
+        scrim: s("#000208"),
+        ok: s("#7ee0a0"),
+        warn: s("#ff9a3d"),
+        veil: 1.3,
+        radius: 8.0,
+        scenery: s("stars"),
+        boot: s("gate"),
+        logo: s("gate"),
         ..turtlefin()
     }
 }
 
 /// Thèmes intégrés : clé, thème.
 pub fn builtin() -> Vec<(&'static str, ThemeDef)> {
-    vec![("turtlefin", turtlefin()), ("sombre", sombre()), ("clair", clair()), ("aero", aero()), ("vert", vert())]
+    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd()), ("gate", gate())]
 }
 
 /// Thème choisi dans les réglages : clé intégrée, ou « custom:<nom> » (thème importé).
@@ -341,6 +351,8 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     let scenery = match t.scenery.as_str() {
         "sky" => 1,
         "harmony" => 2,
+        "circuit" => 3,
+        "stars" => 4,
         _ if t.bubbles => 1,
         _ => 0,
     };
@@ -349,8 +361,18 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_header_glass(t.header_glass);
     th.set_edge(c(&t.edge, &d.edge));
     th.set_streaks(t.streaks);
-    th.set_boot_style(if t.boot == "aero" { 1 } else { 0 });
-    th.set_logo_style(if t.logo == "orb" { 1 } else { 0 });
+    th.set_boot_style(match t.boot.as_str() {
+        "aero" => 1,
+        "nerd" => 2,
+        "gate" => 3,
+        _ => 0,
+    });
+    th.set_logo_style(match t.logo.as_str() {
+        "orb" => 1,
+        "chip" => 2,
+        "gate" => 3,
+        _ => 0,
+    });
     th.set_aero_font(t.font == "selawik");
     th.set_win7(t.win7);
     window_icon(u, t);
@@ -436,6 +458,9 @@ fn icon_raw(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<sli
     if t.logo == "orb" {
         return orb_icon(n, px, bg1, a1, a2, &outer, &inner);
     }
+    if t.logo == "chip" || t.logo == "gate" {
+        return trace_icon(n, px, t.logo == "gate", with_bg, (bg1, bg2), (a1, a2), &outer, &inner);
+    }
     let cov = |dist: f32| (0.5 - dist / px).clamp(0.0, 1.0);
     let gloss = t.gloss.clamp(0.0, 1.5);
     let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
@@ -483,13 +508,118 @@ fn icon_raw(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<sli
     buf
 }
 
+/// Logo en pistes (thème Nerd, « chip ») : hexagone gravé fin, plots ronds aux sommets, puce carrée au
+/// centre ; ou (thème Sept chevrons, « gate ») : anneau de pierre à neuf chevrons autour de l'hexagone.
+#[allow(clippy::too_many_arguments)]
+fn trace_icon(
+    n: u32,
+    px: f32,
+    gate: bool,
+    with_bg: bool,
+    bg: (Color, Color),
+    acc: (Color, Color),
+    outer: &[(f32, f32); 6],
+    inner: &[(f32, f32); 6],
+) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
+    fn seg(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let h = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+        ((p.0 - a.0 - dx * h).powi(2) + (p.1 - a.1 - dy * h).powi(2)).sqrt()
+    }
+    let rgb = |c: Color| [c.red() as f32, c.green() as f32, c.blue() as f32];
+    let mix = |a: [f32; 3], b: [f32; 3], f: f32| [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    let cov = |d: f32| (0.5 - d / px).clamp(0.0, 1.0);
+    let (bg1, bg2, a1, a2) = (rgb(bg.0), rgb(bg.1), rgb(acc.0), rgb(acc.1));
+    let stone = [77.0, 83.0, 97.0];
+    let white = [235.0, 245.0, 255.0];
+    // Repère : le logo est réduit (x 0,72) au centre pour laisser la place à l'anneau.
+    let k = if gate { 0.72 } else { 1.0 };
+    let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
+    for (i, p) in buf.make_mut_slice().iter_mut().enumerate() {
+        let (x, y) = ((i as u32 % n) as f32 + 0.5, (i as u32 / n) as f32 + 0.5);
+        let (sx, sy) = (x * px, y * px);
+        // Fond : carré arrondi.
+        let (qx, qy) = ((sx - 128.0).abs() - 72.0, (sy - 128.0).abs() - 72.0);
+        let rd = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 56.0;
+        let mut a = if with_bg { cov(rd) } else { 0.0 };
+        let mut c = mix(bg1, bg2, sy / 256.0);
+        let mut put = |col: [f32; 3], al: f32, c: &mut [f32; 3], a: &mut f32| {
+            *c = mix(*c, col, al);
+            *a = *a + al * (1.0 - *a);
+        };
+        let l = (128.0 + (sx - 128.0) / (1.4 * k), 128.0 + (sy - 128.0) / (1.4 * k));
+        let r = ((sx - 128.0).powi(2) + (sy - 128.0).powi(2)).sqrt();
+        if gate {
+            // Anneau de pierre (rayons 92 à 118 du repère de l'icône).
+            let ring = (r - 105.0).abs() - 13.0;
+            put(stone, cov(ring), &mut c, &mut a);
+            // Horizon : bleu au centre.
+            put(mix(a2, [20.0, 50.0, 120.0], (r / 92.0).min(1.0)), cov(r - 92.0) * 0.9, &mut c, &mut a);
+            // Chevrons : triangles orange, pointe vers le centre.
+            for j in 0..9 {
+                let ang = (-90.0 + 40.0 * j as f32).to_radians();
+                let (ux, uy) = (ang.cos(), ang.sin());
+                let (cx, cy) = (128.0 + 112.0 * ux, 128.0 + 112.0 * uy);
+                // Repère local : u vers l'extérieur, v tangent.
+                let (dx, dy) = (sx - cx, sy - cy);
+                let (pu, pv) = (dx * ux + dy * uy, -dx * uy + dy * ux);
+                // Triangle : base à u = 8 (largeur 26), pointe à u = -12.
+                let inside = pu <= 8.0 && pu >= -12.0 && pv.abs() <= (pu + 12.0) * 13.0 / 20.0;
+                if inside {
+                    put([255.0, 138.0, 42.0], 1.0, &mut c, &mut a);
+                }
+            }
+        }
+        // Hexagone gravé, rayons, centre.
+        let mut d = f32::MAX;
+        for k6 in 0..6 {
+            d = d.min(seg(l, outer[k6], outer[(k6 + 1) % 6]) - if gate { 7.0 } else { 4.5 });
+            d = d.min(seg(l, outer[k6], inner[k6]) - if gate { 4.0 } else { 3.0 });
+        }
+        let ink = |pt: (f32, f32)| if gate { mix(white, a2, (((pt.0 - 53.0) + (pt.1 - 53.0)) / 300.0).clamp(0.0, 1.0)) } else { mix(a1, a2, (((pt.0 - 53.0) + (pt.1 - 53.0)) / 300.0).clamp(0.0, 1.0)) };
+        put(ink(l), cov(d * 1.4 * k), &mut c, &mut a);
+        if gate {
+            // Centre plein (hexagone intérieur).
+            let mut di = f32::MAX;
+            for k6 in 0..6 {
+                di = di.min(seg(l, inner[k6], inner[(k6 + 1) % 6]));
+            }
+            let mut inside = false;
+            let mut j = 5;
+            for k6 in 0..6 {
+                let (p1, p2) = (inner[k6], inner[j]);
+                if (p1.1 > l.1) != (p2.1 > l.1) && l.0 < (p2.0 - p1.0) * (l.1 - p1.1) / (p2.1 - p1.1) + p1.0 {
+                    inside = !inside;
+                }
+                j = k6;
+            }
+            put(ink(l), if inside { 1.0 } else { cov(di * 1.4 * k) }, &mut c, &mut a);
+        } else {
+            // Plots ronds aux sommets (anneau) et puce carrée au centre.
+            for o in outer.iter() {
+                let dd = ((l.0 - o.0).powi(2) + (l.1 - o.1).powi(2)).sqrt();
+                put(bg1, cov((dd - 8.0) * 1.4), &mut c, &mut a);
+                put(a2, cov(((dd - 8.0).abs() - 3.0) * 1.4), &mut c, &mut a);
+            }
+            let (qx, qy) = ((l.0 - 128.0).abs() - 22.0, (l.1 - 128.0).abs() - 22.0);
+            let sq = qx.max(qy);
+            put([10.0, 40.0, 26.0], cov(sq * 1.4), &mut c, &mut a);
+            put(a2, cov((sq.abs() - 2.5) * 1.4), &mut c, &mut a);
+            let (qx, qy) = ((l.0 - 128.0).abs() - 9.0, (l.1 - 128.0).abs() - 9.0);
+            put(a1, cov(qx.max(qy) * 1.4), &mut c, &mut a);
+        }
+        *p = slint::Rgba8Pixel { r: c[0].round() as u8, g: c[1].round() as u8, b: c[2].round() as u8, a: (a.clamp(0.0, 1.0) * 255.0) as u8 };
+    }
+    buf
+}
+
 /// Icône adaptative Android d'un thème : premier plan (logo, ou orbe, dans la zone sûre d'un canevas
 /// de `n` px, transparent autour) et couleurs du fond (haut, bas). Rendues d'avance dans android/res
 /// (voir le test `android_icons`), une par thème intégré.
 #[cfg(test)]
 pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rgba8Pixel>, String, String) {
     // Logo : 168 / 256 de son image ; orbe : 244 / 256. Zone sûre : 66 / 108 du canevas.
-    let (span, target) = if t.logo == "orb" { (244.0, 0.60) } else { (168.0, 0.56) };
+    let (span, target) = if t.logo == "orb" || t.logo == "gate" { (244.0, 0.60) } else { (168.0, 0.56) };
     let m = ((n as f32 * target * 256.0 / span).round() as u32).min(n);
     let part = icon_ss(t, m, false);
     let mut out = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);

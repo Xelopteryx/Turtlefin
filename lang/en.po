@@ -2017,3 +2017,6 @@ msgstr "When needed"
 
 msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
 msgstr "DLNA TVs: subtitles are burned into the picture by the server. Chromecast: they change without reloading the video."
+
+msgid "Sept chevrons"
+msgstr "Seven Chevrons"

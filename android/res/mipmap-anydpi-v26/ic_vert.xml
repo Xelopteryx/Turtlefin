@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Icône du thème « vert » (généré : theme.rs, test android_icons). -->
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_bg_vert" />
-    <foreground android:drawable="@drawable/ic_fg_vert" />
-</adaptive-icon>

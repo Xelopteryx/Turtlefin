@@ -4,11 +4,15 @@
 // configuration, réseau) et le centre (serveur). Chacun est une vraie vérification (boot.rs) : gris en
 // attente, vert si tout va bien, rouge sinon (avec l'explication et « Continuer »). Quand tout est
 // vert, les sommets se relient (contour), les rayons partent vers le centre, le point central devient
-// l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis on zoome dans le centre
-// vers la page suivante. Le déroulement est piloté par Rust (boot.rs) ; `--no-intro` le saute.
+// l'hexagone plein : c'est exactement le logo (packaging/turtlefin.svg). Puis le logo rétrécit et se
+// range à côté du nom « Turtlefin », et l'ensemble s'efface sur la page suivante. Chaque thème a sa
+// mise en scène des sept points (Theme.boot-style) : 0 points qui se relient, 1 billes de verre qui
+// tourbillonnent (Aero), 2 modules branchés sur une carte mère qui s'allume (Nerd), 3 porte qui
+// compose son adresse, sept chevrons (Sept chevrons). Sans serveur (premier lancement), les points
+// s'écartent au lieu de se relier. Déroulement piloté par Rust (boot.rs) ; `--no-intro` le saute.
 
 import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
-import { AeroSky } from "sky.slint";
+import { AeroSky, CircuitScene } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
 
@@ -37,7 +41,21 @@ export component BootLogo inherits Rectangle {
     callback finished();                   // fin du zoom
 
     background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
-    if Theme.bubbles: AeroSky { k: root.k; }
+    if Theme.bubbles && !root.nerd: AeroSky { k: root.k; }
+    // Nerd : la carte mère du fond s'allume au fil des modules branchés.
+    if root.nerd: CircuitScene { power: root.power-a; }
+
+    property <bool> nerd: Theme.boot-style == 2;
+    property <bool> gate: Theme.boot-style == 3;
+    // Aucun serveur choisi (premier lancement) : pas de logo, les points s'écartent.
+    property <bool> noserver: root.state[6] == 4;
+    property <float> spread: root.noserver ? (root.phase >= 1 ? 1 : 0.45) : 0;
+    animate spread { duration: 700ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Vérifications réussies (0 à 7) : la machine du thème Nerd s'allume d'autant.
+    property <int> ok-n: (root.state[0] == 2 ? 1 : 0) + (root.state[1] == 2 ? 1 : 0) + (root.state[2] == 2 ? 1 : 0)
+        + (root.state[3] == 2 ? 1 : 0) + (root.state[4] == 2 ? 1 : 0) + (root.state[5] == 2 ? 1 : 0) + (root.state[6] == 2 ? 1 : 0);
+    property <float> power-a: root.phase >= 1 && !root.noserver ? 1 : root.ok-n / 7;
+    animate power-a { duration: 500ms; easing: ease-out; }
 
     // Style « Aero » (Theme.boot-style 1) : les points sont des billes de verre lumineuses ; à la
     // liaison, elles tourbillonnent jusqu'au centre, un éclair blanc jaillit et le logo apparaît.
@@ -51,10 +69,14 @@ export component BootLogo inherits Rectangle {
     property <[float]> ix: [128, 154, 154, 128, 102, 102];
     property <[float]> iy: [98, 113, 143, 158, 143, 113];
     property <length> side: min(self.width, self.height) * 0.46;
+    property <[int]> chev-of: [6, 0, 1, 2, -1, -1, 3, 4, 5];
+    // Sept chevrons, liaison : horizon des événements (eh) et jaillissement du vortex (kw).
+    property <float> eh: root.noserver ? 0 : root.ease(clamp(root.lp / 0.3, 0, 1));
+    property <float> kw: root.noserver ? 0 : sin(clamp((root.lp - 0.05) / 0.4, 0, 1) * 180deg);
     property <length> u: self.side / 256;
     // Orbe (Theme.logo-style 1) : carapace blanc nacré vers l'accent clair, posée sur une sphère de verre.
     property <bool> orb: root.aero && Theme.logo-style == 1;
-    property <brush> grad: root.orb
+    property <brush> grad: root.orb || root.gate
         ? @linear-gradient(135deg, rgba(255, 255, 255, root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 110%)
         : @linear-gradient(135deg, Theme.accent1.with-alpha(root.reveal) 0%, Theme.accent2.with-alpha(root.reveal) 100%);
 
@@ -71,26 +93,48 @@ export component BootLogo inherits Rectangle {
             zoom-timer.running = true;
         }
     }
-    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / (root.aero ? 2400ms : 900ms), 0, 1) : 1;
+    property <duration> link-len: root.aero || root.gate ? 2400ms : root.nerd ? 1700ms : 900ms;
+    property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / root.link-len, 0, 1) : 1;
     // Aero : tourbillon (0 -> 1), éclair (monte puis retombe), apparition du logo.
     // Aero, sur 2,4 s : tourbillon (0 -> 0,35), éclair (0,28 -> 0,53), l'orbe surgit en zoomant avec un
     // rebond (0,36 -> 0,6), puis le logo se redessine sur elle : contour (0,5 -> 0,74), rayons et centre
     // (0,72 -> 0,9).
-    property <float> swirl: root.ease-io(clamp(root.lp / 0.35, 0, 1));
+    property <float> swirl: root.noserver ? 0 : root.ease-io(clamp(root.lp / 0.35, 0, 1));
     property <float> flash: 0.55 * sin(clamp((root.lp - 0.27) / 0.16, 0, 1) * 180deg);
     property <float> reveal: root.aero ? clamp((root.lp - 0.45) / 0.08, 0, 1) : 1;
     // La bille du serveur (au centre) devient la grande orbe : elle grossit (avec un rebond) en passant
     // de sa couleur (vert) à celle du thème. orb-s : rayon en part du rayon final (100), depuis celui de la bille (0,11).
-    property <float> orb-t: clamp((root.lp - 0.35) / 0.27, 0, 1);
+    property <float> orb-t: root.noserver ? 0 : clamp((root.lp - 0.35) / 0.27, 0, 1);
     property <float> orb-s: 0.11 + 0.89 * root.ease(root.orb-t) + 0.12 * sin(root.orb-t * 180deg);
     property <float> orb-c: root.ease(clamp((root.orb-t - 0.15) / 0.75, 0, 1));
     property <color> srv: root.orb-color(root.state[6]);
-    property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 750ms, 0, 1);
-    // Liaison : contour (première moitié), puis rayons et hexagone central (seconde moitié).
-    property <float> edge-p: root.aero ? root.ease(clamp((root.lp - 0.5) / 0.24, 0, 1)) : root.ease(clamp(root.lp * 2, 0, 1));
-    property <float> spoke-p: root.aero ? root.ease(clamp((root.lp - 0.72) / 0.18, 0, 1)) : root.ease(clamp(root.lp * 2 - 1, 0, 1));
+    property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / 1700ms, 0, 1);
+    // Liaison : contour, puis rayons et hexagone central (selon le style).
+    property <float> edge-p: root.noserver ? 0
+        : root.aero ? root.ease(clamp((root.lp - 0.5) / 0.24, 0, 1))
+        : root.gate ? root.ease(clamp((root.lp - 0.45) / 0.3, 0, 1))
+        : root.nerd ? root.ease(clamp((root.lp - 0.25) / 0.35, 0, 1))
+        : root.ease(clamp(root.lp * 2, 0, 1));
+    property <float> spoke-p: root.noserver ? 0
+        : root.aero ? root.ease(clamp((root.lp - 0.72) / 0.18, 0, 1))
+        : root.gate ? root.ease(clamp((root.lp - 0.7) / 0.25, 0, 1))
+        : root.nerd ? root.ease(clamp((root.lp - 0.6) / 0.3, 0, 1))
+        : root.ease(clamp(root.lp * 2 - 1, 0, 1));
+    // Libellés et textes : ils s'effacent pendant la liaison (ou l'écartement, sans serveur).
+    property <float> lab-fade: root.noserver ? root.lp : root.aero ? min(1, root.swirl * 3) : root.gate || root.nerd ? clamp(root.lp * 3, 0, 1) : root.edge-p;
+    // Fin (zp) : le logo rétrécit et glisse à gauche (o1), le nom « Turtlefin » apparaît à sa droite (o2),
+    // puis tout s'efface sur la page suivante (o3). Sans serveur : simple fondu.
+    property <float> o1: root.noserver ? 0 : root.ease-io(clamp(root.zp / 0.42, 0, 1));
+    property <float> o2: root.noserver ? 0 : root.ease(clamp((root.zp - 0.3) / 0.3, 0, 1));
+    property <float> o3: root.noserver ? clamp(root.zp / 0.5, 0, 1) : clamp((root.zp - 0.78) / 0.22, 0, 1);
+    property <float> mini: 0.36;
+    property <length> word-gap: 20px * root.k;
+    property <length> word-size: root.side * 0.17;
+    property <length> group-w: root.side * root.mini + root.word-gap + word-m.preferred-width;
+    property <length> end-cx: (root.width - root.group-w) / 2 + root.side * root.mini / 2;
+    word-m := Text { visible: false; text: "Turtlefin"; font-size: root.word-size; font-weight: 800; }
     link-timer := Timer {
-        interval: root.aero ? 2550ms : 1100ms;
+        interval: root.link-len + 150ms;
         running: false;
         triggered => {
             self.running = false;
@@ -98,7 +142,7 @@ export component BootLogo inherits Rectangle {
         }
     }
     zoom-timer := Timer {
-        interval: 780ms;
+        interval: 1730ms;
         running: false;
         triggered => {
             self.running = false;
@@ -135,16 +179,241 @@ export component BootLogo inherits Rectangle {
         return s == 1 || s == 3 ? 26 : s == 0 ? 18 : 22;
     }
 
-    // Fond : s'efface pendant le zoom (la page suivante est déjà dessous).
-    opacity: 1 - root.zp * root.zp;
+    // Fond : s'efface à la fin (la page suivante est déjà dessous).
+    opacity: 1 - root.o3;
 
     logo := Rectangle {
-        x: (parent.width - root.side) / 2;
+        x: (parent.width - root.side) / 2 + (root.end-cx - parent.width / 2) * root.o1;
         y: (parent.height - root.side) / 2 - 30px * root.k;
         width: root.side;
         height: root.side;
-        // Zoom dans le point central.
-        transform-scale: 1 + root.zp * root.zp * 26;
+        // Fin : le logo rétrécit pour se ranger à côté du nom.
+        transform-scale: 1 - (1 - root.mini) * root.o1;
+
+        // ---- Nerd : carte mère. Six emplacements reliés au processeur central par des pistes ; à chaque
+        // vérification, un module glisse dans son emplacement, sa diode s'allume, sa piste s'éclaire.
+        if root.nerd: Rectangle {
+            opacity: 1 - root.spoke-p;
+            for i in 6: Path {
+                property <int> s: root.state[i];
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 256;
+                viewbox-height: 256;
+                fill: transparent;
+                stroke: self.s == 2 ? Theme.accent2 : self.s == 3 ? #ff5c5c : self.s == 4 ? #ffc23d : Theme.accent1.with-alpha(0.25);
+                animate stroke { duration: 450ms; }
+                stroke-width: 3 * root.u;
+                commands: "M " + root.px[i] + " " + root.py[i]
+                    + " L " + (128 + (root.px[i] - 128) * 0.45) + " " + (root.py[i] == 128 ? 128 : root.py[i])
+                    + " L " + (128 + (root.px[i] - 128) * 0.25) + " " + (128 + (root.py[i] - 128) * 0.3);
+            }
+            // Emplacements.
+            for i in 6: Rectangle {
+                x: (root.px[i] - 18) * root.u;
+                y: (root.py[i] - 13) * root.u;
+                width: 36 * root.u;
+                height: 26 * root.u;
+                border-radius: 2 * root.u;
+                border-width: 2 * root.u;
+                border-color: Theme.accent1.with-alpha(0.35);
+                background: Theme.bg.with-alpha(0.8);
+            }
+            // Modules : arrivent de l'extérieur et s'enfoncent dans leur emplacement.
+            for i in 6: Rectangle {
+                property <int> s: root.state[i];
+                property <float> arrive: self.s >= 1 ? 1 : 0;
+                animate arrive { duration: 460ms; easing: cubic-bezier(0.34, 1.4, 0.64, 1); }
+                property <float> dx: (root.px[i] - 128) / 68;
+                property <float> dy: (root.py[i] - 128) / 68;
+                visible: self.arrive > 0.01;
+                x: (root.px[i] - 15 + self.dx * 120 * (1 - self.arrive)) * root.u;
+                y: (root.py[i] - 10 + self.dy * 120 * (1 - self.arrive)) * root.u;
+                width: 30 * root.u;
+                height: 20 * root.u;
+                border-radius: 2 * root.u;
+                background: #0c2a1b;
+                border-width: 1 * root.u;
+                border-color: Theme.accent2.with-alpha(0.5);
+                Path {
+                    width: parent.width;
+                    height: parent.height;
+                    viewbox-width: 30;
+                    viewbox-height: 20;
+                    fill: transparent;
+                    stroke: Theme.accent1.with-alpha(0.7);
+                    stroke-width: 1 * root.u;
+                    commands: "M 6 3 L 6 0 M 12 3 L 12 0 M 18 3 L 18 0 M 24 3 L 24 0 M 6 17 L 6 20 M 12 17 L 12 20 M 18 17 L 18 20 M 24 17 L 24 20";
+                }
+                // Diode d'état.
+                Rectangle {
+                    x: parent.width - 9 * root.u;
+                    y: 5 * root.u;
+                    width: 5 * root.u;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: parent.s == 2 ? #4dff9a : parent.s == 3 ? #ff5c5c : parent.s == 4 ? #ffc23d
+                        : Theme.accent2.with-alpha(0.3 + 0.7 * root.pulse);
+                    drop-shadow-blur: 6 * root.u;
+                    drop-shadow-color: self.background;
+                }
+            }
+            // Processeur (le serveur) : posé en dernier, au centre ; sans serveur, il attend au-dessus.
+            Rectangle {
+                x: (128 - 26) * root.u;
+                y: (128 - 26) * root.u;
+                width: 52 * root.u;
+                height: self.width;
+                border-radius: 3 * root.u;
+                border-width: 2 * root.u;
+                border-color: Theme.accent1.with-alpha(0.35);
+                background: Theme.bg.with-alpha(0.85);
+            }
+            Rectangle {
+                property <int> s: root.state[6];
+                property <float> arrive: self.s == 4 ? 0.55 : self.s >= 1 ? 1 : 0;
+                animate arrive { duration: 520ms; easing: cubic-bezier(0.34, 1.4, 0.64, 1); }
+                visible: self.arrive > 0.01;
+                x: (128 - 22) * root.u;
+                y: (128 - 22 - 110 * (1 - self.arrive)) * root.u;
+                width: 44 * root.u;
+                height: self.width;
+                border-radius: 3 * root.u;
+                background: @linear-gradient(135deg, #12402a 0%, #071c12 100%);
+                border-width: 1 * root.u;
+                border-color: self.s == 2 ? Theme.accent2 : Theme.accent2.with-alpha(0.4);
+                drop-shadow-blur: self.s == 2 ? 26 * root.u : 0px;
+                drop-shadow-color: Theme.accent2.with-alpha(0.7);
+                Path {
+                    width: parent.width;
+                    height: parent.height;
+                    viewbox-width: 44;
+                    viewbox-height: 44;
+                    fill: transparent;
+                    stroke: Theme.accent2.with-alpha(parent.s == 2 ? 0.9 : 0.35);
+                    stroke-width: 1 * root.u;
+                    commands: "M 12 12 L 32 12 L 32 32 L 12 32 Z M 16 16 L 28 16 L 28 28 L 16 28 Z";
+                }
+                Rectangle {
+                    x: parent.width - 8 * root.u;
+                    y: 4 * root.u;
+                    width: 5 * root.u;
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: parent.s == 2 ? #4dff9a : parent.s == 3 ? #ff5c5c
+                        : parent.s == 4 ? #ffc23d.with-alpha(0.3 + 0.7 * root.pulse) : Theme.accent2.with-alpha(0.3 + 0.7 * root.pulse);
+                }
+            }
+        }
+        // Nerd, liaison : la machine sous tension, éclair vert au centre.
+        if root.nerd && root.phase >= 1 && !root.noserver: Rectangle {
+            property <float> f: sin(clamp(root.lp / 0.35, 0, 1) * 180deg);
+            x: (128 - 120 * self.f) * root.u;
+            y: (128 - 120 * self.f) * root.u;
+            width: 240 * self.f * root.u;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: @radial-gradient(circle, Theme.accent2.with-alpha(0.55 * self.f) 0%, Theme.accent2.with-alpha(0) 70%);
+        }
+
+        // ---- Sept chevrons : la porte. Anneau de pierre, symboles qui tournent pendant la composition,
+        // neuf chevrons dont sept s'enclenchent (un par vérification, le septième en haut : le serveur).
+        if root.gate: Rectangle {
+            // Horizon des événements (liaison) : le vortex jaillit, puis se calme en une flaque bleue.
+            if root.eh > 0: Rectangle {
+                x: (128 - 92 * root.eh) * root.u;
+                y: (128 - 92 * root.eh) * root.u;
+                width: 184 * root.eh * root.u;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: @radial-gradient(circle, #dff3ff 0%, #7cc8ff 35%, #2c6fd6 75%, #163d8a 100%);
+                opacity: 0.92;
+            }
+            if root.kw > 0.01: Rectangle {
+                property <float> r: 92 * (1 + 0.85 * root.kw);
+                x: (128 - self.r) * root.u;
+                y: (128 - self.r) * root.u;
+                width: 2 * self.r * root.u;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: @radial-gradient(circle, rgba(255, 255, 255, 0.85 * root.kw) 0%, rgba(140, 210, 255, 0.55 * root.kw) 45%, rgba(80, 160, 255, 0) 75%);
+            }
+            // Anneau de pierre.
+            Rectangle {
+                x: (128 - 120) * root.u;
+                y: (128 - 120) * root.u;
+                width: 240 * root.u;
+                height: self.width;
+                border-radius: self.width / 2;
+                border-width: 26 * root.u;
+                border-color: #4d5361;
+                drop-shadow-blur: 18 * root.u;
+                drop-shadow-color: #000000a0;
+            }
+            Rectangle {
+                x: (128 - 120) * root.u;
+                y: (128 - 120) * root.u;
+                width: 240 * root.u;
+                height: self.width;
+                border-radius: self.width / 2;
+                border-width: 2 * root.u;
+                border-color: #7a8191;
+            }
+            Rectangle {
+                x: (128 - 94) * root.u;
+                y: (128 - 94) * root.u;
+                width: 188 * root.u;
+                height: self.width;
+                border-radius: self.width / 2;
+                border-width: 2 * root.u;
+                border-color: #2b2f39;
+            }
+            // Anneau des symboles : tourne pendant la composition.
+            Path {
+                property <angle> spin: root.phase == 0 ? mod(animation-tick() / 1ms, 16000) / 16000 * 360deg : 0deg;
+                x: (128 - 118) * root.u;
+                y: (128 - 118) * root.u;
+                width: 236 * root.u;
+                height: self.width;
+                viewbox-width: 236;
+                viewbox-height: 236;
+                transform-rotation: self.spin;
+                fill: transparent;
+                stroke: #9aa2b4;
+                stroke-width: 1.4 * root.u;
+                commands: "M 118 8 L 118 18 M 140 10 L 138 20 M 161 16 L 157 25 M 180 26 L 174 34 M 196 40 L 188 46 M 208 57 L 199 61 M 216 76 L 206 79 M 220 96 L 210 97 M 220 118 L 210 118 M 220 140 L 210 139 M 216 160 L 206 157 M 208 179 L 199 175 M 196 196 L 188 190 M 180 210 L 174 202 M 161 220 L 157 211 M 140 226 L 138 216 M 118 228 L 118 218 M 96 226 L 98 216 M 75 220 L 79 211 M 56 210 L 62 202 M 40 196 L 48 190 M 28 179 L 37 175 M 20 160 L 30 157 M 16 140 L 26 139 M 16 118 L 26 118 M 16 96 L 26 97 M 20 76 L 30 79 M 28 57 L 37 61 M 40 40 L 48 46 M 56 26 L 62 34 M 75 16 L 79 25 M 96 10 L 98 20 M 108 30 L 128 30 M 120 46 L 116 52 M 160 50 L 154 58 M 186 92 L 178 96 M 190 140 L 182 138 M 168 182 L 160 176 M 126 200 L 120 192 M 80 188 L 84 180 M 52 152 L 60 148 M 48 104 L 56 108 M 72 60 L 78 66";
+            }
+            // Chevrons : neuf positions, de 40° en 40° à partir du haut.
+            for k in 9: Rectangle {
+                property <int> ci: root.chev-of[k];
+                property <int> s: self.ci < 0 ? 0 : root.state[self.ci];
+                property <float> lock: self.s == 2 ? 1 : 0;
+                animate lock { duration: 300ms; easing: cubic-bezier(0.34, 1.6, 0.64, 1); }
+                property <angle> a: (-90 + 40 * k) * 1deg;
+                property <float> r: 116 - 6 * self.lock;
+                x: (128 + self.r * cos(self.a) - 14) * root.u;
+                y: (128 + self.r * sin(self.a) - 12) * root.u;
+                width: 28 * root.u;
+                height: 24 * root.u;
+                transform-rotation: self.a + 90deg;
+                property <color> c: self.s == 2 ? #ff9a3d : self.s == 3 ? #ff4d4d : self.s == 4 ? #ff9a3d.with-alpha(0.25 + 0.6 * root.pulse)
+                    : self.s == 1 ? #ff9a3d.with-alpha(0.25 + 0.5 * root.pulse) : #6b7180;
+                Path {
+                    width: parent.width;
+                    height: parent.height;
+                    viewbox-width: 28;
+                    viewbox-height: 24;
+                    fill: parent.c;
+                    stroke: #2b2f39;
+                    stroke-width: 1 * root.u;
+                    commands: "M 0 0 L 28 0 L 14 22 Z M 7 0 L 14 12 L 21 0";
+                }
+                drop-shadow-blur: self.s == 2 ? 12 * root.u : 0px;
+                drop-shadow-color: #ff8a2acc;
+            }
+        }
 
         // Orbe de verre derrière le logo : sphère d'accent sombre au bord, lueur en bas.
         if root.orb && root.orb-t > 0: Rectangle {
@@ -248,6 +517,19 @@ export component BootLogo inherits Rectangle {
                 + " L " + (128 + (root.ix[5] - 128) * self.g) + " " + (128 + (root.iy[5] - 128) * self.g) + " Z";
         }
 
+        if root.nerd && root.edge-p > 0: Path {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: Theme.bg;
+            stroke: Theme.accent2;
+            stroke-width: 3 * root.u * root.edge-p;
+            commands: "M 119 60 A 9 9 0 1 0 137 60 A 9 9 0 1 0 119 60 Z M 178 94 A 9 9 0 1 0 196 94 A 9 9 0 1 0 178 94 Z M 178 162 A 9 9 0 1 0 196 162 A 9 9 0 1 0 178 162 Z M 119 196 A 9 9 0 1 0 137 196 A 9 9 0 1 0 119 196 Z M 60 162 A 9 9 0 1 0 78 162 A 9 9 0 1 0 60 162 Z M 60 94 A 9 9 0 1 0 78 94 A 9 9 0 1 0 60 94 Z";
+        }
+
         // Les six sommets. Pendant la liaison, chaque point prend la couleur du logo et la taille du
         // trait : il devient l'angle arrondi du contour.
         for i in 6: Rectangle {
@@ -257,8 +539,12 @@ export component BootLogo inherits Rectangle {
             // Aero : la bille tourne autour du centre en s'en rapprochant (rayon 68 -> 0).
             property <angle> ang: (-90 + 60 * i) * 1deg + root.swirl * 420deg;
             property <float> rad: 68 * (1 - root.swirl);
-            property <float> cx: root.aero ? 128 + self.rad * cos(self.ang) : root.px[i];
-            property <float> cy: root.aero ? 128 + self.rad * sin(self.ang) : root.py[i];
+            // Sept chevrons : près de son chevron (voir chev-of).
+            property <angle> ga: (-90 + 40 * [1, 2, 3, 6, 7, 8][i]) * 1deg;
+            property <float> cx: root.gate ? 128 + 150 * cos(self.ga) : root.aero ? 128 + self.rad * (1 + 0.5 * root.spread) * cos(self.ang)
+                : 128 + (root.px[i] - 128) * (1 + 0.5 * root.spread);
+            property <float> cy: root.gate ? 128 + 150 * sin(self.ga) : root.aero ? 128 + self.rad * (1 + 0.5 * root.spread) * sin(self.ang)
+                : 128 + (root.py[i] - 128) * (1 + 0.5 * root.spread);
             property <length> d: (root.aero ? self.base * (1 - 0.35 * root.swirl) : self.base + (14 - self.base) * root.edge-p) * root.u;
             x: self.cx * root.u - self.d / 2;
             y: self.cy * root.u - self.d / 2;
@@ -266,14 +552,14 @@ export component BootLogo inherits Rectangle {
             height: self.d;
             border-radius: self.d / 2;
             visible: !root.aero || root.orb-t == 0;
-            background: root.aero
+            background: root.nerd || root.gate ? transparent : root.aero
                 ? @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%)
                 : root.dot-color(self.s, root.px[i], root.py[i]);
             animate background { duration: 300ms; }
-            drop-shadow-blur: root.aero ? self.d * 0.9 : 0px;
+            drop-shadow-blur: root.aero && !root.nerd && !root.gate ? self.d * 0.9 : 0px;
             drop-shadow-color: root.aero ? root.orb-color(self.s).with-alpha(0.85) : transparent;
             // Reflet de la bille.
-            if root.aero: Rectangle {
+            if root.aero && !root.nerd && !root.gate: Rectangle {
                 x: parent.width * 0.2;
                 y: parent.height * 0.1;
                 width: parent.width * 0.6;
@@ -281,17 +567,17 @@ export component BootLogo inherits Rectangle {
                 border-radius: self.height / 2;
                 background: @linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.05) 100%);
             }
-            // Libellé, à l'extérieur de l'hexagone.
+            // Libellé, à l'extérieur de l'hexagone (Nerd : sous le module ; Sept chevrons : sur le point).
             Text {
-                property <float> ox: (root.px[i] - 128) * 0.55;
-                property <float> oy: (root.py[i] - 128) * 0.42;
+                property <float> ox: root.gate ? 0 : (root.px[i] - 128) * (root.nerd ? 0.75 : 0.55);
+                property <float> oy: root.gate ? 0 : (root.py[i] - 128) * (root.nerd ? 0.6 : 0.42);
                 x: self.ox * root.u + (parent.width - self.width) / 2;
                 y: self.oy * root.u + (parent.height - self.height) / 2;
                 width: 160px * root.k;
                 text: root.labels[i];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.lab-fade);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -309,14 +595,14 @@ export component BootLogo inherits Rectangle {
             height: self.d;
             border-radius: self.d / 2;
             // Fondu par la couleur (voir les libellés).
-            background: root.aero
+            background: root.nerd || root.gate ? transparent : root.aero
                 ? (root.orb-t > 0 ? transparent : @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%))
                 : root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
             // Aero : l'orbe prend sa place d'un coup (même taille, même couleur), sans fondu.
             animate background { duration: root.aero ? 0ms : 300ms; }
-            drop-shadow-blur: root.aero && root.orb-t == 0 ? self.d * 0.9 : 0px;
+            drop-shadow-blur: root.aero && !root.nerd && !root.gate && root.orb-t == 0 ? self.d * 0.9 : 0px;
             drop-shadow-color: root.orb-color(self.s).with-alpha(0.85);
-            if root.aero && root.orb-t == 0: Rectangle {
+            if root.aero && !root.nerd && !root.gate && root.orb-t == 0: Rectangle {
                 x: parent.width * 0.2;
                 y: parent.height * 0.1;
                 width: parent.width * 0.6;
@@ -326,12 +612,13 @@ export component BootLogo inherits Rectangle {
             }
             Text {
                 x: (parent.width - self.width) / 2;
-                y: parent.height + 6px * root.k;
+                // Nerd : sous le processeur ; Sept chevrons : au-dessus du chevron du haut.
+                y: root.nerd ? parent.height + 26 * root.u : root.gate ? -150 * root.u : parent.height + 6px * root.k;
                 width: 160px * root.k;
                 text: root.labels[6];
                 // Fondu par la couleur : une transparence d'ensemble (opacity) dessine l'élément à part,
                 // dans une texture créée au premier fondu ; huit d'un coup figeaient la liaison.
-                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
+                color: (parent.s == 3 ? Theme.danger-text : parent.s == 0 ? Theme.fg.with-alpha(0.35) : Theme.fg.with-alpha(0.8)).transparentize(root.lab-fade);
                 font-size: 13px * root.k;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -348,6 +635,18 @@ export component BootLogo inherits Rectangle {
         }
     }
 
+    // Fin : le nom, à droite du logo réduit (Nerd : curseur qui clignote, comme dans un terminal).
+    if root.o2 > 0: Text {
+        x: root.end-cx + root.side * root.mini / 2 + root.word-gap - (1 - root.o2) * 30px * root.k;
+        y: logo.y + (root.side - self.height) / 2;
+        opacity: root.o2;
+        text: root.nerd ? (mod(animation-tick() / 1ms, 900) < 450 ? "Turtlefin_" : "Turtlefin ") : "Turtlefin";
+        font-family: Theme.aero-font ? "Selawik" : "Montserrat";
+        font-size: root.word-size;
+        font-weight: 800;
+        color: root.gate ? #eef4ff : root.nerd ? Theme.accent2 : Theme.dark ? Theme.accent2 : Theme.accent1;
+    }
+
     // Vérification en cours, ou échec avec son explication.
     VerticalLayout {
         y: logo.y + root.side + 24px * root.k;
@@ -358,7 +657,7 @@ export component BootLogo inherits Rectangle {
         alignment: start;
         Text {
             text: root.fail != "" ? root.fail : root.text;
-            color: (root.fail != "" ? Theme.danger-text : Theme.muted).transparentize(root.aero ? min(1, root.swirl * 3) : root.edge-p);
+            color: (root.fail != "" ? Theme.danger-text : Theme.muted).transparentize(root.lab-fade);
             font-size: 16px * root.k;
             horizontal-alignment: center;
             wrap: word-wrap;
