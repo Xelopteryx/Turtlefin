@@ -334,7 +334,6 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     });
     th.set_aero_font(t.font == "selawik");
     th.set_win7(t.win7);
-    th.set_logo_img(slint::Image::from_rgba8(icon_ss(t, 160, false)));
     window_icon(u, t);
 }
 

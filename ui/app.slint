@@ -27,6 +27,7 @@ import { Osk, OskKeys } from "osk.slint";
 export { OskKeys }
 import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
+import { ThemeLogo } from "logo.slint";
 
 export { CardData, Prefs, Tr, Motion, Theme, Nav, Alert, Perf }
 
@@ -2331,13 +2332,11 @@ component NavBar inherits Rectangle {
             }
         }
     }
-    if root.logo-on: Image {
+    if root.logo-on: ThemeLogo {
         x: root.x0 + root.n * root.step + 4px * root.k;
         y: (root.height - self.height) / 2;
         width: 34px * root.k;
         height: self.width;
-        source: Theme.logo-img;
-        image-fit: contain;
     }
     Text {
         x: root.x0 + root.n * root.step + 4px * root.k + (root.logo-on ? 44px * root.k : 0px);
@@ -4967,15 +4966,13 @@ export component AppWindow inherits Window {
         property <length> t-logo: 52 * self.u;
         property <length> t-gap: 12 * self.u;
         property <length> t-x: (self.width - self.t-logo - self.t-gap - lg-title.preferred-width) / 2;
-        Image {
+        ThemeLogo {
             visible: lg.osk-p < 0.99;
             x: lg.t-x;
             y: 40 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0)) * 40 * lg.u + (lg-title.preferred-height - self.height) / 2;
             opacity: lg.in-e(0);
             width: lg.t-logo;
             height: lg.t-logo;
-            source: Theme.logo-img;
-            image-fit: contain;
         }
         lg-title := Text {
             visible: lg.osk-p < 0.99;

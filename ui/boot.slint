@@ -14,6 +14,7 @@ import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
 import { AeroSky, CircuitScene } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
+import { ThemeLogo } from "logo.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
@@ -249,7 +250,7 @@ export component BootLogo inherits Rectangle {
 
         // Contour : chaque arête part de son sommet vers le suivant, toutes en même temps.
         for i in 6: Path {
-            visible: root.edge-p > 0;
+            visible: root.edge-p > 0 && !root.nerd;
             // Slint réduit le dessin d'un chemin de l'épaisseur de son trait : on agrandit d'autant.
             x: (53 - 7) * root.u;
             y: (53 - 7) * root.u;
@@ -269,7 +270,7 @@ export component BootLogo inherits Rectangle {
         }
         // Rayons, des sommets vers l'hexagone central.
         for i in 6: Path {
-            visible: root.spoke-p > 0;
+            visible: root.spoke-p > 0 && !root.nerd;
             x: (53 - 4) * root.u;
             y: (53 - 4) * root.u;
             width: (150 + 8) * root.u;
@@ -286,10 +287,17 @@ export component BootLogo inherits Rectangle {
                 + (root.px[i] + (root.ix[i] - root.px[i]) * root.spoke-p) + " "
                 + (root.py[i] + (root.iy[i] - root.py[i]) * root.spoke-p);
         }
+        // Nerd : le logo à pistes se grave sur la carte (le même que sur les titres, voir ThemeLogo).
+        if root.nerd && root.edge-p > 0: ThemeLogo {
+            width: parent.width;
+            height: parent.height;
+            opacity: root.edge-p;
+            transform-scale: 1.25 - 0.25 * root.edge-p;
+        }
         // Hexagone central : le point du serveur grandit jusqu'à lui.
         Path {
             property <float> g: 0.25 + 0.75 * root.spoke-p;
-            visible: root.spoke-p > 0;
+            visible: root.spoke-p > 0 && !root.nerd;
             x: 53 * root.u;
             y: 53 * root.u;
             width: 150 * root.u;

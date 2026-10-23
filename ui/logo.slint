@@ -1,0 +1,148 @@
+// Logo de Turtlefin aux couleurs du thème, dessiné en vecteurs (net à toutes les tailles). Le même
+// partout : fin du démarrage, titre de la connexion, barre de l'accueil. Repère 256 x 256, centre
+// (128, 128), comme le logo du démarrage (boot.slint) et l'icône (theme.rs).
+//   Theme.logo-style 0 : carapace (hexagone, rayons, centre plein) en dégradé d'accent ;
+//   1 : la même, blanc nacré, sur une orbe de verre (Aero) ;
+//   2 : pistes de circuit, plots aux sommets, puce au centre (Nerd).
+import { Theme } from "theme.slint";
+
+export component ThemeLogo inherits Rectangle {
+    property <length> u: min(self.width, self.height) / 256;
+    property <[float]> px: [128, 187, 187, 128, 69, 69];
+    property <[float]> py: [60, 94, 162, 196, 162, 94];
+    property <[float]> ix: [128, 154, 154, 128, 102, 102];
+    property <[float]> iy: [98, 113, 143, 158, 143, 113];
+    property <bool> orb: Theme.logo-style == 1;
+    property <bool> chip: Theme.logo-style == 2;
+    property <brush> grad: root.orb
+        ? @linear-gradient(135deg, #ffffff 0%, Theme.accent2 110%)
+        : @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
+    property <string> hex: "M 128 60 L 187 94 L 187 162 L 128 196 L 69 162 L 69 94 Z";
+    property <string> spokes: "M 128 60 L 128 98 M 187 94 L 154 113 M 187 162 L 154 143 M 128 196 L 128 158 M 69 162 L 102 143 M 69 94 L 102 113";
+    property <string> core: "M 128 98 L 154 113 L 154 143 L 128 158 L 102 143 L 102 113 Z";
+
+    // Aero : orbe de verre (sphère d'accent assombrie au bord, lueur en bas, halo).
+    if root.orb: Rectangle {
+        x: 28 * root.u;
+        y: 28 * root.u;
+        width: 200 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, Theme.accent1 0%, Theme.accent1.mix(Theme.bg, 0.45) 70%, Theme.bg 100%);
+        border-width: 2px;
+        border-color: Theme.accent2.with-alpha(0.45);
+        Rectangle {
+            x: parent.width * 0.15;
+            y: parent.height * 0.42;
+            width: parent.width * 0.7;
+            height: parent.height * 0.6;
+            border-radius: self.width / 2;
+            background: @radial-gradient(circle, Theme.accent2.with-alpha(0.65) 0%, Theme.accent2.with-alpha(0) 70%);
+        }
+    }
+    if root.orb: Rectangle {
+        x: -7 * root.u;
+        y: -7 * root.u;
+        width: 270 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, Theme.accent2.with-alpha(0.55) 0%, Theme.accent2.with-alpha(0.18) 40%, Theme.accent2.with-alpha(0) 70%);
+    }
+
+    // Carapace (thèmes 0 et 1) : contour épais, rayons, centre plein.
+    if !root.chip: Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: root.grad;
+        stroke-width: 14 * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: root.hex;
+    }
+    if !root.chip: Path {
+        x: (53 - 4) * root.u;
+        y: (53 - 4) * root.u;
+        width: (150 + 8) * root.u;
+        height: (150 + 8) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: root.grad;
+        stroke-width: 8 * root.u;
+        stroke-line-cap: round;
+        commands: root.spokes;
+    }
+    if !root.chip: Path {
+        x: 53 * root.u;
+        y: 53 * root.u;
+        width: 150 * root.u;
+        height: 150 * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: root.grad;
+        commands: root.core;
+    }
+    // Aero : grand reflet blanc par-dessus la carapace.
+    if root.orb: Rectangle {
+        x: (28 + 200 * 0.13) * root.u;
+        y: (28 + 200 * 0.04) * root.u;
+        width: 200 * 0.74 * root.u;
+        height: 200 * 0.44 * root.u;
+        border-radius: self.height / 2;
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.06) 100%);
+    }
+
+    // Nerd : pistes de circuit. Contour et rayons fins, plots en anneau aux sommets, puce au centre.
+    if root.chip: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: transparent;
+        stroke: root.grad;
+        stroke-width: 9 * root.u;
+        stroke-line-join: round;
+        commands: root.hex + " " + root.spokes;
+    }
+    if root.chip: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: Theme.bg;
+        stroke: Theme.accent2;
+        stroke-width: 6 * root.u;
+        commands: "M 117 60 A 11 11 0 1 0 139 60 A 11 11 0 1 0 117 60 Z M 176 94 A 11 11 0 1 0 198 94 A 11 11 0 1 0 176 94 Z M 176 162 A 11 11 0 1 0 198 162 A 11 11 0 1 0 176 162 Z M 117 196 A 11 11 0 1 0 139 196 A 11 11 0 1 0 117 196 Z M 58 162 A 11 11 0 1 0 80 162 A 11 11 0 1 0 58 162 Z M 58 94 A 11 11 0 1 0 80 94 A 11 11 0 1 0 58 94 Z";
+    }
+    if root.chip: Rectangle {
+        x: (128 - 30) * root.u;
+        y: (128 - 30) * root.u;
+        width: 60 * root.u;
+        height: self.width;
+        background: Theme.accent1.mix(Theme.bg, 0.25);
+        border-width: 5 * root.u;
+        border-color: Theme.accent2;
+        Rectangle {
+            x: parent.width * 0.3;
+            y: parent.height * 0.3;
+            width: parent.width * 0.4;
+            height: self.width;
+            background: Theme.accent1;
+        }
+    }
+}
