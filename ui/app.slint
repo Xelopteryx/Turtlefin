@@ -3229,12 +3229,23 @@ export component AppWindow inherits Window {
         let kid = root.screen == "detail" && root.d-zone == 2 && !root.detail.children-landscape;
         // Bibliothèque (vignette 16:9) en portrait : pas d'image partagée (il n'y a pas d'affiche à
         // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
-        if ((root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
+        // Affiche de la page sortie de l'écran (page descendue, affiche cliquée plus bas) : pas
+        // d'image qui vole vers elle ; les rangées se retournent sur le nouveau média.
+        let poster-gone = root.screen == "detail" && root.keep-scroll && root.d-view-y > root.poster-w * 1.5 - 40px * root.k;
+        if (!poster-gone && (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
             Hero.tick += 1;
             // Fiche -> fiche : rien ne s'efface (ce qui ne change pas reste, voir detail-swap).
             root.kid-veil = false;
+        }
+        // Saison : la page remonte tout de suite, au rythme de l'affiche qui vole vers sa place, et
+        // tout ce qui est sous le bloc principal s'efface (voir kids-out).
+        if (kid) {
+            root.d-free = false;
+            root.d-zone = 0;
+            root.d-button = 0;
+            root.kids-out = Motion.detail;
         }
         root.open-item(id);
     }
@@ -3498,7 +3509,37 @@ export component AppWindow inherits Window {
     property <bool> sw-ov;
     property <bool> sw-next;
     property <bool> sw-kids;
+    // Saison choisie : ce qui est sous le bloc principal s'efface (kids-out) en attendant la saison ;
+    // à son arrivée, le titre de la liste change (balayage) et les épisodes arrivent un à un (ep-in).
+    in-out property <bool> kids-out;
+    property <float> kids-out-p: root.kids-out ? 1 : 0;
+    animate kids-out-p { duration: Motion.detail ? 240ms : 0ms; easing: ease-out; }
+    Timer {
+        interval: 3s;
+        running: root.kids-out;
+        triggered => {
+            root.kids-out = false;
+        }
+    }
+    property <bool> ep-anim;
+    property <duration> ep-t0;
+    Timer {
+        interval: 1400ms;
+        running: root.ep-anim;
+        triggered => {
+            root.ep-anim = false;
+        }
+    }
+    pure function ep-in(i: int) -> float {
+        let x = root.ep-anim && Motion.detail ? clamp((animation-tick() - root.ep-t0 - 320ms - min(i, 10) * 75ms) / 340ms, 0, 1) : 1;
+        return 1 - (1 - x) * (1 - x) * (1 - x);
+    }
     public function detail-swap() {
+        if (root.kids-out) {
+            root.kids-out = false;
+            root.ep-t0 = animation-tick();
+            root.ep-anim = true;
+        }
         root.d-t0 = animation-tick();
         // Textes qui changent : caractère par caractère (voir morph).
         root.mt-t0 = animation-tick();
@@ -3558,6 +3599,13 @@ export component AppWindow inherits Window {
     changed w-title => {
         root.mt-title = root.prev-title;
         root.prev-title = root.detail.title;
+    }
+    property <string> prev-ctitle;
+    property <string> mt-ctitle;
+    property <string> w-ctitle: root.detail.children-title;
+    changed w-ctitle => {
+        root.mt-ctitle = root.prev-ctitle;
+        root.prev-ctitle = root.detail.children-title;
     }
     property <string> w-subtitle: root.detail.subtitle;
     changed w-subtitle => {
@@ -4510,9 +4558,11 @@ export component AppWindow inherits Window {
     // 0 monter · 1 descendre).
     property <bool> ep-many: root.ep-list && root.child-items.length >= 30;
     in-out property <int> ep-btn: -1;
-    property <bool> ep-in-view: root.screen == "detail" && root.ep-many
-        && root.d-view-y + root.d-view-h > root.d-children-y + root.ep-head-h
-        && root.d-view-y < root.d-children-y + root.ep-block-h - root.ep-row-h;
+    // La liste occupe l'écran : son haut est déjà dans le premier quart de la vue, son bas encore sous
+    // le milieu (jamais par-dessus le résumé ou le haut de la fiche).
+    property <bool> ep-in-view: root.screen == "detail" && root.ep-many && !root.ep-anim
+        && root.d-children-y + root.ep-head-h <= root.d-view-y + root.d-view-h * 0.25
+        && root.d-children-y + root.ep-block-h - root.ep-row-h >= root.d-view-y + root.d-view-h * 0.5;
     property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
     property <length> ep-row-h: root.ep-thumb-w * 0.5625 + 16px * root.k;
     property <length> ep-gap: 8px * root.k;
@@ -6529,7 +6579,8 @@ export component AppWindow inherits Window {
         Rectangle {
             y: 0px - root.d-view-y;
             height: parent.height + root.d-view-y;
-            animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
+            // Pendant le vol d'une affiche vers sa place, la page défile au même rythme qu'elle.
+            animate y { duration: Motion.scroll && !Nav.drag ? (root.hero-on && root.hero-dest ? root.hero-dur : 180ms) : 0ms; easing: cubic-bezier(0.65, 0, 0.35, 1); }
 
         // Windows 7 : cadre de verre épais autour de l'affiche (comme les jaquettes de Windows Media Center).
         if Theme.win7 && (!root.hero-covers || root.hero-seerr || root.hero-big): Rectangle {
@@ -6905,15 +6956,26 @@ export component AppWindow inherits Window {
         // Épisodes d'une saison : liste verticale (voir ep-list).
         if root.child-items.length > 0 && root.ep-list: Rectangle {
             // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
-            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3);
+            opacity: (root.sw-kids && !root.ep-anim ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
             // Place laissée de chaque côté aux boutons flottants d'une longue saison (liste toujours centrée).
-            width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 76px * root.k : 0px)), 1200px * root.k);
+            width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 50px * root.k : 0px)), 1200px * root.k);
             // Centrée dans la fenêtre.
             x: (parent.width - self.width) / 2 + root.po-right;
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             height: root.ep-block-h;
             // Titre de la liste (« Épisodes »).
-            Text {
+            if root.wiping(root.mt-ctitle, root.detail.children-title): Wipe {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: root.ep-head-h - 12px * root.k;
+                from: "— " + root.mt-ctitle;
+                to: "— " + root.detail.children-title;
+                p: root.wipe-p;
+                ink: Theme.text;
+                font-size: 22px * root.k;
+            }
+            if !root.wiping(root.mt-ctitle, root.detail.children-title): Text {
                 x: 0px;
                 y: 0px;
                 height: root.ep-head-h - 12px * root.k;
@@ -6926,8 +6988,13 @@ export component AppWindow inherits Window {
                 property <bool> lit: (!root.h-focus && root.d-zone == 2 && root.d-child == i && Nav.kb) || (ep-area.has-hover && !Nav.touch);
                 // Hors de l'écran : pas dessiné (saisons de plus de 100 épisodes).
                 property <length> top: root.ep-head-h + i * (root.ep-row-h + root.ep-gap);
-                visible: parent.y + self.top - root.d-view-y < root.d-view-h + 40px && parent.y + self.top + root.ep-row-h - root.d-view-y > -40px;
-                y: self.top;
+                // Hors de l'écran : pas dessiné ; marge d'un écran de chaque côté (la page glisse encore
+                // vers sa position pendant un défilement rapide, les épisodes doivent déjà être là).
+                visible: parent.y + self.top - root.d-view-y < 2 * root.d-view-h && parent.y + self.top + root.ep-row-h - root.d-view-y > 0 - root.d-view-h;
+                // Arrivée d'une saison : un à un, en remontant un peu.
+                property <float> in: root.ep-in(i);
+                y: self.top + (1 - self.in) * 30px * root.k;
+                opacity: self.in;
                 width: parent.width;
                 height: root.ep-row-h;
                 border-radius: 12px * root.k;
@@ -7020,7 +7087,7 @@ export component AppWindow inherits Window {
         if root.child-items.length > 0 && !root.ep-list: SectionRow {
             // Fondu seulement pendant l'apparition de la fiche : une opacité sur toute la rangée coûte
             // cher sur les petites machines, elle revient à 1 aussitôt après.
-            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3);
+            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
@@ -7047,7 +7114,7 @@ export component AppWindow inherits Window {
         for row[ri] in root.detail-rows: SectionRow {
             cascade: true;
             leaving: row.leaving;
-            opacity: root.rev(4);
+            opacity: root.rev(4) * (1 - root.kids-out-p);
             y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
@@ -11197,31 +11264,39 @@ export component AppWindow inherits Window {
     // pendant tout le défilement de la liste ; ils arrivent et partent en glissant depuis le bord.
     property <float> ep-btn-p: root.ep-in-view && !root.playing && !root.menu-open ? 1 : 0;
     animate ep-btn-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-    if root.ep-btn-p > 0.01: VerticalLayout {
-        x: root.width - 76px * root.k + (1 - root.ep-btn-p) * 90px * root.k;
-        y: root.header-h + (root.height - root.header-h - self.preferred-height) / 2;
-        width: 56px * root.k;
-        spacing: 14px * root.k;
+    if root.ep-btn-p > 0.01: Rectangle {
+        // Capsule de verre fine, au bord droit, centrée : flèche vers le haut, flèche vers le bas.
+        x: root.width - self.width - 14px * root.k + (1 - root.ep-btn-p) * 60px * root.k;
+        y: root.header-h + (root.height - root.header-h - self.height) / 2;
+        width: 40px * root.k;
+        height: 96px * root.k;
         opacity: root.ep-btn-p;
-        for b[i] in ["↑", "↓"]: Rectangle {
+        border-radius: Theme.win7 ? 4px : self.width / 2;
+        background: Theme.glass;
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        for b[i] in 2: Rectangle {
             property <bool> lit: (Nav.kb && root.ep-btn == i) || (eb-area.has-hover && !Nav.touch);
-            height: 56px * root.k;
-            border-radius: Theme.win7 ? 4px : self.height / 2;
-            background: Theme.win7 ? transparent : self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.panel;
-            border-width: Theme.win7 ? 0px : 1px;
-            border-color: Theme.glass-border;
-            transform-scale: self.lit ? 1.1 : 1.0;
-            animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-            if Theme.win7: Win7Glass {
-                lit: parent.lit;
-            }
-            Text {
-                text: b;
-                color: parent.lit ? Theme.on-accent : Theme.fg;
-                font-size: 24px * root.k;
-                font-weight: 700;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            x: 4px * root.k;
+            y: (4px + i * 46px) * root.k;
+            width: parent.width - 8px * root.k;
+            height: 42px * root.k;
+            border-radius: Theme.win7 ? 3px : self.width / 2;
+            background: self.lit ? (Theme.win7 ? #45a8ee : Theme.accent2.with-alpha(0.85)) : transparent;
+            animate background { duration: Motion.select ? 150ms : 0ms; }
+            Path {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 16px * root.k;
+                height: 16px * root.k;
+                viewbox-width: 16;
+                viewbox-height: 16;
+                fill: transparent;
+                stroke: parent.lit ? Theme.on-accent : Theme.fg.with-alpha(0.85);
+                stroke-width: 2px * root.k;
+                stroke-line-cap: round;
+                stroke-line-join: round;
+                commands: i == 0 ? "M 3 11 L 8 5 L 13 11" : "M 3 5 L 8 11 L 13 5";
             }
             eb-area := TouchArea {
                 clicked => {

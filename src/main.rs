@@ -337,6 +337,19 @@ fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
     u.set_detail(new);
 }
 
+/// Copie indépendante des rangées (leurs cartes comprises).
+fn copy_rows(m: &ModelRc<Section>) -> Vec<Section> {
+    (0..m.row_count())
+        .filter_map(|i| m.row_data(i))
+        .map(|mut s| {
+            let items: Vec<CardData> = (0..s.items.row_count()).filter_map(|j| s.items.row_data(j)).collect();
+            s.items = ModelRc::new(VecModel::from(items));
+            s.leaving = false;
+            s
+        })
+        .collect()
+}
+
 /// Rangées du bas d'une fiche remplacées par celles d'un autre média : mises à jour sur place. Les
 /// cartes changent de média (elles se retournent, voir Card) ; une rangée en trop s'en va en glissant
 /// avant d'être retirée ; une rangée en plus arrive comme à l'ouverture.
@@ -6207,8 +6220,10 @@ enum CachedPage {
     Detail {
         detail: DetailData,
         child: ModelRc<CardData>,
-        rows: ModelRc<Section>,
+        rows: Vec<Section>,
         zone: (i32, i32, i32, i32),
+        /// Défilement libre au départ (affiche cliquée dans les rangées) : la position est rendue.
+        free: Option<f32>,
     },
     Library {
         title: slint::SharedString,
@@ -6231,8 +6246,11 @@ fn cache_current_page(app: &Arc<App>, u: &AppWindow) {
         "detail" if u.get_detail().id.as_str() == top => CachedPage::Detail {
             detail: u.get_detail(),
             child: u.get_child_items(),
-            rows: u.get_detail_rows(),
+            // Copie : les rangées affichées sont ensuite mises à jour sur place (fiche suivante), la
+            // page gardée ne doit pas changer avec elles.
+            rows: copy_rows(&u.get_detail_rows()),
             zone: (u.get_d_zone(), u.get_d_x(), u.get_d_child(), u.get_d_button()),
+            free: u.get_d_free().then(|| u.get_d_free_y() / 1.0),
         },
         "library" => match app.library.lock().unwrap().clone() {
             Some(state) if state.0 == top => CachedPage::Library {
@@ -6258,16 +6276,31 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
     let Some(u) = app.ui().upgrade() else { return false };
     app.gen.fetch_add(1, Ordering::SeqCst);
     match page {
-        CachedPage::Detail { detail, child, rows, zone } => {
+        CachedPage::Detail { detail, child, rows, zone, free } => {
+            // Page quittée au milieu (affiche cliquée plus bas) : on y revient au même endroit.
+            if free.is_some() {
+                u.set_keep_scroll(true);
+            }
             set_detail_smooth(&u, detail);
             u.set_child_items(child);
-            u.set_detail_rows(rows);
+            // Les affiches des rangées se retournent sur celles de la page d'avant.
+            set_rows_in_place(&u, rows);
             *app.rows_base.lock().unwrap() = String::new();
-            // Retour : la sélection revient sur Lecture (comme en ouvrant la fiche).
-            u.set_d_zone(0);
-            u.set_d_x(zone.1);
-            u.set_d_child(zone.2);
-            u.set_d_button(0);
+            if let Some(y) = free {
+                u.set_keep_scroll(false);
+                u.set_d_free_y(y);
+                u.set_d_free(true);
+                u.set_d_zone(zone.0);
+                u.set_d_x(zone.1);
+                u.set_d_child(zone.2);
+                u.set_d_button(zone.3);
+            } else {
+                // Retour : la sélection revient sur Lecture (comme en ouvrant la fiche).
+                u.set_d_zone(0);
+                u.set_d_x(zone.1);
+                u.set_d_child(zone.2);
+                u.set_d_button(0);
+            }
             u.set_overview_open(false);
             show_screen(&u, "detail");
         }
