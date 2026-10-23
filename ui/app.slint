@@ -635,8 +635,12 @@ component Card inherits Rectangle {
     }
 
     z: root.lit ? 1 : 0;
-    transform-scale: root.lit ? 1.06 : 1.0;
-    animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    // Zoom de la carte choisie (animé), multiplié par une échelle imposée de l'extérieur (distribution
+    // d'une bibliothèque, non animée : elle change à chaque image).
+    in property <float> extra-scale: 1;
+    property <float> lit-s: root.lit ? 1.06 : 1.0;
+    animate lit-s { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    transform-scale: root.lit-s * root.extra-scale;
     border-radius: Theme.radius;
     // Windows 7 : corps en verre (clair en haut, plus sombre en bas), double liseré, et choisie :
     // teinte bleue lumineuse comme la sélection de l'Explorateur.
@@ -2976,7 +2980,7 @@ export component AppWindow inherits Window {
     // reforme. Lignes de `pc-cols` morceaux ; la dernière, incomplète, a des morceaux plus larges (la
     // carte reste entièrement couverte). Coordonnées en fractions de la carte.
     property <int> pc-n: max(1, min(root.lib-items.length, root.deal-n));
-    property <int> pc-cols: max(1, ceil(sqrt(root.pc-n * root.hero-fw / max(1px, root.hero-fh))));
+    property <int> pc-cols: max(1, ceil(sqrt(root.pc-n * (root.deck-live ? root.hero-fw / max(1px, root.hero-fh) : 1.78))));
     property <int> pc-rows: ceil(root.pc-n / root.pc-cols);
     pure function pc-row(i: int) -> int {
         return floor(i / root.pc-cols);
@@ -2991,10 +2995,14 @@ export component AppWindow inherits Window {
         return root.pc-row(i) / root.pc-rows;
     }
     // La carte, où qu'elle soit (en vol ou posée), en coordonnées de la fenêtre.
-    property <length> deck-x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
-    property <length> deck-y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
-    property <length> deck-w: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
-    property <length> deck-h: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
+    // Sans image partagée (carte sans image, ouverture au clavier d'une page déjà chargée…) : le paquet
+    // est tout de même en bas au centre, au format 16:9.
+    property <bool> deck-live: root.hero-on && root.hero-deck;
+    property <length> deck-dw: min(root.width * 0.5, 560px * root.k);
+    property <length> deck-x: root.deck-live ? root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p : (root.width - root.deck-dw) / 2;
+    property <length> deck-y: root.deck-live ? root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p : root.height - root.deck-dw * 0.5625 - 32px * root.k;
+    property <length> deck-w: root.deck-live ? root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p : root.deck-dw;
+    property <length> deck-h: root.deck-live ? root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p : root.deck-dw * 0.5625;
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
@@ -7300,14 +7308,16 @@ export component AppWindow inherits Window {
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
                     visible: (self.dp > 0.001 && self.dp < 1) || (self.dp >= 1 && self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
-                    // Départ : le centre de son morceau de carte, à la taille du morceau.
-                    property <length> pw: root.deck-w / root.pc-cnt(i);
+                    // Départ : le centre de son morceau de carte, à la taille du morceau (l'affiche y tient).
+                    property <float> s0: min(root.deck-w / root.pc-cnt(i) / lib.cw, root.deck-h / root.pc-rows / lib.ch);
                     property <length> pcx: root.deck-x + root.deck-w * (root.pc-fx(i) + 0.5 / root.pc-cnt(i));
                     property <length> pcy: root.deck-y + root.deck-h * (root.pc-fy(i) + 0.5 / root.pc-rows);
                     x: self.bx + (1 - self.dp) * (self.pcx - lib.cw / 2 - grid.absolute-position.x - self.bx);
                     y: self.by + (1 - self.dp) * (self.pcy - lib.ch / 2 - grid.absolute-position.y - self.by);
-                    transform-scale: self.dp >= 1 ? 1 : self.pw / lib.cw + (1 - self.pw / lib.cw) * self.dp;
+                    extra-scale: self.dp >= 1 ? 1 : self.s0 + (1 - self.s0) * self.dp;
                     transform-rotation: sin(self.dp * 180deg) * (mod(i * 7, 5) - 2) * 5deg;
+                    // L'affiche sort de son morceau en apparaissant (le morceau s'efface en même temps).
+                    opacity: self.dp >= 1 ? 1 : min(1, self.dp / 0.22);
                     width: lib.cw;
                     height: lib.ch;
                     data: card;
@@ -11148,11 +11158,15 @@ export component AppWindow inherits Window {
                 property <float> fy: root.pc-fy(i);
                 property <float> fw: 1 / root.pc-cnt(i);
                 property <float> fh: 1 / root.pc-rows;
-                visible: root.deal-p(i) <= 0.001;
+                property <float> q: clamp(root.deal-p(i) / 0.22, 0, 1);
+                visible: self.q < 1;
                 x: parent.width * self.fx;
-                y: parent.height * self.fy;
+                y: parent.height * self.fy - self.q * 14px * root.k;
                 width: parent.width * self.fw + 1px;
                 height: parent.height * self.fh + 1px;
+                opacity: 1 - self.q;
+                transform-scale: 1 + 0.25 * self.q;
+                transform-rotation: self.q * (mod(i * 5, 7) - 3) * 4deg;
                 Image {
                     width: parent.width;
                     height: parent.height;
