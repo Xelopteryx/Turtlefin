@@ -1682,10 +1682,25 @@ component ActionButton inherits Rectangle {
     // Windows 7 : bouton rectangulaire aux coins à peine arrondis (verre fumé ; choisi : bleu
     // lumineux, comme le survol d'un bouton de Windows 7).
     border-radius: Theme.win7 ? 4px : root.bubble ? self.height / 2 : 10px;
-    // Sélection : petit rebond.
+    // Sélection : petit rebond ; appui : le bouton s'enfonce puis rebondit (clic, Entrée via `press`).
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
-    transform-scale: root.lit ? (Theme.win7 ? 1.03 : 1.07) : 1.0;
-    animate transform-scale { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    property <float> lit-s: root.lit ? (Theme.win7 ? 1.03 : 1.07) : 1.0;
+    animate lit-s { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    property <duration> pr-t0;
+    property <bool> pr-live;
+    Timer {
+        interval: 380ms;
+        running: root.pr-live;
+        triggered => {
+            root.pr-live = false;
+        }
+    }
+    property <float> pr-q: root.pr-live && Motion.select ? clamp((animation-tick() - root.pr-t0) / 360ms, 0, 1) : 1;
+    transform-scale: root.lit-s * (1 - 0.12 * sin(root.pr-q * 180deg) * (1 - root.pr-q * 0.6));
+    function pressed() {
+        root.pr-t0 = animation-tick();
+        root.pr-live = true;
+    }
     // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
     // pleine, brillante et lumineuse (sinon on ne voyait pas laquelle était choisie).
     background: Theme.win7 ? transparent
@@ -1718,6 +1733,7 @@ component ActionButton inherits Rectangle {
 
     area := TouchArea {
         clicked => {
+            root.pressed();
             root.clicked();
         }
     }
@@ -4937,6 +4953,10 @@ export component AppWindow inherits Window {
                 property <float> base-s: self.gone ? 0.3 : self.chosen ? 1.18 : self.sel ? 1.08 : 1.0;
                 animate base-s { duration: Motion.login ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 transform-scale: self.base-s * self.e;
+                // Gestion des comptes : les comptes qu'on peut retirer tremblent de peur.
+                property <bool> scared: root.login-edit && self.removable && !self.gone;
+                transform-rotation: self.scared && Motion.login
+                    ? sin((animation-tick() / 1ms * (0.031 + mod(i, 3) * 0.004) + i * 1.7) * 1rad) * 2.6deg : 0deg;
                 Rectangle {
                     y: 0px;
                     width: lg.tile;
@@ -7374,7 +7394,9 @@ export component AppWindow inherits Window {
                 Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && !Theme.win7; }
                 border-width: self.sel || Theme.win7 ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
-                transform-scale: (self.sel ? 1.03 : 1.0) - 0.04 * sin(self.pick-e * 180deg);
+                // Choisie au clavier ou survolée à la souris : elle s'avance un peu.
+                property <bool> hot: self.sel || (srv-area.has-hover && !Nav.kb && !Nav.touch);
+                transform-scale: (self.hot ? 1.03 : 1.0) - 0.04 * sin(self.pick-e * 180deg);
                 animate transform-scale { duration: Motion.select && root.srv-picked < 0 ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 // Éclat du choix : une lueur d'accent qui passe sur la carte.
                 if root.srv-picked == i: Rectangle {
