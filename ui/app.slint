@@ -2646,7 +2646,24 @@ export component AppWindow inherits Window {
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
     property <bool> hero-anim;
     property <duration> hero-t0;
-    property <float> hero-q: root.hero-anim && Motion.detail ? clamp((animation-tick() - root.hero-t0) / 480ms, 0, 1) : 1;
+    property <float> hero-q: root.hero-anim && Motion.detail ? clamp((animation-tick() - root.hero-t0) / root.hero-dur, 0, 1) : 1;
+    // Portrait, vignette 16:9 ouverte : « porte ». La carte vient au centre (0 à 0,32), s'ouvre en deux
+    // battants (0,32 à 0,62) qui laissent sortir l'affiche, puis l'affiche vole à sa place sur la
+    // fiche (0,62 à 1). Étirée à tout l'écran comme en paysage, la vignette en débordait largement.
+    property <bool> hero-door: root.hero-wide && root.narrow && !root.hero-seerr && root.hero-dest;
+    property <duration> hero-dur: root.hero-door ? 1150ms : 480ms;
+    pure function door-e(a: float, b: float) -> float {
+        let x = clamp((root.hero-q - a) / (b - a), 0, 1);
+        return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) / 2;
+    }
+    property <float> door-move: root.door-e(0, 0.32);
+    property <float> door-open: root.door-e(0.32, 0.62);
+    property <float> door-fly: root.door-e(0.62, 1);
+    // Carte au centre : plus grande, sans dépasser l'écran.
+    property <length> door-w: min(root.width - 48px * root.k, 560px * root.k);
+    property <length> door-h: root.door-w * 0.5625;
+    property <length> door-x: (root.width - root.door-w) / 2;
+    property <length> door-y: (root.height - root.door-h) / 2;
     property <float> hero-e: root.hero-q < 0.5 ? 4 * root.hero-q * root.hero-q * root.hero-q
         : 1 - (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) * (-2 * root.hero-q + 2) / 2;
     // 0 : sur la carte · 1 : sur la page.
@@ -2660,20 +2677,19 @@ export component AppWindow inherits Window {
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
-    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide ? 0px : root.narrow ? 16px : 32px;
-    // Vignette 16:9 en portrait : elle se pose en haut, sur toute la largeur et à ses proportions (étirée
-    // à tout l'écran, il fallait l'agrandir bien au-delà des bords pour en couvrir la hauteur).
-    property <bool> hero-band: root.hero-wide && root.narrow;
-    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-band ? root.header-row : root.hero-wide ? 0px : root.header-h + 24px;
-    property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-band ? root.width * 0.5625 : root.hero-wide ? root.height : root.poster-w * 1.5;
-    property <bool> hero-big: root.hero-wide && !root.hero-seerr;
+    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
+    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.header-h + 24px;
+    property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
+    property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
         ? round(min(1, 5 * root.hero-p) * root.hero-img.width * Theme.radius * 1.15 / (root.hero-fw / 1.06)) : 0;
     // Fiche ouverte depuis une vignette 16:9 : opacité de la page (0 au début du vol, 1 à la fin).
     property <float> hero-page-a: root.hero-on && root.hero-big && root.hero-dest
-        ? clamp((root.hero-q - 0.45) / 0.55, 0, 1) : 1;
+        ? clamp((root.hero-q - 0.45) / 0.55, 0, 1)
+        // Porte : la fiche apparaît pendant que l'affiche sort.
+        : root.hero-on && root.hero-door ? clamp((root.hero-q - 0.5) / 0.4, 0, 1) : 1;
     // L'affiche de la page ouverte est cachée tant que l'image partagée vole (elle prend le relais).
     property <bool> hero-covers: root.hero-on && root.hero-dest;
     property <string> hero-from-id;          // retour : page quittée (l'image attend qu'elle soit partie)
@@ -2729,7 +2745,7 @@ export component AppWindow inherits Window {
         }
     }
     Timer {
-        interval: 500ms;
+        interval: root.hero-dur + 20ms;
         running: root.hero-anim;
         triggered => {
             root.hero-anim = false;
@@ -10248,9 +10264,8 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-row;
         clip: true;
     Rectangle {
-        // Bande du haut (portrait) : elle s'efface pendant que la fiche arrive (fin du vol), au lieu
-        // de rester nette sous la page.
-        opacity: root.hero-out-a * (root.hero-band && root.hero-dest ? 1 - clamp((root.hero-q - 0.7) / 0.3, 0, 1) : 1);
+        // Porte (portrait) : dessinée à part (voir hero-door).
+        opacity: root.hero-door ? 0 : root.hero-out-a;
         x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
         y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
         width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
@@ -10284,13 +10299,82 @@ export component AppWindow inherits Window {
         if root.hero-big: Rectangle {
             background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
         }
-        // Bande du haut (portrait) : son bas se fond dans la page au lieu de s'arrêter net.
-        if root.hero-band: Rectangle {
-            y: parent.height * 0.55;
-            height: parent.height * 0.45 + 1px;
-            background: @linear-gradient(180deg, Theme.bg.transparentize(1) 0%, Theme.bg.transparentize(1 - root.hero-p * root.hero-alpha) 100%);
-        }
     }
+    }
+
+    // Porte (portrait, vignette 16:9 ouverte, voir hero-door) : sous la barre du haut, qui reste nette.
+    if root.hero-on && root.hero-door && !root.playing: Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
+        clip: true;
+        // Page dessous assombrie le temps de l'ouverture.
+        Rectangle {
+            y: -root.header-row;
+            height: root.height;
+            background: Theme.bg.transparentize(1 - 0.55 * root.door-move * (1 - root.door-fly));
+        }
+        // Carte entière, de sa place vers le centre (puis les deux battants prennent le relais).
+        property <length> cx: root.hero-fx + (root.door-x - root.hero-fx) * root.door-move;
+        property <length> cy: root.hero-fy + (root.door-y - root.hero-fy) * root.door-move - root.header-row;
+        property <length> cw: root.hero-fw + (root.door-w - root.hero-fw) * root.door-move;
+        property <length> ch: root.hero-fh + (root.door-h - root.hero-fh) * root.door-move;
+        // Affiche : sort du centre de la carte, puis vole vers sa place sur la fiche.
+        property <bool> poster-ok: root.screen == "detail" && root.detail.id == root.hero-id && root.detail.has-poster;
+        property <length> ph0: self.ch * 1.15;
+        property <length> pw0: self.ph0 / 1.5;
+        property <float> ps: 0.7 + 0.3 * root.door-open;
+        property <length> pw: (self.pw0 * self.ps) + (root.hero-tw - self.pw0 * self.ps) * root.door-fly;
+        property <length> ph: (self.ph0 * self.ps) + (root.hero-th - self.ph0 * self.ps) * root.door-fly;
+        if root.door-open > 0.01: Rectangle {
+            x: (parent.cx + parent.cw / 2 - parent.pw / 2) + (root.hero-tx - (parent.cx + parent.cw / 2 - parent.pw / 2)) * root.door-fly;
+            y: (parent.cy + parent.ch / 2 - parent.ph / 2) + (root.hero-ty - root.header-row - (parent.cy + parent.ch / 2 - parent.ph / 2)) * root.door-fly;
+            width: parent.pw;
+            height: parent.ph;
+            opacity: min(1, root.door-open * 1.6);
+            border-radius: Theme.radius;
+            clip: true;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 24px * root.k * (1 - root.door-fly);
+            drop-shadow-color: #00000099;
+            if parent.poster-ok: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.detail.poster;
+                image-fit: fill;
+            }
+            if !parent.poster-ok: Placeholder {
+                title: root.hero-data.title;
+                k: root.k;
+                border-radius: Theme.radius;
+            }
+        }
+        // Deux battants : chacun garde sa moitié de l'image et se replie vers son bord (comme une
+        // porte vue de face), en s'assombrissant ; ils sont devant l'affiche, qui sort entre eux.
+        for side[i] in [0, 1]: Rectangle {
+            property <length> half: parent.cw / 2;
+            property <length> w: self.half * (1 - root.door-open);
+            x: i == 0 ? parent.cx : parent.cx + parent.cw - self.w;
+            y: parent.cy + parent.ch * 0.04 * root.door-open;
+            width: self.w;
+            height: parent.ch * (1 - 0.08 * root.door-open);
+            visible: root.door-open < 0.995;
+            border-top-left-radius: i == 0 ? Theme.radius : 0px;
+            border-bottom-left-radius: i == 0 ? Theme.radius : 0px;
+            border-top-right-radius: i == 1 ? Theme.radius : 0px;
+            border-bottom-right-radius: i == 1 ? Theme.radius : 0px;
+            clip: true;
+            Image {
+                // La moitié de l'image, écrasée vers le gond.
+                width: parent.width;
+                height: parent.height;
+                source: root.hero-img;
+                source-clip-x: i == 0 ? 0 : root.hero-img.width / 2;
+                source-clip-width: root.hero-img.width / 2;
+                image-fit: fill;
+            }
+            Rectangle {
+                background: #000000.transparentize(1 - 0.6 * root.door-open);
+            }
+        }
     }
 
     // Vidéo en cours sur un écran de diffusion (lecteur quitté) : bandeau en bas pour y revenir.
