@@ -1924,3 +1924,24 @@ msgstr "{} não reproduz HEVC: o servidor converte a imagem, a reprodução pode
 
 msgid "Changement de piste…"
 msgstr "A mudar de faixa…"
+
+msgid "Aller à « {} »"
+msgstr "Ir para «{}»"
+
+msgid "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({})."
+msgstr "Nome mostrado na lista de servidores e ao iniciar sessão. Vazio: o nome original ({})."
+
+msgid "Nom d'origine : {}"
+msgstr "Nome original: {}"
+
+msgid "Nom du serveur"
+msgstr "Nome do servidor"
+
+msgid "Renomme-le pour le reconnaître dans la liste des serveurs."
+msgstr "Muda-lhe o nome para o reconheceres na lista de servidores."
+
+msgid "Renommer le serveur"
+msgstr "Mudar o nome do servidor"
+
+msgid "Serveur trouvé : {}"
+msgstr "Servidor encontrado: {}"

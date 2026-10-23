@@ -1141,7 +1141,7 @@ fn login_opened(app: &Arc<App>) {
             if changed {
                 apply_login_tiles(&u, &rows);
             }
-            u.set_server_name(if reachable { sname.into() } else { tr("Serveur injoignable").into() });
+            u.set_server_name(if reachable { config::server_label(&sid, &sname).into() } else { tr("Serveur injoignable").into() });
         });
         // Avatars (publics, sans connexion), en cercle.
         for (i, (key, _, _, uid)) in tiles.into_iter().enumerate() {
@@ -3616,7 +3616,7 @@ fn search_servers(app: &Arc<App>) {
                 .iter()
                 .map(|f| ServerData {
                     id: f.id.clone().into(),
-                    name: f.name.clone().into(),
+                    name: config::server_label(&f.id, &f.name).into(),
                     version: f.version.clone().into(),
                     main: f.main.clone().unwrap_or_default().into(),
                     backup: f.backup.clone().unwrap_or_default().into(),
@@ -3669,6 +3669,7 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
     app.rt.spawn(async move {
         let mut chosen: Vec<Option<String>> = Vec::new();
         let mut ids: Vec<String> = Vec::new();
+        let mut found_name = String::new();
         for input in [&local, &remote] {
             if input.trim().is_empty() {
                 chosen.push(None);
@@ -3687,6 +3688,9 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
                 1 => {
                     ids.push(hits[0].1.clone());
                     chosen.push(Some(hits[0].0.clone()));
+                    if found_name.is_empty() {
+                        found_name = config::server_label(&hits[0].1, &hits[0].2);
+                    }
                 }
                 _ => {
                     // Deux réponses (http et https) : on demande, puis on reprendra là.
@@ -3722,7 +3726,14 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
             });
             return;
         }
-        let _ = app2.ui().upgrade_in_event_loop(|u| u.set_manual_busy(false));
+        // Serveur trouvé : montré un instant (coche et nom), puis la connexion.
+        let shown = if found_name.is_empty() { "Jellyfin".to_string() } else { found_name };
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_manual_busy(false);
+            u.set_manual_ok(shown.into());
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        let _ = app2.ui().upgrade_in_event_loop(|u| u.set_manual_ok("".into()));
         choose_server(&app2, l, r);
     });
 }
@@ -4088,6 +4099,12 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             let now = if current.is_empty() { tr("Hors ligne : aucune adresse ne répond.").to_string() } else { trf("Connecté en ce moment par {}", &[&current]) };
             v.push(row("info", "", &now, String::new(), "info", false));
             v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux."), String::new(), "action", false));
+            // Serveurs déjà trouvés : un nom à soi pour s'y retrouver (deux serveurs au même nom…).
+            for (id, k) in &prefs.known_servers {
+                let shown = if k.custom.is_empty() { k.name.clone() } else { k.custom.clone() };
+                let hint = if k.custom.is_empty() { tr("Renomme-le pour le reconnaître dans la liste des serveurs.").to_string() } else { trf("Nom d'origine : {}", &[&k.name]) };
+                v.push(row(&format!("srvname:{id}"), &shown, &hint, tr("Renommer").into(), "action", false));
+            }
             v
         }
         5 => {
@@ -4923,6 +4940,19 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             let a = app.clone();
             slint::Timer::single_shot(std::time::Duration::from_millis(3500), move || refresh_settings(&a));
         }
+        k if k.starts_with("srvname:") => {
+            let id = k["srvname:".len()..].to_string();
+            let Some(ks) = config::ui_prefs().known_servers.get(&id).cloned() else { return };
+            *app.rename_key.lock().unwrap() = id;
+            if let Some(u) = app.ui().upgrade() {
+                u.set_addr_text(if ks.custom.is_empty() { ks.name.clone() } else { ks.custom.clone() }.into());
+                u.set_addr_hint(ks.name.clone().into());
+                u.set_addr_err("".into());
+                u.set_addr_osk(false);
+                u.set_addr_field(0);
+                u.set_addr_edit(8);
+            }
+        }
         k if k.starts_with("screen:") => {
             let key = k["screen:".len()..].to_string();
             let Some(sc) = config::ui_prefs().cast_screens.into_iter().find(|s| s.key == key) else { return };
@@ -5140,6 +5170,21 @@ fn pw_step(app: &Arc<App>, which: i32, text: String) {
 }
 
 fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    // Nom d'un serveur (vide, ou son nom d'origine : plus de nom choisi).
+    if which == 8 {
+        let id = app.rename_key.lock().unwrap().clone();
+        let name: String = text.trim().chars().filter(|c| !c.is_control()).take(40).collect();
+        let mut p = config::ui_prefs();
+        if let Some(k) = p.known_servers.get_mut(&id) {
+            k.custom = if name == k.name { String::new() } else { name };
+        }
+        config::save_ui_prefs(&p);
+        if let Some(u) = app.ui().upgrade() {
+            u.set_addr_edit(0);
+        }
+        refresh_settings(app);
+        return;
+    }
     // Nom d'un écran de diffusion (vide : son nom d'origine).
     if which == 7 {
         let key = app.rename_key.lock().unwrap().clone();

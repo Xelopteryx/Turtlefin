@@ -1924,3 +1924,24 @@ msgstr "{} can't play HEVC: the server converts the picture, playback may stutte
 
 msgid "Changement de piste…"
 msgstr "Switching track…"
+
+msgid "Aller à « {} »"
+msgstr "Go to “{}”"
+
+msgid "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({})."
+msgstr "Name shown in the server list and when signing in. Empty: its original name ({})."
+
+msgid "Nom d'origine : {}"
+msgstr "Original name: {}"
+
+msgid "Nom du serveur"
+msgstr "Server name"
+
+msgid "Renomme-le pour le reconnaître dans la liste des serveurs."
+msgstr "Rename it to recognise it in the server list."
+
+msgid "Renommer le serveur"
+msgstr "Rename the server"
+
+msgid "Serveur trouvé : {}"
+msgstr "Server found: {}"

@@ -2571,6 +2571,30 @@ export component AppWindow inherits Window {
             }
         }
     }
+    // Serveur choisi : éclat de sa carte (300 ms), puis la connexion.
+    property <int> srv-picked: -1;
+    property <duration> srv-pick-t0;
+    property <float> srv-pick-q: root.srv-picked >= 0 && Motion.select ? clamp((animation-tick() - root.srv-pick-t0) / 320ms, 0, 1) : 0;
+    function srv-go(i: int) {
+        if (root.srv-picked >= 0) {
+            return;
+        }
+        root.srv-picked = i;
+        root.srv-pick-t0 = animation-tick();
+        if (!Motion.select) {
+            root.srv-picked = -1;
+            root.server-pick(i);
+        }
+    }
+    Timer {
+        interval: 320ms;
+        running: root.srv-picked >= 0;
+        triggered => {
+            let i = root.srv-picked;
+            root.srv-picked = -1;
+            root.server-pick(i);
+        }
+    }
     // Fiche ouverte depuis une affiche : apparition échelonnée de ses éléments (0 : titre et
     // informations, 1 : boutons, 2 : résumé, 3 : saisons / épisodes, 4 : rangées du bas), en 900 ms.
     property <bool> rev-anim;
@@ -3223,6 +3247,8 @@ export component AppWindow inherits Window {
     in-out property <bool> manual-open;
     in-out property <string> manual-error;
     in property <bool> manual-busy;
+    // Adresse saisie qui mène bien à un serveur : son nom, montré un instant (coche) avant la connexion.
+    in property <string> manual-ok;
     in property <string> choice-a;          // deux adresses répondent (http et https) : laquelle ?
     in property <string> choice-b;
 
@@ -6734,7 +6760,7 @@ export component AppWindow inherits Window {
                     root.srv-sel = srv.n + 1;
                 } else if (event.text == Key.Return) {
                     if (root.srv-sel < srv.n) {
-                        root.server-pick(root.srv-sel);
+                        root.srv-go(root.srv-sel);
                     } else if (root.srv-sel == srv.n) {
                         root.servers-search();
                     } else {
@@ -6784,6 +6810,15 @@ export component AppWindow inherits Window {
 
             for s[i] in root.servers: srv-card := Rectangle {
                 height: 92px * root.k;
+                // Serveur trouvé : la carte arrive en fondu en grandissant un peu, chacune à son tour.
+                property <float> in-e: 0;
+                init => {
+                    self.in-e = 1;
+                }
+                animate in-e { duration: Motion.panels ? 460ms : 0ms; delay: Motion.panels ? min(i, 6) * 90ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                // Serveur choisi : la carte s'illumine et grossit un instant avant la connexion.
+                property <float> pick-e: root.srv-picked == i ? root.srv-pick-q : 0;
+                opacity: self.in-e;
                 property <bool> sel: !root.h-focus && i == root.srv-sel && Nav.kb;
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
                 border-radius: 16px * root.k;
@@ -6792,8 +6827,14 @@ export component AppWindow inherits Window {
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 border-width: self.sel ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
-                transform-scale: self.sel ? 1.03 : 1.0;
-                animate transform-scale { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                transform-scale: ((self.sel ? 1.03 : 1.0) + 0.05 * sin(self.pick-e * 180deg)) * (0.9 + 0.1 * self.in-e);
+                animate transform-scale { duration: Motion.select && root.srv-picked < 0 ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                // Éclat du choix : une lueur d'accent qui passe sur la carte.
+                if srv-card.pick-e > 0.01: Rectangle {
+                    border-radius: parent.border-radius;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    opacity: 0.55 * sin(srv-card.pick-e * 180deg);
+                }
 
                 // Icône de serveur
                 Rectangle {
@@ -6868,7 +6909,7 @@ export component AppWindow inherits Window {
                 srv-area := TouchArea {
                     clicked => {
                         root.srv-sel = i;
-                        root.server-pick(i);
+                        root.srv-go(i);
                     }
                 }
             }
@@ -7138,6 +7179,57 @@ export component AppWindow inherits Window {
                 leave-down => {
                     root.manual-osk = false;
                     root.manual-field = 2;
+                }
+            }
+
+            // Serveur trouvé : la fenêtre se couvre d'une coche qui apparaît en rebondissant, et du nom.
+            if root.manual-ok != "": ok-pane := Rectangle {
+                x: mdlg.x;
+                y: mdlg.y;
+                width: mdlg.width;
+                height: mdlg.height;
+                property <float> e: 0;
+                init => {
+                    self.e = 1;
+                }
+                animate e { duration: Motion.panels ? 520ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+                background: Theme.panel;
+                opacity: min(1, self.e * 2);
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 16px * root.k;
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 84px * root.k;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                            transform-scale: 0.4 + 0.6 * ok-pane.e;
+                            Path {
+                                width: parent.width * 0.5;
+                                height: parent.height * 0.5;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                viewbox-width: 24;
+                                viewbox-height: 24;
+                                fill: transparent;
+                                stroke: Theme.on-accent;
+                                stroke-width: 3.2px * root.k;
+                                stroke-line-cap: round;
+                                stroke-line-join: round;
+                                commands: "M 4 12.5 L 9.5 18 L 20 6.5";
+                            }
+                        }
+                    }
+                    Text {
+                        text: Tr.f(Tr.k, "Serveur trouvé : {}", root.manual-ok, "");
+                        color: Theme.fg;
+                        font-size: 20px * root.k;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
                 }
             }
 
@@ -7797,7 +7889,9 @@ export component AppWindow inherits Window {
                 }
             }
             for c[i] in sets.cats: Rectangle {
-                x: 32px * root.k;
+                // Ouverture de la page : les catégories arrivent l'une après l'autre (voir arr).
+                x: 32px * root.k - (1 - root.arr(i, 0)) * 40px * root.k;
+                opacity: root.arr(i, 0);
                 y: 8px * root.k + i * 52px * root.k - sets.cat-y;
                 width: sets.left-w - 32px * root.k;
                 height: 46px * root.k;
@@ -8696,6 +8790,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.ad-mode == 1 ? Tr.t(Tr.k, "Adresse principale") : root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
                             : root.ad-mode == 7 ? Tr.t(Tr.k, "Renommer l'écran")
+                            : root.ad-mode == 8 ? Tr.t(Tr.k, "Renommer le serveur")
                             : root.ad-mode >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
                             : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
@@ -8709,6 +8804,7 @@ export component AppWindow inherits Window {
                             : root.ad-mode == 5 ? Tr.t(Tr.k, "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide.")
                             : root.ad-mode == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
                             : root.ad-mode == 7 ? Tr.f(Tr.k, "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({}).", root.addr-hint, "")
+                            : root.ad-mode == 8 ? Tr.f(Tr.k, "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({}).", root.addr-hint, "")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
@@ -8721,8 +8817,8 @@ export component AppWindow inherits Window {
                         k: root.k;
                         label: root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe") : root.ad-mode == 4 ? Tr.t(Tr.k, "Mot de passe actuel")
                             : root.ad-mode == 5 ? Tr.t(Tr.k, "Nouveau mot de passe") : root.ad-mode == 6 ? Tr.t(Tr.k, "Nouveau mot de passe, encore une fois")
-                            : root.ad-mode == 7 ? Tr.t(Tr.k, "Nom de l'écran") : Tr.t(Tr.k, "Adresse du serveur");
-                        hint: root.ad-mode == 1 ? "192.168.1.32:8096" : root.ad-mode == 7 ? root.addr-hint : root.ad-mode >= 3 ? "" : "10.8.0.5:8096";
+                            : root.ad-mode == 7 ? Tr.t(Tr.k, "Nom de l'écran") : root.ad-mode == 8 ? Tr.t(Tr.k, "Nom du serveur") : Tr.t(Tr.k, "Adresse du serveur");
+                        hint: root.ad-mode == 1 ? "192.168.1.32:8096" : root.ad-mode == 7 || root.ad-mode == 8 ? root.addr-hint : root.ad-mode >= 3 ? "" : "10.8.0.5:8096";
                         password: root.ad-mode >= 3 && root.ad-mode <= 6;
                         text <=> root.addr-text;
                         shown: root.ad-mode >= 3 && root.ad-mode <= 6 ? root.mask(root.addr-text) : root.addr-text;

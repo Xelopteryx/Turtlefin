@@ -502,6 +502,13 @@ pub struct UiPrefs {
 pub struct KnownServer {
     pub name: String,
     pub addrs: Vec<String>,
+    /// Nom choisi dans Turtlefin (Paramètres -> Réseau) ; vide : celui du serveur.
+    pub custom: String,
+}
+
+/// Nom à afficher pour un serveur : celui choisi dans Turtlefin, sinon `original`.
+pub fn server_label(id: &str, original: &str) -> String {
+    ui_prefs().known_servers.get(id).map(|k| k.custom.clone()).filter(|c| !c.is_empty()).unwrap_or_else(|| original.to_string())
 }
 
 /// Écran de diffusion connu : télé DLNA ou appareil Google Cast.

@@ -1924,3 +1924,24 @@ msgstr "{} speelt geen HEVC af: de server zet het beeld om, het afspelen kan hap
 
 msgid "Changement de piste…"
 msgstr "Spoor wisselen…"
+
+msgid "Aller à « {} »"
+msgstr "Naar ‘{}’"
+
+msgid "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({})."
+msgstr "Naam in de serverlijst en bij het inloggen. Leeg: de oorspronkelijke naam ({})."
+
+msgid "Nom d'origine : {}"
+msgstr "Oorspronkelijke naam: {}"
+
+msgid "Nom du serveur"
+msgstr "Servernaam"
+
+msgid "Renomme-le pour le reconnaître dans la liste des serveurs."
+msgstr "Geef hem een naam om hem in de serverlijst te herkennen."
+
+msgid "Renommer le serveur"
+msgstr "Server hernoemen"
+
+msgid "Serveur trouvé : {}"
+msgstr "Server gevonden: {}"
