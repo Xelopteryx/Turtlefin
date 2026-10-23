@@ -935,6 +935,34 @@ pub fn image_cache_dir() -> Option<PathBuf> {
     crate::paths::cache_dir().map(|d| d.join("img"))
 }
 
+/// Cache d'images au-delà de `max` octets : les fichiers les moins récemment écrits partent jusqu'à
+/// revenir aux trois quarts. Une affiche changée sur le serveur laisse sinon l'ancienne pour toujours
+/// (carte SD du Pi, stockage du téléphone).
+pub fn trim_image_cache(max: u64) {
+    let Some(dir) = image_cache_dir() else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let mut files: Vec<(std::time::SystemTime, u64, PathBuf)> = rd
+        .flatten()
+        .filter_map(|e| {
+            let m = e.metadata().ok().filter(|m| m.is_file())?;
+            Some((m.modified().unwrap_or(std::time::UNIX_EPOCH), m.len(), e.path()))
+        })
+        .collect();
+    let mut total: u64 = files.iter().map(|f| f.1).sum();
+    if total <= max {
+        return;
+    }
+    files.sort_by_key(|f| f.0);
+    for (_, len, path) in files {
+        if total <= max / 4 * 3 {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            total = total.saturating_sub(len);
+        }
+    }
+}
+
 fn image_cache_path(item_id: &str, kind: &str, tag: Option<&str>, size_key: &str) -> Option<PathBuf> {
     let (id, kind, tag) = (file_key(item_id), file_key(kind), file_key(tag.unwrap_or("none")));
     if id.is_empty() {

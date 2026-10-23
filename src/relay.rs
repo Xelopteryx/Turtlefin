@@ -31,6 +31,9 @@ struct Route {
 struct Relay {
     port: u16,
     routes: Mutex<HashMap<String, Route>>,
+    /// Client HTTP partagé par toutes les requêtes (une vidéo HLS en fait des centaines : un client
+    /// neuf à chaque fois refaisait sa configuration TLS et perdait ses connexions ouvertes).
+    http: reqwest::Client,
 }
 
 static RELAY: OnceLock<Relay> = OnceLock::new();
@@ -42,7 +45,9 @@ async fn relay() -> Result<&'static Relay> {
     }
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0))).await?;
     let port = listener.local_addr()?.port();
-    let r = RELAY.get_or_init(|| Relay { port, routes: Mutex::new(HashMap::new()) });
+    // Pas de délai sur l'ensemble (un épisode dure longtemps), seulement sur la connexion.
+    let http = crate::api::http_builder().connect_timeout(Duration::from_secs(15)).build()?;
+    let r = RELAY.get_or_init(|| Relay { port, routes: Mutex::new(HashMap::new()), http });
     if r.port == port {
         tokio::spawn(async move {
             while let Ok((sock, peer)) = listener.accept().await {
@@ -144,15 +149,14 @@ async fn serve(mut sock: TcpStream, peer: IpAddr) -> Result<()> {
     let after = path.strip_prefix("/r/").unwrap_or("");
     let cut = after.find(['?', '/']).unwrap_or(after.len());
     let (token, rest) = after.split_at(cut);
+    let r = RELAY.get().ok_or_else(|| anyhow!("relais absent"))?;
     let upstream = {
-        let r = RELAY.get().ok_or_else(|| anyhow!("relais absent"))?;
         let routes = r.routes.lock().unwrap();
         // Seul l'écran à qui l'adresse a été donnée la lit, et seulement sur ce serveur.
         routes.get(token).filter(|v| v.screen == peer && rest.starts_with('/')).map(|v| (format!("{}{rest}", v.origin), v.rebase))
     };
     let Some((upstream, rebase)) = upstream else { return reply(&mut sock, "404 Not Found").await };
-    // Pas de délai sur l'ensemble (un épisode dure longtemps), seulement sur la connexion.
-    let http = crate::api::http_builder().connect_timeout(Duration::from_secs(15)).build()?;
+    let http = &r.http;
     let m = reqwest::Method::from_bytes(method.as_bytes())?;
     let mut req = http.request(m, &upstream);
     // Ce que l'écran demande et dont le serveur a besoin pour bien répondre (plage d'octets, DLNA,

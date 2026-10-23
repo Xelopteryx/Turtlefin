@@ -7638,6 +7638,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
     });
 
     // Horloge de l'en-tête (« 16:52 »), mise à jour toutes les 10 s.
+    // Cache d'images borné (400 Mo), en arrière-plan : le démarrage n'attend pas.
+    std::thread::spawn(|| api::trim_image_cache(400 << 20));
+
     let clock = slint::Timer::default();
     {
         let tick = {
