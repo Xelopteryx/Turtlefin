@@ -64,7 +64,7 @@ pub struct ThemeDef {
     /// Décor de bulles et de ciel (ancien nom du décor « sky »).
     pub bubbles: bool,
     /// Décor : « » aucun, « sky » ciel, herbe et bulles, « harmony » gerbe de lumière (Windows 7),
-    /// « circuit » pistes de carte mère.
+    /// « circuit » pistes de carte mère, « abyss » profondeurs marines.
     pub scenery: String,
     /// Barre de verre derrière l'en-tête.
     pub header_glass: bool,
@@ -132,7 +132,7 @@ pub fn turtlefin() -> ThemeDef {
         radius: 10.0,
         gloss: 0.0,
         bubbles: false,
-        scenery: String::new(),
+        scenery: s("abyss"),
         header_glass: false,
         edge: s("#00000000"),
         streaks: false,
@@ -314,6 +314,7 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
         "sky" => 1,
         "harmony" => 2,
         "circuit" => 3,
+        "abyss" => 4,
         _ if t.bubbles => 1,
         _ => 0,
     };
