@@ -106,6 +106,29 @@ export component Gloss inherits Rectangle {
     }
 }
 
+// Bouton de Windows 7 (thème Aero) : rectangle de verre fumé aux coins à peine arrondis, liseré clair
+// intérieur ; choisi : bleu lumineux, comme le survol d'un bouton de Windows 7. Le même pour tous les
+// boutons du thème (actions, boutons et pastilles de la fiche, choix des réglages). Posé en premier
+// enfant d'un bouton dont le fond est transparent.
+export component Win7Glass inherits Rectangle {
+    in property <bool> lit;
+    border-radius: 4px;
+    background: root.lit
+        ? @linear-gradient(180deg, #8fd8ff 0%, #45a8ee 47%, #1670c8 53%, #2f95e6 100%)
+        : @linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.12) 47%, rgba(0, 10, 30, 0.22) 53%, rgba(0, 10, 30, 0.36) 100%);
+    border-width: 1px;
+    border-color: root.lit ? #0b3d7a : rgba(0, 8, 24, 0.7);
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        border-radius: 3px;
+        border-width: 1px;
+        border-color: rgba(255, 255, 255, root.lit ? 0.7 : 0.32);
+    }
+}
+
 // Réglages d'affichage de l'appareil (Paramètres > Affichage), posés par Rust.
 export global Prefs {
     in-out property <bool> ratings: true;  // notes sur les affiches
