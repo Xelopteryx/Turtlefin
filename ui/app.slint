@@ -2176,7 +2176,23 @@ component NavBar inherits Rectangle {
 }
 
 // Droite de la barre du haut, sur toutes les pages : watch party, au hasard, recherche, compte, heure.
+// Photo de compte par défaut : l'initiale du nom dans un cercle (comme sur l'écran de connexion).
+component Initial inherits Rectangle {
+    in property <string> letter;
+    border-radius: self.width / 2;
+    background: @linear-gradient(130deg, Theme.ph1 0%, Theme.ph2 100%);
+    Text {
+        text: root.letter;
+        color: Theme.fg;
+        font-size: root.height * 0.5;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 component HeaderRight inherits Rectangle {
+    in property <string> initial;           // initiale du compte (photo par défaut)
     in property <float> k: 1.0;
     in property <int> sel: -1; // 0 diffuser · 1 watch party · 2 au hasard · 3 recherche · 4 compte
     in property <bool> party-on;
@@ -2366,13 +2382,20 @@ component HeaderRight inherits Rectangle {
             }
         }
         me := HeaderIcon {
-            icon: root.has-avatar ? "" : "profile";
+            icon: root.has-avatar || root.initial != "" ? "" : "profile";
             k: root.k;
             focused: root.sel == 4;
             // Connexion : la photo apparaît en zoomant (élastique) après le départ de celle du compte.
             pop: root.me-pop;
             clicked => {
                 root.activate(4);
+            }
+            if !root.has-avatar && root.initial != "": Initial {
+                x: 4px * root.k;
+                y: 4px * root.k;
+                width: parent.width - 8px * root.k;
+                height: parent.height - 8px * root.k;
+                letter: root.initial;
             }
             if root.has-avatar && root.avatar-frames.length == 0: Image {
                 x: 4px * root.k;
@@ -2557,6 +2580,7 @@ export component AppWindow inherits Window {
     in-out property <string> screen: "boot"; // "login" | "loading" | "home" | "detail" | "search" | "profile"
     in-out property <string> server;
     in-out property <string> user-name;
+    in property <string> me-initial;          // initiale du compte connecté (photo par défaut)
     in-out property <string> error-text;
     in-out property <string> toast;
     // Coin du lecteur dans la fenêtre (cadre de Windows 7, barres d'Android) : zones touchées, en Rust.
@@ -2638,7 +2662,8 @@ export component AppWindow inherits Window {
     // Serveur choisi : éclat de sa carte (300 ms), puis la connexion.
     property <int> srv-picked: -1;
     property <duration> srv-pick-t0;
-    property <float> srv-pick-q: root.srv-picked >= 0 && Motion.select ? clamp((animation-tick() - root.srv-pick-t0) / 320ms, 0, 1) : 0;
+    // Choix d'un serveur : réponse franche et courte (éclat immédiat, carte enfoncée), 200 ms.
+    property <float> srv-pick-q: root.srv-picked >= 0 && Motion.select ? clamp((animation-tick() - root.srv-pick-t0) / 200ms, 0, 1) : 0;
     function srv-go(i: int) {
         if (root.srv-picked >= 0) {
             return;
@@ -2651,7 +2676,7 @@ export component AppWindow inherits Window {
         }
     }
     Timer {
-        interval: 320ms;
+        interval: 200ms;
         running: root.srv-picked >= 0;
         triggered => {
             let i = root.srv-picked;
@@ -3874,8 +3899,10 @@ export component AppWindow inherits Window {
     property <bool> narrow: self.height > self.width;
     // Téléphone tourné (portrait <-> paysage) : la page arrive de nouveau (zoom léger, glissement)
     // au lieu de sauter d'une mise en page à l'autre, sous un voile qui s'efface (voir rot-veil).
+    // Seulement un vrai téléphone / tablette tourné : une fenêtre qu'on redimensionne au bureau
+    // jusqu'au format portrait ne doit pas voir sa page repartir à chaque passage.
     changed narrow => {
-        if (!root.playing) {
+        if (!root.playing && Nav.phone) {
             root.page-enter();
             root.rot-t0 = animation-tick();
             root.rot-anim = Motion.pages;
@@ -4602,10 +4629,47 @@ export component AppWindow inherits Window {
                 property <length> from-x: lg.shift-from >= 0 && i >= lg.shift-from ? lg.pk-x(i + 1) - lg.pk-x(i) : 0px;
                 property <length> from-y: lg.shift-from >= 0 && i >= lg.shift-from ? lg.pk-y(i + 1) - lg.pk-y(i) : 0px;
                 x: lg.pk-x(i) + (1 - lg.sh-q) * (1 - lg.sh-q) * self.from-x;
-                y: lg.pk-y(i) + (1 - lg.sh-q) * (1 - lg.sh-q) * self.from-y + (1 - self.e) * 50 * lg.u;
+                y: lg.pk-y(i) + (1 - lg.sh-q) * (1 - lg.sh-q) * self.from-y;
                 width: lg.tile;
                 height: lg.tile + 70 * lg.u;
-                property <float> e: lg.in-e(1.5 + i);
+                // Arrivée : invisible tant que la photo n'est pas là (0,35 s au plus : sinon l'initiale,
+                // remplacée par la photo à son arrivée), puis un zoom élastique, chacune à son tour.
+                property <bool> waited;
+                Timer {
+                    interval: 350ms;
+                    running: !tile.waited;
+                    triggered => {
+                        tile.waited = true;
+                    }
+                }
+                property <bool> ready: t.has-image || t.id == "other" || self.waited;
+                property <duration> z-t0;
+                property <bool> z-live;
+                property <bool> z-done;
+                init => {
+                    if (self.ready) {
+                        self.z-t0 = animation-tick();
+                        self.z-live = true;
+                    }
+                }
+                changed ready => {
+                    if (self.ready && !self.z-done) {
+                        self.z-t0 = animation-tick();
+                        self.z-live = true;
+                    }
+                }
+                Timer {
+                    interval: 1000ms;
+                    running: tile.z-live;
+                    triggered => {
+                        tile.z-live = false;
+                        tile.z-done = true;
+                    }
+                }
+                property <float> zx: self.z-done || !Motion.login ? (self.ready ? 1 : 0)
+                    : !self.ready ? 0 : clamp((animation-tick() - self.z-t0 - min(i, 6) * 70ms) / 420ms, 0, 1);
+                // Zoom qui dépasse un peu avant de se poser.
+                property <float> e: self.zx >= 1 ? 1 : 1 + 2.7 * (self.zx - 1) * (self.zx - 1) * (self.zx - 1) + 1.7 * (self.zx - 1) * (self.zx - 1);
                 property <bool> removable: t.subtitle == Tr.t(Tr.k, "Enregistré");
                 property <bool> sel: (Nav.kb ? (i == root.login-sel) : tile-area.has-hover && !Nav.touch);
                 property <bool> gone: t.id == lg.gone-id;
@@ -4613,9 +4677,10 @@ export component AppWindow inherits Window {
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
                 property <float> dim: self.gone ? 0 : root.login-edit && !self.removable ? 0.35 : lg.picking != "" && !self.chosen ? 0.25 : 1;
                 animate dim { duration: Motion.login ? 240ms : 0ms; easing: ease-out; }
-                opacity: self.dim * self.e;
-                transform-scale: self.gone ? 0.3 : self.chosen ? 1.18 : (self.sel ? 1.08 : 1.0) * (0.7 + 0.3 * self.e);
-                animate transform-scale { duration: Motion.login ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                opacity: self.zx > 0 ? self.dim : 0;
+                property <float> base-s: self.gone ? 0.3 : self.chosen ? 1.18 : self.sel ? 1.08 : 1.0;
+                animate base-s { duration: Motion.login ? 240ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+                transform-scale: self.base-s * self.e;
                 Rectangle {
                     y: 0px;
                     width: lg.tile;
@@ -6976,7 +7041,10 @@ export component AppWindow inherits Window {
             }
 
             for s[i] in root.servers: srv-card := Rectangle {
-                height: 92px * root.k;
+                // Serveur trouvé : sa place s'ouvre en douceur (les boutons du dessous glissent au lieu
+                // de sauter), pendant qu'il apparaît.
+                height: 92px * root.k * self.in-e;
+                clip: true;
                 // Serveur trouvé : la carte arrive en fondu, chacune à son tour, sans saut ni zoom.
                 // Horloge propre à la carte (départ à sa création) : rien n'est montré avant son tour
                 // (une animation à retardement l'affichait d'abord en entier).
@@ -6999,19 +7067,23 @@ export component AppWindow inherits Window {
                 opacity: self.in-e;
                 property <bool> sel: !root.h-focus && i == root.srv-sel && Nav.kb;
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
-                border-radius: 16px * root.k;
-                background: self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                border-radius: Theme.win7 ? 4px : 16px * root.k;
+                background: Theme.win7 ? transparent : self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                     : ((srv-area.has-hover && !Nav.kb && !Nav.touch) ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
-                Gloss { r: parent.border-radius; strength: 0.8; }
-                border-width: self.sel ? 0px : 1px;
+                // Windows 7 (Aero) : le même verre que les autres boutons du thème.
+                if Theme.win7: Win7Glass {
+                    lit: srv-card.sel || (srv-area.has-hover && !Nav.kb && !Nav.touch);
+                }
+                Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && !Theme.win7; }
+                border-width: self.sel || Theme.win7 ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
-                transform-scale: (self.sel ? 1.03 : 1.0) + 0.05 * sin(self.pick-e * 180deg);
+                transform-scale: (self.sel ? 1.03 : 1.0) - 0.04 * sin(self.pick-e * 180deg);
                 animate transform-scale { duration: Motion.select && root.srv-picked < 0 ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 // Éclat du choix : une lueur d'accent qui passe sur la carte.
-                if srv-card.pick-e > 0.01: Rectangle {
+                if root.srv-picked == i: Rectangle {
                     border-radius: parent.border-radius;
                     background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
-                    opacity: 0.55 * sin(srv-card.pick-e * 180deg);
+                    opacity: 0.7 * (1 - srv-card.pick-e);
                 }
 
                 // Icône de serveur
@@ -8245,6 +8317,9 @@ export component AppWindow inherits Window {
                             height: self.width;
                             border-radius: self.width / 2;
                             background: Theme.fg.with-alpha(0.12);
+                            if !root.has-avatar && root.me-initial != "": Initial {
+                                letter: root.me-initial;
+                            }
                             if root.has-avatar && root.avatar-frames.length == 0: Image {
                                 width: parent.width;
                                 height: parent.height;
@@ -8586,6 +8661,13 @@ export component AppWindow inherits Window {
                 background: Theme.fg.with-alpha(0.12);
                 border-width: 2px * root.k;
                 border-color: Theme.accent2;
+                if !root.has-avatar && root.me-initial != "": Initial {
+                    x: 3px * root.k;
+                    y: 3px * root.k;
+                    width: parent.width - 6px * root.k;
+                    height: parent.height - 6px * root.k;
+                    letter: root.me-initial;
+                }
                 if root.has-avatar && root.avatar-frames.length == 0: Image {
                     x: 3px * root.k;
                     y: 3px * root.k;
@@ -9293,6 +9375,7 @@ export component AppWindow inherits Window {
         cast-on: root.cast-on;
         party-count: root.sp-count;
         has-avatar: root.has-avatar;
+        initial: root.me-initial;
         avatar: root.avatar;
         avatar-frames: root.avatar-frames;
         avatar-idx: root.avatar-idx;

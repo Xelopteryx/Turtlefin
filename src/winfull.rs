@@ -102,6 +102,7 @@ const WM_TIMER: u32 = 0x0113;
 const WM_ENTERSIZEMOVE: u32 = 0x0231;
 const WM_EXITSIZEMOVE: u32 = 0x0232;
 const WM_SIZE: u32 = 0x0005;
+const WM_SIZING: u32 = 0x0214;
 const SIZE_MAXIMIZED: usize = 2;
 const MOVE_TIMER: usize = 0x7475;
 
@@ -121,6 +122,26 @@ const RDW_UPDATENOW: u32 = 0x0100;
 
 static PREV_PROC: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 
+/// Geste de la souris en cours (déplacement / redimensionnement, boucle modale de Windows).
+static IN_MOVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Slint est déjà en train d'avancer (minuteries) : pas d'appel imbriqué.
+static TICKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Fait avancer Slint, seulement pendant un geste de la souris et jamais en imbrication : un
+/// changement de taille ou de cadre décidé par Turtlefin (interface TV) arrive pendant que Slint
+/// traite ses minuteries ; les relancer là le faisait s'arrêter net (« Recursion in timer code »).
+fn tick() {
+    if !IN_MOVE.load(std::sync::atomic::Ordering::Relaxed) || TICKING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    ON_TICK.with(|t| {
+        if let Some(f) = t.borrow().as_ref() {
+            f();
+        }
+    });
+    TICKING.store(false, std::sync::atomic::Ordering::Relaxed);
+}
+
 thread_local! {
     static ON_TICK: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
@@ -128,12 +149,26 @@ thread_local! {
 unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> isize {
     match msg {
         WM_ENTERSIZEMOVE => {
+            IN_MOVE.store(true, std::sync::atomic::Ordering::Relaxed);
             // SAFETY : fenêtre valide (message reçu pour elle).
             unsafe { SetTimer(h, MOVE_TIMER, 16, std::ptr::null()) };
         }
         WM_EXITSIZEMOVE => {
+            IN_MOVE.store(false, std::sync::atomic::Ordering::Relaxed);
             // SAFETY : idem.
             unsafe { KillTimer(h, MOVE_TIMER) };
+            // Fin du redimensionnement : le verre flou revient (voir WM_SIZING).
+            if RESIZING.swap(false, std::sync::atomic::Ordering::Relaxed) && BLUR.load(std::sync::atomic::Ordering::Relaxed) {
+                accent(h, true);
+            }
+        }
+        // Redimensionnement à la souris (pas un simple déplacement) : le verre flou est coupé le temps
+        // du geste. Windows montre sinon la fenêtre transparente (cadre compris) là où l'image à la
+        // nouvelle taille n'est pas encore peinte.
+        WM_SIZING => {
+            if !RESIZING.swap(true, std::sync::atomic::Ordering::Relaxed) && BLUR.load(std::sync::atomic::Ordering::Relaxed) {
+                accent(h, false);
+            }
         }
         WM_SIZE => {
             // Nouvelle taille : traitée d'abord (Slint la prend), puis l'image est refaite tout de suite,
@@ -143,13 +178,11 @@ unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> 
             let prev = PREV_PROC.load(std::sync::atomic::Ordering::Relaxed);
             // SAFETY : procédure d'origine de la fenêtre (posée par `keep_alive_while_moving`).
             let r = unsafe { CallWindowProcW(std::mem::transmute::<isize, WndProc>(prev), h, msg, wp, lp) };
-            ON_TICK.with(|t| {
-                if let Some(f) = t.borrow().as_ref() {
-                    f();
-                }
-            });
-            // SAFETY : fenêtre valide (message reçu pour elle).
-            unsafe { RedrawWindow(h, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_UPDATENOW) };
+            if IN_MOVE.load(std::sync::atomic::Ordering::Relaxed) {
+                tick();
+                // SAFETY : fenêtre valide (message reçu pour elle).
+                unsafe { RedrawWindow(h, std::ptr::null(), std::ptr::null_mut(), RDW_INVALIDATE | RDW_UPDATENOW) };
+            }
             if ROUND.load(std::sync::atomic::Ordering::Relaxed) {
                 let (w, h2) = ((lp & 0xffff) as i32, ((lp >> 16) & 0xffff) as i32);
                 round_corners(h, if wp == SIZE_MAXIMIZED { None } else { Some((w, h2)) });
@@ -157,11 +190,7 @@ unsafe extern "system" fn move_proc(h: Hwnd, msg: u32, wp: usize, lp: isize) -> 
             return r;
         }
         WM_TIMER if wp == MOVE_TIMER => {
-            ON_TICK.with(|t| {
-                if let Some(f) = t.borrow().as_ref() {
-                    f();
-                }
-            });
+            tick();
             return 0;
         }
         _ => {}
@@ -188,7 +217,18 @@ pub fn keep_alive_while_moving(tick: impl Fn() + 'static) {
 /// gestionnaire de fenêtres là où Turtlefin peint en semi-transparent (cadre de la fenêtre façon
 /// Windows 7, voir WinCaption dans app.slint). API non documentée mais stable depuis Windows 10
 /// (SetWindowCompositionAttribute, WCA_ACCENT_POLICY) ; sans effet si elle manque.
+/// Verre flou demandé (thème Windows 7 en fenêtre), et redimensionnement en cours (verre coupé).
+static BLUR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static RESIZING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn set_blur(hwnd: *mut c_void, on: bool) {
+    BLUR.store(on, std::sync::atomic::Ordering::Relaxed);
+    if !RESIZING.load(std::sync::atomic::Ordering::Relaxed) {
+        accent(hwnd, on);
+    }
+}
+
+fn accent(hwnd: *mut c_void, on: bool) {
     #[repr(C)]
     struct AccentPolicy {
         state: u32,

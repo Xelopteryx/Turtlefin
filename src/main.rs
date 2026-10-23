@@ -1299,13 +1299,20 @@ fn start_tour(app: &Arc<App>, delay_ms: u64) {
 }
 
 /// Ouvre la session : accueil (onglet affiché) avec ce client.
+/// Initiale d'un nom (photo de compte par défaut).
+fn initial_of(name: &str) -> String {
+    name.trim().chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default()
+}
+
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     watch_addresses(&app, &client);
     app.offline.store(false, Ordering::SeqCst);
-    let _ = app.ui().upgrade_in_event_loop(|u| {
+    let initial = initial_of(&client.user_name);
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_offline(false);
         u.set_signed_in(true);
+        u.set_me_initial(initial.into());
     });
     sync_offline_plays(&app, &client);
     app.stack.lock().unwrap().clear();
@@ -7240,6 +7247,26 @@ fn key(u: &AppWindow, k: slint::platform::Key) {
     u.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
 }
 
+/// Place et taille de la fenêtre, posées juste après la minuterie en cours : posées depuis une
+/// minuterie de Slint, Windows rappelle aussitôt Slint (redimensionnement, fenêtre recréée sans cadre)
+/// pendant qu'il traite ses minuteries, et Slint s'arrête net (« Recursion in timer code ») : c'était
+/// le plantage au passage à l'interface TV en fenêtre.
+#[cfg(windows)]
+fn place_window(weak: slint::Weak<AppWindow>, pos: Option<(i32, i32)>, size: Option<(i32, i32)>, then: Option<Box<dyn FnOnce(&AppWindow) + Send>>) {
+    let _ = slint::invoke_from_event_loop(move || {
+        let Some(u) = weak.upgrade() else { return };
+        if let Some((x, y)) = pos {
+            u.window().set_position(slint::PhysicalPosition::new(x, y));
+        }
+        if let Some((w, h)) = size {
+            u.window().set_size(slint::PhysicalSize::new(w.max(1) as u32, h.max(1) as u32));
+        }
+        if let Some(f) = then {
+            f(&u);
+        }
+    });
+}
+
 /// Fenêtre (pas l'interface TV) sur un petit écran : 1280 x 720 plus le cadre dépasse la zone de
 /// travail d'un écran 1366 x 768 (bas caché sous la barre des tâches). On la réduit et la centre.
 #[cfg(windows)]
@@ -7256,8 +7283,7 @@ fn fit_window_later(weak: slint::Weak<AppWindow>, tries: u32) {
         let size = u.window().size();
         let (cw, ch) = ((size.width as i32).min(ww - 16), (size.height as i32).min(wh - 40));
         if cw < size.width as i32 || ch < size.height as i32 {
-            u.window().set_size(slint::PhysicalSize::new(cw as u32, ch as u32));
-            u.window().set_position(slint::PhysicalPosition::new(wx + (ww - cw - 16) / 2, wy + (wh - ch - 40) / 2));
+            place_window(u.as_weak(), Some((wx + (ww - cw - 16) / 2, wy + (wh - ch - 40) / 2)), Some((cw, ch)), None);
         }
     });
 }
@@ -7272,7 +7298,16 @@ thread_local! {
 /// 25 ms (une seconde au plus), puis repli sur le plein écran de Slint.
 #[cfg(windows)]
 fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
+    // Tout le changement de fenêtre (cadre retiré, taille) se fait hors des minuteries de Slint :
+    // voir place_window (plantage « Recursion in timer code »).
     slint::Timer::single_shot(std::time::Duration::from_millis(25), move || {
+        let _ = slint::invoke_from_event_loop(move || tv_window_step(weak, on, tries));
+    });
+}
+
+#[cfg(windows)]
+fn tv_window_step(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
+    {
         let Some(u) = weak.upgrade() else { return };
         let Some(((mx, my, mw, mh), (wx, wy, ww, wh))) = winfull::monitor() else {
             if tries > 0 {
@@ -7287,6 +7322,7 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
         u.set_frameless(on);
         let weak = u.as_weak();
         slint::Timer::single_shot(std::time::Duration::from_millis(60), move || {
+          let _ = slint::invoke_from_event_loop(move || {
             let Some(u) = weak.upgrade() else { return };
             if on {
                 // Un pixel de plus en bas : plus pris pour un plein écran (le pixel est hors écran).
@@ -7299,8 +7335,7 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
                     let (Some(u), Some(((mx, my, mw, mh), _))) = (weak.upgrade(), winfull::monitor()) else { return };
                     let (pos, size) = (u.window().position(), u.window().size());
                     if pos.x != mx || pos.y != my || size.width != mw as u32 || size.height != mh as u32 + 1 {
-                        u.window().set_position(slint::PhysicalPosition::new(mx, my));
-                        u.window().set_size(slint::PhysicalSize::new(mw as u32, mh as u32 + 1));
+                        place_window(u.as_weak(), Some((mx, my)), Some((mw, mh + 1)), None);
                     }
                 });
                 TV_WATCH.with(|w| *w.borrow_mut() = Some(watch));
@@ -7317,8 +7352,9 @@ fn tv_window_later(weak: slint::Weak<AppWindow>, on: bool, tries: u32) {
                 u.set_frameless(true);
                 animate_window(&u, target, Box::new(move |u| u.set_frameless(false)));
             }
+          });
         });
-    });
+    }
 }
 
 #[cfg(windows)]
@@ -7330,27 +7366,20 @@ thread_local! {
 /// Fenêtre menée de sa place actuelle à `to` (x, y, largeur, hauteur, pixels physiques) en 280 ms,
 /// en ralentissant ; `done` à l'arrivée.
 #[cfg(windows)]
-fn animate_window(u: &AppWindow, to: (i32, i32, i32, i32), done: Box<dyn FnOnce(&AppWindow)>) {
+fn animate_window(u: &AppWindow, to: (i32, i32, i32, i32), done: Box<dyn FnOnce(&AppWindow) + Send>) {
     let (p, sz) = (u.window().position(), u.window().size());
     let from = (p.x, p.y, sz.width as i32, sz.height as i32);
     let t0 = std::time::Instant::now();
     let weak = u.as_weak();
     let done = std::cell::RefCell::new(Some(done));
-    let place = |u: &AppWindow, r: (i32, i32, i32, i32)| {
-        u.window().set_position(slint::PhysicalPosition::new(r.0, r.1));
-        u.window().set_size(slint::PhysicalSize::new(r.2.max(1) as u32, r.3.max(1) as u32));
-    };
     let anim = slint::Timer::default();
     anim.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(12), move || {
-        let Some(u) = weak.upgrade() else { return };
         let t = (t0.elapsed().as_secs_f32() / 0.28).min(1.0);
         let e = 1.0 - (1.0 - t).powi(3);
         let lerp = |a: i32, b: i32| a + ((b - a) as f32 * e).round() as i32;
-        place(&u, (lerp(from.0, to.0), lerp(from.1, to.1), lerp(from.2, to.2), lerp(from.3, to.3)));
+        let then = if t >= 1.0 { done.borrow_mut().take() } else { None };
+        place_window(weak.clone(), Some((lerp(from.0, to.0), lerp(from.1, to.1))), Some((lerp(from.2, to.2), lerp(from.3, to.3))), then);
         if t >= 1.0 {
-            if let Some(d) = done.borrow_mut().take() {
-                d(&u);
-            }
             WIN_ANIM.with(|w| *w.borrow_mut() = None);
         }
     });
@@ -9070,8 +9099,10 @@ fn go_offline(app: &Arc<App>) {
     // Menu sans les bibliothèques ni la watch party (rien à ouvrir sans serveur).
     set_menu(app, &[]);
     let a = app.clone();
+    let initial = initial_of(&config::load().user_name);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_offline(true);
+        u.set_me_initial(initial.into());
         open_downloads(&a);
         u.set_toast(tr("Serveur injoignable : mode hors ligne (téléchargements).").into());
     });
