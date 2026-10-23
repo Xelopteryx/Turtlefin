@@ -2528,6 +2528,9 @@ export component AppWindow inherits Window {
     property <float> page-lin: root.page-anim && Motion.pages ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
+        // Cartes d'une bibliothèque : arrivée en vague (voir arr-lin).
+        root.arr-t0 = animation-tick();
+        root.arr-anim = true;
         // Une image partagée vole vers sa place : la page ne bouge pas, pour qu'elle tombe juste
         // (sauf un grand fond : la page arrive normalement par-dessus). Le reste de la fiche arrive
         // alors l'un après l'autre (voir rev), au lieu de surgir d'un coup.
@@ -2547,6 +2550,24 @@ export component AppWindow inherits Window {
         triggered => {
             if (animation-tick() - root.page-t0 > 540ms) {
                 root.page-anim = false;
+            }
+        }
+    }
+    // Bibliothèque : les cartes arrivent en vague diagonale (haut gauche -> bas droite), chacune en
+    // fondu en remontant doucement, sur une seconde (au lieu de toutes les rangées d'un coup).
+    property <bool> arr-anim;
+    property <duration> arr-t0;
+    property <float> arr-lin: root.arr-anim && Motion.pages ? clamp((animation-tick() - root.arr-t0) / 1000ms, 0, 1) : 1;
+    pure function arr(row: int, col: int) -> float {
+        let x = clamp((root.arr-lin - clamp(row, 0, 6) * 0.075 - min(col, 8) * 0.045) / 0.45, 0, 1);
+        return 1 - (1 - x) * (1 - x) * (1 - x) * (1 - x);
+    }
+    Timer {
+        interval: 100ms;
+        running: root.arr-anim;
+        triggered => {
+            if (animation-tick() - root.arr-t0 > 1050ms) {
+                root.arr-anim = false;
             }
         }
     }
@@ -6504,6 +6525,8 @@ export component AppWindow inherits Window {
         property <int> cols: max(1, floor((self.width - 2 * self.pad + self.gap) / (self.cw + self.gap)));
         property <int> rows: ceil(root.lib-items.length / self.cols);
         property <int> sel-row: floor(root.l-sel / self.cols);
+        // Première ligne affichée (départ de la vague d'arrivée).
+        property <int> top-row: max(0, floor(max(0px, -grid.y - 12px * root.k) / (self.ch + self.gap)));
         // Cartes visibles à l'arrivée (lignes entières ou entamées) : seules celles-là sont distribuées.
         property <int> on-screen: self.cols * max(1, ceil((self.height - 12px * root.k) / (self.ch + self.gap)));
         init => {
@@ -6625,7 +6648,10 @@ export component AppWindow inherits Window {
                     // Collection : la carte part du paquet (centre de l'écran), tournée, et file à sa place.
                     property <float> dp: root.deal-p(i);
                     property <length> bx: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
-                    property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + root.stagger(floor(i / lib.cols) - lib.sel-row + 2);
+                    // Arrivée de la page : en vague, à partir de la première ligne à l'écran (voir arr).
+                    property <float> ap: self.dp < 1 ? 1 : root.arr(floor(i / lib.cols) - lib.top-row, mod(i, lib.cols));
+                    property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + (1 - self.ap) * 36px * root.k;
+                    opacity: self.ap;
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
                     visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
