@@ -3163,7 +3163,7 @@ export component AppWindow inherits Window {
     // Fiche -> fiche sans défilement : décalage de l'affiche de la page (voir open-hero).
     property <length> hero-keep;
     // La page défile au rythme de l'affiche qui vole (saison), le reste du temps comme d'habitude.
-    property <bool> hero-glide: root.hero-anim && root.hero-dest && root.screen == "detail";
+    property <bool> hero-glide: root.d-glide || (root.hero-anim && root.hero-dest && root.screen == "detail");
     property <length> hero-tw: root.hero-deck ? min(root.width * 0.5, 560px * root.k) : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
     property <length> hero-th: root.hero-deck ? min(root.width * 0.5, 560px * root.k) * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
@@ -3274,28 +3274,39 @@ export component AppWindow inherits Window {
         let kid = root.screen == "detail" && root.d-zone == 2 && !root.detail.children-landscape;
         // Bibliothèque (vignette 16:9) en portrait : pas d'image partagée (il n'y a pas d'affiche à
         // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
-        // Affiche de la page sortie de l'écran (page descendue, affiche cliquée plus bas) : pas
-        // d'image qui vole vers elle ; les rangées se retournent sur le nouveau média.
-        // (Sortie : il en reste moins d'un cinquième sous la barre du haut.)
-        let poster-gone = root.screen == "detail" && root.keep-scroll && root.d-view-y > 24px + root.poster-w * 1.2;
-        // Affiche encore visible, page gardée en place : l'image vole jusqu'à l'affiche là où elle est.
-        root.hero-keep = root.screen == "detail" && root.keep-scroll && !kid ? root.d-view-y : 0px;
-        if (!poster-gone && (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
+        // Fiche -> fiche (rangées du bas ou saison) : la page remonte au début, au rythme de l'image
+        // qui vole jusqu'à l'affiche (voir plus bas).
+        let up = root.screen == "detail" && (root.d-zone >= 4 || kid);
+        root.hero-keep = 0px;
+        if ((root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
             Hero.tick += 1;
             // Fiche -> fiche : rien ne s'efface (ce qui ne change pas reste, voir detail-swap).
             root.kid-veil = false;
         }
-        // Saison : la page remonte tout de suite, au rythme de l'affiche qui vole vers sa place, et
-        // tout ce qui est sous le bloc principal s'efface (voir kids-out).
+        // Saison : tout ce qui est sous le bloc principal s'efface (voir kids-out).
         if (kid) {
-            root.d-free = false;
-            root.d-zone = 0;
-            root.d-button = 0;
             root.kids-out = Motion.detail;
         }
         root.open-item(id);
+        // Remontée au début, au rythme de l'image qui vole (hero-glide). Après open-item : la page
+        // quittée est gardée avec sa position (retour au même endroit). La sélection ne bouge pas
+        // encore : la carte choisie doit rester sélectionnée pour donner son image (Card, hero-tick) ;
+        // la nouvelle fiche la remet sur Lecture à son arrivée.
+        if (up) {
+            root.d-glide = Motion.detail;
+            root.d-free-y = 0px;
+            root.d-free = true;
+        }
+    }
+    property <bool> d-glide;
+    Timer {
+        interval: root.hero-dur + 200ms;
+        running: root.d-glide;
+        triggered => {
+            root.d-glide = false;
+        }
     }
     // Retour : l'image attend que sa carte soit affichée, puis vole exactement jusqu'à elle.
     property <bool> hero-wait: root.hero-on && !root.hero-dest && !root.hero-flying && !root.hero-out && !root.loading && !root.veil-hold
@@ -7187,7 +7198,7 @@ export component AppWindow inherits Window {
                 root.d-x = i;
             }
             activated(i) => {
-                root.hold-scroll(true);
+                root.hold-scroll(false);
                 root.d-zone = 4 + ri;
                 root.d-x = i;
                 root.open-hero(row.items[i].id);
