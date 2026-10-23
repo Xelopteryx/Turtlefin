@@ -50,8 +50,8 @@ export component BootLogo inherits Rectangle {
         opacity: 1 - root.o3;
         background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
         if Theme.bubbles && !root.nerd: AeroSky { k: root.k; }
-        // Nerd : la carte mère du fond s'allume au fil des modules branchés.
-        if root.nerd: CircuitScene { power: root.power-a; }
+        // Nerd : la carte mère se monte puce par puce, puis le courant parcourt ses pistes.
+        if root.nerd: CircuitScene { k: root.k; state: root.state; surge: root.surge; bright: 1; }
     }
 
     property <bool> nerd: Theme.boot-style == 2;
@@ -99,7 +99,7 @@ export component BootLogo inherits Rectangle {
         }
     }
     property <duration> outro-len: 2100ms;
-    property <duration> link-len: root.aero || root.gate ? 2400ms : root.nerd ? 1700ms : 900ms;
+    property <duration> link-len: root.aero ? 2400ms : root.nerd ? 2800ms : 900ms;
     property <float> lp: root.phase == 0 ? 0 : root.phase == 1 ? clamp((animation-tick() - root.t-link) / root.link-len, 0, 1) : 1;
     // Aero : tourbillon (0 -> 1), éclair (monte puis retombe), apparition du logo.
     // Aero, sur 2,4 s : tourbillon (0 -> 0,35), éclair (0,28 -> 0,53), l'orbe surgit en zoomant avec un
@@ -119,13 +119,15 @@ export component BootLogo inherits Rectangle {
     property <float> edge-p: root.noserver ? 0
         : root.aero ? root.ease(clamp((root.lp - 0.5) / 0.24, 0, 1))
         : root.gate ? root.ease(clamp((root.lp - 0.45) / 0.3, 0, 1))
-        : root.nerd ? root.ease(clamp((root.lp - 0.25) / 0.35, 0, 1))
+        : root.nerd ? root.ease(clamp((root.lp - 0.62) / 0.22, 0, 1))
         : root.ease(clamp(root.lp * 2, 0, 1));
     property <float> spoke-p: root.noserver ? 0
         : root.aero ? root.ease(clamp((root.lp - 0.72) / 0.18, 0, 1))
         : root.gate ? root.ease(clamp((root.lp - 0.7) / 0.25, 0, 1))
-        : root.nerd ? root.ease(clamp((root.lp - 0.6) / 0.3, 0, 1))
+        : root.nerd ? root.ease(clamp((root.lp - 0.8) / 0.18, 0, 1))
         : root.ease(clamp(root.lp * 2 - 1, 0, 1));
+    // Nerd : le courant parcourt la carte (début de la liaison), avant que le logo ne se grave.
+    property <float> surge: root.phase == 0 ? 0 : clamp(root.lp / 0.62, 0, 1);
     // Libellés et textes : ils s'effacent pendant la liaison (ou l'écartement, sans serveur).
     property <float> lab-fade: root.noserver ? root.lp : root.aero ? min(1, root.swirl * 3) : root.gate || root.nerd ? clamp(root.lp * 3, 0, 1) : root.edge-p;
     // Fin (zp) : le logo rétrécit et glisse à gauche (o1), le nom « Turtlefin » apparaît à sa droite (o2),
@@ -202,135 +204,6 @@ export component BootLogo inherits Rectangle {
         height: root.side;
         // Fin : le logo rétrécit à côté du nom, puis monte se poser sur le titre de la page.
         transform-scale: root.logo-s;
-
-        // ---- Nerd : carte mère. Six emplacements reliés au processeur central par des pistes ; à chaque
-        // vérification, un module glisse dans son emplacement, sa diode s'allume, sa piste s'éclaire.
-        if root.nerd: Rectangle {
-            opacity: 1 - root.spoke-p;
-            for i in 6: Path {
-                property <int> s: root.state[i];
-                x: 0px;
-                y: 0px;
-                width: parent.width;
-                height: parent.height;
-                viewbox-width: 256;
-                viewbox-height: 256;
-                fill: transparent;
-                stroke: self.s == 2 ? Theme.accent2 : self.s == 3 ? #ff5c5c : self.s == 4 ? #ffc23d : Theme.accent1.with-alpha(0.25);
-                animate stroke { duration: 450ms; }
-                stroke-width: 3 * root.u;
-                commands: "M " + root.px[i] + " " + root.py[i]
-                    + " L " + (128 + (root.px[i] - 128) * 0.45) + " " + (root.py[i] == 128 ? 128 : root.py[i])
-                    + " L " + (128 + (root.px[i] - 128) * 0.25) + " " + (128 + (root.py[i] - 128) * 0.3);
-            }
-            // Emplacements.
-            for i in 6: Rectangle {
-                x: (root.px[i] - 18) * root.u;
-                y: (root.py[i] - 13) * root.u;
-                width: 36 * root.u;
-                height: 26 * root.u;
-                border-radius: 2 * root.u;
-                border-width: 2 * root.u;
-                border-color: Theme.accent1.with-alpha(0.35);
-                background: Theme.bg.with-alpha(0.8);
-            }
-            // Modules : arrivent de l'extérieur et s'enfoncent dans leur emplacement.
-            for i in 6: Rectangle {
-                property <int> s: root.state[i];
-                property <float> arrive: self.s >= 1 ? 1 : 0;
-                animate arrive { duration: 460ms; easing: cubic-bezier(0.34, 1.4, 0.64, 1); }
-                property <float> dx: (root.px[i] - 128) / 68;
-                property <float> dy: (root.py[i] - 128) / 68;
-                visible: self.arrive > 0.01;
-                x: (root.px[i] - 15 + self.dx * 120 * (1 - self.arrive)) * root.u;
-                y: (root.py[i] - 10 + self.dy * 120 * (1 - self.arrive)) * root.u;
-                width: 30 * root.u;
-                height: 20 * root.u;
-                border-radius: 2 * root.u;
-                background: #0c2a1b;
-                border-width: 1 * root.u;
-                border-color: Theme.accent2.with-alpha(0.5);
-                Path {
-                    width: parent.width;
-                    height: parent.height;
-                    viewbox-width: 30;
-                    viewbox-height: 20;
-                    fill: transparent;
-                    stroke: Theme.accent1.with-alpha(0.7);
-                    stroke-width: 1 * root.u;
-                    commands: "M 6 3 L 6 0 M 12 3 L 12 0 M 18 3 L 18 0 M 24 3 L 24 0 M 6 17 L 6 20 M 12 17 L 12 20 M 18 17 L 18 20 M 24 17 L 24 20";
-                }
-                // Diode d'état.
-                Rectangle {
-                    x: parent.width - 9 * root.u;
-                    y: 5 * root.u;
-                    width: 5 * root.u;
-                    height: self.width;
-                    border-radius: self.width / 2;
-                    background: parent.s == 2 ? #4dff9a : parent.s == 3 ? #ff5c5c : parent.s == 4 ? #ffc23d
-                        : Theme.accent2.with-alpha(0.3 + 0.7 * root.pulse);
-                    drop-shadow-blur: 6 * root.u;
-                    drop-shadow-color: self.background;
-                }
-            }
-            // Processeur (le serveur) : posé en dernier, au centre ; sans serveur, il attend au-dessus.
-            Rectangle {
-                x: (128 - 26) * root.u;
-                y: (128 - 26) * root.u;
-                width: 52 * root.u;
-                height: self.width;
-                border-radius: 3 * root.u;
-                border-width: 2 * root.u;
-                border-color: Theme.accent1.with-alpha(0.35);
-                background: Theme.bg.with-alpha(0.85);
-            }
-            Rectangle {
-                property <int> s: root.state[6];
-                property <float> arrive: self.s == 4 ? 0.55 : self.s >= 1 ? 1 : 0;
-                animate arrive { duration: 520ms; easing: cubic-bezier(0.34, 1.4, 0.64, 1); }
-                visible: self.arrive > 0.01;
-                x: (128 - 22) * root.u;
-                y: (128 - 22 - 110 * (1 - self.arrive)) * root.u;
-                width: 44 * root.u;
-                height: self.width;
-                border-radius: 3 * root.u;
-                background: @linear-gradient(135deg, #12402a 0%, #071c12 100%);
-                border-width: 1 * root.u;
-                border-color: self.s == 2 ? Theme.accent2 : Theme.accent2.with-alpha(0.4);
-                drop-shadow-blur: self.s == 2 ? 26 * root.u : 0px;
-                drop-shadow-color: Theme.accent2.with-alpha(0.7);
-                Path {
-                    width: parent.width;
-                    height: parent.height;
-                    viewbox-width: 44;
-                    viewbox-height: 44;
-                    fill: transparent;
-                    stroke: Theme.accent2.with-alpha(parent.s == 2 ? 0.9 : 0.35);
-                    stroke-width: 1 * root.u;
-                    commands: "M 12 12 L 32 12 L 32 32 L 12 32 Z M 16 16 L 28 16 L 28 28 L 16 28 Z";
-                }
-                Rectangle {
-                    x: parent.width - 8 * root.u;
-                    y: 4 * root.u;
-                    width: 5 * root.u;
-                    height: self.width;
-                    border-radius: self.width / 2;
-                    background: parent.s == 2 ? #4dff9a : parent.s == 3 ? #ff5c5c
-                        : parent.s == 4 ? #ffc23d.with-alpha(0.3 + 0.7 * root.pulse) : Theme.accent2.with-alpha(0.3 + 0.7 * root.pulse);
-                }
-            }
-        }
-        // Nerd, liaison : la machine sous tension, éclair vert au centre.
-        if root.nerd && root.phase >= 1 && !root.noserver: Rectangle {
-            property <float> f: sin(clamp(root.lp / 0.35, 0, 1) * 180deg);
-            x: (128 - 120 * self.f) * root.u;
-            y: (128 - 120 * self.f) * root.u;
-            width: 240 * self.f * root.u;
-            height: self.width;
-            border-radius: self.width / 2;
-            background: @radial-gradient(circle, Theme.accent2.with-alpha(0.55 * self.f) 0%, Theme.accent2.with-alpha(0) 70%);
-        }
-
 
         // Orbe de verre derrière le logo : sphère d'accent sombre au bord, lueur en bas.
         if root.orb && root.orb-t > 0: Rectangle {
@@ -434,19 +307,6 @@ export component BootLogo inherits Rectangle {
                 + " L " + (128 + (root.ix[5] - 128) * self.g) + " " + (128 + (root.iy[5] - 128) * self.g) + " Z";
         }
 
-        if root.nerd && root.edge-p > 0: Path {
-            x: 0px;
-            y: 0px;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 256;
-            viewbox-height: 256;
-            fill: Theme.bg;
-            stroke: Theme.accent2;
-            stroke-width: 3 * root.u * root.edge-p;
-            commands: "M 119 60 A 9 9 0 1 0 137 60 A 9 9 0 1 0 119 60 Z M 178 94 A 9 9 0 1 0 196 94 A 9 9 0 1 0 178 94 Z M 178 162 A 9 9 0 1 0 196 162 A 9 9 0 1 0 178 162 Z M 119 196 A 9 9 0 1 0 137 196 A 9 9 0 1 0 119 196 Z M 60 162 A 9 9 0 1 0 78 162 A 9 9 0 1 0 60 162 Z M 60 94 A 9 9 0 1 0 78 94 A 9 9 0 1 0 60 94 Z";
-        }
-
         // Les six sommets. Pendant la liaison, chaque point prend la couleur du logo et la taille du
         // trait : il devient l'angle arrondi du contour.
         for i in 6: Rectangle {
@@ -486,8 +346,8 @@ export component BootLogo inherits Rectangle {
             }
             // Libellé, à l'extérieur de l'hexagone (Nerd : sous le module ; Sept chevrons : sur le point).
             Text {
-                property <float> ox: root.gate ? 0 : (root.px[i] - 128) * (root.nerd ? 0.75 : 0.55);
-                property <float> oy: root.gate ? 0 : (root.py[i] - 128) * (root.nerd ? 0.6 : 0.42);
+                property <float> ox: (root.px[i] - 128) * (root.nerd ? 0.95 : 0.55);
+                property <float> oy: (root.py[i] - 128) * (root.nerd ? 0.75 : 0.42);
                 x: self.ox * root.u + (parent.width - self.width) / 2;
                 y: self.oy * root.u + (parent.height - self.height) / 2;
                 width: 160px * root.k;

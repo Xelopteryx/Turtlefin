@@ -199,9 +199,9 @@ fn nerd() -> ThemeDef {
     ThemeDef {
         name: s("Nerd"),
         dark: true,
-        bg: s("#010805"),
-        bg_mid: s("#03120b"),
-        bg_end: s("#020c07"),
+        bg: s("#000201"),
+        bg_mid: s("#000503"),
+        bg_end: s("#000302"),
         fg: s("#e6fff2"),
         text: s("#e6fff2e6"),
         muted: s("#9fe3c08c"),
