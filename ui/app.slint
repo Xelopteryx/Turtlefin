@@ -2628,10 +2628,23 @@ export component AppWindow inherits Window {
         interval: 100ms;
         running: root.arr-anim;
         triggered => {
-            if (animation-tick() - root.arr-t0 > 1050ms) {
+            if (animation-tick() - root.arr-t0 > 1250ms) {
                 root.arr-anim = false;
             }
         }
+    }
+    // Bibliothèque : les cartes éclosent en onde depuis le centre de l'écran, comme une goutte dans
+    // l'eau ; chacune grandit sur place avec un léger rebond (rien ne glisse ni ne se remet en place).
+    // `d` : distance de la carte au centre, en cartes. Renvoie l'avancement brut (0 à 1).
+    property <float> rip-lin: root.arr-anim && Motion.pages ? clamp((animation-tick() - root.arr-t0) / 1200ms, 0, 1) : 1;
+    pure function ripple(d: float) -> float {
+        return clamp((root.rip-lin - min(d, 6) * 0.1) / 0.38, 0, 1);
+    }
+    // Taille : de 55 % à 100 %, en dépassant un peu (rebond).
+    pure function ripple-scale(x: float) -> float {
+        let c = 1.7;
+        let y = x - 1;
+        return 0.55 + 0.45 * (1 + (c + 1) * y * y * y + c * y * y);
     }
     // Serveur choisi : éclat de sa carte (300 ms), puis la connexion.
     property <int> srv-picked: -1;
@@ -2757,10 +2770,28 @@ export component AppWindow inherits Window {
     // Portrait, vignette 16:9 ouverte : « porte ». La carte vient au centre (0 à 0,32), s'ouvre en deux
     // battants (0,32 à 0,62) qui laissent sortir l'affiche, puis l'affiche vole à sa place sur la
     // fiche (0,62 à 1). Étirée à tout l'écran comme en paysage, la vignette en débordait largement.
-    property <bool> hero-door: root.hero-wide && root.narrow && !root.hero-seerr && root.hero-dest;
+    // Au retour, la même porte à l'envers : l'affiche revient au centre, les battants se referment
+    // sur elle, puis la carte refermée regagne sa place (door-mode : fiche ouverte ainsi, gardé
+    // jusqu'au retour).
+    property <bool> door-mode;
+    property <bool> hero-door: root.door-mode && root.hero-wide && !root.hero-seerr;
     property <duration> hero-dur: root.hero-door ? 1150ms : 480ms;
+    // Avancement de la porte : 0 carte à sa place · 1 affiche sur la fiche. Retour : reste à 1 tant
+    // que la fiche s'efface, puis redescend à 0 pendant le vol.
+    property <float> door-q: root.hero-dest ? root.hero-q : root.hero-flying ? 1 - root.hero-q : 1;
+    // Affiche de la fiche gardée pour le retour (la fiche n'est plus là quand la porte se referme).
+    property <image> door-poster;
+    property <bool> door-has-poster;
+    property <bool> door-poster-ready: root.hero-door && root.hero-dest && root.screen == "detail" && root.detail.id == root.hero-id
+        && root.detail.has-poster;
+    changed door-poster-ready => {
+        if (root.door-poster-ready) {
+            root.door-poster = root.detail.poster;
+            root.door-has-poster = true;
+        }
+    }
     pure function door-e(a: float, b: float) -> float {
-        let x = clamp((root.hero-q - a) / (b - a), 0, 1);
+        let x = clamp((root.door-q - a) / (b - a), 0, 1);
         return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) / 2;
     }
     property <float> door-move: root.door-e(0, 0.32);
@@ -2962,6 +2993,8 @@ export component AppWindow inherits Window {
             root.hero-k = Hero.k;
             root.hero-seerr = root.is-seerr(root.hero-pending);
             root.hero-wide = Hero.wide;
+            root.door-mode = Hero.wide && root.narrow && !root.hero-seerr;
+            root.door-has-poster = false;
             root.hero-deck = Hero.data.deck;
             root.deal-anim = false;
             root.hero-faded = false;
@@ -4046,13 +4079,14 @@ export component AppWindow inherits Window {
         if (i == 0) {
             root.cast-toggle();
         } else if (i == 1) {
-            root.menu-action("party");
+            // Comme depuis le menu : la page s'efface, puis la nouvelle arrive (pas d'un coup).
+            root.nav-out("menu", "party");
         } else if (i == 2) {
             root.random-pick();
         } else if (i == 3) {
             root.search-open();
         } else {
-            root.menu-action("settings");
+            root.nav-out("menu", "settings");
         }
     }
 
@@ -6627,6 +6661,8 @@ export component AppWindow inherits Window {
         property <int> sel-row: floor(root.l-sel / self.cols);
         // Première ligne affichée (départ de la vague d'arrivée).
         property <int> top-row: max(0, floor(max(0px, -grid.y - 12px * root.k) / (self.ch + self.gap)));
+        // Rangées visibles : leur milieu est le centre de l'onde d'arrivée (voir ripple).
+        property <float> mid-row: lib.top-row + max(0, lib-clip.height / (self.ch + self.gap) - 1) / 2;
         // Cartes visibles à l'arrivée (lignes entières ou entamées) : seules celles-là sont distribuées.
         property <int> on-screen: self.cols * max(1, ceil((self.height - 12px * root.k) / (self.ch + self.gap)));
         init => {
@@ -6748,10 +6784,13 @@ export component AppWindow inherits Window {
                     // Collection : la carte part du paquet (centre de l'écran), tournée, et file à sa place.
                     property <float> dp: root.deal-p(i);
                     property <length> bx: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
-                    // Arrivée de la page : en vague, à partir de la première ligne à l'écran (voir arr).
-                    property <float> ap: self.dp < 1 ? 1 : root.arr(floor(i / lib.cols) - lib.top-row, mod(i, lib.cols));
-                    property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap) + (1 - self.ap) * 36px * root.k;
-                    opacity: self.ap;
+                    // Arrivée de la page : en onde depuis le centre des rangées visibles (voir ripple).
+                    property <float> dr: floor(i / lib.cols) - lib.mid-row;
+                    property <float> dc: mod(i, lib.cols) - (lib.cols - 1) / 2;
+                    property <float> ap: self.dp < 1 ? 1 : root.ripple(sqrt(self.dr * self.dr + self.dc * self.dc * 0.8));
+                    property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
+                    opacity: min(1, self.ap * 2.2);
+                    transform-scale: self.ap >= 1 ? 1 : root.ripple-scale(self.ap);
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
                     visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
@@ -10537,6 +10576,8 @@ export component AppWindow inherits Window {
         y: root.header-row;
         height: parent.height - root.header-row;
         clip: true;
+        // Carte introuvable au retour : la porte s'efface sur place.
+        opacity: root.hero-out-a;
         // Page dessous assombrie le temps de l'ouverture.
         Rectangle {
             y: -root.header-row;
@@ -10549,7 +10590,8 @@ export component AppWindow inherits Window {
         property <length> cw: root.hero-fw + (root.door-w - root.hero-fw) * root.door-move;
         property <length> ch: root.hero-fh + (root.door-h - root.hero-fh) * root.door-move;
         // Affiche : sort du centre de la carte, puis vole vers sa place sur la fiche.
-        property <bool> poster-ok: root.screen == "detail" && root.detail.id == root.hero-id && root.detail.has-poster;
+        property <bool> poster-ok: root.hero-dest ? root.screen == "detail" && root.detail.id == root.hero-id && root.detail.has-poster
+            : root.door-has-poster;
         property <length> ph0: self.ch * 1.15;
         property <length> pw0: self.ph0 / 1.5;
         property <float> ps: 0.7 + 0.3 * root.door-open;
@@ -10568,7 +10610,7 @@ export component AppWindow inherits Window {
             if parent.poster-ok: Image {
                 width: parent.width;
                 height: parent.height;
-                source: root.detail.poster;
+                source: root.hero-dest ? root.detail.poster : root.door-poster;
                 image-fit: fill;
             }
             if !parent.poster-ok: Placeholder {
