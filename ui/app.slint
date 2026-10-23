@@ -288,6 +288,66 @@ component Bubble inherits Rectangle {
     }
 }
 
+// Texte qui change (fiche -> fiche) : une barre fine balaie le texte de gauche à droite ; à sa gauche
+// le nouveau texte, à sa droite ce qui reste de l'ancien. Le balayage ne parcourt que la largeur du
+// plus long des deux (un texte court n'attend pas une barre qui traverse un bloc vide).
+component Wipe inherits Rectangle {
+    in property <string> from;
+    in property <string> to;
+    in property <float> p;               // avancement de la barre (0 à 1)
+    in property <brush> ink;
+    in property <length> font-size;
+    in property <int> font-weight: 400;
+    in property <bool> wrap;             // plusieurs lignes (résumé) : balayage sur toute la largeur
+    in property <TextVerticalAlignment> valign: TextVerticalAlignment.center;
+    clip: true;
+    property <length> span: root.wrap ? root.width : min(root.width, max(m-from.preferred-width, m-to.preferred-width) + 4px);
+    property <length> bx: root.span * root.p;
+    m-from := Text { visible: false; text: root.from; font-size: root.font-size; font-weight: root.font-weight; }
+    m-to := Text { visible: false; text: root.to; font-size: root.font-size; font-weight: root.font-weight; }
+    // Nouveau texte, dévoilé à gauche de la barre.
+    Rectangle {
+        x: 0px;
+        width: root.bx;
+        clip: true;
+        Text {
+            x: 0px;
+            width: root.width;
+            height: root.height;
+            text: root.to;
+            color: root.ink;
+            font-size: root.font-size;
+            font-weight: root.font-weight;
+            wrap: root.wrap ? TextWrap.word-wrap : TextWrap.no-wrap;
+            overflow: elide;
+            vertical-alignment: root.valign;
+        }
+    }
+    // Ancien texte, effacé par la barre.
+    Rectangle {
+        x: root.bx;
+        width: root.width - root.bx;
+        clip: true;
+        Text {
+            x: -root.bx;
+            width: root.width;
+            height: root.height;
+            text: root.from;
+            color: root.ink;
+            font-size: root.font-size;
+            font-weight: root.font-weight;
+            wrap: root.wrap ? TextWrap.word-wrap : TextWrap.no-wrap;
+            overflow: elide;
+            vertical-alignment: root.valign;
+        }
+    }
+    if root.p > 0 && root.p < 1: Rectangle {
+        x: root.bx - 1px;
+        width: 2px;
+        background: Theme.accent2;
+    }
+}
+
 // Image partagée entre une carte et la page qu'elle ouvre : à l'ouverture, la carte sélectionnée
 // donne sa position et son image (voir AppWindow.open-hero).
 global Hero {
@@ -3327,15 +3387,11 @@ export component AppWindow inherits Window {
     property <string> mt-sub;
     property <string> mt-misc;
     property <string> mt-ov;
-    // Texte affiché pendant le changement : `to` remplace `from` caractère par caractère (vite pour un
-    // titre, plus longtemps pour un résumé, 0,8 s au plus).
-    pure function morph(from: string, to: string) -> string {
-        if (!root.mt-live || from == to) {
-            return to;
-        }
-        let n = max(Str.len(from), Str.len(to));
-        let d = clamp(n * 14ms, 220ms, 800ms);
-        return Str.morph(from, to, clamp((animation-tick() - root.mt-t0) / d, 0, 1));
+    // Texte qui change : balayé par une barre (voir Wipe), en 0,5 s.
+    property <float> wipe-x: root.mt-live ? clamp((animation-tick() - root.mt-t0) / 520ms, 0, 1) : 1;
+    property <float> wipe-p: root.wipe-x * root.wipe-x * (3 - 2 * root.wipe-x);
+    pure function wiping(from: string, to: string) -> bool {
+        return root.mt-live && from != to && root.wipe-x < 1;
     }
     property <string> w-title: root.detail.title;
     changed w-title => {
@@ -6374,10 +6430,20 @@ export component AppWindow inherits Window {
                 image-fit: contain;
             }
 
-            if !root.detail.has-logo && !root.detail.expect-logo: Marquee {
+            if !root.detail.has-logo && !root.detail.expect-logo && root.wiping(root.mt-title, root.detail.title): Wipe {
                 width: parent.width;
                 height: parent.height;
-                text: root.morph(root.mt-title, root.detail.title);
+                from: root.mt-title;
+                to: root.detail.title;
+                p: root.wipe-p;
+                ink: Theme.text;
+                font-size: 34px * root.k;
+                font-weight: 800;
+            }
+            if !root.detail.has-logo && !root.detail.expect-logo && !root.wiping(root.mt-title, root.detail.title): Marquee {
+                width: parent.width;
+                height: parent.height;
+                text: root.detail.title;
                 text-color: Theme.text;
                 font-size: 34px * root.k;
                 font-weight: 800;
@@ -6387,13 +6453,25 @@ export component AppWindow inherits Window {
             }
         }
 
-        Marquee {
+        if root.wiping(root.mt-sub, root.detail.subtitle): Wipe {
+            x: root.col-x + root.po-right;
+            y: 24px + 88px * root.k;
+            width: root.info-w;
+            height: 24px * root.k;
+            from: root.mt-sub;
+            to: root.detail.subtitle;
+            p: root.wipe-p;
+            ink: Theme.accent2;
+            font-size: 18px * root.k;
+            font-weight: 600;
+        }
+        if !root.wiping(root.mt-sub, root.detail.subtitle): Marquee {
             x: root.col-x + root.po-right;
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
             opacity: root.rev(0);
-            text: root.morph(root.mt-sub, root.detail.subtitle);
+            text: root.detail.subtitle;
             text-color: Theme.accent2;
             font-size: 18px * root.k;
             font-weight: 600;
@@ -6473,13 +6551,24 @@ export component AppWindow inherits Window {
         }
 
         // Année · classification · durée · note
-        Text {
+        if root.wiping(root.mt-misc, root.detail.misc): Wipe {
+            x: root.col-x + root.po-right;
+            y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
+            width: root.info-w;
+            height: 24px * root.k;
+            from: root.mt-misc;
+            to: root.detail.misc;
+            p: root.wipe-p;
+            ink: Theme.muted;
+            font-size: 15px * root.k;
+        }
+        if !root.wiping(root.mt-misc, root.detail.misc): Text {
             x: root.col-x + root.po-right;
             y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
             opacity: root.rev(0);
             width: root.info-w;
             height: 24px * root.k;
-            text: root.morph(root.mt-misc, root.detail.misc);
+            text: root.detail.misc;
             color: Theme.muted;
             font-size: 15px * root.k;
             vertical-alignment: center;
@@ -6498,12 +6587,25 @@ export component AppWindow inherits Window {
             border-width: !root.h-focus && root.d-zone == 1 ? 2px : 0px;
             border-color: Theme.accent2;
 
-            Text {
+            if root.wiping(root.mt-ov, root.detail.overview): Wipe {
                 x: 14px;
                 y: 10px;
                 width: parent.width - 28px;
                 height: parent.height - 20px;
-                text: root.morph(root.mt-ov, root.detail.overview);
+                from: root.mt-ov;
+                to: root.detail.overview;
+                p: root.wipe-p;
+                wrap: true;
+                valign: TextVerticalAlignment.top;
+                ink: Theme.text;
+                font-size: 15px * root.k;
+            }
+            if !root.wiping(root.mt-ov, root.detail.overview): Text {
+                x: 14px;
+                y: 10px;
+                width: parent.width - 28px;
+                height: parent.height - 20px;
+                text: root.detail.overview;
                 wrap: word-wrap;
                 overflow: elide;
                 color: Theme.text;
