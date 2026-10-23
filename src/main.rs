@@ -42,7 +42,9 @@ slint::include_modules!();
 //   turtlefin "Cody"                       -> compte enregistré « Cody »
 //   turtlefin "Cody" "mot de passe" --tv   -> connexion automatique, plein écran
 //   options : --tv | --desktop | --server=URL | --no-intro (pas d'animation) | --console (journal)
-//             --tutorial (visite guidée à l'arrivée sur l'accueil)
+//             --tutorial (visite guidée à l'arrivée sur l'accueil) | --lang=CODE | --theme=NOM
+//             --play=« Titre » ou « Titre S2E5 » (ou ID) | --open=« Titre » (ou ID) | --help
+//   (voir USAGE)
 //   le mot de passe peut aussi venir de la variable TURTLEFIN_PASSWORD
 //   (un argument de ligne de commande est visible par les autres processus).
 // ---------------------------------------------------------------------------
@@ -82,6 +84,28 @@ fn external_ok(u: &AppWindow) -> bool {
     !KIOSK.load(Ordering::Relaxed) && !u.get_tv_mode() && !cfg!(target_os = "android")
 }
 
+/// Aide de la ligne de commande (--help).
+const USAGE: &str = "\
+turtlefin [COMPTE [MOT_DE_PASSE]] [options]
+
+  COMPTE                 compte enregistré sur cet appareil (ou à connecter avec --server)
+  MOT_DE_PASSE           aussi possible par la variable TURTLEFIN_PASSWORD (plus discret)
+  --server=URL           serveur Jellyfin (ex. http://192.168.1.10:8096)
+  --lang=CODE            langue de l'interface, gardée ensuite (fr, en, de, es, it, nl, pl, pt)
+  --theme=NOM            thème, gardé ensuite (turtlefin, aero, nerd)
+  --play=\"Titre\"         lit un film, ou reprend une série où elle en est
+  --play=\"Titre S2E5\"    lit un épisode précis (aussi « Titre 2x05 ») ; un ID marche aussi,
+                         suivi de @SECONDES pour partir d'un moment précis
+  --open=\"Titre\"         ouvre la fiche (aussi --open=settings, --open=downloads)
+  --tv | --desktop       interface TV (plein écran, grands éléments) ou ordinateur
+  --fullscreen           plein écran sans l'interface TV
+  --no-intro             pas d'animation de démarrage
+  --tutorial             visite guidée à l'arrivée sur l'accueil
+  --console              fenêtre de journal (Windows)
+
+Exemple : turtlefin Cody --server=http://salon:8096 --lang=en --play=\"Bleach S1E3\" --tv
+";
+
 fn parse_cli() -> Cli {
     let mut positional: Vec<String> = Vec::new();
     let mut cli = Cli { user: None, pass: None, server: None, tv: None, fullscreen: false, test_video: None, play: None, no_intro: false };
@@ -100,6 +124,33 @@ fn parse_cli() -> Cli {
             "--fullscreen" => cli.fullscreen = true,
             // Borne (Xelauncher) : jamais de programme extérieur (navigateur, explorateur de fichiers).
             "--kiosk" => KIOSK.store(true, Ordering::Relaxed),
+            "--help" | "-h" | "/?" => {
+                println!("{USAGE}");
+                eprintln!("{USAGE}");
+                std::process::exit(0);
+            }
+            // Langue et thème : comme choisis dans les Paramètres (gardés pour les lancements suivants).
+            s if s.starts_with("--lang=") => {
+                let code = s["--lang=".len()..].to_lowercase();
+                if i18n::languages().iter().any(|(id, _)| *id == code) {
+                    let mut p = config::ui_prefs();
+                    p.language = code;
+                    config::save_ui_prefs(&p);
+                } else {
+                    eprintln!("Langue inconnue : {code}");
+                }
+            }
+            s if s.starts_with("--theme=") => {
+                let key = s["--theme=".len()..].to_lowercase();
+                let mut p = config::ui_prefs();
+                let custom = p.themes.iter().find(|t| t.name.to_lowercase() == key).map(|t| format!("custom:{}", t.name));
+                if let Some(k) = theme::builtin().iter().map(|(k, _)| k.to_string()).find(|k| *k == key).or(custom) {
+                    p.theme = k;
+                    config::save_ui_prefs(&p);
+                } else {
+                    eprintln!("Thème inconnu : {key}");
+                }
+            }
             s if s.starts_with("--server=") => cli.server = Some(s["--server=".len()..].to_string()),
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
@@ -1413,6 +1464,52 @@ fn initial_of(name: &str) -> String {
     name.trim().chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default()
 }
 
+/// Élément demandé en ligne de commande : un ID tel quel, sinon un nom cherché sur le serveur
+/// (« Titre », ou « Titre S2E5 » / « Titre 2x05 » pour un épisode). Nom identique d'abord, puis
+/// film ou série avant les épisodes.
+async fn find_by_name(client: &api::Client, q: &str) -> Option<String> {
+    let q = q.trim();
+    if q.len() == 32 && q.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Some(q.to_string());
+    }
+    // Épisode : « … S2E5 » ou « … 2x05 » à la fin.
+    let (title, ep) = {
+        let (head, last) = q.rsplit_once(' ').unwrap_or(("", q));
+        let l = last.to_lowercase();
+        let se = l
+            .strip_prefix('s')
+            .and_then(|r| r.split_once('e'))
+            .or_else(|| l.split_once('x'))
+            .and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)));
+        match se {
+            Some(se) if !head.is_empty() => (head.trim(), Some(se)),
+            _ => (q, None),
+        }
+    };
+    let found = client.search(title).await.ok()?;
+    let rank = |it: &api::Item| {
+        let same = it.name.eq_ignore_ascii_case(title);
+        let whole = matches!(it.kind.as_str(), "Movie" | "Series" | "BoxSet");
+        (!same, !whole)
+    };
+    let mut items: Vec<&api::Item> =
+        found.iter().filter(|it| ep.is_none() || it.kind == "Series").collect();
+    items.sort_by_key(|it| rank(it));
+    let best = items.first()?;
+    let Some((season, episode)) = ep else { return Some(best.id.clone()) };
+    let eps = client.episodes(&best.id, None).await.ok()?;
+    eps.into_iter()
+        .find(|e| e.parent_index_number == Some(season) && e.index_number == Some(episode))
+        .map(|e| e.id)
+}
+
+/// Rien de tel sur le serveur (--play / --open) : un message, on reste sur l'accueil.
+fn cli_not_found(app: &Arc<App>) {
+    let msg = tr("Introuvable sur ce serveur (ligne de commande).");
+    eprintln!("turtlefin : {msg}");
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+}
+
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     watch_addresses(&app, &client);
@@ -1428,10 +1525,15 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     // Essais : --play=ID[@SECONDES] lance directement la lecture.
     let arg = app.play_arg.lock().unwrap().take();
     if let Some(id) = arg.as_deref().and_then(|p| p.strip_prefix("open:")) {
-        // Essais : --open=ID ouvre directement une fiche (après l'accueil), --open=downloads les téléchargements,
-        // --open=settings les paramètres.
-        let (a, id) = (app.clone(), id.to_string());
+        // --open=ID ou --open="Titre" ouvre directement une fiche (après l'accueil), --open=downloads les
+        // téléchargements, --open=settings les paramètres.
+        let (a, id, c) = (app.clone(), id.to_string(), client.clone());
         app.rt.spawn(async move {
+            let id = if id == "downloads" || id == "settings" { Some(id) } else { find_by_name(&c, &id).await };
+            let Some(id) = id else {
+                cli_not_found(&a);
+                return;
+            };
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             let a2 = a.clone();
             let _ = a.ui().upgrade_in_event_loop(move |_| match id.as_str() {
@@ -1441,10 +1543,19 @@ async fn load_home(app: Arc<App>, client: api::Client) {
             });
         });
     } else if let Some(p) = arg {
-        let (id, at) = p.split_once('@').map(|(i, t)| (i.to_string(), t.parse::<f64>().ok())).unwrap_or((p.clone(), None));
+        // --play=ID[@SECONDES], ou --play="Titre" / "Titre S2E5" (cherché sur le serveur).
+        let (id, at) = match p.rsplit_once('@') {
+            Some((i, t)) if t.parse::<f64>().is_ok() => (i.to_string(), t.parse::<f64>().ok()),
+            _ => (p.clone(), None),
+        };
         *app.play_start.lock().unwrap() = at;
-        let a = app.clone();
-        app.rt.spawn(async move { play_flow(a, Some(id), None).await });
+        let (a, c) = (app.clone(), client.clone());
+        app.rt.spawn(async move {
+            match find_by_name(&c, &id).await {
+                Some(id) => play_flow(a, Some(id), None).await,
+                None => cli_not_found(&a),
+            }
+        });
     }
     // Visite guidée en attente (acceptée au premier lancement, --tutorial) : sur l'accueil chargé.
     if config::ui_prefs().tutorial_pending {
@@ -4136,7 +4247,7 @@ fn sub_size_label(v: f64) -> &'static str {
 /// Changement de thème animé : l'écran de l'ancien thème est photographié, le nouveau posé dessous,
 /// puis la photo, découpée en carreaux, bascule morceau par morceau (sans animation si « Arrivée des
 /// pages » est coupée, ou si la capture échoue).
-fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
+pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
     if p.anim.pages {
         if let Ok(b) = u.window().take_snapshot() {
             u.set_theme_snap(slint::Image::from_rgba8(b));

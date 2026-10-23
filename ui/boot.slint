@@ -57,8 +57,10 @@ export component BootLogo inherits Rectangle {
 
     property <bool> nerd: Theme.boot-style == 2;
     property <bool> gate: false;
-    // Aucun serveur choisi (premier lancement) : même déroulement (le point du serveur reste orange).
-    property <bool> noserver: false;
+    // Aucun serveur choisi (premier lancement) : le logo se forme sans son cœur (le serveur) : au centre,
+    // un anneau orange qui attend. Pas d'orbe (Aero), pas de courant (Nerd : pas de processeur) ; à la
+    // fin, le logo seul (sans le nom) se pose sur le titre de « Choisir un serveur », au cœur vide aussi.
+    property <bool> noserver: root.state[6] == 4;
     property <float> spread: 0;
     // Vérifications réussies (0 à 7) : la machine du thème Nerd s'allume d'autant.
     property <int> ok-n: (root.state[0] == 2 ? 1 : 0) + (root.state[1] == 2 ? 1 : 0) + (root.state[2] == 2 ? 1 : 0)
@@ -108,7 +110,7 @@ export component BootLogo inherits Rectangle {
     // (0,72 -> 0,9).
     property <float> swirl: root.noserver ? 0 : root.ease-io(clamp(root.lp / 0.35, 0, 1));
     property <float> flash: 0.55 * sin(clamp((root.lp - 0.27) / 0.16, 0, 1) * 180deg);
-    property <float> reveal: root.aero ? clamp((root.lp - 0.45) / 0.08, 0, 1) : 1;
+    property <float> reveal: root.aero && !root.noserver ? clamp((root.lp - 0.45) / 0.08, 0, 1) : 1;
     // La bille du serveur (au centre) devient la grande orbe : elle grossit (avec un rebond) en passant
     // de sa couleur (vert) à celle du thème. orb-s : rayon en part du rayon final (100), depuis celui de la bille (0,11).
     property <float> orb-t: root.noserver ? 0 : clamp((root.lp - 0.35) / 0.27, 0, 1);
@@ -117,23 +119,23 @@ export component BootLogo inherits Rectangle {
     property <color> srv: root.orb-color(root.state[6]);
     property <float> zp: root.phase < 2 ? 0 : clamp((animation-tick() - root.t-zoom) / root.outro-len, 0, 1);
     // Liaison : contour, puis rayons et hexagone central (selon le style).
-    property <float> edge-p: root.noserver ? 0
+    property <float> edge-p: root.noserver ? root.ease(clamp(root.lp * 2, 0, 1))
         : root.aero ? root.ease(clamp((root.lp - 0.5) / 0.24, 0, 1))
         : root.gate ? root.ease(clamp((root.lp - 0.45) / 0.3, 0, 1))
         : root.nerd ? root.ease(clamp((root.lp - 0.62) / 0.22, 0, 1))
         : root.ease(clamp(root.lp * 2, 0, 1));
-    property <float> spoke-p: root.noserver ? 0
+    property <float> spoke-p: root.noserver ? root.ease(clamp(root.lp * 2 - 1, 0, 1))
         : root.aero ? root.ease(clamp((root.lp - 0.72) / 0.18, 0, 1))
         : root.gate ? root.ease(clamp((root.lp - 0.7) / 0.25, 0, 1))
         : root.nerd ? root.ease(clamp((root.lp - 0.8) / 0.18, 0, 1))
         : root.ease(clamp(root.lp * 2 - 1, 0, 1));
     // Nerd : le courant parcourt la carte (début de la liaison), avant que le logo ne se grave.
-    property <float> surge: root.phase == 0 ? 0 : clamp(root.lp / 0.62, 0, 1);
+    property <float> surge: root.phase == 0 || root.noserver ? 0 : clamp(root.lp / 0.62, 0, 1);
     // Libellés et textes : ils s'effacent pendant la liaison (ou l'écartement, sans serveur).
-    property <float> lab-fade: root.noserver ? root.lp : root.aero ? min(1, root.swirl * 3) : root.gate || root.nerd ? clamp(root.lp * 3, 0, 1) : root.edge-p;
+    property <float> lab-fade: root.noserver ? root.edge-p : root.aero ? min(1, root.swirl * 3) : root.gate || root.nerd ? clamp(root.lp * 3, 0, 1) : root.edge-p;
     // Fin (zp) : le logo rétrécit et glisse à gauche (o1), le nom « Turtlefin » apparaît à sa droite (o2),
-    // puis tout s'efface sur la page suivante (o3). Sans serveur : simple fondu.
-    property <float> o1: root.noserver ? 0 : root.ease-io(clamp(root.zp / 0.42, 0, 1));
+    // puis tout s'efface sur la page suivante (o3). Sans serveur : pas de nom, le logo reste au milieu.
+    property <float> o1: root.ease-io(clamp(root.zp / 0.42, 0, 1));
     property <float> o2: root.noserver ? 0 : root.ease(clamp((root.zp - 0.3) / 0.3, 0, 1));
     // o4 : l'ensemble monte se poser sur le titre de la page ; o3 : le fond s'efface dessous.
     property <float> o4: root.ease-io(clamp((root.zp - 0.48) / 0.4, 0, 1));
@@ -148,7 +150,7 @@ export component BootLogo inherits Rectangle {
     property <length> word-gap: 20px * root.k;
     property <length> word-size: root.side * 0.17;
     property <length> group-w: root.side * root.mini + root.word-gap + word-m.preferred-width;
-    property <length> end-cx: (root.width - root.group-w) / 2 + root.side * root.mini / 2;
+    property <length> end-cx: root.noserver ? root.width / 2 : (root.width - root.group-w) / 2 + root.side * root.mini / 2;
     word-m := Text { visible: false; text: "Turtlefin"; font-size: root.word-size; font-weight: 800; }
     link-timer := Timer {
         interval: root.link-len + 150ms;
@@ -166,6 +168,7 @@ export component BootLogo inherits Rectangle {
             root.finished();
         }
     }
+    property <bool> ring: root.noserver && root.phase >= 1 && !root.nerd;
     // Point « en cours » : pulsation.
     property <float> pulse: 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 900) / 900 * 360deg);
 
@@ -289,6 +292,7 @@ export component BootLogo inherits Rectangle {
         }
         // Nerd : le logo à pistes se grave sur la carte (le même que sur les titres, voir ThemeLogo).
         if root.nerd && root.edge-p > 0: ThemeLogo {
+            hollow: root.noserver;
             width: parent.width;
             height: parent.height;
             opacity: root.edge-p;
@@ -297,7 +301,7 @@ export component BootLogo inherits Rectangle {
         // Hexagone central : le point du serveur grandit jusqu'à lui.
         Path {
             property <float> g: 0.25 + 0.75 * root.spoke-p;
-            visible: root.spoke-p > 0 && !root.nerd;
+            visible: root.spoke-p > 0 && !root.nerd && !root.noserver;
             x: 53 * root.u;
             y: 53 * root.u;
             width: 150 * root.u;
@@ -371,16 +375,19 @@ export component BootLogo inherits Rectangle {
         // Le centre (7e point) : le serveur, vérifié en dernier.
         Rectangle {
             property <int> s: root.state[6];
-            property <float> base: root.dot-size(self.s);
+            property <float> base: root.ring ? 30 : root.dot-size(self.s);
             animate base { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
             property <length> d: self.base * root.u;
+            // Sans serveur : anneau orange qui attend (le même que le titre de « Choisir un serveur »).
+            border-width: root.ring ? 5 * root.u : 0px;
+            border-color: #f59e0b.with-alpha(0.55 + 0.45 * root.pulse);
             x: 128 * root.u - self.d / 2;
             y: 128 * root.u - self.d / 2;
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
             // Fondu par la couleur (voir les libellés).
-            background: root.nerd || root.gate ? transparent : root.aero
+            background: root.nerd || root.gate || root.ring ? transparent : root.aero
                 ? (root.orb-t > 0 ? transparent : @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%))
                 : root.spoke-p > 0 ? root.logo-color(128, 128).transparentize(root.spoke-p) : root.dot-color(self.s, 128, 128);
             // Aero : l'orbe prend sa place d'un coup (même taille, même couleur), sans fondu.

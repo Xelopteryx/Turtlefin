@@ -1311,6 +1311,12 @@ msgstr "Guided tour"
 msgid "Visite guidée ?"
 msgstr "Guided tour?"
 
+msgid "Quel thème ?"
+msgstr "Which theme?"
+
+msgid "Introuvable sur ce serveur (ligne de commande)."
+msgstr "Not found on this server (command line)."
+
 
 
 

@@ -2631,6 +2631,7 @@ component Backdrop inherits Rectangle {
     in property <float> k: 1.0;
     in property <bool> glass;
     in property <length> header-h;
+    in property <bool> no-server;
 
     // Voile : il doit couvrir la page, donc d'abord le dégradé opaque de la fenêtre.
     if root.a < 1: Rectangle {
@@ -2679,6 +2680,7 @@ component Backdrop inherits Rectangle {
     // Décor du thème (Frutiger Aero : ciel, bulles), sur l'image de fond et sous les pages.
     if Theme.bubbles && !Perf.hide(4): AeroSky {
         k: root.k;
+        no-server: root.no-server;
         opacity: root.a;
     }
     // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
@@ -4611,6 +4613,7 @@ export component AppWindow inherits Window {
         width: root.width - 2 * root.chrome-side;
         height: root.height - root.chrome-top - root.chrome-side;
         clip: root.chrome;
+        no-server: root.server == "";
         a: 1;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
@@ -7486,11 +7489,25 @@ export component AppWindow inherits Window {
             padding-top: 8px * root.k;
             spacing: 14px * root.k;
 
-            Text {
-                text: Tr.t(Tr.k, "Choisir un serveur");
-                color: Theme.text;
-                font-size: 30px * root.k;
-                font-weight: 700;
+            // Titre : le logo du thème sans son cœur (pas encore de serveur), qui pulse pendant la
+            // recherche ; la fin du démarrage s'y pose (aucun serveur choisi, voir BootLogo).
+            HorizontalLayout {
+                height: 44px * root.k;
+                spacing: 12px * root.k;
+                alignment: start;
+                ThemeLogo {
+                    width: 44px * root.k;
+                    height: 44px * root.k;
+                    hollow: true;
+                    seek: root.srv-searching;
+                }
+                Text {
+                    text: Tr.t(Tr.k, "Choisir un serveur");
+                    color: Theme.text;
+                    font-size: 30px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
             }
             // Recherche en cours : trois points qui pulsent.
             HorizontalLayout {
@@ -11104,6 +11121,7 @@ export component AppWindow inherits Window {
         y: root.chrome-top - root.header-row;
         width: root.width - 2 * root.chrome-side;
         height: root.height - root.chrome-top - root.chrome-side;
+        no-server: root.server == "";
         a: root.veil;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
@@ -12263,11 +12281,14 @@ export component AppWindow inherits Window {
         boot-tm := Text { visible: false; text: "Turtlefin"; font-size: 44px; font-weight: 800; }
     }
     property <bool> boot-to-bar: root.screen == "home";
-    property <length> bt-logo: root.boot-to-bar ? 34px * root.k : 52 * root.lgu;
+    // Aucun serveur : le logo (sans cœur) se pose devant le titre de « Choisir un serveur ».
+    property <bool> boot-to-srv: root.screen == "servers";
+    property <length> bt-logo: root.boot-to-srv ? 44px * root.k : root.boot-to-bar ? 34px * root.k : 52 * root.lgu;
     property <length> bt-font: root.boot-to-bar ? 26px * root.k : 44 * root.lgu;
-    property <length> bt-x: root.boot-to-bar ? 24px * root.k + 58px * root.k
+    property <length> bt-x: root.boot-to-srv ? (root.width - min(root.width - 64px * root.k, 680px * root.k)) / 2
+        : root.boot-to-bar ? 24px * root.k + 58px * root.k
         : (root.width - 52 * root.lgu - 12 * root.lgu - boot-tm.preferred-width * root.lgu / 1px) / 2;
-    property <length> bt-cy: root.boot-to-bar ? root.chrome-top + 36px * root.k : 40 * root.lgu + boot-tm.preferred-height * root.lgu / 1px / 2;
+    property <length> bt-cy: root.boot-to-srv ? root.header-h + 8px * root.k + 22px * root.k : root.boot-to-bar ? root.chrome-top + 36px * root.k : 40 * root.lgu + boot-tm.preferred-height * root.lgu / 1px / 2;
     if root.boot-on: BootLogo {
         k: root.k;
         tgt-logo: root.bt-logo;

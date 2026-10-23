@@ -123,6 +123,11 @@ turtlefin --desktop                        computer interface (overrides the “
 turtlefin --no-intro                       no startup animation
 turtlefin --console                        log window (Windows)
 turtlefin --tutorial                       guided tour when the home screen opens
+turtlefin --lang=en                        interface language (kept afterwards)
+turtlefin --theme=nerd                     theme: turtlefin, aero, nerd (kept afterwards)
+turtlefin "Name" --play="Bleach S1E3"      plays an episode (title alone: a movie, or resumes the series)
+turtlefin "Name" --open="Dragon Ball"      opens the detail page
+turtlefin --help                           all options
 ```
 
 Command-line options always win over settings (startup account, TV interface).

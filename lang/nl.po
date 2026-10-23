@@ -1311,6 +1311,12 @@ msgstr "Rondleiding"
 msgid "Visite guidée ?"
 msgstr "Rondleiding?"
 
+msgid "Quel thème ?"
+msgstr "Welk thema?"
+
+msgid "Introuvable sur ce serveur (ligne de commande)."
+msgstr "Niet gevonden op deze server (opdrachtregel)."
+
 
 
 

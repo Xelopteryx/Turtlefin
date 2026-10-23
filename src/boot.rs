@@ -188,6 +188,8 @@ pub async fn run(app: Arc<App>, start: Start) {
     let animate = !start.no_intro && config::ui_prefs().anim.boot;
     let step = Duration::from_millis(if animate { 200 } else { 0 });
     let labels = labels();
+    // Tout premier lancement (aucune langue choisie) : la langue, puis le thème sont proposés.
+    let first = config::ui_prefs().language.is_empty();
     ui(&app, move |u| {
         u.set_boot_labels(ModelRc::new(VecModel::from(labels)));
         u.set_boot_on(animate);
@@ -259,6 +261,33 @@ pub async fn run(app: Arc<App>, start: Start) {
             p.tutorial_pending = answer == "yes";
             config::save_ui_prefs(&p);
             ui(&app, |u| u.set_boot_lang_open(false));
+        }
+
+        // Thème : proposé au tout premier lancement (avant le choix de la langue, rien n'était
+        // enregistré). Il s'applique aussitôt : la suite du démarrage se joue déjà dans ce thème.
+        if i == 0 && first && animate {
+            let cur = config::ui_prefs().theme;
+            let all = crate::theme::builtin();
+            let sel = all.iter().position(|(k, _)| *k == cur).unwrap_or(0) as i32;
+            let items: Vec<TrackData> =
+                all.into_iter().map(|(k, t)| TrackData { id: k.into(), label: t.name.into(), current: false }).collect();
+            let title = tr("Quel thème ?");
+            ui(&app, move |u| {
+                u.set_boot_lang_title(title.into());
+                u.set_boot_langs(ModelRc::new(VecModel::from(items)));
+                u.set_boot_lang_sel(sel);
+                u.set_boot_lang_open(true);
+            });
+            let key = wait(&app, None).await;
+            ui(&app, |u| u.set_boot_lang_open(false));
+            if !key.is_empty() && key != cur {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                let mut p = config::ui_prefs();
+                p.theme = key;
+                config::save_ui_prefs(&p);
+                ui(&app, move |u| crate::switch_theme(u, p));
+                tokio::time::sleep(Duration::from_millis(900)).await;
+            }
         }
 
         let result = check(i, &start).await;

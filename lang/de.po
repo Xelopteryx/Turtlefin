@@ -1311,6 +1311,12 @@ msgstr "Rundgang"
 msgid "Visite guidée ?"
 msgstr "Rundgang?"
 
+msgid "Quel thème ?"
+msgstr "Welches Design?"
+
+msgid "Introuvable sur ce serveur (ligne de commande)."
+msgstr "Auf diesem Server nicht gefunden (Befehlszeile)."
+
 
 
 

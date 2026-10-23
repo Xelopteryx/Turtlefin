@@ -6,7 +6,11 @@
 //   2 : pistes de circuit, plots aux sommets, puce au centre (Nerd).
 import { Theme } from "theme.slint";
 
+//   hollow : sans cœur (aucun serveur choisi) ; un anneau orange au centre, qui pulse pendant une
+//   recherche (seek).
 export component ThemeLogo inherits Rectangle {
+    in property <bool> hollow;
+    in property <bool> seek;
     property <length> u: min(self.width, self.height) / 256;
     property <[float]> px: [128, 187, 187, 128, 69, 69];
     property <[float]> py: [60, 94, 162, 196, 162, 94];
@@ -22,7 +26,7 @@ export component ThemeLogo inherits Rectangle {
     property <string> core: "M 128 98 L 154 113 L 154 143 L 128 158 L 102 143 L 102 113 Z";
 
     // Aero : orbe de verre (sphère d'accent assombrie au bord, lueur en bas, halo).
-    if root.orb: Rectangle {
+    if root.orb && !root.hollow: Rectangle {
         x: 28 * root.u;
         y: 28 * root.u;
         width: 200 * root.u;
@@ -40,7 +44,7 @@ export component ThemeLogo inherits Rectangle {
             background: @radial-gradient(circle, Theme.accent2.with-alpha(0.65) 0%, Theme.accent2.with-alpha(0) 70%);
         }
     }
-    if root.orb: Rectangle {
+    if root.orb && !root.hollow: Rectangle {
         x: -7 * root.u;
         y: -7 * root.u;
         width: 270 * root.u;
@@ -81,7 +85,7 @@ export component ThemeLogo inherits Rectangle {
         stroke-line-cap: round;
         commands: root.spokes;
     }
-    if !root.chip: Path {
+    if !root.chip && !root.hollow: Path {
         x: 53 * root.u;
         y: 53 * root.u;
         width: 150 * root.u;
@@ -94,7 +98,7 @@ export component ThemeLogo inherits Rectangle {
         commands: root.core;
     }
     // Aero : grand reflet blanc par-dessus la carapace.
-    if root.orb: Rectangle {
+    if root.orb && !root.hollow: Rectangle {
         x: (28 + 200 * 0.13) * root.u;
         y: (28 + 200 * 0.04) * root.u;
         width: 200 * 0.74 * root.u;
@@ -129,7 +133,7 @@ export component ThemeLogo inherits Rectangle {
         stroke-width: 6 * root.u;
         commands: "M 117 60 A 11 11 0 1 0 139 60 A 11 11 0 1 0 117 60 Z M 176 94 A 11 11 0 1 0 198 94 A 11 11 0 1 0 176 94 Z M 176 162 A 11 11 0 1 0 198 162 A 11 11 0 1 0 176 162 Z M 117 196 A 11 11 0 1 0 139 196 A 11 11 0 1 0 117 196 Z M 58 162 A 11 11 0 1 0 80 162 A 11 11 0 1 0 58 162 Z M 58 94 A 11 11 0 1 0 80 94 A 11 11 0 1 0 58 94 Z";
     }
-    if root.chip: Rectangle {
+    if root.chip && !root.hollow: Rectangle {
         x: (128 - 30) * root.u;
         y: (128 - 30) * root.u;
         width: 60 * root.u;
@@ -144,5 +148,17 @@ export component ThemeLogo inherits Rectangle {
             height: self.width;
             background: Theme.accent1;
         }
+    }
+    // Sans cœur : anneau orange (pulsation pendant une recherche).
+    if root.hollow: Rectangle {
+        property <float> pulse: root.seek ? 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 1100) / 1100 * 360deg) : 1;
+        x: (128 - 15) * root.u;
+        y: (128 - 15) * root.u;
+        width: 30 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 5 * root.u;
+        border-color: #f59e0b.with-alpha(0.45 + 0.55 * self.pulse);
+        background: #f59e0b.with-alpha(0.25 * self.pulse);
     }
 }

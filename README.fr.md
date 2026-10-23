@@ -124,6 +124,11 @@ turtlefin --desktop                        interface ordinateur (prime sur le r�
 turtlefin --no-intro                       pas d'animation de démarrage
 turtlefin --console                        fenêtre de journal (Windows)
 turtlefin --tutorial                       visite guidée à l'arrivée sur l'accueil
+turtlefin --lang=en                        langue de l'interface (gardée ensuite)
+turtlefin --theme=nerd                     thème : turtlefin, aero, nerd (gardé ensuite)
+turtlefin "Nom" --play="Bleach S1E3"       lit un épisode (« Titre » seul : film, ou reprise de la série)
+turtlefin "Nom" --open="Dragon Ball"       ouvre la fiche
+turtlefin --help                           toutes les options
 ```
 
 La ligne de commande l'emporte toujours sur les réglages (compte de démarrage, interface TV).
