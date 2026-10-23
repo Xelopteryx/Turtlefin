@@ -1945,3 +1945,18 @@ msgstr "Server umbenennen"
 
 msgid "Serveur trouvé : {}"
 msgstr "Server gefunden: {}"
+
+msgid "À regarder"
+msgstr "Merkliste"
+
+msgid "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série."
+msgstr "Noch nichts vorgemerkt: Das Lesezeichen auf einer Detailseite fügt einen Film oder eine Serie hinzu."
+
+msgid "La liste « À regarder » est sur le serveur : indisponible hors ligne."
+msgstr "Die Merkliste liegt auf dem Server: offline nicht verfügbar."
+
+msgid "liste introuvable"
+msgstr "Liste nicht gefunden"
+
+msgid "aucun épisode sur le serveur"
+msgstr "keine Episode auf dem Server"

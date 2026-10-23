@@ -1945,3 +1945,18 @@ msgstr "Mudar o nome do servidor"
 
 msgid "Serveur trouvé : {}"
 msgstr "Servidor encontrado: {}"
+
+msgid "À regarder"
+msgstr "Para ver"
+
+msgid "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série."
+msgstr "Nada para ver por agora: o marcador de uma ficha adiciona aqui um filme ou uma série."
+
+msgid "La liste « À regarder » est sur le serveur : indisponible hors ligne."
+msgstr "A lista «Para ver» está no servidor: indisponível offline."
+
+msgid "liste introuvable"
+msgstr "lista não encontrada"
+
+msgid "aucun épisode sur le serveur"
+msgstr "nenhum episódio no servidor"

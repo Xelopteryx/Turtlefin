@@ -1945,3 +1945,18 @@ msgstr "Server hernoemen"
 
 msgid "Serveur trouvé : {}"
 msgstr "Server gevonden: {}"
+
+msgid "À regarder"
+msgstr "Kijklijst"
+
+msgid "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série."
+msgstr "Nog niets om te kijken: de bladwijzer op een detailpagina voegt hier een film of serie toe."
+
+msgid "La liste « À regarder » est sur le serveur : indisponible hors ligne."
+msgstr "De kijklijst staat op de server: offline niet beschikbaar."
+
+msgid "liste introuvable"
+msgstr "lijst niet gevonden"
+
+msgid "aucun épisode sur le serveur"
+msgstr "geen aflevering op de server"

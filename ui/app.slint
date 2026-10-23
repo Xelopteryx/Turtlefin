@@ -707,47 +707,6 @@ component SectionRow inherits Rectangle {
     }
 }
 
-// Onglet de l'en-tête : blanc et gras quand il est actif, souligné en dégradé quand il est sélectionné.
-component Tab inherits Rectangle {
-    in property <string> text;
-    in property <bool> active;
-    in property <bool> focused;
-    in property <float> k: 1.0;
-    callback clicked();
-
-    preferred-width: label.preferred-width + 8px * root.k;
-
-    label := Text {
-        width: parent.width;
-        height: parent.height;
-        text: root.text;
-        color: (root.active || (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch)) ? Theme.fg : Theme.fg.with-alpha(0.65);
-        font-size: 18px * root.k;
-        font-weight: root.active ? 700 : 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    // Soulignement qui s'étire depuis le centre à la sélection.
-    Rectangle {
-        property <float> w: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch) ? 1 : 0;
-        animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
-        visible: self.w > 0.01;
-        x: (parent.width - self.width) / 2;
-        y: parent.height / 2 + 16px * root.k;
-        width: parent.width * self.w;
-        height: 3px * root.k;
-        border-radius: self.height / 2;
-        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
-    }
-
-    area := TouchArea {
-        clicked => {
-            root.clicked();
-        }
-    }
-}
-
 // Icône ronde de l'en-tête (recherche, profil).
 // Icônes du menu et des catégories des Paramètres : on s'y retrouve même dans une langue qu'on ne
 // lit pas. Grille 24 x 24, tracées (aucune police d'icônes).
@@ -761,6 +720,28 @@ component NavIcon inherits Rectangle {
         viewbox-height: 24;
         fill: root.tint;
         commands: "M 12 3 L 21.5 11.5 L 19 11.5 L 19 20.5 L 14.5 20.5 L 14.5 15 L 9.5 15 L 9.5 20.5 L 5 20.5 L 5 11.5 L 2.5 11.5 Z";
+    }
+    if root.name == "heart": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-join: round;
+        commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
+    }
+    if root.name == "bookmark": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-join: round;
+        commands: "M 6 3.5 L 18 3.5 L 18 20.5 L 12 16 L 6 20.5 Z";
     }
     if root.name == "requests": Path {
         width: parent.width;
@@ -940,6 +921,59 @@ component NavIcon inherits Rectangle {
         stroke-line-cap: round;
         stroke-line-join: round;
         commands: "M 12 3 A 9 9 0 1 1 11.99 3 Z M 12 11 L 12 17 M 12 7.5 L 12 7.6";
+    }
+}
+
+// Onglet de l'en-tête : blanc et gras quand il est actif, souligné en dégradé quand il est sélectionné.
+// Place comptée : icône dessinée (`compact`) quand les intitulés ne tiennent pas dans la barre.
+component Tab inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <bool> compact;
+    in property <bool> active;
+    in property <bool> focused;
+    in property <float> k: 1.0;
+    callback clicked();
+
+    property <color> ink: (root.active || (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch)) ? Theme.fg : Theme.fg.with-alpha(0.65);
+    preferred-width: root.compact ? 44px * root.k : label.preferred-width + 8px * root.k;
+
+    label := Text {
+        width: parent.width;
+        height: parent.height;
+        // Vide en icône : un texte masqué impose encore sa largeur à l'onglet.
+        text: root.compact ? "" : root.text;
+        color: root.ink;
+        font-size: 18px * root.k;
+        font-weight: root.active ? 700 : 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    if root.compact: NavIcon {
+        width: (root.active ? 25px : 23px) * root.k;
+        height: self.width;
+        animate width { duration: Motion.select ? 200ms : 0ms; easing: ease-out; }
+        name: root.icon;
+        tint: root.active ? Theme.accent2 : root.ink;
+    }
+
+    // Soulignement qui s'étire depuis le centre à la sélection.
+    Rectangle {
+        property <float> w: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch) ? 1 : 0;
+        animate w { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
+        visible: self.w > 0.01;
+        x: (parent.width - self.width) / 2;
+        y: parent.height / 2 + 16px * root.k;
+        width: parent.width * self.w;
+        height: 3px * root.k;
+        border-radius: self.height / 2;
+        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+    }
+
+    area := TouchArea {
+        clicked => {
+            root.clicked();
+        }
     }
 }
 
@@ -1843,6 +1877,22 @@ component DetailButton inherits Rectangle {
             animate stroke { duration: Motion.select ? 300ms : 0ms; }
             stroke-width: 2px * root.k;
             commands: "M 12 20.5 L 10.6 19.2 C 5.4 14.5 2.5 11.9 2.5 8.6 C 2.5 5.9 4.6 3.8 7.3 3.8 C 8.9 3.8 10.6 4.6 12 6 C 13.4 4.6 15.1 3.8 16.7 3.8 C 19.4 3.8 21.5 5.9 21.5 8.6 C 21.5 11.9 18.6 14.5 13.4 19.2 Z";
+        }
+        // À regarder : le signet se remplit et s'allonge d'un coup vers le bas pendant qu'il saute.
+        if root.icon == "bookmark": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: root.active ? (root.lit ? face.ink : Theme.accent2) : Theme.accent2.with-alpha(0);
+            animate fill { duration: Motion.select ? 300ms : 0ms; easing: ease-out; }
+            stroke: root.active && !root.lit ? Theme.accent2 : face.ink;
+            animate stroke { duration: Motion.select ? 300ms : 0ms; }
+            stroke-width: 2px * root.k;
+            stroke-line-join: round;
+            commands: "M 6 3.5 L 18 3.5 L 18 20.5 L 12 16 L 6 20.5 Z";
         }
         if root.icon == "check": Path {
             x: (parent.width - self.width) / 2;
@@ -3225,7 +3275,7 @@ export component AppWindow inherits Window {
     changed s-item => {
         root.row-seen(2000 + root.s-section, root.s-item);
     }
-    in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites" | "requests"
+    in-out property <string> tab: "home";    // onglet affiché : "home" | "favorites" | "watchlist" | "requests"
     in property <bool> has-requests;         // Seerr disponible : onglet Demandes
     in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
     in-out property <int> h-sel: 0;          // onglets (Accueil, Favoris, [Demandes]), puis Recherche, Profil
@@ -3659,7 +3709,7 @@ export component AppWindow inherits Window {
     in property <string> login-title: Tr.t(Tr.k, "Ajouter un compte");
     in-out property <bool> login-edit;     // « Gérer les comptes » : choisir un compte à retirer
     pure callback mask(string) -> string;  // mot de passe affiché en points
-    callback select-tab(string);            // "home" | "favorites" | "requests"
+    callback select-tab(string);            // "home" | "favorites" | "watchlist" | "requests"
     callback go-home();
     callback menu-action(string);
     callback lib-more();                    // page suivante de la bibliothèque
@@ -3769,9 +3819,17 @@ export component AppWindow inherits Window {
     property <length> tabs-hi: root.width - root.right-w - 16px * root.k;
     // En-tête sur deux lignes (onglets dessous) : portrait, ou onglets qui ne tiennent pas entre la
     // gauche de la barre et ses icônes de droite (petit écran en grands éléments, par exemple).
-    property <bool> two-line: root.narrow || root.tabs-hi - root.tabs-lo < root.tabs-w;
+    // Intitulés : largeur mesurée (textes invisibles, voir tab-m) ; icônes : 44 px chacune.
+    property <float> tab-k: root.on-home ? root.k : root.bar-k;
+    property <length> tab-sp: root.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
+    property <length> tabs-text-w: (tab-m0.preferred-width + tab-m1.preferred-width + tab-m2.preferred-width
+        + (root.has-requests ? tab-m3.preferred-width : 0px) + root.tab-count * 8px) * root.tab-k + (root.tab-count - 1) * root.tab-sp;
+    property <length> tabs-icon-w: root.tab-count * 44px * root.tab-k + (root.tab-count - 1) * root.tab-sp;
+    property <bool> two-line: root.narrow || root.tabs-hi - root.tabs-lo < root.tabs-icon-w;
+    // Icônes dessinées quand les intitulés ne tiennent pas (jamais de chevauchement).
+    property <bool> tab-icons: root.two-line ? root.tabs-text-w > root.width - 32px * root.k : root.tabs-hi - root.tabs-lo < root.tabs-text-w;
     property <length> header-h: root.two-line && root.tabs-on ? root.header-row + 48px * root.k : root.header-row;
-    property <int> tab-count: root.has-requests ? 3 : 2;
+    property <int> tab-count: root.has-requests ? 4 : 3;
 
     // Passage d'une rangée à l'autre : carte la plus proche à l'écran (voir Rows).
     pure function row-to(from-key: int, from-idx: int, from-w: length, to-key: int, to-n: int, to-w: length) -> int {
@@ -3823,11 +3881,12 @@ export component AppWindow inherits Window {
     property <string> here: root.screen == "downloads" ? "downloads" : root.screen == "party" ? "party"
         : root.screen == "settings" ? "settings" : root.screen == "servers" ? "server"
         : (root.screen == "library" || root.screen == "detail") && root.here-lib != "" ? root.here-lib
-        : root.tab == "requests" ? "requests" : root.tab == "favorites" ? "favorites" : root.tab == "home" ? "home" : "";
+        : root.tab == "requests" ? "requests" : root.tab == "favorites" ? "favorites" : root.tab == "watchlist" ? "watchlist"
+        : root.tab == "home" ? "home" : "";
     // Déjà sur cette page (à sa racine) : rien à recharger.
     pure function at(action: string) -> bool {
         return action == root.here && (
-            ((action == "home" || action == "requests" || action == "favorites") && root.screen == "home")
+            ((action == "home" || action == "requests" || action == "favorites" || action == "watchlist") && root.screen == "home")
             || (action == "downloads" && root.dl-level == 0)
             || action == "party" || action == "settings" || action == "server"
             || (root.screen == "library" && root.at-lib-root));
@@ -3927,7 +3986,7 @@ export component AppWindow inherits Window {
     }
 
     function tab-index() -> int {
-        return root.tab == "favorites" ? 1 : root.tab == "requests" ? 2 : 0;
+        return root.tab == "favorites" ? 1 : root.tab == "watchlist" ? 2 : root.tab == "requests" ? 3 : 0;
     }
 
     // Onglets, puis Recherche, puis Profil.
@@ -3935,14 +3994,16 @@ export component AppWindow inherits Window {
         // Ailleurs que sur l'accueil : retour à l'accueil, sur cet onglet (transition habituelle).
         if (root.screen != "home") {
             root.h-focus = false;
-            root.nav-out("menu", i == 0 ? "home" : i == 1 ? "favorites" : "requests");
+            root.nav-out("menu", i == 0 ? "home" : i == 1 ? "favorites" : i == 2 ? "watchlist" : "requests");
             return;
         }
         if (i == 0) {
             root.select-tab("home");
         } else if (i == 1) {
             root.select-tab("favorites");
-        } else if (i == 2 && root.has-requests) {
+        } else if (i == 2) {
+            root.select-tab("watchlist");
+        } else if (i == 3 && root.has-requests) {
             root.select-tab("requests");
         }
     }
@@ -5024,6 +5085,7 @@ export component AppWindow inherits Window {
 
             if root.sections.length == 0: Text {
                 text: root.tab == "favorites" ? Tr.t(Tr.k, "Aucun favori pour l'instant.")
+                    : root.tab == "watchlist" ? Tr.t(Tr.k, "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série.")
                     : root.tab == "requests" ? Tr.t(Tr.k, "Aucune demande pour l'instant.") : Tr.t(Tr.k, "Rien à afficher.");
                 color: Theme.muted;
                 font-size: 20px * root.k;
@@ -9018,7 +9080,7 @@ export component AppWindow inherits Window {
         y: root.two-line ? root.header-row - 10px * root.k : root.chrome-top;
         height: root.two-line ? 54px * root.k : 72px * root.k;
         x: root.two-line ? (parent.width - self.width) / 2 : max(root.tabs-lo, min((parent.width - self.width) / 2, root.tabs-hi - self.width));
-        spacing: parent.width < 1100px * root.k ? 18px * root.k : 36px * root.k;
+        spacing: root.tab-sp;
         // Position réelle des onglets : titre de la barre, visite guidée.
         init => {
             root.tabs-x = self.x;
@@ -9033,7 +9095,9 @@ export component AppWindow inherits Window {
 
         Tab {
             text: Tr.t(Tr.k, "Accueil");
-            k: root.on-home ? root.k : root.bar-k;
+            icon: "home";
+            compact: root.tab-icons;
+            k: root.tab-k;
             active: root.on-home && root.tab == "home";
             focused: root.h-focus && root.h-sel == root.nav-n + 0;
             clicked => {
@@ -9043,7 +9107,9 @@ export component AppWindow inherits Window {
         }
         Tab {
             text: Tr.t(Tr.k, "Favoris");
-            k: root.on-home ? root.k : root.bar-k;
+            icon: "heart";
+            compact: root.tab-icons;
+            k: root.tab-k;
             active: root.on-home && root.tab == "favorites";
             focused: root.h-focus && root.h-sel == root.nav-n + 1;
             clicked => {
@@ -9051,16 +9117,41 @@ export component AppWindow inherits Window {
                 root.header-activate(1);
             }
         }
-        if root.has-requests: Tab {
-            text: Tr.t(Tr.k, "Demandes");
-            k: root.on-home ? root.k : root.bar-k;
-            active: root.on-home && root.tab == "requests";
+        Tab {
+            text: Tr.t(Tr.k, "À regarder");
+            icon: "bookmark";
+            compact: root.tab-icons;
+            k: root.tab-k;
+            active: root.on-home && root.tab == "watchlist";
             focused: root.h-focus && root.h-sel == root.nav-n + 2;
             clicked => {
                 root.h-sel = root.nav-n + 2;
                 root.header-activate(2);
             }
         }
+        if root.has-requests: Tab {
+            text: Tr.t(Tr.k, "Demandes");
+            icon: "requests";
+            compact: root.tab-icons;
+            k: root.tab-k;
+            active: root.on-home && root.tab == "requests";
+            focused: root.h-focus && root.h-sel == root.nav-n + 3;
+            clicked => {
+                root.h-sel = root.nav-n + 3;
+                root.header-activate(3);
+            }
+        }
+    }
+    // Mesure des intitulés des onglets (en gras : leur largeur une fois actifs), pour choisir
+    // entre textes et icônes sans dépendre de la mise en page qu'on choisit.
+    // Mesure à taille fixe (18 px, puis à l'échelle) : la taille de la fenêtre n'en dépend pas.
+    Rectangle {
+        width: 0px;
+        height: 0px;
+        tab-m0 := Text { visible: false; text: Tr.t(Tr.k, "Accueil"); font-size: 18px; font-weight: 700; }
+        tab-m1 := Text { visible: false; text: Tr.t(Tr.k, "Favoris"); font-size: 18px; font-weight: 700; }
+        tab-m2 := Text { visible: false; text: Tr.t(Tr.k, "À regarder"); font-size: 18px; font-weight: 700; }
+        tab-m3 := Text { visible: false; text: Tr.t(Tr.k, "Demandes"); font-size: 18px; font-weight: 700; }
     }
     if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): HeaderRight {
         // Téléphone tenu droit : la moitié de l'écran ne suffit pas aux cinq icônes (alignées à droite).

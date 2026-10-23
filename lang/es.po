@@ -1945,3 +1945,18 @@ msgstr "Renombrar el servidor"
 
 msgid "Serveur trouvé : {}"
 msgstr "Servidor encontrado: {}"
+
+msgid "À regarder"
+msgstr "Para ver"
+
+msgid "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série."
+msgstr "Nada para ver por ahora: el marcador de una ficha añade aquí una película o una serie."
+
+msgid "La liste « À regarder » est sur le serveur : indisponible hors ligne."
+msgstr "La lista «Para ver» está en el servidor: no disponible sin conexión."
+
+msgid "liste introuvable"
+msgstr "lista no encontrada"
+
+msgid "aucun épisode sur le serveur"
+msgstr "ningún episodio en el servidor"

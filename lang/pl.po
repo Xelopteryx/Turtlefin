@@ -1951,3 +1951,18 @@ msgstr "Zmień nazwę serwera"
 
 msgid "Serveur trouvé : {}"
 msgstr "Znaleziono serwer: {}"
+
+msgid "À regarder"
+msgstr "Do obejrzenia"
+
+msgid "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série."
+msgstr "Na razie nic do obejrzenia: zakładka na stronie tytułu dodaje tu film lub serial."
+
+msgid "La liste « À regarder » est sur le serveur : indisponible hors ligne."
+msgstr "Lista „Do obejrzenia” jest na serwerze: niedostępna offline."
+
+msgid "liste introuvable"
+msgstr "nie znaleziono listy"
+
+msgid "aucun épisode sur le serveur"
+msgstr "brak odcinka na serwerze"

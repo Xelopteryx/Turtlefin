@@ -195,6 +195,23 @@ pub struct Item {
     pub media_sources: Option<Vec<MediaSource>>,
     pub people: Option<Vec<Person>>,
     pub provider_ids: Option<HashMap<String, String>>,
+    /// Entrée d'une liste de lecture (sert à l'en retirer).
+    pub playlist_item_id: Option<String>,
+}
+
+/// Nom de la liste de lecture « À regarder » du compte : le même quelle que soit la langue de
+/// l'appareil, pour retrouver la même liste partout (et dans le client web de Jellyfin).
+pub const WATCHLIST: &str = "À regarder";
+
+/// Entrée de la liste « À regarder » : `key` est l'élément représenté (la série pour un épisode,
+/// car une série inscrite telle quelle serait remplacée par tous ses épisodes), `item` celui inscrit.
+#[derive(Clone, Debug)]
+pub struct WatchEntry {
+    pub entry: String,
+    pub item: String,
+    pub key: String,
+    /// Saison de l'épisode inscrit (vide sinon) : signet de la fiche de cette saison.
+    pub season: String,
 }
 
 /// Ce dont l'interface a besoin pour afficher une carte.
@@ -558,7 +575,7 @@ impl Item {
     }
 
     /// Boutons de la fiche : (libellé, action, icône, actif). Les boutons à icône n'ont pas de
-    /// libellé. Actions : "play", "fav", "played", "download", "open:<id>".
+    /// libellé. Actions : "play", "fav", "watch", "played", "download", "open:<id>".
     pub fn buttons(&self, can_download: bool) -> Vec<(String, String, String, bool)> {
         let mut b: Vec<(String, String, String, bool)> = Vec::new();
         let ud = self.user_data.clone().unwrap_or_default();
@@ -566,6 +583,8 @@ impl Item {
         if playable {
             b.push((String::new(), "play".into(), "play".into(), false));
             b.push((String::new(), "fav".into(), "heart".into(), ud.is_favorite));
+            // « À regarder » : état réel posé par la fiche (liste du compte, voir main::watch_has).
+            b.push((String::new(), "watch".into(), "bookmark".into(), false));
             b.push((String::new(), "played".into(), "check".into(), ud.played));
             if can_download {
                 b.push((String::new(), "download".into(), "download".into(), false));
@@ -1439,6 +1458,77 @@ impl Client {
     pub async fn set_played(&self, id: &str, on: bool) -> Result<()> {
         let m = if on { reqwest::Method::POST } else { reqwest::Method::DELETE };
         self.send_flag(m, &format!("/UserPlayedItems/{}", seg(id))).await
+    }
+
+    /// Liste de lecture « À regarder » du compte, créée au besoin (vide, privée).
+    pub async fn watchlist_id(&self, create: bool) -> Result<Option<String>> {
+        let r: ItemsResp = self
+            .get("/Items", &[("userId", &self.user_id), ("Recursive", "true"), ("IncludeItemTypes", "Playlist")])
+            .await?;
+        if let Some(p) = r.items.into_iter().find(|p| p.name == WATCHLIST) {
+            return Ok(Some(p.id));
+        }
+        if !create {
+            return Ok(None);
+        }
+        let body = serde_json::json!({ "Name": WATCHLIST, "UserId": self.user_id, "Ids": [], "IsPublic": false, "MediaType": "Video" });
+        let resp = self
+            .http
+            .post(format!("{}/Playlists", self.server))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&resp.status(), &"/Playlists"])));
+        }
+        let v: serde_json::Value = resp.json().await?;
+        Ok(v["Id"].as_str().map(str::to_string))
+    }
+
+    /// Contenu de la liste « À regarder », dans l'ordre d'inscription.
+    pub async fn watchlist_items(&self, pid: &str) -> Result<Vec<Item>> {
+        let r: ItemsResp = self.get(&format!("/Playlists/{}/Items", seg(pid)), &[("userId", &self.user_id)]).await?;
+        Ok(r.items)
+    }
+
+    /// Éléments par identifiant (séries de la liste « À regarder »).
+    pub async fn items_by_ids(&self, ids: &[String]) -> Result<Vec<Item>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = ids.join(",");
+        let r: ItemsResp = self.get("/Items", &[("userId", &self.user_id), ("Ids", &ids)]).await?;
+        Ok(r.items)
+    }
+
+    /// Premier épisode d'une série ou d'une saison (hors épisodes spéciaux s'il y en a d'autres) :
+    /// c'est lui qui représente la série dans la liste « À regarder ».
+    pub async fn first_episode(&self, parent: &str) -> Result<Option<String>> {
+        let r: ItemsResp = self
+            .get(
+                "/Items",
+                &[
+                    ("userId", &self.user_id),
+                    ("ParentId", parent),
+                    ("Recursive", "true"),
+                    ("IncludeItemTypes", "Episode"),
+                    ("SortBy", "ParentIndexNumber,IndexNumber"),
+                    ("Limit", "40"),
+                ],
+            )
+            .await?;
+        let first = r.items.iter().find(|e| e.parent_index_number != Some(0)).or(r.items.first());
+        Ok(first.map(|e| e.id.clone()))
+    }
+
+    pub async fn watchlist_add(&self, pid: &str, id: &str) -> Result<()> {
+        self.send_flag(reqwest::Method::POST, &format!("/Playlists/{}/Items?ids={}", seg(pid), seg(id))).await
+    }
+
+    pub async fn watchlist_remove(&self, pid: &str, entries: &[String]) -> Result<()> {
+        let list: Vec<String> = entries.iter().map(|e| seg(e).into_owned()).collect();
+        self.send_flag(reqwest::Method::DELETE, &format!("/Playlists/{}/Items?entryIds={}", seg(pid), list.join(","))).await
     }
 
     /// Position, « vu » et date de lecture d'un élément (lectures faites hors ligne).

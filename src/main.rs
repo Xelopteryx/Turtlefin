@@ -134,10 +134,12 @@ struct App {
     tv_flag: AtomicBool,
     /// Fenêtre en plein écran (interface TV, réglage « Plein écran » ou F11).
     full_flag: AtomicBool,
-    /// Onglet de l'accueil affiché : "home", "favorites" ou "requests".
+    /// Onglet de l'accueil affiché : "home", "favorites", "watchlist" ou "requests".
     tab: Mutex<String>,
     /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
     seerr_user: Mutex<Option<i64>>,
+    /// Liste « À regarder » du compte : (id de la liste de lecture, entrées), connue après sa lecture.
+    watch: Mutex<Option<(String, Vec<api::WatchEntry>)>>,
     /// Bibliothèque affichée en grille : (id, type de collection, éléments chargés, total).
     library: Mutex<Option<(String, Option<String>, u32, u32)>>,
     /// Une page de bibliothèque est en cours de chargement.
@@ -1342,6 +1344,14 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         u.set_has_requests(seerr.is_some());
         u.set_can_back(false);
     });
+    // Liste « À regarder » du compte : les signets des fiches en dépendent.
+    *app.watch.lock().unwrap() = None;
+    {
+        let (a, c) = (app.clone(), client.clone());
+        app.rt.spawn(async move {
+            let _ = refresh_watch(&a, &c).await;
+        });
+    }
     // Menu latéral : bibliothèques de l'utilisateur.
     if let Ok(views) = client.views().await {
         set_menu(&app, &views);
@@ -1366,6 +1376,7 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
     let seerr = *app.seerr_user.lock().unwrap();
     let sections = match (tab.as_str(), seerr) {
         ("favorites", _) => favorite_sections(&client).await,
+        ("watchlist", _) => watch_sections(&app, &client).await,
         ("requests", Some(id)) => request_sections(&client, id).await,
         _ => home_sections(&client).await,
     };
@@ -1425,6 +1436,132 @@ async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionDa
         push_section(&mut sections, title, landscape, Ok(of_kind));
     }
     Ok(sections)
+}
+
+/// Liste « À regarder » : films, séries (un épisode inscrit tient lieu de sa série, une seule carte
+/// par série) et le reste, les derniers inscrits d'abord.
+async fn watch_sections(app: &Arc<App>, client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
+    let items = refresh_watch(app, client).await?;
+    let (mut movies, mut series_ids, mut others) = (Vec::new(), Vec::<String>::new(), Vec::new());
+    for i in items.into_iter().rev() {
+        match (i.kind.as_str(), i.series_id.clone()) {
+            ("Movie", _) => movies.push(i),
+            ("Episode", Some(s)) => {
+                if !series_ids.contains(&s) {
+                    series_ids.push(s);
+                }
+            }
+            _ => others.push(i),
+        }
+    }
+    let mut series = client.items_by_ids(&series_ids).await?;
+    series.sort_by_key(|s| series_ids.iter().position(|x| *x == s.id));
+    let mut sections: Vec<SectionData> = Vec::new();
+    push_section(&mut sections, tr("Films"), false, Ok(movies));
+    push_section(&mut sections, tr("Séries"), false, Ok(series));
+    push_section(&mut sections, "Autres", false, Ok(others));
+    Ok(sections)
+}
+
+/// Relit la liste « À regarder » du compte (sans la créer) et renvoie ses éléments.
+async fn refresh_watch(app: &Arc<App>, client: &api::Client) -> anyhow::Result<Vec<api::Item>> {
+    let Some(pid) = client.watchlist_id(false).await? else {
+        *app.watch.lock().unwrap() = Some((String::new(), Vec::new()));
+        return Ok(Vec::new());
+    };
+    let items = client.watchlist_items(&pid).await?;
+    let entries = items
+        .iter()
+        .filter_map(|i| {
+            let episode = i.kind == "Episode";
+            Some(api::WatchEntry {
+                entry: i.playlist_item_id.clone()?,
+                item: i.id.clone(),
+                key: i.series_id.clone().filter(|_| episode).unwrap_or_else(|| i.id.clone()),
+                season: i.season_id.clone().filter(|_| episode).unwrap_or_default(),
+            })
+        })
+        .collect();
+    *app.watch.lock().unwrap() = Some((pid, entries));
+    Ok(items)
+}
+
+/// Entrées de la liste « À regarder » qui concernent cet élément (lui-même, ou sa série / sa saison
+/// représentée par un épisode).
+fn watch_entries(app: &App, id: &str) -> Vec<String> {
+    app.watch.lock().unwrap().as_ref().map_or_else(Vec::new, |(_, e)| {
+        e.iter().filter(|w| w.key == id || w.item == id || w.season == id).map(|w| w.entry.clone()).collect()
+    })
+}
+
+fn watch_has(app: &App, id: &str) -> bool {
+    !watch_entries(app, id).is_empty()
+}
+
+/// Signet « À regarder » de la fiche : inscrit ou retire l'élément (une série ou une saison par son
+/// premier épisode), puis relit la liste. Affichage immédiat, annulé si le serveur refuse.
+fn toggle_watch(app: &Arc<App>) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let d = u.get_detail();
+    let id = d.id.to_string();
+    let Some(idx) = (0..d.buttons.row_count()).find(|i| d.buttons.row_data(*i).is_some_and(|b| b.action == "watch")) else { return };
+    let client = match app.client() {
+        Some(c) if !id.starts_with("dl:") && !app.offline.load(Ordering::SeqCst) => c,
+        _ => {
+            u.set_toast(tr("La liste « À regarder » est sur le serveur : indisponible hors ligne.").into());
+            return;
+        }
+    };
+    let on = !d.buttons.row_data(idx).is_some_and(|b| b.active);
+    let set = move |u: &AppWindow, v: bool| {
+        let d = u.get_detail();
+        if let Some(mut b) = d.buttons.row_data(idx) {
+            b.active = v;
+            d.buttons.set_row_data(idx, b);
+        }
+    };
+    set(&u, on);
+    let kind = app.detail_kind.lock().unwrap().clone();
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r: anyhow::Result<()> = async {
+            if app2.watch.lock().unwrap().as_ref().is_none_or(|(p, _)| p.is_empty()) {
+                refresh_watch(&app2, &client).await?;
+            }
+            let cached = app2.watch.lock().unwrap().as_ref().map(|(p, _)| p.clone()).unwrap_or_default();
+            let pid = if cached.is_empty() {
+                client.watchlist_id(true).await?.ok_or_else(|| anyhow::anyhow!("{}", tr("liste introuvable")))?
+            } else {
+                cached
+            };
+            if on {
+                let target = match kind.as_str() {
+                    "Series" | "Season" => client
+                        .first_episode(&id)
+                        .await?
+                        .ok_or_else(|| anyhow::anyhow!("{}", tr("aucun épisode sur le serveur")))?,
+                    _ => id.clone(),
+                };
+                client.watchlist_add(&pid, &target).await?;
+            } else {
+                let entries = watch_entries(&app2, &id);
+                if !entries.is_empty() {
+                    client.watchlist_remove(&pid, &entries).await?;
+                }
+            }
+            refresh_watch(&app2, &client).await?;
+            Ok(())
+        }
+        .await;
+        app2.home_stale.store(true, Ordering::SeqCst);
+        if let Err(e) = r {
+            let msg = trf("Action impossible : {}", &[&human_err(&e)]);
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                set(&u, !on);
+                u.set_toast(msg.into());
+            });
+        }
+    });
 }
 
 /// Demandes Seerr de l'utilisateur, rangées par état.
@@ -6117,6 +6254,10 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             b.3 = true;
         }
     }
+    let watched = watch_has(&app, &item.id);
+    for b in buttons.iter_mut().filter(|b| b.1 == "watch") {
+        b.3 = watched;
+    }
     let misc = item.misc_line();
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
@@ -7207,6 +7348,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         }),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
+        watch: Mutex::new(None),
         library: Mutex::new(None),
         lib_loading: AtomicBool::new(false),
         lib_return: Mutex::new(None),
@@ -7651,8 +7793,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
                     }
                 }
                 go_home_at(&app, true);
-            } else if a == "requests" || a == "favorites" {
-                // Onglet Demandes (menu, barre) ou Favoris (barre, depuis une autre page).
+            } else if a == "requests" || a == "favorites" || a == "watchlist" {
+                // Onglet Demandes (menu, barre), Favoris ou À regarder (barre, depuis une autre page).
                 let changed = std::mem::replace(&mut *app.tab.lock().unwrap(), a.to_string()) != a;
                 if let Some(u) = app.ui().upgrade() {
                     u.set_tab(a.into());
@@ -7830,6 +7972,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 open_track_picker(&app, if a == "pick-audio" { "audio" } else { "sub" });
             } else if a == "fav" || a == "played" {
                 toggle_flag(&app, a);
+            } else if a == "watch" {
+                toggle_watch(&app);
             } else if a == "download" {
                 start_download(&app);
             } else if a == "seerr-missing" {
