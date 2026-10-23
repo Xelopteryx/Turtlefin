@@ -337,8 +337,14 @@ fn set_detail_smooth(u: &AppWindow, mut new: DetailData) {
 }
 
 /// Signature d'une liste de boutons (seuls les changements réels s'animent).
+/// Une pastille de texte posée sur la ligne des icônes (« label », la saison : « Voir la série ») compte
+/// avec les pastilles : sinon les icônes, identiques, se croyaient changées et s'animaient.
 fn buttons_sig(b: &[(String, String, String, bool)], icons: bool) -> String {
-    b.iter().filter(|x| x.2.is_empty() != icons).map(|x| format!("{}|{}|{}", x.0, x.1, x.2)).collect::<Vec<_>>().join(";")
+    b.iter()
+        .filter(|x| (!x.2.is_empty() && x.2 != "label") == icons)
+        .map(|x| format!("{}|{}|{}", x.0, x.1, x.2))
+        .collect::<Vec<_>>()
+        .join(";")
 }
 
 /// Erreur lisible : les erreurs réseau deviennent une phrase (le détail technique reste en console).
@@ -3719,6 +3725,8 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                 show_screen(&u, "library");
                 if select.is_none() {
                     u.invoke_page_enter();
+                    // Ses films et séries sont distribués depuis le centre, comme une collection.
+                    u.invoke_lib_deal();
                 }
             }
         });
@@ -7451,6 +7459,18 @@ pub(crate) fn main() -> anyhow::Result<()> {
             c.as_str().into()
         });
         st.on_at(|s, k| s.chars().rev().nth(k.max(0) as usize).map(|c| c.to_string()).unwrap_or_default().into());
+        // Fiche qui change : le nouveau texte remplace l'ancien caractère par caractère.
+        st.on_morph(|from, to, p| {
+            let (f, t): (Vec<char>, Vec<char>) = (from.chars().collect(), to.chars().collect());
+            let n = f.len().max(t.len());
+            let k = ((p.clamp(0.0, 1.0) * n as f32).round() as usize).min(n);
+            let mut out: String = t.iter().take(k).collect();
+            if k < f.len() {
+                out.extend(&f[k..]);
+            }
+            out.into()
+        });
+        st.on_len(|s| s.chars().count() as i32);
         // Texte d'une touche qui s'écrit (pas une flèche, Échap, Entrée... : codes de contrôle ou
         // de la zone privée d'Unicode, où Slint range ses touches spéciales).
         st.on_printable(|s| !s.is_empty() && s.chars().all(|c| !c.is_control() && !('\u{E000}'..='\u{F8FF}').contains(&c)));

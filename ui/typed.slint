@@ -13,6 +13,11 @@ export global Str {
     pure callback at(string, int) -> string;
     // Vrai pour le texte d'une touche qui s'écrit (lettre, chiffre, espace...), faux pour les autres.
     pure callback printable(string) -> bool;
+    // Texte en train de changer : les `p` premiers (0 à 1, de la plus longue des deux) caractères de
+    // `to`, puis la suite de `from` (un texte en remplace un autre caractère par caractère).
+    pure callback morph(string, string, float) -> string;
+    // Nombre de caractères.
+    pure callback len(string) -> int;
 }
 
 // Une des dernières lettres tapées : apparaît en grossissant (chacune garde son animation, même

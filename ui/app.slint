@@ -2096,19 +2096,21 @@ component DropIn inherits Rectangle {
     init => {
         self.e = 1;
     }
-    animate e { duration: Motion.pages ? 280ms : 0ms; easing: ease-out; }
+    animate e { duration: Motion.pages ? 220ms : 0ms; easing: ease-out; }
+    // Apparaît sur place (fondu) : la barre ne bouge pas.
+    opacity: self.e;
 }
 
-// Barre de navigation en haut à gauche de chaque écran : menu, retour (si l'on a navigué),
-// accueil (hors accueil) et titre de la page. Les boutons qui apparaissent descendent en glissant,
-// le menu et le titre se décalent en douceur, le titre d'une nouvelle page descend aussi.
+// Barre de navigation en haut à gauche de chaque écran : menu (toujours à la même place), puis retour
+// (si l'on a navigué) et accueil (hors accueil), puis le titre de la page. La barre ne bouge pas d'une
+// page à l'autre : les boutons apparaissent et disparaissent sur place, le titre change en fondu.
 component NavBar inherits Rectangle {
     in property <float> k: 1.0;
     in property <bool> can-back;
     in property <bool> show-home;
     in property <string> title;
     in property <brush> title-color: Theme.text;
-    in property <int> sel: -1; // bouton sélectionné, de gauche à droite : [retour] [accueil] menu
+    in property <int> sel: -1; // bouton sélectionné, de gauche à droite : menu [retour] [accueil]
     in property <float> enter: 1; // arrivée de la page (0 -> 1)
     callback activate(int);
 
@@ -2118,52 +2120,50 @@ component NavBar inherits Rectangle {
     property <length> iy: (root.height - 44px * root.k) / 2;
     height: 72px * root.k;
 
-    if root.can-back: DropIn {
+    HeaderIcon {
         x: root.x0;
-        y: root.iy + (self.e - 1) * 34px * root.k;
+        y: root.iy;
+        icon: "menu";
+        k: root.k;
+        focused: root.sel == 0;
+        clicked => {
+            root.activate(0);
+        }
+    }
+    if root.can-back: DropIn {
+        x: root.x0 + root.step;
+        y: root.iy;
         width: 44px * root.k;
         height: 44px * root.k;
         HeaderIcon {
             icon: "back";
             k: root.k;
-            focused: root.sel == 0;
+            focused: root.sel == 1;
             clicked => {
-                root.activate(0);
+                root.activate(1);
             }
         }
     }
     if root.show-home: DropIn {
-        x: root.x0 + (root.can-back ? root.step : 0px);
-        y: root.iy + (self.e - 1) * 34px * root.k;
+        x: root.x0 + (root.can-back ? 2 : 1) * root.step;
+        y: root.iy;
         width: 44px * root.k;
         height: 44px * root.k;
-        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
         HeaderIcon {
             icon: "home";
             k: root.k;
-            focused: root.sel == (root.can-back ? 1 : 0);
+            focused: root.sel == (root.can-back ? 2 : 1);
             clicked => {
-                root.activate(root.can-back ? 1 : 0);
+                root.activate(root.can-back ? 2 : 1);
             }
-        }
-    }
-    HeaderIcon {
-        x: root.x0 + (root.n - 1) * root.step;
-        y: root.iy;
-        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
-        icon: "menu";
-        k: root.k;
-        focused: root.sel == root.n - 1;
-        clicked => {
-            root.activate(root.n - 1);
         }
     }
     Text {
         x: root.x0 + root.n * root.step + 4px * root.k;
-        y: (1 - root.enter) * -18px * root.k;
         width: root.width - self.x - 8px * root.k;
         height: root.height;
-        animate x { duration: Motion.pages ? 240ms : 0ms; easing: ease-out; }
+        // Titre de la page : en fondu à l'arrivée de la page (sans glisser).
+        opacity: root.enter;
         text: root.title;
         color: root.title-color;
         font-size: 26px * root.k;
@@ -2716,7 +2716,8 @@ export component AppWindow inherits Window {
         }
     }
     pure function rev(i: int) -> float {
-        let x = clamp((root.rev-lin - i * 0.14) / 0.44, 0, 1);
+        // Toute la fiche ensemble, en un seul fondu (pas de blocs qui arrivent l'un après l'autre).
+        let x = clamp(root.rev-lin / 0.6, 0, 1);
         return 1 - (1 - x) * (1 - x) * (1 - x);
     }
     Timer {
@@ -2784,6 +2785,14 @@ export component AppWindow inherits Window {
         running: root.deal-anim;
         triggered => {
             root.deal-anim = false;
+        }
+    }
+    // Bibliothèque ouverte (pas un retour) : ses films et séries sont distribués de la même façon,
+    // depuis le centre de l'écran (Rust, à l'arrivée de la première page).
+    public function lib-deal() {
+        if (!root.hero-deck && Motion.pages) {
+            root.deal-t0 = animation-tick();
+            root.deal-anim = true;
         }
     }
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
@@ -2870,6 +2879,7 @@ export component AppWindow inherits Window {
         : root.hero-on && root.hero-door ? clamp((root.hero-q - 0.5) / 0.4, 0, 1) : 1;
     // L'affiche de la page ouverte est cachée tant que l'image partagée vole (elle prend le relais).
     property <bool> hero-covers: root.hero-on && root.hero-dest;
+    property <bool> hero-from-detail;       // image partie d'une fiche (saison, autre média…)
     property <string> hero-from-id;          // retour : page quittée (l'image attend qu'elle soit partie)
     // La page ouverte est affichée.
     property <bool> hero-ready: root.hero-on && root.hero-dest && !root.hero-anim && !root.loading && (root.hero-seerr
@@ -2971,7 +2981,8 @@ export component AppWindow inherits Window {
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
             Hero.tick += 1;
-            root.kid-veil = root.screen == "detail" && Motion.detail;
+            // Fiche -> fiche : rien ne s'efface (ce qui ne change pas reste, voir detail-swap).
+            root.kid-veil = false;
         }
         root.open-item(id);
     }
@@ -3047,7 +3058,9 @@ export component AppWindow inherits Window {
             root.door-mode = Hero.wide && root.narrow && !root.hero-seerr;
             root.door-has-poster = false;
             // Fiche à venir : cachée jusqu'à son arrivée (pas pour un grand fond ni une collection).
-            root.rev-hold = !(Hero.wide && !root.door-mode) && !Hero.data.deck && !root.hero-seerr;
+            root.rev-hold = !(Hero.wide && !root.door-mode) && !Hero.data.deck && !root.hero-seerr && root.screen != "detail";
+            // D'une fiche à une autre : l'affiche affichée reste en place jusqu'à l'arrivée de la nouvelle.
+            root.hero-from-detail = root.screen == "detail";
             root.hero-deck = Hero.data.deck;
             root.deal-anim = false;
             root.hero-faded = false;
@@ -3100,7 +3113,6 @@ export component AppWindow inherits Window {
         root.hero-id = "";
         // Fiche -> fiche précédente : la fiche quittée s'efface, la précédente arrive (voir detail-swap).
         if (root.screen == "detail" && root.back-soft) {
-            root.kid-veil = root.hero-on && Motion.detail;
             root.run-action("back");
             return;
         }
@@ -3225,12 +3237,10 @@ export component AppWindow inherits Window {
     property <bool> sw-next;
     property <bool> sw-kids;
     public function detail-swap() {
-        // Retour d'une fiche par l'image partagée : la fiche arrive progressivement pendant le vol.
-        if (root.hero-on && !root.hero-dest) {
-            root.kid-veil = false;
-            root.rev-start();
-        }
         root.d-t0 = animation-tick();
+        // Textes qui changent : caractère par caractère (voir morph).
+        root.mt-t0 = animation-tick();
+        root.mt-live = Motion.detail;
         root.sw-title = false;
         root.sw-sub = false;
         root.sw-icons = false;
@@ -3257,13 +3267,44 @@ export component AppWindow inherits Window {
     changed w-has-logo => {
         root.sw-title = true;
     }
+    // Textes de la fiche : le précédent (pour le changement caractère par caractère) et celui d'où part
+    // le changement en cours.
+    property <bool> mt-live;
+    property <duration> mt-t0;
+    Timer {
+        interval: 900ms;
+        running: root.mt-live;
+        triggered => {
+            root.mt-live = false;
+        }
+    }
+    property <string> prev-title;
+    property <string> prev-sub;
+    property <string> prev-misc;
+    property <string> prev-ov;
+    property <string> mt-title;
+    property <string> mt-sub;
+    property <string> mt-misc;
+    property <string> mt-ov;
+    // Texte affiché pendant le changement : `to` remplace `from` caractère par caractère (vite pour un
+    // titre, plus longtemps pour un résumé, 0,8 s au plus).
+    pure function morph(from: string, to: string) -> string {
+        if (!root.mt-live || from == to) {
+            return to;
+        }
+        let n = max(Str.len(from), Str.len(to));
+        let d = clamp(n * 14ms, 220ms, 800ms);
+        return Str.morph(from, to, clamp((animation-tick() - root.mt-t0) / d, 0, 1));
+    }
     property <string> w-title: root.detail.title;
     changed w-title => {
-        root.sw-title = true;
+        root.mt-title = root.prev-title;
+        root.prev-title = root.detail.title;
     }
     property <string> w-subtitle: root.detail.subtitle;
     changed w-subtitle => {
-        root.sw-sub = true;
+        root.mt-sub = root.prev-sub;
+        root.prev-sub = root.detail.subtitle;
     }
     property <string> w-icons-sig: root.detail.icons-sig;
     changed w-icons-sig => {
@@ -3275,11 +3316,15 @@ export component AppWindow inherits Window {
     }
     property <string> w-misc: root.detail.misc;
     changed w-misc => {
-        root.sw-misc = true;
+        root.mt-misc = root.prev-misc;
+        root.prev-misc = root.detail.misc;
     }
     property <string> w-overview: root.detail.overview;
     changed w-overview => {
-        root.sw-ov = true;
+        // Résumé qui apparaît (il n'y en avait pas) : en fondu ; sinon caractère par caractère.
+        root.sw-ov = root.prev-ov == "";
+        root.mt-ov = root.prev-ov;
+        root.prev-ov = root.detail.overview;
     }
     property <string> w-next-id: root.detail.next-id;
     changed w-next-id => {
@@ -3969,18 +4014,19 @@ export component AppWindow inherits Window {
     property <bool> back-ok: root.can-back || root.sub-back;
     property <int> nav-n: 1 + (root.back-ok ? 1 : 0) + (root.show-home ? 1 : 0);
 
+    // Boutons de gauche de la barre : 0 menu · 1 retour (s'il y en a un) · puis accueil.
     function nav-activate(i: int) {
         root.h-focus = false;
-        if (i == 0 && root.sub-back) {
+        if (i == 0) {
+            root.open-menu();
+        } else if (i == 1 && root.sub-back) {
             if (root.av-open) {
                 root.av-open = false;
             } else {
                 root.set-in = false;
             }
-        } else if (i == 0 && root.can-back) {
+        } else if (i == 1 && root.can-back) {
             root.back-anim();
-        } else if (i == root.nav-n - 1) {
-            root.open-menu();
         } else {
             root.nav-out("menu", "home");
         }
@@ -4093,7 +4139,7 @@ export component AppWindow inherits Window {
         root.h-focus = true;
         // Hors accueil, le bouton maison est sélectionné d'abord (après le bouton retour s'il y en a un).
         // Dans une sous-page (choix de l'avatar), c'est Retour qui est sélectionné.
-        root.h-sel = root.sub-back ? 0 : root.screen != "home" && root.can-back ? 1 : 0;
+        root.h-sel = root.sub-back ? 1 : root.screen != "home" ? (root.back-ok ? 2 : 1) : 0;
     }
 
     function tab-index() -> int {
@@ -6189,9 +6235,9 @@ export component AppWindow inherits Window {
             width: root.poster-w;
             height: root.poster-w * 1.5;
             border-radius: Theme.radius;
-            visible: !root.hero-covers || root.hero-seerr || root.hero-big;
+            visible: !root.hero-covers || root.hero-seerr || root.hero-big || root.hero-from-detail;
             background: transparent;
-            if !root.detail.has-poster && !root.landed && (!root.d-poster-swap || root.hero-on): Placeholder {
+            if !root.detail.has-poster && !root.landed && !root.d-poster-swap: Placeholder {
                 title: root.detail.title;
                 k: root.k;
                 border-radius: Theme.radius;
@@ -6206,7 +6252,7 @@ export component AppWindow inherits Window {
 
             // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu (jamais
             // quand une image partagée arrive : ce serait celle de la fiche quittée).
-            if root.d-poster-swap && !root.landed && !root.hero-on: Image {
+            if root.d-poster-swap && !root.landed: Image {
                 width: parent.width;
                 height: parent.height;
                 source: root.d-poster-old;
@@ -6252,7 +6298,7 @@ export component AppWindow inherits Window {
             if !root.detail.has-logo && !root.detail.expect-logo: Marquee {
                 width: parent.width;
                 height: parent.height;
-                text: root.detail.title;
+                text: root.morph(root.mt-title, root.detail.title);
                 text-color: Theme.text;
                 font-size: 34px * root.k;
                 font-weight: 800;
@@ -6267,8 +6313,8 @@ export component AppWindow inherits Window {
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
-            opacity: (root.sw-sub ? root.sw-e : 1) * root.rev(0);
-            text: root.detail.subtitle;
+            opacity: root.rev(0);
+            text: root.morph(root.mt-sub, root.detail.subtitle);
             text-color: Theme.accent2;
             font-size: 18px * root.k;
             font-weight: 600;
@@ -6351,10 +6397,10 @@ export component AppWindow inherits Window {
         Text {
             x: root.col-x + root.po-right;
             y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
-            opacity: (root.sw-misc ? root.sw-e : 1) * root.rev(0);
+            opacity: root.rev(0);
             width: root.info-w;
             height: 24px * root.k;
-            text: root.detail.misc;
+            text: root.morph(root.mt-misc, root.detail.misc);
             color: Theme.muted;
             font-size: 15px * root.k;
             vertical-alignment: center;
@@ -6378,7 +6424,7 @@ export component AppWindow inherits Window {
                 y: 10px;
                 width: parent.width - 28px;
                 height: parent.height - 20px;
-                text: root.detail.overview;
+                text: root.morph(root.mt-ov, root.detail.overview);
                 wrap: word-wrap;
                 overflow: elide;
                 color: Theme.text;
@@ -6488,8 +6534,8 @@ export component AppWindow inherits Window {
 
         // Épisodes d'une saison : liste verticale (voir ep-list).
         if root.child-items.length > 0 && root.ep-list: Rectangle {
-            // Fondu seulement pendant l'apparition de la fiche (opacité coûteuse le reste du temps).
-            opacity: root.rev(3);
+            // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
+            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3);
             x: (root.narrow ? 16px : 32px) + root.po-right;
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1200px * root.k);
@@ -6602,13 +6648,15 @@ export component AppWindow inherits Window {
                         font-size: 13px * root.k;
                         overflow: elide;
                     }
-                    if ep.overview != "" && !root.narrow: Text {
+                    // Résumé : ce qui tient dans la ligne (3 lignes, 1 en portrait), puis « … » ; le reste
+                    // est sur la fiche de l'épisode.
+                    if ep.overview != "": Text {
                         text: ep.overview;
                         color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.8);
                         font-size: 13px * root.k;
                         wrap: word-wrap;
                         overflow: elide;
-                        vertical-stretch: 1;
+                        height: min(self.preferred-height, (root.narrow ? 17px : 51px) * root.k);
                     }
                 }
                 ep-area := TouchArea {
@@ -6625,7 +6673,7 @@ export component AppWindow inherits Window {
         if root.child-items.length > 0 && !root.ep-list: SectionRow {
             // Fondu seulement pendant l'apparition de la fiche : une opacité sur toute la rangée coûte
             // cher sur les petites machines, elle revient à 1 aussitôt après.
-            opacity: root.rev(3);
+            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3);
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
@@ -6904,12 +6952,8 @@ export component AppWindow inherits Window {
                     // Collection : la carte part du paquet (centre de l'écran), tournée, et file à sa place.
                     property <float> dp: root.deal-p(i);
                     property <length> bx: lib.left + mod(i, lib.cols) * (lib.cw + lib.gap);
-                    // Arrivée de la page : en onde depuis le centre des rangées visibles (voir ripple).
-                    property <float> dr: floor(i / lib.cols) - lib.mid-row;
-                    property <float> dc: mod(i, lib.cols) - (lib.cols - 1) / 2;
-                    property <float> ap: self.dp < 1 ? 1 : root.ripple(sqrt(self.dr * self.dr + self.dc * self.dc * 0.8));
+                    // Arrivée de la page : distribuées depuis le centre (voir lib-deal, deal-p).
                     property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
-                    opacity: self.ap;
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
                     visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
@@ -10905,7 +10949,7 @@ export component AppWindow inherits Window {
     // Pendant la visite, OK n'ouvre rien sur l'accueil, sauf à l'étape « ouvrir un média » et le
     // bouton menu à l'étape « ouvrir le menu » (sinon on quitterait l'accueil en pleine visite).
     property <bool> tour-no-ok: (root.tour-step >= 1 && root.tour-step <= 6 && root.tour-step != 5)
-        || (root.tour-step == 5 && !(root.h-focus && root.h-sel == root.nav-n - 1));
+        || (root.tour-step == 5 && !(root.h-focus && root.h-sel == 0));
     // Gestes possibles avec ce qu'affiche l'accueil (une seule affiche, une seule rangée, rien).
     property <int> tour-cards: root.sections.length == 0 ? 0 : root.sections.length > 1 ? 2 : root.sections[0].items.length;
     // Bouton choisi au clavier : 0 retour · 1 passer la visite · 2 suivant.
