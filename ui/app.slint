@@ -3117,7 +3117,12 @@ export component AppWindow inherits Window {
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
     property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
-    property <length> hero-ty: root.hero-deck ? root.height - root.hero-th - 32px * root.k : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.header-h + 24px;
+    property <length> hero-ty: root.hero-deck ? root.height - root.hero-th - 32px * root.k : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px
+        : root.header-h + 24px - (root.hero-dest ? root.hero-keep : 0px);
+    // Fiche -> fiche sans défilement : décalage de l'affiche de la page (voir open-hero).
+    property <length> hero-keep;
+    // La page défile au rythme de l'affiche qui vole (saison), le reste du temps comme d'habitude.
+    property <bool> hero-glide: root.hero-anim && root.hero-dest && root.screen == "detail";
     property <length> hero-tw: root.hero-deck ? min(root.width * 0.5, 560px * root.k) : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
     property <length> hero-th: root.hero-deck ? min(root.width * 0.5, 560px * root.k) * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
@@ -3230,7 +3235,10 @@ export component AppWindow inherits Window {
         // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
         // Affiche de la page sortie de l'écran (page descendue, affiche cliquée plus bas) : pas
         // d'image qui vole vers elle ; les rangées se retournent sur le nouveau média.
-        let poster-gone = root.screen == "detail" && root.keep-scroll && root.d-view-y > root.poster-w * 1.5 - 40px * root.k;
+        // (Sortie : il en reste moins d'un cinquième sous la barre du haut.)
+        let poster-gone = root.screen == "detail" && root.keep-scroll && root.d-view-y > 24px + root.poster-w * 1.2;
+        // Affiche encore visible, page gardée en place : l'image vole jusqu'à l'affiche là où elle est.
+        root.hero-keep = root.screen == "detail" && root.keep-scroll && !kid ? root.d-view-y : 0px;
         if (!poster-gone && (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
@@ -4527,11 +4535,11 @@ export component AppWindow inherits Window {
     // Affiche des rangées du bas touchée à la souris ou au doigt : la fiche ne défile pas (ni vers la
     // rangée, ni vers le haut à l'arrivée de la fiche suivante, voir keep-scroll côté Rust).
     in-out property <bool> keep-scroll;
-    function hold-scroll() {
+    function hold-scroll(open: bool) {
         if (!Nav.kb) {
             root.d-free-y = root.d-view-y;
             root.d-free = true;
-            root.keep-scroll = true;
+            root.keep-scroll = open;
         }
     }
     function ep-skip() {
@@ -6577,7 +6585,7 @@ export component AppWindow inherits Window {
             y: 0px - root.d-view-y;
             height: parent.height + root.d-view-y;
             // Pendant le vol d'une affiche vers sa place, la page défile au même rythme qu'elle.
-            animate y { duration: Motion.scroll && !Nav.drag ? (root.hero-on && root.hero-dest ? root.hero-dur : 180ms) : 0ms; easing: cubic-bezier(0.65, 0, 0.35, 1); }
+            animate y { duration: Motion.scroll && !Nav.drag ? (root.hero-glide ? root.hero-dur : 180ms) : 0ms; easing: root.hero-glide ? cubic-bezier(0.65, 0, 0.35, 1) : ease-out; }
 
         // Windows 7 : cadre de verre épais autour de l'affiche (comme les jaquettes de Windows Media Center).
         if Theme.win7 && (!root.hero-covers || root.hero-seerr || root.hero-big): Rectangle {
@@ -7124,12 +7132,12 @@ export component AppWindow inherits Window {
             focus-index: root.d-x;
             key: 1004 + ri;
             touched(i) => {
-                root.hold-scroll();
+                root.hold-scroll(false);
                 root.d-zone = 4 + ri;
                 root.d-x = i;
             }
             activated(i) => {
-                root.hold-scroll();
+                root.hold-scroll(true);
                 root.d-zone = 4 + ri;
                 root.d-x = i;
                 root.open-hero(row.items[i].id);
