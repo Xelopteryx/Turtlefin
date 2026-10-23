@@ -6240,6 +6240,11 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             buttons.push((trf("Sous-titres : {}", &[&label]), "pick-sub".into(), String::new(), false));
         }
     }
+    // Bande-annonce : celle du serveur, sinon celle de YouTube s'il y a yt-dlp pour la lire.
+    if matches!(item.kind.as_str(), "Movie" | "Series") && (item.local_trailer_count.unwrap_or(0) > 0 || (item.youtube_trailer().is_some() && ytdlp().is_some())) {
+        let at = buttons.iter().take_while(|b| b.0.is_empty()).count();
+        buttons.insert(at, (tr("Bande-annonce").into(), "trailer".into(), String::new(), false));
+    }
     // Appareil piloté (Diffuser) : « Lire sur … », première pastille (après les boutons à icône).
     if let Some(t) = app.cast.lock().unwrap().as_ref() {
         if matches!(item.kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
@@ -6543,6 +6548,88 @@ async fn play_flow(app: Arc<App>, id: Option<String>, test_url: Option<String>) 
         return;
     }
     play_flow_with(app, id, test_url, None, Vec::new()).await;
+}
+
+/// yt-dlp installé sur l'appareil (variable TURTLEFIN_YTDLP, à côté de Turtlefin, ou dans le PATH) :
+/// il n'est pas fourni avec Turtlefin. Android : jamais.
+fn ytdlp() -> Option<&'static std::path::Path> {
+    static FOUND: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+    FOUND
+        .get_or_init(|| {
+            if cfg!(target_os = "android") {
+                return None;
+            }
+            let name = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
+            let beside = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name)));
+            let in_path = std::env::var_os("PATH").into_iter().flat_map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).map(|d| d.join(name));
+            std::env::var_os("TURTLEFIN_YTDLP").map(std::path::PathBuf::from).into_iter().chain(beside).chain(in_path).find(|p| p.is_file())
+        })
+        .as_deref()
+}
+
+/// Adresses directes (image, son) d'une vidéo YouTube, par yt-dlp : sans compte ni cookies ni
+/// configuration de l'utilisateur (lecture anonyme), et sans publicité (flux bruts). 1080p au plus,
+/// en H.264 (décodé partout, y compris sur le Pi).
+async fn youtube_streams(tool: &std::path::Path, id: &str) -> anyhow::Result<Vec<String>> {
+    let url = format!("https://www.youtube.com/watch?v={id}");
+    let mut cmd = tokio::process::Command::new(tool);
+    cmd.args(["--ignore-config", "--no-playlist", "--no-warnings", "-f", "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]/b[height<=1080]/b", "-g", "--", &url])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW : pas de console qui s'ouvre
+    let out = tokio::time::timeout(std::time::Duration::from_secs(40), cmd.output())
+        .await
+        .map_err(|_| anyhow::anyhow!("{}", tr("YouTube ne répond pas")))??;
+    let urls: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| l.starts_with("https://")).map(str::to_string).collect();
+    if urls.is_empty() {
+        let err = String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("").chars().take(160).collect::<String>();
+        return Err(anyhow::anyhow!("{}", trf("vidéo YouTube indisponible ({})", &[&err])));
+    }
+    Ok(urls)
+}
+
+/// Bande-annonce de la fiche : celle enregistrée sur le serveur, sinon celle de YouTube (yt-dlp),
+/// lue sans le jeton du serveur (il ne part jamais vers YouTube).
+fn play_trailer(app: &Arc<App>) {
+    let Some(client) = app.client() else { return };
+    let Some(id) = app.stack.lock().unwrap().last().cloned() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_toast(tr("Recherche de la bande-annonce…").into());
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r: anyhow::Result<()> = async {
+            let item = client.item(&id).await?;
+            if item.local_trailer_count.unwrap_or(0) > 0 {
+                if let Some(t) = client.local_trailers(&id).await?.into_iter().next() {
+                    play_flow(app2.clone(), Some(t.id), None).await;
+                    return Ok(());
+                }
+            }
+            let (Some(yt), Some(tool)) = (item.youtube_trailer(), ytdlp()) else {
+                return Err(anyhow::anyhow!("{}", tr("aucune bande-annonce pour ce titre")));
+            };
+            let urls = youtube_streams(tool, &yt).await?;
+            // Image et son séparés : réunis par une liste EDL de mpv (comme le fait son module yt-dlp).
+            let url = if urls.len() >= 2 {
+                let part = |u: &str| format!("!no_clip;!no_chapters;%{}%{}", u.len(), u);
+                format!("edl://{};!new_stream;{}", part(&urls[0]), part(&urls[1]))
+            } else {
+                urls[0].clone()
+            };
+            let title = trf("Bande-annonce · {}", &[&item.name]);
+            let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast("".into()));
+            play_flow_with(app2.clone(), None, Some(url), Some((title, "YouTube".to_string())), Vec::new()).await;
+            Ok(())
+        }
+        .await;
+        if let Err(e) = r {
+            let msg = trf("Bande-annonce : {}", &[&human_err(&e)]);
+            let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+        }
+    });
 }
 
 /// Lecture lancée par le groupe (watch party) à une position imposée.
@@ -7974,6 +8061,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 toggle_flag(&app, a);
             } else if a == "watch" {
                 toggle_watch(&app);
+            } else if a == "trailer" {
+                play_trailer(&app);
             } else if a == "download" {
                 start_download(&app);
             } else if a == "seerr-missing" {

@@ -1966,3 +1966,24 @@ msgstr "nie znaleziono listy"
 
 msgid "aucun épisode sur le serveur"
 msgstr "brak odcinka na serwerze"
+
+msgid "Bande-annonce"
+msgstr "Zwiastun"
+
+msgid "Bande-annonce : {}"
+msgstr "Zwiastun: {}"
+
+msgid "Bande-annonce · {}"
+msgstr "Zwiastun · {}"
+
+msgid "Recherche de la bande-annonce…"
+msgstr "Szukanie zwiastuna…"
+
+msgid "YouTube ne répond pas"
+msgstr "YouTube nie odpowiada"
+
+msgid "aucune bande-annonce pour ce titre"
+msgstr "brak zwiastuna dla tego tytułu"
+
+msgid "vidéo YouTube indisponible ({})"
+msgstr "film YouTube niedostępny ({})"

@@ -1960,3 +1960,24 @@ msgstr "lista no encontrada"
 
 msgid "aucun épisode sur le serveur"
 msgstr "ningún episodio en el servidor"
+
+msgid "Bande-annonce"
+msgstr "Tráiler"
+
+msgid "Bande-annonce : {}"
+msgstr "Tráiler: {}"
+
+msgid "Bande-annonce · {}"
+msgstr "Tráiler · {}"
+
+msgid "Recherche de la bande-annonce…"
+msgstr "Buscando el tráiler…"
+
+msgid "YouTube ne répond pas"
+msgstr "YouTube no responde"
+
+msgid "aucune bande-annonce pour ce titre"
+msgstr "no hay tráiler para este título"
+
+msgid "vidéo YouTube indisponible ({})"
+msgstr "vídeo de YouTube no disponible ({})"

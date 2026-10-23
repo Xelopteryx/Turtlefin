@@ -1960,3 +1960,24 @@ msgstr "lijst niet gevonden"
 
 msgid "aucun épisode sur le serveur"
 msgstr "geen aflevering op de server"
+
+msgid "Bande-annonce"
+msgstr "Trailer"
+
+msgid "Bande-annonce : {}"
+msgstr "Trailer: {}"
+
+msgid "Bande-annonce · {}"
+msgstr "Trailer · {}"
+
+msgid "Recherche de la bande-annonce…"
+msgstr "Trailer zoeken…"
+
+msgid "YouTube ne répond pas"
+msgstr "YouTube reageert niet"
+
+msgid "aucune bande-annonce pour ce titre"
+msgstr "geen trailer voor deze titel"
+
+msgid "vidéo YouTube indisponible ({})"
+msgstr "YouTube-video niet beschikbaar ({})"

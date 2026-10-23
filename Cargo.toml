@@ -18,7 +18,7 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 base64 = "0.22"
 # Heure locale (« Fin à 22:47 »).
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "net", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "net", "io-util", "process"] }
 # reqwest 0.13 : rustls par défaut, avec le magasin de certificats du système
 # (un certificat mkcert installé sur la machine est donc accepté).
 # "query" est devenu une option dans la 0.13.

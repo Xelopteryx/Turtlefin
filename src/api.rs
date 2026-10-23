@@ -197,6 +197,32 @@ pub struct Item {
     pub provider_ids: Option<HashMap<String, String>>,
     /// Entrée d'une liste de lecture (sert à l'en retirer).
     pub playlist_item_id: Option<String>,
+    /// Bandes-annonces enregistrées sur le serveur (fichiers « -trailer », Trailarr…).
+    pub local_trailer_count: Option<u32>,
+    /// Bandes-annonces en ligne connues du serveur (YouTube, via TMDb, dans la langue de ses métadonnées).
+    pub remote_trailers: Option<Vec<RemoteTrailer>>,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct RemoteTrailer {
+    pub url: Option<String>,
+    pub name: Option<String>,
+}
+
+impl Item {
+    /// Identifiant YouTube de la première bande-annonce en ligne (11 caractères vérifiés : l'adresse
+    /// envoyée à yt-dlp est reconstruite, jamais reprise telle quelle du serveur).
+    pub fn youtube_trailer(&self) -> Option<String> {
+        self.remote_trailers.iter().flatten().filter_map(|t| t.url.as_deref()).find_map(|u| {
+            let id = u
+                .split_once("youtube.com/watch?v=")
+                .or_else(|| u.split_once("youtu.be/"))
+                .or_else(|| u.split_once("youtube.com/embed/"))
+                .map(|(_, rest)| rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect::<String>())?;
+            (id.len() == 11).then_some(id)
+        })
+    }
 }
 
 /// Nom de la liste de lecture « À regarder » du compte : le même quelle que soit la langue de
@@ -1490,6 +1516,11 @@ impl Client {
     pub async fn watchlist_items(&self, pid: &str) -> Result<Vec<Item>> {
         let r: ItemsResp = self.get(&format!("/Playlists/{}/Items", seg(pid)), &[("userId", &self.user_id)]).await?;
         Ok(r.items)
+    }
+
+    /// Bandes-annonces enregistrées sur le serveur pour un film / une série.
+    pub async fn local_trailers(&self, id: &str) -> Result<Vec<Item>> {
+        self.get(&format!("/Items/{}/LocalTrailers", seg(id)), &[("userId", &self.user_id)]).await
     }
 
     /// Éléments par identifiant (séries de la liste « À regarder »).
