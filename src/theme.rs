@@ -78,11 +78,14 @@ pub struct ThemeDef {
     /// Logo (icône, démarrage) : « » carapace en dégradé, « orb » orbe de verre, « chip » pistes de
     /// circuit.
     pub logo: String,
-    /// Police de l'interface : « » Montserrat, « selawik » (proche de Segoe UI, celle de Windows 7).
+    /// Police de l'interface : « » Montserrat, « selawik » (proche de Segoe UI, celle de Windows 7),
+    /// « mono » (JetBrains Mono, chasse fixe).
     pub font: String,
     /// Fenêtres façon Windows 7 : cadre de verre épais, bouton fermer rouge brillant, boutons
     /// rectangulaires, barre du haut en verre fumé comme la barre des tâches.
     pub win7: bool,
+    /// Boutons et panneaux façon composants de carte électronique (coins coupés, pattes, angles vifs).
+    pub term: bool,
 }
 
 impl Default for ThemeDef {
@@ -140,6 +143,7 @@ pub fn turtlefin() -> ThemeDef {
         logo: String::new(),
         font: String::new(),
         win7: false,
+        term: false,
     }
 }
 
@@ -225,10 +229,12 @@ fn nerd() -> ThemeDef {
         ok: s("#4dff9a"),
         warn: s("#ffc23d"),
         veil: 1.4,
-        radius: 4.0,
+        radius: 3.0,
         scenery: s("circuit"),
         boot: s("nerd"),
         logo: s("chip"),
+        font: s("mono"),
+        term: true,
         ..turtlefin()
     }
 }
@@ -335,6 +341,8 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     });
     th.set_aero_font(t.font == "selawik");
     th.set_win7(t.win7);
+    th.set_mono_font(t.font == "mono");
+    th.set_term(t.term);
     window_icon(u, t);
 }
 

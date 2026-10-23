@@ -9,6 +9,15 @@ import "fonts/TurtlefinBlank-Regular.ttf";
 import "fonts/TurtlefinBlank-Medium.ttf";
 import "fonts/TurtlefinBlank-SemiBold.ttf";
 import "fonts/TurtlefinBlank-Bold.ttf";
+// Thème Nerd : JetBrains Mono NL (licence OFL, voir fonts/JetBrainsMono-OFL.txt) et sa copie vide.
+import "fonts/JetBrainsMonoNL-Regular.ttf";
+import "fonts/JetBrainsMonoNL-Medium.ttf";
+import "fonts/JetBrainsMonoNL-SemiBold.ttf";
+import "fonts/JetBrainsMonoNL-Bold.ttf";
+import "fonts/TurtlefinBlankMono-Regular.ttf";
+import "fonts/TurtlefinBlankMono-Medium.ttf";
+import "fonts/TurtlefinBlankMono-SemiBold.ttf";
+import "fonts/TurtlefinBlankMono-Bold.ttf";
 // Thème Frutiger Aero : Selawik (licence OFL, voir fonts/Selawik-OFL.txt) et sa copie vide.
 import "fonts/Selawik-Regular.ttf";
 import "fonts/Selawik-SemiBold.ttf";
@@ -17,7 +26,7 @@ import "fonts/TurtlefinBlankAero-Regular.ttf";
 import "fonts/TurtlefinBlankAero-SemiBold.ttf";
 import "fonts/TurtlefinBlankAero-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
-import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder, Perf, Win7Glass } from "theme.slint";
+import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder, Perf, Win7Glass, TermGlass } from "theme.slint";
 import { AeroSky } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
@@ -651,7 +660,7 @@ component Card inherits Rectangle {
         : root.lit ? Theme.card-focus : Theme.card;
     // Contour au bord exact de la carte (Windows 7 : clair, bleu lumineux si choisie). Pas de halo
     // autour de la carte choisie : seulement une ombre discrète sous les cartes en verre.
-    border-width: Theme.win7 ? 0px : 1px;
+    border-width: Theme.win7 || Theme.term ? 0px : 1px;
     border-color: Theme.card-border;
     drop-shadow-blur: Nav.no-shadow ? 0px : Theme.win7 ? 8px * root.k : 0px;
     drop-shadow-color: #00000070;
@@ -712,6 +721,31 @@ component Card inherits Rectangle {
         font-size: 12px * root.k;
         font-weight: 400;
     }
+    }
+    // Nerd : trait fin tout autour ; choisie, il s'allume et des équerres marquent les quatre coins
+    // (comme un viseur), par-dessus l'affiche.
+    if Theme.term: Rectangle {
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: root.lit ? Theme.accent2 : Theme.card-border;
+        if root.lit: Path {
+            property <float> w: self.width / 1px;
+            property <float> h: self.height / 1px;
+            property <float> e: 16 * root.k;
+            x: -3px;
+            y: -3px;
+            width: parent.width + 6px;
+            height: parent.height + 6px;
+            viewbox-width: self.w;
+            viewbox-height: self.h;
+            fill: transparent;
+            stroke: Theme.accent2;
+            stroke-width: 3px;
+            commands: "M 1.5 " + self.e + " L 1.5 1.5 L " + self.e + " 1.5"
+                + " M " + (self.w - self.e) + " 1.5 L " + (self.w - 1.5) + " 1.5 L " + (self.w - 1.5) + " " + self.e
+                + " M " + (self.w - 1.5) + " " + (self.h - self.e) + " L " + (self.w - 1.5) + " " + (self.h - 1.5) + " L " + (self.w - self.e) + " " + (self.h - 1.5)
+                + " M " + self.e + " " + (self.h - 1.5) + " L 1.5 " + (self.h - 1.5) + " L 1.5 " + (self.h - self.e);
+        }
     }
     // Windows 7 : contour par-dessus l'affiche (sinon l'image le recouvre et seul le bas se voit),
     // bleu lumineux tout autour de la carte choisie.
@@ -1187,7 +1221,7 @@ component AlertBadge inherits Rectangle {
     Text {
         text: "!";
         color: white;
-        font-family: Theme.aero-font ? "Selawik" : "Montserrat";
+        font-family: Theme.font-name;
         font-size: 13px * root.k;
         font-weight: 800;
         horizontal-alignment: center;
@@ -1206,7 +1240,7 @@ component HeaderIcon inherits Rectangle {
     width: 44px * root.k;
     height: 44px * root.k;
     // Windows 7 : bouton de la barre des tâches (carré de verre, lueur qui monte du bas au survol).
-    border-radius: Theme.win7 ? 5px * root.k : self.height / 2;
+    border-radius: Theme.win7 ? 5px * root.k : Theme.term ? 2px * root.k : self.height / 2;
     // Sélection au clavier montrée seulement si Nav.kb (au bureau, la souris la cache).
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     transform-scale: (root.lit ? (Theme.win7 ? 1.04 : 1.12) : 1.0) * root.pop;
@@ -1693,7 +1727,7 @@ component ActionButton inherits Rectangle {
     property <bool> bubble: Theme.gloss > 0 && !Theme.win7;
     // Windows 7 : bouton rectangulaire aux coins à peine arrondis (verre fumé ; choisi : bleu
     // lumineux, comme le survol d'un bouton de Windows 7).
-    border-radius: Theme.win7 ? 4px : root.bubble ? self.height / 2 : 10px;
+    border-radius: Theme.win7 ? 4px : Theme.term ? 2px : root.bubble ? self.height / 2 : 10px;
     // Sélection : petit rebond ; appui : le bouton s'enfonce puis rebondit (clic, Entrée via `press`).
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     property <float> lit-s: root.lit ? (Theme.win7 ? 1.03 : 1.07) : 1.0;
@@ -1715,7 +1749,7 @@ component ActionButton inherits Rectangle {
     }
     // Au repos, la bulle reste du verre à peine teinté (sans lueur) : seule la bulle choisie est
     // pleine, brillante et lumineuse (sinon on ne voyait pas laquelle était choisie).
-    background: Theme.win7 ? transparent
+    background: Theme.win7 || Theme.term ? transparent
         : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : root.bubble ? @linear-gradient(180deg, Theme.accent2.with-alpha(0.16) 0%, Theme.accent1.with-alpha(0.22) 100%)
         : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
@@ -1726,6 +1760,9 @@ component ActionButton inherits Rectangle {
     drop-shadow-color: Theme.win7 ? #6fd0ffcc : Theme.accent2.with-alpha(0.55);
     // Windows 7 : verre du thème (voir Win7Glass).
     if Theme.win7: Win7Glass {
+        lit: root.lit;
+    }
+    if Theme.term: TermGlass {
         lit: root.lit;
     }
     Gloss {
@@ -1831,8 +1868,8 @@ component RemotePad inherits Rectangle {
     callback close();
     // Hauteur du contenu (le parent s'y ajuste).
     out property <length> want-h: pad-col.preferred-height;
-    border-radius: (Theme.win7 ? 8px : 24px) * root.k;
-    background: Theme.win7 ? transparent : Theme.panel;
+    border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 24px) * root.k;
+    background: Theme.win7 || Theme.term ? transparent : Theme.panel;
     border-width: Theme.win7 ? 0px : 1px;
     border-color: Theme.glass-border;
     drop-shadow-blur: Nav.no-shadow ? 0px : (30px * root.k);
@@ -2022,12 +2059,15 @@ component DetailButton inherits Rectangle {
         width: parent.width;
         height: parent.height;
         // Windows 7 (Aero) : même bouton de verre que les autres boutons du thème.
-        border-radius: Theme.win7 ? 4px : root.chip || root.icon == "label" ? self.height / 2 : 10px;
+        border-radius: Theme.win7 ? 4px : Theme.term ? 2px : root.chip || root.icon == "label" ? self.height / 2 : 10px;
         transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
-        background: Theme.win7 ? transparent : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        background: Theme.win7 || Theme.term ? transparent : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
             : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
         property <color> ink: root.lit ? Theme.on-accent : Theme.fg;
         if Theme.win7: Win7Glass {
+            lit: root.lit;
+        }
+        if Theme.term: TermGlass {
             lit: root.lit;
         }
         Gloss {
@@ -2202,8 +2242,8 @@ component OverviewPanel inherits Rectangle {
         y: (parent.height - self.height) / 2 + (1 - root.p) * (root.open ? 40px : -30px) * root.k;
         opacity: root.p;
         transform-scale: 0.94 + 0.06 * root.p;
-        border-radius: (Theme.win7 ? 8px : 16px);
-        background: Theme.win7 ? transparent : Theme.panel;
+        border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 16px);
+        background: Theme.win7 || Theme.term ? transparent : Theme.panel;
         border-width: Theme.win7 ? 0px : 1px;
         border-color: Theme.fg.with-alpha(0.14);
         Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -2606,7 +2646,7 @@ component HeaderRight inherits Rectangle {
             text: root.clock;
             // Police nommée : l'heure ne dépend pas de la langue, l'effet de changement de langue
             // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
-            font-family: Theme.aero-font ? "Selawik" : "Montserrat";
+            font-family: Theme.font-name;
             color: Theme.text;
             font-size: 18px * root.k;
             font-weight: 500;
@@ -2737,8 +2777,7 @@ export component AppWindow inherits Window {
     // l'interface (le cadre montre le bureau flouté, voir WinCaption).
     background: root.chrome || Perf.hide(32) ? transparent : @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
     // Captures de l'effet de langue : la même page sans texte (police vide, mêmes largeurs).
-    default-font-family: Theme.aero-font ? (root.dust-blank ? "Turtlefin Blank Aero" : "Selawik")
-        : root.dust-blank ? "Turtlefin Blank" : "Montserrat";
+    default-font-family: root.dust-blank ? Theme.blank-name : Theme.font-name;
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
@@ -5280,8 +5319,8 @@ export component AppWindow inherits Window {
             }
 
             Rectangle {
-                border-radius: Theme.win7 ? 8 * lg.u : 20 * lg.u;
-                background: Theme.win7 ? transparent : Theme.glass;
+                border-radius: Theme.win7 ? 8 * lg.u : Theme.term ? 3 * lg.u : 20 * lg.u;
+                background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                 border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
                 Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -7005,18 +7044,26 @@ export component AppWindow inherits Window {
                 opacity: self.in;
                 width: parent.width;
                 height: root.ep-row-h;
-                border-radius: 12px * root.k;
+                border-radius: Theme.win7 ? 4px : Theme.term ? 2px : 12px * root.k;
                 // Résumé long : coupé au bas de la ligne.
                 clip: true;
-                background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (Theme.dark ? #00000040 : Theme.fg.with-alpha(0.07));
+                // Aero : verre de Windows 7 ; Nerd : boîtier de composant (comme les boutons du thème).
+                background: Theme.win7 || Theme.term ? transparent
+                    : self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : (Theme.dark ? #00000040 : Theme.fg.with-alpha(0.07));
                 animate background { duration: Motion.select ? 150ms : 0ms; }
+                if Theme.win7: Win7Glass {
+                    lit: ep-row.lit;
+                }
+                if Theme.term: TermGlass {
+                    lit: ep-row.lit;
+                }
                 // Vignette 16:9, avancement et coche « vu ».
                 Rectangle {
                     x: 8px * root.k;
                     y: 8px * root.k;
                     width: root.ep-thumb-w;
                     height: root.ep-thumb-w * 0.5625;
-                    border-radius: 8px * root.k;
+                    border-radius: Theme.win7 ? 3px : Theme.term ? 1px : 8px * root.k;
                     clip: true;
                     background: Theme.fg.with-alpha(0.08);
                     if ep.has-image: Image {
@@ -7162,8 +7209,8 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: min(480px * root.k, parent.width - 32px * root.k);
                 height: 70px * root.k + root.tp-items.length * 44px * root.k;
-                border-radius: (Theme.win7 ? 8px : 16px);
-                background: Theme.win7 ? transparent : Theme.glass;
+                border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 16px);
+                background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                 border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
                 Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -7558,15 +7605,18 @@ export component AppWindow inherits Window {
                 opacity: self.in-e;
                 property <bool> sel: !root.h-focus && i == root.srv-sel && Nav.kb;
                 property <bool> current: root.server != "" && (s.main == root.server || s.backup == root.server);
-                border-radius: Theme.win7 ? 4px : 16px * root.k;
-                background: Theme.win7 ? transparent : self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                border-radius: Theme.win7 ? 4px : Theme.term ? 2px : 16px * root.k;
+                background: Theme.win7 || Theme.term ? transparent : self.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                     : ((srv-area.has-hover && !Nav.kb && !Nav.touch) ? ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.15) : ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.07));
                 // Windows 7 (Aero) : le même verre que les autres boutons du thème.
                 if Theme.win7: Win7Glass {
                     lit: srv-card.sel || (srv-area.has-hover && !Nav.kb && !Nav.touch);
                 }
+                if Theme.term: TermGlass {
+                    lit: srv-card.sel || (srv-area.has-hover && !Nav.kb && !Nav.touch);
+                }
                 Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && !Theme.win7; }
-                border-width: self.sel || Theme.win7 ? 0px : 1px;
+                border-width: self.sel || Theme.win7 || Theme.term ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
                 // Choisie au clavier ou survolée à la souris : elle s'avance un peu.
                 property <bool> hot: self.sel || (srv-area.has-hover && !Nav.kb && !Nav.touch);
@@ -7785,8 +7835,8 @@ export component AppWindow inherits Window {
                 }
 
                 Rectangle {
-                    border-radius: (Theme.win7 ? 8px : 20px) * root.k;
-                    background: Theme.win7 ? transparent : Theme.glass;
+                    border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 20px) * root.k;
+                    background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                     border-width: Theme.win7 ? 0px : 1px;
                     border-color: Theme.glass-border;
                     Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -7936,7 +7986,7 @@ export component AppWindow inherits Window {
                     self.e = 1;
                 }
                 animate e { duration: Motion.panels ? 520ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-                border-radius: (Theme.win7 ? 8px : 18px) * root.k;
+                border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 18px) * root.k;
                 background: Theme.panel;
                 opacity: min(1, self.e * 2);
                 VerticalLayout {
@@ -8001,8 +8051,8 @@ export component AppWindow inherits Window {
             choice := Rectangle {
                 width: min(600px * root.k, parent.width - 32px * root.k);
                 height: 190px * root.k;
-                border-radius: (Theme.win7 ? 8px : 16px);
-                background: Theme.win7 ? transparent : Theme.glass;
+                border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 16px);
+                background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                 border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
                 Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -8867,9 +8917,12 @@ export component AppWindow inherits Window {
                             width: val-t.preferred-width + 48px * root.k;
                             animate width { duration: Motion.panels ? 420ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                             height: 34px * root.k;
-                            border-radius: Theme.win7 ? 4px : self.height / 2;
-                            background: Theme.win7 ? transparent : parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.12);
+                            border-radius: Theme.win7 ? 4px : Theme.term ? 2px : self.height / 2;
+                            background: Theme.win7 || Theme.term ? transparent : parent.sel ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.12);
                             if Theme.win7: Win7Glass {
+                                lit: set-row.sel;
+                            }
+                            if Theme.term: TermGlass {
                                 lit: set-row.sel;
                             }
                             Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -8982,8 +9035,8 @@ export component AppWindow inherits Window {
                 y: (parent.height - self.height) / 2;
                 width: min(380px * root.k, parent.width - 32px * root.k);
                 height: 70px * root.k + parent.rows * parent.row-h + 12px * root.k;
-                border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-                background: Theme.win7 ? transparent : Theme.glass;
+                border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 18px) * root.k;
+                background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                 border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
                 Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -9015,14 +9068,14 @@ export component AppWindow inherits Window {
                     property <length> pad: 4px * root.k;
                     property <length> th: 22px * root.k;
                     // Mesures seulement (invisibles).
-                    old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.aero-font ? "Selawik" : "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
-                    new-t := Text { visible: false; text: root.ch-title; font-family: Theme.aero-font ? "Selawik" : "Montserrat"; font-size: 18px * root.k; font-weight: 700; }
+                    old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
+                    new-t := Text { visible: false; text: root.ch-title; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
                     Text {
                         x: ch-head.bx;
                         height: parent.height;
                         // L'ancien titre tant qu'il n'est pas recouvert.
                         text: ch-head.live && ch-head.p1 < 1 ? root.ch-title-old : root.ch-title;
-                        font-family: Theme.aero-font ? "Selawik" : "Montserrat"; // reste lisible pendant l'effet de langue (police vide ailleurs)
+                        font-family: Theme.font-name; // reste lisible pendant l'effet de langue (police vide ailleurs)
                         color: Theme.fg;
                         font-size: 18px * root.k;
                         font-weight: 700;
@@ -9065,7 +9118,7 @@ export component AppWindow inherits Window {
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
-                            font-family: Theme.aero-font ? "Selawik" : "Montserrat";
+                            font-family: Theme.font-name;
                             color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
@@ -9520,8 +9573,8 @@ export component AppWindow inherits Window {
                 }
 
                 Rectangle {
-                    border-radius: (Theme.win7 ? 8px : 20px) * root.k;
-                    background: Theme.win7 ? transparent : Theme.glass;
+                    border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 20px) * root.k;
+                    background: Theme.win7 || Theme.term ? transparent : Theme.glass;
                     border-width: Theme.win7 ? 0px : 1px;
                     border-color: Theme.glass-border;
                     Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -9909,8 +9962,8 @@ export component AppWindow inherits Window {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2 + (1 - root.remote-p) * 40px * root.k;
             opacity: root.remote-p;
-            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-            background: Theme.win7 ? transparent : Theme.panel;
+            border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 18px) * root.k;
+            background: Theme.win7 || Theme.term ? transparent : Theme.panel;
             border-width: Theme.win7 ? 0px : 1px;
             border-color: Theme.glass-border;
             drop-shadow-blur: Nav.no-shadow ? 0px : (30px * root.k);
@@ -10629,8 +10682,8 @@ export component AppWindow inherits Window {
             x: parent.width - self.width - 16px * root.k;
             y: root.drop-y;
             opacity: root.drop-p;
-            border-radius: (Theme.win7 ? 8px : 18px) * root.k;
-            background: Theme.win7 ? transparent : Theme.glass;
+            border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 18px) * root.k;
+            background: Theme.win7 || Theme.term ? transparent : Theme.glass;
             border-width: Theme.win7 ? 0px : 1px;
             border-color: Theme.glass-border;
             drop-shadow-blur: Nav.no-shadow ? 0px : (24px * root.k);
@@ -11294,17 +11347,24 @@ export component AppWindow inherits Window {
         width: 40px * root.k;
         height: 96px * root.k;
         opacity: root.ep-btn-p;
-        border-radius: Theme.win7 ? 4px : self.width / 2;
-        background: Theme.glass;
-        border-width: 1px;
+        border-radius: Theme.win7 ? 4px : Theme.term ? 2px : self.width / 2;
+        // Aero : verre de Windows 7 ; Nerd : boîtier de composant (comme les autres boutons du thème).
+        background: Theme.win7 || Theme.term ? transparent : Theme.glass;
+        border-width: Theme.win7 || Theme.term ? 0px : 1px;
         border-color: Theme.glass-border;
+        if Theme.win7: Win7Glass {
+            lit: false;
+        }
+        if Theme.term: TermGlass {
+            lit: false;
+        }
         for b[i] in 2: Rectangle {
             property <bool> lit: (Nav.kb && root.ep-btn == i) || (eb-area.has-hover && !Nav.touch);
             x: 4px * root.k;
             y: (4px + i * 46px) * root.k;
             width: parent.width - 8px * root.k;
             height: 42px * root.k;
-            border-radius: Theme.win7 ? 3px : self.width / 2;
+            border-radius: Theme.win7 ? 3px : Theme.term ? 1px : self.width / 2;
             background: self.lit ? (Theme.win7 ? #45a8ee : Theme.accent2.with-alpha(0.85)) : transparent;
             animate background { duration: Motion.select ? 150ms : 0ms; }
             Path {

@@ -598,7 +598,7 @@ export component CircuitScene inherits Rectangle {
             viewbox-width: 1400;
             viewbox-height: 1400;
             fill: transparent;
-            stroke: Theme.accent2;
+            stroke: Theme.accent2.with-alpha(min(1, 0.1 + 0.9 * root.bright));
             stroke-width: 3 * root.u;
             stroke-line-cap: round;
             commands: "M " + (parent.x0 + 700) + " " + (parent.y0 + 700) + " L " + (parent.x0 + (parent.x1 - parent.x0) * parent.flow + 700) + " " + (parent.y0 + (parent.y1 - parent.y0) * parent.flow + 700);
@@ -638,7 +638,8 @@ export component CircuitScene inherits Rectangle {
         property <bool> leaving: self.cpu && self.s == 4;
         property <float> dx: self.cpu ? 0 : c.x / 68;
         property <float> dy: self.leaving ? 0 : self.cpu ? -1 : c.y / 68;
-        opacity: self.leaving ? self.arrive : 1;
+        // En fond des pages (bright bas), les puces restent discrètes derrière le contenu.
+        opacity: (self.leaving ? self.arrive : 1) * min(1, 0.1 + 0.9 * root.bright);
         property <length> w: (self.cpu ? 52 : 44) * root.u;
         property <length> h: (self.cpu ? 52 : 32) * root.u;
         visible: self.arrive > 0.01;

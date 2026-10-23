@@ -160,7 +160,7 @@ const BASE = {
   panel: "#0b1520f5", card: "#00000033", card_focus: "#00000080", placeholder1: "#2b2142", placeholder2: "#10283a",
   scrim: "#000000", danger: "#ff6b6b", danger_text: "#ff8a8a", ok: "#4ade80", warn: "#f59e0b",
   card_border: "#00000000", glow: "#00a4db40", sheen: 0, player_bar: "#181820d9", player_ink: "#ffffff", player_orb: false,
-  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "", logo: "", font: "", win7: false,
+  veil: 1.0, radius: 10, gloss: 0, bubbles: false, scenery: "", header_glass: false, edge: "#00000000", streaks: false, boot: "", logo: "", font: "", win7: false, term: false,
 };
 const PRESETS = {
   turtlefin: { ...BASE },
@@ -174,7 +174,7 @@ const PRESETS = {
     muted: "#9fe3c08c", accent1: "#00b864", accent2: "#2ef0c8", on_accent: "#001a0d", glass: "#04170ee0", glass_border: "#2ef0c840",
     panel: "#03140cf5", card: "#0b2a1a66", card_focus: "#0f3a24b3", card_border: "#2ef0c833", glow: "#2ef0c800",
     player_bar: "#020d08e6", player_ink: "#e6fff2", placeholder1: "#0b3a24", placeholder2: "#06241a", scrim: "#000502",
-    danger: "#ff5c5c", danger_text: "#ff9a9a", ok: "#4dff9a", warn: "#ffc23d", veil: 1.4, radius: 4, scenery: "circuit", boot: "nerd", logo: "chip" },
+    danger: "#ff5c5c", danger_text: "#ff9a9a", ok: "#4dff9a", warn: "#ffc23d", veil: 1.4, radius: 3, scenery: "circuit", boot: "nerd", logo: "chip", font: "mono", term: true },
 };
 
 // ---------------------------------------------------------------- Textes (français / anglais)
@@ -197,7 +197,7 @@ const TXT = {
     scenery: "Décor du fond", sc_none: "Aucun", sc_sky: "Ciel, herbe et bulles", sc_harmony: "Harmony (Windows 7)", sc_circuit: "Carte mère", sc_abyss: "Profondeurs marines", bt_nerd: "Machine qui s'allume", lg_chip: "Pistes de circuit",
     boot: "Animation de démarrage", bt_logo: "Logo qui se relie", bt_aero: "Billes de verre (Aero)",
     logo: "Logo (icône, démarrage)", lg_shell: "Carapace en dégradé", lg_orb: "Orbe de verre (Windows 7)",
-    font: "Police", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", win7: "Fenêtres façon Windows 7", },
+    font: "Police", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", ft_mono: "JetBrains Mono (chasse fixe)", win7: "Fenêtres façon Windows 7", term: "Boutons façon composants électroniques", },
   en: { sub: "— create your Turtlefin theme", import: "Import…", export: "Save the .tftheme",
     howto: "To use it: save the file, put it in the “Turtlefin Themes” folder (Documents), then in Turtlefin: Settings → Display → Import a theme.",
     start: "Start: ", g_general: "General", g_bg: "Background", g_ink: "Text and icons", g_acc: "Accents", g_surf: "Surfaces",
@@ -216,7 +216,7 @@ const TXT = {
     scenery: "Background scenery", sc_none: "None", sc_sky: "Sky, grass and bubbles", sc_harmony: "Harmony (Windows 7)", sc_circuit: "Motherboard", sc_abyss: "Ocean depths", bt_nerd: "Machine powering up", lg_chip: "Circuit traces",
     boot: "Startup animation", bt_logo: "Joining logo", bt_aero: "Glass orbs (Aero)",
     logo: "Logo (icon, startup)", lg_shell: "Gradient shell", lg_orb: "Glass orb (Windows 7)",
-    font: "Font", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", win7: "Windows 7 style windows", },
+    font: "Font", ft_m: "Montserrat", ft_s: "Selawik (Windows 7)", ft_mono: "JetBrains Mono (monospace)", win7: "Windows 7 style windows", term: "Electronic component buttons", },
 };
 let L = (navigator.language || "fr").startsWith("fr") ? "fr" : "en";
 const t = k => TXT[L][k] || k;
@@ -274,8 +274,9 @@ function build() {
     <div class="row"><label for="f-scenery">${t("scenery")}</label><select id="f-scenery"><option value="">${t("sc_none")}</option><option value="sky">${t("sc_sky")}</option><option value="harmony">${t("sc_harmony")}</option><option value="circuit">${t("sc_circuit")}</option><option value="abyss">${t("sc_abyss")}</option></select></div>
     <div class="row"><label for="f-boot">${t("boot")}</label><select id="f-boot"><option value="">${t("bt_logo")}</option><option value="aero">${t("bt_aero")}</option><option value="nerd">${t("bt_nerd")}</option></select></div>
     <div class="row"><label for="f-logo">${t("logo")}</label><select id="f-logo"><option value="">${t("lg_shell")}</option><option value="orb">${t("lg_orb")}</option><option value="chip">${t("lg_chip")}</option></select></div>
-    <div class="row"><label for="f-font">${t("font")}</label><select id="f-font"><option value="">${t("ft_m")}</option><option value="selawik">${t("ft_s")}</option></select></div>
-    <div class="row"><label for="f-win7">${t("win7")}</label><input type="checkbox" id="f-win7"></div></fieldset>`;
+    <div class="row"><label for="f-font">${t("font")}</label><select id="f-font"><option value="">${t("ft_m")}</option><option value="selawik">${t("ft_s")}</option><option value="mono">${t("ft_mono")}</option></select></div>
+    <div class="row"><label for="f-win7">${t("win7")}</label><input type="checkbox" id="f-win7"></div>
+    <div class="row"><label for="f-term">${t("term")}</label><input type="checkbox" id="f-term"></div></fieldset>`;
   box.innerHTML = h;
   // Liaisons
   const $ = id => document.getElementById(id);
@@ -291,7 +292,7 @@ function build() {
   $("f-radius").oninput = e => { theme.radius = +e.target.value; render(); };
   $("f-gloss").oninput = e => { theme.gloss = e.target.value / 100; render(); };
   $("f-sheen").oninput = e => { theme.sheen = e.target.value / 100; render(); };
-  for (const k of ["streaks", "header_glass", "player_orb", "win7"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
+  for (const k of ["streaks", "header_glass", "player_orb", "win7", "term"]) $("f-" + k).onchange = e => { theme[k] = e.target.checked; render(); };
   $("f-scenery").onchange = e => { theme.scenery = e.target.value; theme.bubbles = false; render(); };
   $("f-boot").onchange = e => { theme.boot = e.target.value; render(); };
   $("f-logo").onchange = e => { theme.logo = e.target.value; render(); };
@@ -319,7 +320,7 @@ function fill() {
   $("f-radius").value = theme.radius ?? 10;
   $("f-gloss").value = Math.round((theme.gloss || 0) * 100);
   $("f-sheen").value = Math.round((theme.sheen || 0) * 100);
-  for (const k of ["streaks", "header_glass", "player_orb", "win7"]) $("f-" + k).checked = !!theme[k];
+  for (const k of ["streaks", "header_glass", "player_orb", "win7", "term"]) $("f-" + k).checked = !!theme[k];
   $("f-scenery").value = theme.scenery || (theme.bubbles ? "sky" : "");
   $("f-boot").value = theme.boot || "";
   $("f-logo").value = theme.logo || "";

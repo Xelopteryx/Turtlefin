@@ -534,7 +534,7 @@ export component BootLogo inherits Rectangle {
                 y: 18px * root.k;
                 width: parent.width;
                 text: root.lang-title;
-                font-family: Theme.aero-font ? "Selawik" : "Montserrat"; // lisible pendant l'effet de langue
+                font-family: Theme.font-name; // lisible pendant l'effet de langue
                 color: Theme.fg;
                 font-size: 18px * root.k;
                 font-weight: 700;
@@ -614,7 +614,7 @@ export component BootLogo inherits Rectangle {
                     height: 48px * root.k;
                     Text {
                         text: l.label;
-                        font-family: Theme.aero-font ? "Selawik" : "Montserrat"; // lisible pendant l'effet de langue
+                        font-family: Theme.font-name; // lisible pendant l'effet de langue
                         color: (parent.on ? Theme.on-accent : Theme.fg).with-alpha(parent.e);
                         animate color { duration: Motion.language ? 160ms : 0ms; }
                         font-size: (parent.on ? 18px : 17px) * root.k;

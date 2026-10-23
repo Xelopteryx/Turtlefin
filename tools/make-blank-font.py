@@ -1,11 +1,11 @@
 """Polices « vides » pour l'effet de changement de langue (src/dust.rs).
 
-Copie de chaque Montserrat (et Selawik, police du thème Frutiger Aero) de ui/fonts avec les mêmes largeurs, approches et crénages, mais des
+Copie de chaque Montserrat (et Selawik, police du thème Frutiger Aero ; JetBrains Mono, thème Nerd) de ui/fonts avec les mêmes largeurs, approches et crénages, mais des
 lettres sans dessin : l'interface rendue avec elles est identique, sans aucun texte. Une capture
 avec et sans texte donne exactement les pixels des textes.
 
 Versions modifiées de polices sous licence OFL : elles portent un autre nom (« Turtlefin Blank »,
-« Turtlefin Blank Aero » ; « Selawik » est un nom réservé).
+« Turtlefin Blank Aero », « Turtlefin Blank Mono » ; « Selawik » est un nom réservé).
 
 Usage : python tools/make-blank-font.py   (demande fonttools : pip install fonttools)
 """
@@ -18,6 +18,7 @@ FONTS = pathlib.Path(__file__).resolve().parent.parent / "ui" / "fonts"
 SETS = [
     ("Montserrat", ["Regular", "Medium", "SemiBold", "Bold"], "Turtlefin Blank", "TurtlefinBlank"),
     ("Selawik", ["Regular", "SemiBold", "Bold"], "Turtlefin Blank Aero", "TurtlefinBlankAero"),
+    ("JetBrainsMonoNL", ["Regular", "Medium", "SemiBold", "Bold"], "Turtlefin Blank Mono", "TurtlefinBlankMono"),
 ]
 # Caractères de l'interface absents de Montserrat (liste tirée des textes de l'app).
 SYMBOLS = [0x21E7, 0x2261, 0x232B, 0x2423, 0x2502, 0x25CF, 0x2605, 0x2B07, 0x2713, 0x2665, 0x2022]

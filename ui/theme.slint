@@ -65,6 +65,13 @@ export global Theme {
     in-out property <bool> aero-font: false;
     // Fenêtres, boutons et barre du haut façon Windows 7 (voir WinClose, ActionButton).
     in-out property <bool> win7: false;
+    // Police JetBrains Mono (chasse fixe, thème Nerd).
+    in-out property <bool> mono-font: false;
+    // Boutons et panneaux façon composants de carte électronique (thème Nerd, voir TermGlass).
+    in-out property <bool> term: false;
+    // Police de l'interface, et sa copie vide (effet de changement de langue).
+    out property <string> font-name: self.mono-font ? "JetBrains Mono NL" : self.aero-font ? "Selawik" : "Montserrat";
+    out property <string> blank-name: self.mono-font ? "Turtlefin Blank Mono" : self.aero-font ? "Turtlefin Blank Aero" : "Turtlefin Blank";
 }
 
 // Reflet brillant d'un bouton ou d'un panneau (thèmes à `Theme.gloss` > 0) : moitié haute plus
@@ -126,6 +133,67 @@ export component Win7Glass inherits Rectangle {
         border-radius: 3px;
         border-width: 1px;
         border-color: rgba(255, 255, 255, root.lit ? 0.7 : 0.32);
+    }
+}
+
+// Bouton du thème Nerd : un composant de carte électronique. Boîtier noir aux coins coupés, trait
+// vert phosphore, pattes de chaque côté (boutons assez larges) ; choisi, il s'allume : boîtier plein
+// d'accent, pattes et trait lumineux, lueur autour. Posé en premier enfant d'un bouton au fond
+// transparent (comme Win7Glass).
+export component TermGlass inherits Rectangle {
+    in property <bool> lit;
+    property <float> w: self.width / 1px;
+    property <float> h: self.height / 1px;
+    // Pattes seulement sur les boutons larges (pas sur les icônes rondes).
+    property <float> pin: self.w > 90 ? 4 : 0;
+    property <float> c: min(7, self.h / 4);
+    property <float> x0: root.pin + 0.5;
+    property <float> x1: root.w - root.pin - 0.5;
+    property <float> y1: root.h - 0.5;
+    // Lueur derrière le boîtier allumé.
+    if root.lit: Rectangle {
+        x: root.pin * 1px;
+        width: parent.width - 2 * root.pin * 1px;
+        drop-shadow-blur: Nav.no-shadow ? 0px : 14px;
+        drop-shadow-color: Theme.accent2.with-alpha(0.55);
+        background: Theme.accent2.with-alpha(0.01);
+    }
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: root.w;
+        viewbox-height: root.h;
+        fill: root.lit ? Theme.accent2 : #020d08e6;
+        stroke: root.lit ? Theme.accent2.brighter(0.4) : Theme.accent2.with-alpha(0.55);
+        stroke-width: 1px;
+        commands: "M " + (root.x0 + root.c) + " 0.5 L " + root.x1 + " 0.5 L " + root.x1 + " " + (root.y1 - root.c)
+            + " L " + (root.x1 - root.c) + " " + root.y1 + " L " + root.x0 + " " + root.y1 + " L " + root.x0 + " " + (0.5 + root.c) + " Z";
+    }
+    // Pattes : trois de chaque côté.
+    if root.pin > 0: Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: root.w;
+        viewbox-height: root.h;
+        fill: transparent;
+        stroke: root.lit ? Theme.accent2 : Theme.accent2.with-alpha(0.45);
+        stroke-width: 2px;
+        commands: "M 0 " + root.h * 0.3 + " L " + root.pin + " " + root.h * 0.3
+            + " M 0 " + root.h * 0.5 + " L " + root.pin + " " + root.h * 0.5
+            + " M 0 " + root.h * 0.7 + " L " + root.pin + " " + root.h * 0.7
+            + " M " + root.w + " " + root.h * 0.3 + " L " + (root.w - root.pin) + " " + root.h * 0.3
+            + " M " + root.w + " " + root.h * 0.5 + " L " + (root.w - root.pin) + " " + root.h * 0.5
+            + " M " + root.w + " " + root.h * 0.7 + " L " + (root.w - root.pin) + " " + root.h * 0.7;
+    }
+    // Repère de la broche 1 (point dans le coin), comme sur une vraie puce.
+    Rectangle {
+        x: (root.pin + 5) * 1px;
+        y: 5px;
+        width: 3px;
+        height: 3px;
+        border-radius: 1.5px;
+        background: root.lit ? Theme.on-accent.with-alpha(0.6) : Theme.accent2.with-alpha(0.5);
+        visible: root.h > 26;
     }
 }
 
