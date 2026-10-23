@@ -10147,15 +10147,38 @@ export component AppWindow inherits Window {
             background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(0.4) 0%, Theme.bg-end.with-alpha(0.85) 55%, Theme.bg-end 100%);
         }
 
-        if root.sr.loading: Text {
-            text: Tr.t(Tr.k, "Chargement…");
-            color: Theme.muted;
-            font-size: 22 * srp.u;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        // Chargement : rien d'autre que le fond (l'affiche vole déjà vers sa place) ; une fois là, le
+        // contenu apparaît en un fondu en remontant un peu, puis la distribution une photo après l'autre.
+        property <bool> ready: !root.sr.loading;
+        property <duration> in-t0;
+        property <bool> in-live;
+        changed ready => {
+            if (self.ready) {
+                self.in-t0 = animation-tick();
+                self.in-live = true;
+            }
+        }
+        init => {
+            if (self.ready) {
+                self.in-t0 = animation-tick();
+                self.in-live = true;
+            }
+        }
+        Timer {
+            interval: 1400ms;
+            running: srp.in-live;
+            triggered => {
+                srp.in-live = false;
+            }
+        }
+        property <float> in-x: !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0) / 420ms, 0, 1) : 1;
+        property <float> in-e: 1 - (1 - srp.in-x) * (1 - srp.in-x);
+        pure function cast-e(i: int) -> float {
+            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - 250ms - min(i, 10) * 70ms) / 360ms, 0, 1) : 1;
+            return 1 - (1 - x) * (1 - x);
         }
 
-        if !root.sr.loading: Rectangle {
+        if srp.ready: Rectangle {
             // Affiche
             Rectangle {
                 x: srp.pad;
@@ -10175,8 +10198,9 @@ export component AppWindow inherits Window {
 
             // Titre, informations, état, boutons
             VerticalLayout {
+                opacity: srp.in-e;
                 x: srp.pad + srp.poster-h / 1.5 + 32 * srp.u;
-                y: srp.pad;
+                y: srp.pad + (1 - srp.in-e) * 24 * srp.u;
                 width: parent.width - self.x - srp.pad;
                 height: srp.poster-h;
                 spacing: 12 * srp.u;
@@ -10247,8 +10271,9 @@ export component AppWindow inherits Window {
 
             // Résumé (coupé proprement s'il est trop long)
             Text {
+                opacity: srp.in-e;
                 x: srp.pad;
-                y: srp.pad + srp.poster-h + 28 * srp.u;
+                y: srp.pad + srp.poster-h + 28 * srp.u + (1 - srp.in-e) * 24 * srp.u;
                 width: parent.width - 2 * srp.pad;
                 height: 100 * srp.u;
                 text: root.sr.overview;
@@ -10268,6 +10293,8 @@ export component AppWindow inherits Window {
                 for c[i] in root.sr-cast: Rectangle {
                     x: i * 118 * srp.u;
                     width: 104 * srp.u;
+                    opacity: srp.cast-e(i);
+                    y: (1 - srp.cast-e(i)) * 20 * srp.u;
                     Rectangle {
                         x: (parent.width - self.width) / 2;
                         y: 0px;
