@@ -7998,6 +7998,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
     });
 
     ui.on_is_seerr(|id| id.starts_with("seerr:"));
+    ui.on_is_folder({
+        let app = app.clone();
+        move |id| app.views.lock().unwrap().iter().any(|v| v.id == id.as_str())
+    });
 
     // Défilement libre de l'accueil rendu à la sélection : rangée dont le haut est à ce décalage.
     ui.on_home_section_at({

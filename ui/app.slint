@@ -2597,9 +2597,7 @@ export component AppWindow inherits Window {
         // (sauf un grand fond : la page arrive normalement par-dessus). Le reste de la fiche arrive
         // alors l'un après l'autre (voir rev), au lieu de surgir d'un coup.
         if (root.hero-on && !root.hero-big) {
-            root.rev-t0 = animation-tick();
-            root.rev-anim = true;
-            return;
+            return; // l'apparition progressive part quand la fiche est là (voir rev-go)
         }
         root.page-t0 = animation-tick();
         root.page-anim = true;
@@ -2633,18 +2631,12 @@ export component AppWindow inherits Window {
             }
         }
     }
-    // Bibliothèque : les cartes éclosent en onde depuis le centre de l'écran, comme une goutte dans
-    // l'eau ; chacune grandit sur place avec un léger rebond (rien ne glisse ni ne se remet en place).
-    // `d` : distance de la carte au centre, en cartes. Renvoie l'avancement brut (0 à 1).
-    property <float> rip-lin: root.arr-anim && Motion.pages ? clamp((animation-tick() - root.arr-t0) / 1200ms, 0, 1) : 1;
+    // Bibliothèque : les cartes apparaissent en fondu, en onde depuis le centre de l'écran (sur place :
+    // ni zoom ni glissement). `d` : distance de la carte au centre, en cartes.
+    property <float> rip-lin: root.arr-anim && Motion.pages ? clamp((animation-tick() - root.arr-t0) / 1100ms, 0, 1) : 1;
     pure function ripple(d: float) -> float {
-        return clamp((root.rip-lin - min(d, 6) * 0.1) / 0.38, 0, 1);
-    }
-    // Taille : de 55 % à 100 %, en dépassant un peu (rebond).
-    pure function ripple-scale(x: float) -> float {
-        let c = 1.7;
-        let y = x - 1;
-        return 0.55 + 0.45 * (1 + (c + 1) * y * y * y + c * y * y);
+        let x = clamp((root.rip-lin - min(d, 6) * 0.09) / 0.45, 0, 1);
+        return x * x * (3 - 2 * x);
     }
     // Serveur choisi : éclat de sa carte (300 ms), puis la connexion.
     property <int> srv-picked: -1;
@@ -2674,7 +2666,33 @@ export component AppWindow inherits Window {
     // informations, 1 : boutons, 2 : résumé, 3 : saisons / épisodes, 4 : rangées du bas), en 900 ms.
     property <bool> rev-anim;
     property <duration> rev-t0;
-    property <float> rev-lin: root.rev-anim && Motion.detail ? clamp((animation-tick() - root.rev-t0) / 900ms, 0, 1) : 1;
+    // rev-hold : fiche demandée depuis une affiche, pas encore là : son contenu reste caché (sinon
+    // il apparaissait d'un coup, puis s'animait). rev-go : la fiche est là, l'apparition commence.
+    property <bool> rev-hold;
+    property <float> rev-lin: root.rev-anim && Motion.detail ? clamp((animation-tick() - root.rev-t0) / 900ms, 0, 1)
+        : root.rev-hold && Motion.detail ? 0 : 1;
+    // La fiche suit l'affiche : elle commence à apparaître une fois l'affiche à mi-chemin (même si la
+    // fiche était déjà prête, gardée en mémoire).
+    property <bool> rev-go: root.rev-hold && root.screen == "detail" && root.detail.id == root.hero-id && !root.loading
+        && (!root.hero-anim || root.hero-q > 0.5);
+    changed rev-go => {
+        if (root.rev-go) {
+            root.rev-hold = false;
+            root.rev-start();
+        }
+    }
+    function rev-start() {
+        root.rev-t0 = animation-tick();
+        root.rev-anim = true;
+    }
+    // Jamais de fiche cachée pour de bon (fiche abandonnée, erreur).
+    Timer {
+        interval: 5s;
+        running: root.rev-hold;
+        triggered => {
+            root.rev-hold = false;
+        }
+    }
     pure function rev(i: int) -> float {
         let x = clamp((root.rev-lin - i * 0.14) / 0.44, 0, 1);
         return 1 - (1 - x) * (1 - x) * (1 - x);
@@ -2870,9 +2888,16 @@ export component AppWindow inherits Window {
         || (!root.hero-dest && root.hero-flying && !root.page-anim));
     changed hero-done => {
         if (root.hero-done) {
+            if (root.hero-dest && !root.hero-wide && !root.hero-seerr && !root.hero-deck && root.screen == "detail") {
+                root.landed-id = root.hero-id;
+                root.landed-img = root.hero-img;
+            }
             root.hero-on = false;
         }
     }
+    property <string> landed-id;
+    property <image> landed-img;
+    property <bool> landed: root.landed-id != "" && root.detail.id == root.landed-id;
     changed hero-on => {
         if (!root.hero-on) {
             Hero.hide-id = "";
@@ -2909,6 +2934,7 @@ export component AppWindow inherits Window {
     // La carte répond juste après (rappel `changed`), d'où les deux temps.
     property <string> hero-pending;
     pure callback is-seerr(string) -> bool;   // identifiant « seerr:… » (Rust : Slint n'a pas de starts-with)
+    pure callback is-folder(string) -> bool;  // bibliothèque (pas un film, une série…)
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
@@ -2916,11 +2942,14 @@ export component AppWindow inherits Window {
         // fiche s'efface autour d'elle (kid-veil), puis la nouvelle arrive en douceur (detail-swap).
         // Épisodes (vignettes) : la fiche change en douceur, sans image qui vole.
         let kid = root.screen == "detail" && root.d-zone == 2 && !root.detail.children-landscape;
-        if (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
-                || (root.screen == "detail" && root.d-zone >= 4) || kid) {
+        // Bibliothèque (vignette 16:9) en portrait : pas d'image partagée (il n'y a pas d'affiche à
+        // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
+        let folder = root.narrow && root.is-folder(id);
+        if (!folder && (root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
+                || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
             root.hero-pending = id;
             Hero.tick += 1;
-            root.kid-veil = kid && Motion.detail;
+            root.kid-veil = root.screen == "detail" && Motion.detail;
         }
         root.open-item(id);
     }
@@ -2995,6 +3024,8 @@ export component AppWindow inherits Window {
             root.hero-wide = Hero.wide;
             root.door-mode = Hero.wide && root.narrow && !root.hero-seerr;
             root.door-has-poster = false;
+            // Fiche à venir : cachée jusqu'à son arrivée (pas pour un grand fond ni une collection).
+            root.rev-hold = !(Hero.wide && !root.door-mode) && !Hero.data.deck && !root.hero-seerr;
             root.hero-deck = Hero.data.deck;
             root.deal-anim = false;
             root.hero-faded = false;
@@ -3045,8 +3076,9 @@ export component AppWindow inherits Window {
             root.hero-return();
         }
         root.hero-id = "";
-        // Fiche -> fiche précédente : rien ne s'efface, la fiche change en douceur.
+        // Fiche -> fiche précédente : la fiche quittée s'efface, la précédente arrive (voir detail-swap).
         if (root.screen == "detail" && root.back-soft) {
+            root.kid-veil = root.hero-on && Motion.detail;
             root.run-action("back");
             return;
         }
@@ -3171,6 +3203,11 @@ export component AppWindow inherits Window {
     property <bool> sw-next;
     property <bool> sw-kids;
     public function detail-swap() {
+        // Retour d'une fiche par l'image partagée : la fiche arrive progressivement pendant le vol.
+        if (root.hero-on && !root.hero-dest) {
+            root.kid-veil = false;
+            root.rev-start();
+        }
         root.d-t0 = animation-tick();
         root.sw-title = false;
         root.sw-sub = false;
@@ -3238,6 +3275,11 @@ export component AppWindow inherits Window {
     property <float> pm: root.pm-anim && Motion.detail ? clamp((animation-tick() - root.pm-t0) / 450ms, 0, 1) : 1;
     property <bool> w-has-poster: root.detail.has-poster;
     changed w-has-poster => {
+        // Affiche arrivée par l'image partagée : c'est la même, elle prend sa place sans fondu.
+        if (root.hero-covers || root.landed) {
+            root.d-poster-swap = false;
+            return;
+        }
         if (root.detail.has-poster && root.d-poster-swap) {
             root.pm-t0 = animation-tick();
             root.pm-anim = true;
@@ -4079,8 +4121,8 @@ export component AppWindow inherits Window {
         if (i == 0) {
             root.cast-toggle();
         } else if (i == 1) {
-            // Comme depuis le menu : la page s'efface, puis la nouvelle arrive (pas d'un coup).
-            root.nav-out("menu", "party");
+            // Panneau par-dessus la page (pas une page : rien ne se recharge).
+            root.menu-action("party");
         } else if (i == 2) {
             root.random-pick();
         } else if (i == 3) {
@@ -6087,14 +6129,22 @@ export component AppWindow inherits Window {
             border-radius: Theme.radius;
             visible: !root.hero-covers || root.hero-seerr || root.hero-big;
             background: transparent;
-            if !root.detail.has-poster && !root.d-poster-swap: Placeholder {
+            if !root.detail.has-poster && !root.landed && (!root.d-poster-swap || root.hero-on): Placeholder {
                 title: root.detail.title;
                 k: root.k;
                 border-radius: Theme.radius;
             }
+            // Affiche venue de la carte, en attendant la vraie (même image).
+            if !root.detail.has-poster && root.landed: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.landed-img;
+                image-fit: fill;
+            }
 
-            // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu.
-            if root.d-poster-swap: Image {
+            // Ancienne affiche (autre saison / série) : elle reste dessous pendant le fondu (jamais
+            // quand une image partagée arrive : ce serait celle de la fiche quittée).
+            if root.d-poster-swap && !root.landed && !root.hero-on: Image {
                 width: parent.width;
                 height: parent.height;
                 source: root.d-poster-old;
@@ -6104,7 +6154,7 @@ export component AppWindow inherits Window {
             if root.detail.has-poster: Image {
                 width: parent.width;
                 height: parent.height;
-                opacity: root.d-poster-swap ? root.pm : 1;
+                opacity: root.d-poster-swap && !root.landed ? root.pm : 1;
                 source: root.detail.poster;
                 image-fit: fill;
             }
@@ -6376,6 +6426,8 @@ export component AppWindow inherits Window {
 
         // Épisodes d'une saison : liste verticale (voir ep-list).
         if root.child-items.length > 0 && root.ep-list: Rectangle {
+            // Fondu seulement pendant l'apparition de la fiche (opacité coûteuse le reste du temps).
+            opacity: root.rev(3);
             x: (root.narrow ? 16px : 32px) + root.po-right;
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1200px * root.k);
@@ -6506,7 +6558,9 @@ export component AppWindow inherits Window {
 
         // Saisons / épisodes / contenu
         if root.child-items.length > 0 && !root.ep-list: SectionRow {
-            // Glissement seulement : une opacité sur toute la rangée coûte cher sur les petites machines.
+            // Fondu seulement pendant l'apparition de la fiche : une opacité sur toute la rangée coûte
+            // cher sur les petites machines, elle revient à 1 aussitôt après.
+            opacity: root.rev(3);
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
@@ -6531,6 +6585,7 @@ export component AppWindow inherits Window {
 
         // Rangées du bas : plus de ce genre, Seerr (similaires, recommandés)
         for row[ri] in root.detail-rows: SectionRow {
+            opacity: root.rev(4);
             y: root.d-extra-y + row.y-px * 1px + root.stagger(ri + 2) + (1 - root.rows-a) * 50px * root.k + (1 - root.rev(4)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
@@ -6789,8 +6844,7 @@ export component AppWindow inherits Window {
                     property <float> dc: mod(i, lib.cols) - (lib.cols - 1) / 2;
                     property <float> ap: self.dp < 1 ? 1 : root.ripple(sqrt(self.dr * self.dr + self.dc * self.dc * 0.8));
                     property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
-                    opacity: min(1, self.ap * 2.2);
-                    transform-scale: self.ap >= 1 ? 1 : root.ripple-scale(self.ap);
+                    opacity: self.ap;
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
                     visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
@@ -6923,12 +6977,23 @@ export component AppWindow inherits Window {
 
             for s[i] in root.servers: srv-card := Rectangle {
                 height: 92px * root.k;
-                // Serveur trouvé : la carte arrive en fondu en grandissant un peu, chacune à son tour.
-                property <float> in-e: 0;
+                // Serveur trouvé : la carte arrive en fondu, chacune à son tour, sans saut ni zoom.
+                // Horloge propre à la carte (départ à sa création) : rien n'est montré avant son tour
+                // (une animation à retardement l'affichait d'abord en entier).
+                property <duration> in-t0;
+                property <bool> in-live: true;
                 init => {
-                    self.in-e = 1;
+                    self.in-t0 = animation-tick();
                 }
-                animate in-e { duration: Motion.panels ? 460ms : 0ms; delay: Motion.panels ? min(i, 6) * 90ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                Timer {
+                    interval: 1200ms;
+                    running: srv-card.in-live;
+                    triggered => {
+                        srv-card.in-live = false;
+                    }
+                }
+                property <float> in-x: self.in-live && Motion.panels ? clamp((animation-tick() - self.in-t0 - min(i, 6) * 110ms) / 420ms, 0, 1) : 1;
+                property <float> in-e: self.in-x * self.in-x * (3 - 2 * self.in-x);
                 // Serveur choisi : la carte s'illumine et grossit un instant avant la connexion.
                 property <float> pick-e: root.srv-picked == i ? root.srv-pick-q : 0;
                 opacity: self.in-e;
@@ -6940,7 +7005,7 @@ export component AppWindow inherits Window {
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 border-width: self.sel ? 0px : 1px;
                 border-color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.12);
-                transform-scale: ((self.sel ? 1.03 : 1.0) + 0.05 * sin(self.pick-e * 180deg)) * (0.9 + 0.1 * self.in-e);
+                transform-scale: (self.sel ? 1.03 : 1.0) + 0.05 * sin(self.pick-e * 180deg);
                 animate transform-scale { duration: Motion.select && root.srv-picked < 0 ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                 // Éclat du choix : une lueur d'accent qui passe sur la carte.
                 if srv-card.pick-e > 0.01: Rectangle {
@@ -10215,12 +10280,22 @@ export component AppWindow inherits Window {
         // Boutons : dans un groupe, « Quitter » ; sinon les groupes existants puis « Créer ».
         property <int> n: root.sp-active ? 1 : root.sp-groups.length + 1;
         // Arrivée : la colonne glisse depuis la gauche, ses éléments apparaissent l'un après l'autre.
-        property <float> in-e: 0;
+        // Horloge du panneau (départ à son ouverture) : rien n'est montré avant son tour.
+        property <duration> in-t0;
+        property <bool> in-live: true;
         init => {
-            self.in-e = 1;
+            self.in-t0 = animation-tick();
             root.party-h = self.want-h;
         }
-        animate in-e { duration: Motion.panels ? 520ms : 0ms; delay: Motion.panels ? 60ms : 0ms; easing: ease-out; }
+        Timer {
+            interval: 700ms;
+            running: party.in-live;
+            triggered => {
+                party.in-live = false;
+            }
+        }
+        property <float> in-x: self.in-live && Motion.panels ? clamp((animation-tick() - self.in-t0 - 60ms) / 520ms, 0, 1) : 1;
+        property <float> in-e: 1 - (1 - self.in-x) * (1 - self.in-x);
         pure function step(i: int) -> float {
             let x = clamp(party.in-e * 1.8 - min(i, 6) * 0.14, 0, 1);
             return 1 - (1 - x) * (1 - x);
