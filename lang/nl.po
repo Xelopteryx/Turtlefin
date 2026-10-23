@@ -2018,5 +2018,3 @@ msgstr "Indien nodig"
 msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
 msgstr "DLNA-tv's: ondertitels worden door de server in het beeld gebrand. Chromecast: ze wisselen zonder de video te herladen."
 
-msgid "Sept chevrons"
-msgstr "Zeven chevrons"

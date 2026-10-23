@@ -2018,5 +2018,3 @@ msgstr "Se for preciso"
 msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
 msgstr "Televisões DLNA: as legendas são gravadas na imagem pelo servidor. Chromecast: mudam sem recarregar o vídeo."
 
-msgid "Sept chevrons"
-msgstr "Sete chevrons"

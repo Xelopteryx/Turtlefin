@@ -64,7 +64,7 @@ pub struct ThemeDef {
     /// Décor de bulles et de ciel (ancien nom du décor « sky »).
     pub bubbles: bool,
     /// Décor : « » aucun, « sky » ciel, herbe et bulles, « harmony » gerbe de lumière (Windows 7),
-    /// « circuit » pistes de carte mère, « stars » ciel étoilé.
+    /// « circuit » pistes de carte mère.
     pub scenery: String,
     /// Barre de verre derrière l'en-tête.
     pub header_glass: bool,
@@ -73,10 +73,10 @@ pub struct ThemeDef {
     /// Reflets en biais sur les grands panneaux.
     pub streaks: bool,
     /// Animation de démarrage : « » logo qui se relie, « aero » billes de verre qui tourbillonnent,
-    /// « nerd » machine qui s'allume module par module, « gate » porte qui compose son adresse.
+    /// « nerd » machine qui s'allume module par module.
     pub boot: String,
     /// Logo (icône, démarrage) : « » carapace en dégradé, « orb » orbe de verre, « chip » pistes de
-    /// circuit, « gate » anneau à sept chevrons.
+    /// circuit.
     pub logo: String,
     /// Police de l'interface : « » Montserrat, « selawik » (proche de Segoe UI, celle de Windows 7).
     pub font: String,
@@ -233,47 +233,9 @@ fn nerd() -> ThemeDef {
     }
 }
 
-/// Sept chevrons : une porte antique au milieu des étoiles. Bleu nuit, pierre grise et chevrons
-/// orange ; démarrage : la porte compose son adresse, sept chevrons s'enclenchent (les sept
-/// vérifications), le vortex jaillit et le logo apparaît dans l'horizon des événements.
-fn gate() -> ThemeDef {
-    ThemeDef {
-        name: s("Sept chevrons"),
-        dark: true,
-        bg: s("#02040b"),
-        bg_mid: s("#060b1d"),
-        bg_end: s("#030614"),
-        fg: s("#eef4ff"),
-        text: s("#eef4ffe6"),
-        muted: s("#b9c6e099"),
-        accent1: s("#ff8a2a"),
-        accent2: s("#58b8ff"),
-        on_accent: s("#ffffff"),
-        glass: s("#0a1124e0"),
-        glass_border: s("#8fb2ff33"),
-        panel: s("#070c1df5"),
-        card: s("#ffffff0d"),
-        card_focus: s("#58b8ff33"),
-        card_border: s("#8fa0c040"),
-        glow: s("#58b8ff00"),
-        player_bar: s("#050916e6"),
-        placeholder1: s("#1c2440"),
-        placeholder2: s("#0d1630"),
-        scrim: s("#000208"),
-        ok: s("#7ee0a0"),
-        warn: s("#ff9a3d"),
-        veil: 1.3,
-        radius: 8.0,
-        scenery: s("stars"),
-        boot: s("gate"),
-        logo: s("gate"),
-        ..turtlefin()
-    }
-}
-
 /// Thèmes intégrés : clé, thème.
 pub fn builtin() -> Vec<(&'static str, ThemeDef)> {
-    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd()), ("gate", gate())]
+    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd())]
 }
 
 /// Thème choisi dans les réglages : clé intégrée, ou « custom:<nom> » (thème importé).
@@ -352,7 +314,6 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
         "sky" => 1,
         "harmony" => 2,
         "circuit" => 3,
-        "stars" => 4,
         _ if t.bubbles => 1,
         _ => 0,
     };
@@ -364,17 +325,16 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_boot_style(match t.boot.as_str() {
         "aero" => 1,
         "nerd" => 2,
-        "gate" => 3,
         _ => 0,
     });
     th.set_logo_style(match t.logo.as_str() {
         "orb" => 1,
         "chip" => 2,
-        "gate" => 3,
         _ => 0,
     });
     th.set_aero_font(t.font == "selawik");
     th.set_win7(t.win7);
+    th.set_logo_img(slint::Image::from_rgba8(icon_ss(t, 160, false)));
     window_icon(u, t);
 }
 
@@ -458,8 +418,8 @@ fn icon_raw(t: &ThemeDef, n: u32, with_bg: bool) -> slint::SharedPixelBuffer<sli
     if t.logo == "orb" {
         return orb_icon(n, px, bg1, a1, a2, &outer, &inner);
     }
-    if t.logo == "chip" || t.logo == "gate" {
-        return trace_icon(n, px, t.logo == "gate", with_bg, (bg1, bg2), (a1, a2), &outer, &inner);
+    if t.logo == "chip" {
+        return trace_icon(n, px, false, with_bg, (bg1, bg2), (a1, a2), &outer, &inner);
     }
     let cov = |dist: f32| (0.5 - dist / px).clamp(0.0, 1.0);
     let gloss = t.gloss.clamp(0.0, 1.5);
@@ -543,7 +503,7 @@ fn trace_icon(
         let rd = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 56.0;
         let mut a = if with_bg { cov(rd) } else { 0.0 };
         let mut c = mix(bg1, bg2, sy / 256.0);
-        let mut put = |col: [f32; 3], al: f32, c: &mut [f32; 3], a: &mut f32| {
+        let put = |col: [f32; 3], al: f32, c: &mut [f32; 3], a: &mut f32| {
             *c = mix(*c, col, al);
             *a = *a + al * (1.0 - *a);
         };
@@ -619,7 +579,7 @@ fn trace_icon(
 #[cfg(test)]
 pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rgba8Pixel>, String, String) {
     // Logo : 168 / 256 de son image ; orbe : 244 / 256. Zone sûre : 66 / 108 du canevas.
-    let (span, target) = if t.logo == "orb" || t.logo == "gate" { (244.0, 0.60) } else { (168.0, 0.56) };
+    let (span, target) = if t.logo == "orb" { (244.0, 0.60) } else { (168.0, 0.56) };
     let m = ((n as f32 * target * 256.0 / span).round() as u32).min(n);
     let part = icon_ss(t, m, false);
     let mut out = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);

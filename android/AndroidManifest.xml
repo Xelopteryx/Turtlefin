@@ -72,22 +72,6 @@
             </intent-filter>
         </activity-alias>
         <activity-alias
-            android:name=".Icon_gate"
-            android:targetActivity="android.app.NativeActivity"
-            android:icon="@mipmap/ic_gate"
-            android:banner="@mipmap/ic_gate"
-            android:enabled="false"
-            android:exported="true">
-            <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
-                 plantage au démarrage). -->
-            <meta-data android:name="android.app.lib_name" android:value="turtlefin" />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-        <activity-alias
             android:name=".Icon_aero"
             android:targetActivity="android.app.NativeActivity"
             android:icon="@mipmap/ic_aero"

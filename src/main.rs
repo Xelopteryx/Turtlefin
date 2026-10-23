@@ -5879,7 +5879,6 @@ fn open_url(url: &str) -> std::io::Result<()> {
 /// Nom affiché d'un thème intégré (traduit) ; les thèmes importés gardent le leur.
 fn tr_theme(name: &str) -> String {
     match name {
-        "Sept chevrons" => tr("Sept chevrons").to_string(),
         n => n.to_string(),
     }
 }

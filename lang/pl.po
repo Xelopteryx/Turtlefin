@@ -2024,5 +2024,3 @@ msgstr "W razie potrzeby"
 msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
 msgstr "Telewizory DLNA: serwer wtapia napisy w obraz. Chromecast: zmieniają się bez przeładowania wideo."
 
-msgid "Sept chevrons"
-msgstr "Siedem szewronów"

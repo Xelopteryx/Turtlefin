@@ -646,8 +646,8 @@ component Card inherits Rectangle {
         : root.lit ? Theme.card-focus : Theme.card;
     // Contour au bord exact de la carte (Windows 7 : clair, bleu lumineux si choisie). Pas de halo
     // autour de la carte choisie : seulement une ombre discrète sous les cartes en verre.
-    border-width: Theme.win7 && root.lit ? 2px * root.k : 1px;
-    border-color: Theme.win7 ? (root.lit ? #9ee0ff : rgba(255, 255, 255, 0.38)) : Theme.card-border;
+    border-width: Theme.win7 ? 0px : 1px;
+    border-color: Theme.card-border;
     drop-shadow-blur: Nav.no-shadow ? 0px : Theme.win7 ? 8px * root.k : 0px;
     drop-shadow-color: #00000070;
 
@@ -707,6 +707,13 @@ component Card inherits Rectangle {
         font-size: 12px * root.k;
         font-weight: 400;
     }
+    }
+    // Windows 7 : contour par-dessus l'affiche (sinon l'image le recouvre et seul le bas se voit),
+    // bleu lumineux tout autour de la carte choisie.
+    if Theme.win7: Rectangle {
+        border-radius: Theme.radius;
+        border-width: root.lit ? 2px * root.k : 1px;
+        border-color: root.lit ? #9ee0ff : rgba(255, 255, 255, 0.38);
     }
 
     card-area := TouchArea {
@@ -2273,6 +2280,7 @@ component NavBar inherits Rectangle {
     in property <brush> title-color: Theme.text;
     in property <int> sel: -1; // bouton sélectionné, de gauche à droite : menu [retour] [accueil]
     in property <float> enter: 1; // arrivée de la page (0 -> 1)
+    in property <bool> logo-on;   // accueil : logo du thème devant le nom
     callback activate(int);
 
     property <int> n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
@@ -2319,8 +2327,16 @@ component NavBar inherits Rectangle {
             }
         }
     }
-    Text {
+    if root.logo-on: Image {
         x: root.x0 + root.n * root.step + 4px * root.k;
+        y: (root.height - self.height) / 2;
+        width: 34px * root.k;
+        height: self.width;
+        source: Theme.logo-img;
+        image-fit: contain;
+    }
+    Text {
+        x: root.x0 + root.n * root.step + 4px * root.k + (root.logo-on ? 44px * root.k : 0px);
         width: root.width - self.x - 8px * root.k;
         height: root.height;
         // Titre de la page : en fondu à l'arrivée de la page (sans glisser).
@@ -2935,10 +2951,9 @@ export component AppWindow inherits Window {
     // Durée de la distribution : un départ toutes les 70 ms, 420 ms de vol chacun.
     property <duration> deal-len: 260ms + min(root.lib-items.length, root.deal-n) * 70ms + 420ms;
     changed deal-anim => {
-        // Distribution finie : le paquet (l'image partagée) s'efface sur place.
+        // Distribution finie : tous les morceaux sont partis, l'image partagée n'a plus rien à montrer.
         if (!root.deal-anim && root.hero-deck && root.hero-on) {
-            root.hero-out-t0 = animation-tick();
-            root.hero-out = true;
+            root.hero-on = false;
         }
     }
     Timer {
@@ -2956,6 +2971,30 @@ export component AppWindow inherits Window {
             root.deal-anim = true;
         }
     }
+    // La carte (le paquet) est découpée en autant de morceaux que d'affiches à distribuer : chaque affiche
+    // part de son morceau (qui disparaît alors de la carte) ; au retour, elles y reviennent et la carte se
+    // reforme. Lignes de `pc-cols` morceaux ; la dernière, incomplète, a des morceaux plus larges (la
+    // carte reste entièrement couverte). Coordonnées en fractions de la carte.
+    property <int> pc-n: max(1, min(root.lib-items.length, root.deal-n));
+    property <int> pc-cols: max(1, ceil(sqrt(root.pc-n * root.hero-fw / max(1px, root.hero-fh))));
+    property <int> pc-rows: ceil(root.pc-n / root.pc-cols);
+    pure function pc-row(i: int) -> int {
+        return floor(i / root.pc-cols);
+    }
+    pure function pc-cnt(i: int) -> int {
+        return root.pc-row(i) == root.pc-rows - 1 ? root.pc-n - root.pc-cols * (root.pc-rows - 1) : root.pc-cols;
+    }
+    pure function pc-fx(i: int) -> float {
+        return (i - root.pc-row(i) * root.pc-cols) / root.pc-cnt(i);
+    }
+    pure function pc-fy(i: int) -> float {
+        return root.pc-row(i) / root.pc-rows;
+    }
+    // La carte, où qu'elle soit (en vol ou posée), en coordonnées de la fenêtre.
+    property <length> deck-x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
+    property <length> deck-y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+    property <length> deck-w: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
+    property <length> deck-h: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
@@ -3000,6 +3039,10 @@ export component AppWindow inherits Window {
             let n = min(root.lib-items.length, root.deal-n);
             let t = clamp((animation-tick() - root.undeal-t0 - max(0, n - 1 - i) * 35ms) / 360ms, 0, 1);
             return 1 - t * t;
+        }
+        // Carte reformée qui regagne sa place (retour) : toutes les affiches sont dans la carte.
+        if (root.hero-deck && root.hero-on && !root.hero-dest && !root.undeal-anim) {
+            return 0;
         }
         // Hors de l'écran à l'arrivée : déjà à sa place (jamais vue en vol).
         if (i >= root.deal-n) {
@@ -3067,9 +3110,9 @@ export component AppWindow inherits Window {
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
     property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
-    property <length> hero-ty: root.hero-deck ? (root.height - root.hero-th) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.header-h + 24px;
-    property <length> hero-tw: root.hero-deck ? root.hero-fw * 1.25 : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-deck ? root.hero-fh * 1.25 : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
+    property <length> hero-ty: root.hero-deck ? root.height - root.hero-th - 32px * root.k : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.header-h + 24px;
+    property <length> hero-tw: root.hero-deck ? min(root.width * 0.5, 560px * root.k) : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-deck ? min(root.width * 0.5, 560px * root.k) * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
@@ -4852,11 +4895,26 @@ export component AppWindow inherits Window {
         // En-tête : nom de l'appli et serveur (s'efface quand le clavier à l'écran prend la place).
         property <float> osk-p: root.tv-mode && root.login-mode == "form" && root.login-osk ? 1 : 0;
         animate osk-p { duration: Motion.search ? 280ms : 0ms; easing: ease-in-out; }
-        Text {
+        // Logo du thème à gauche du nom (là où se pose celui du démarrage), l'ensemble centré.
+        property <length> t-logo: 52 * self.u;
+        property <length> t-gap: 12 * self.u;
+        property <length> t-x: (self.width - self.t-logo - self.t-gap - lg-title.preferred-width) / 2;
+        Image {
             visible: lg.osk-p < 0.99;
+            x: lg.t-x;
+            y: 40 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0)) * 40 * lg.u + (lg-title.preferred-height - self.height) / 2;
+            opacity: lg.in-e(0);
+            width: lg.t-logo;
+            height: lg.t-logo;
+            source: Theme.logo-img;
+            image-fit: contain;
+        }
+        lg-title := Text {
+            visible: lg.osk-p < 0.99;
+            x: lg.t-x + lg.t-logo + lg.t-gap;
             y: 40 * lg.u - lg.osk-p * 30 * lg.u - (1 - lg.in-e(0)) * 40 * lg.u;
             opacity: lg.in-e(0);
-            width: parent.width;
+            width: self.preferred-width;
             text: "Turtlefin";
             // Thèmes brillants : lettres de verre (dégradé clair vers l'accent, liseré foncé) ;
             // sinon la couleur d'accent, comme ailleurs.
@@ -7229,10 +7287,15 @@ export component AppWindow inherits Window {
                     property <length> by: 12px * root.k + floor(i / lib.cols) * (lib.ch + lib.gap);
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
-                    visible: self.dp < 1 || (self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
-                    x: self.bx + (1 - self.dp) * (root.width / 2 - lib.cw / 2 - grid.absolute-position.x - self.bx);
-                    y: self.by + (1 - self.dp) * (root.height / 2 - lib.cw * 0.75 - grid.absolute-position.y - self.by);
-                    transform-rotation: (1 - self.dp) * (mod(i * 7, 5) - 2) * 7deg;
+                    visible: (self.dp > 0.001 && self.dp < 1) || (self.dp >= 1 && self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
+                    // Départ : le centre de son morceau de carte, à la taille du morceau.
+                    property <length> pw: root.deck-w / root.pc-cnt(i);
+                    property <length> pcx: root.deck-x + root.deck-w * (root.pc-fx(i) + 0.5 / root.pc-cnt(i));
+                    property <length> pcy: root.deck-y + root.deck-h * (root.pc-fy(i) + 0.5 / root.pc-rows);
+                    x: self.bx + (1 - self.dp) * (self.pcx - lib.cw / 2 - grid.absolute-position.x - self.bx);
+                    y: self.by + (1 - self.dp) * (self.pcy - lib.ch / 2 - grid.absolute-position.y - self.by);
+                    transform-scale: self.dp >= 1 ? 1 : self.pw / lib.cw + (1 - self.pw / lib.cw) * self.dp;
+                    transform-rotation: sin(self.dp * 180deg) * (mod(i * 7, 5) - 2) * 5deg;
                     width: lib.cw;
                     height: lib.ch;
                     data: card;
@@ -9589,6 +9652,7 @@ export component AppWindow inherits Window {
         can-back: !root.on-home && root.back-ok;
         show-home: !root.on-home;
         enter: root.page-e;
+        logo-on: root.on-home;
         title-color: root.offline ? Theme.ok : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
         title: root.on-home ? "Turtlefin" : root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
             : root.screen == "party" ? Tr.t(Tr.k, "Watch party") : "";
@@ -11053,7 +11117,7 @@ export component AppWindow inherits Window {
         border-bottom-left-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
         border-bottom-right-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
         clip: true;
-        Image {
+        if !root.hero-deck: Image {
             width: parent.width;
             height: parent.height;
             source: root.hero-img;
@@ -11064,8 +11128,33 @@ export component AppWindow inherits Window {
             source-clip-y: root.hero-crop;
             source-clip-height: root.hero-img.height - root.hero-crop;
         }
+        // Paquet (bibliothèque, collection) : la carte en morceaux, chacun présent tant que son affiche
+        // n'est pas partie (voir pc-n, deal-p).
+        if root.hero-deck: Rectangle {
+            for i in root.pc-n: Rectangle {
+                property <float> fx: root.pc-fx(i);
+                property <float> fy: root.pc-fy(i);
+                property <float> fw: 1 / root.pc-cnt(i);
+                property <float> fh: 1 / root.pc-rows;
+                visible: root.deal-p(i) <= 0.001;
+                x: parent.width * self.fx;
+                y: parent.height * self.fy;
+                width: parent.width * self.fw + 1px;
+                height: parent.height * self.fh + 1px;
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.hero-img;
+                    image-fit: fill;
+                    source-clip-x: floor(root.hero-img.width * parent.fx);
+                    source-clip-y: floor(root.hero-img.height * parent.fy);
+                    source-clip-width: ceil(root.hero-img.width * parent.fw);
+                    source-clip-height: ceil(root.hero-img.height * parent.fh);
+                }
+            }
+        }
         // Pastilles de la carte, à leur taille de carte.
-        if root.hero-p < 0.999 && !root.hero-big: CardArt {
+        if root.hero-p < 0.999 && !root.hero-big && !root.hero-deck: CardArt {
             data: root.hero-data;
             k: root.hero-k;
             badges-only: true;
@@ -12059,8 +12148,27 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Titre où se pose le démarrage : celui de la barre (accueil) ou celui de la connexion.
+    property <length> lgu: (root.height > root.width ? min(root.height / 1280px, root.width / 560px) : min(root.height / 720px, root.width / 1280px)) * 1px;
+    // Mesure à taille fixe (44 px, puis à l'échelle) : la taille de la fenêtre n'en dépend pas.
+    Rectangle {
+        width: 0px;
+        height: 0px;
+        boot-tm := Text { visible: false; text: "Turtlefin"; font-size: 44px; font-weight: 800; }
+    }
+    property <bool> boot-to-bar: root.screen == "home";
+    property <length> bt-logo: root.boot-to-bar ? 34px * root.k : 52 * root.lgu;
+    property <length> bt-font: root.boot-to-bar ? 26px * root.k : 44 * root.lgu;
+    property <length> bt-x: root.boot-to-bar ? 24px * root.k + 58px * root.k
+        : (root.width - 52 * root.lgu - 12 * root.lgu - boot-tm.preferred-width * root.lgu / 1px) / 2;
+    property <length> bt-cy: root.boot-to-bar ? root.chrome-top + 36px * root.k : 40 * root.lgu + boot-tm.preferred-height * root.lgu / 1px / 2;
     if root.boot-on: BootLogo {
         k: root.k;
+        tgt-logo: root.bt-logo;
+        tgt-logo-cx: root.bt-x + root.bt-logo / 2;
+        tgt-cy: root.bt-cy;
+        tgt-text-x: root.bt-x + root.bt-logo + (root.boot-to-bar ? 10px * root.k : 12 * root.lgu);
+        tgt-font: root.bt-font;
         state: root.boot-state;
         labels: root.boot-labels;
         text: root.boot-text;
