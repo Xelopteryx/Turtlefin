@@ -3285,9 +3285,12 @@ export component AppWindow inherits Window {
             // Fiche -> fiche : rien ne s'efface (ce qui ne change pas reste, voir detail-swap).
             root.kid-veil = false;
         }
-        // Saison : tout ce qui est sous le bloc principal s'efface (voir kids-out).
-        if (kid) {
+        // Saison : tout ce qui est sous le bloc principal s'efface (voir kids-out). Autre média : le
+        // haut de la page aussi (titre, boutons, résumé…), pour ne pas remonter sur l'ancien en
+        // attendant le nouveau ; seule l'affiche reste, l'image vole jusqu'à elle.
+        if (up) {
             root.kids-out = Motion.detail;
+            root.top-out = !kid && Motion.detail;
         }
         root.open-item(id);
         // Remontée au début, au rythme de l'image qui vole (hero-glide). Après open-item : la page
@@ -3571,6 +3574,16 @@ export component AppWindow inherits Window {
     // Saison choisie : ce qui est sous le bloc principal s'efface (kids-out) en attendant la saison ;
     // à son arrivée, le titre de la liste change (balayage) et les épisodes arrivent un à un (ep-in).
     in-out property <bool> kids-out;
+    in-out property <bool> top-out;
+    property <float> top-out-p: root.top-out ? 1 : 0;
+    animate top-out-p { duration: Motion.detail ? 200ms : 0ms; easing: ease-out; }
+    Timer {
+        interval: 3s;
+        running: root.top-out;
+        triggered => {
+            root.top-out = false;
+        }
+    }
     property <float> kids-out-p: root.kids-out ? 1 : 0;
     animate kids-out-p { duration: Motion.detail ? 240ms : 0ms; easing: ease-out; }
     Timer {
@@ -3594,6 +3607,7 @@ export component AppWindow inherits Window {
         return 1 - (1 - x) * (1 - x) * (1 - x);
     }
     public function detail-swap() {
+        root.top-out = false;
         if (root.kids-out) {
             root.kids-out = false;
             root.ep-t0 = animation-tick();
@@ -6719,7 +6733,7 @@ export component AppWindow inherits Window {
             y: 24px;
             width: root.info-w;
             height: 84px * root.k;
-            opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0);
+            opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
 
             if root.detail.has-logo: Image {
                 x: 0px;
@@ -6769,7 +6783,7 @@ export component AppWindow inherits Window {
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
-            opacity: root.rev(0);
+            opacity: root.rev(0) * (1 - root.top-out-p);
             text: root.detail.subtitle;
             text-color: Theme.accent2;
             font-size: 18px * root.k;
@@ -6782,7 +6796,7 @@ export component AppWindow inherits Window {
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
             x: root.d-low-x + (root.narrow ? 0px : (dt.btns-w - dt.icons-w) / 2) + root.po-right;
-            opacity: (root.sw-icons ? root.sw-e : 1) * root.rev(1);
+            opacity: (root.sw-icons ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
             y: 24px + 118px * root.k + root.d-low;
             width: root.d-low-w;
             height: 40px * root.k;
@@ -6822,7 +6836,7 @@ export component AppWindow inherits Window {
             }
         }
         chips-row := HorizontalLayout {
-            opacity: (root.sw-chips ? root.sw-e : 1) * root.rev(1);
+            opacity: (root.sw-chips ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
             x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : (dt.btns-w - dt.chips-w) / 2) + root.po-right;
             y: 24px + 166px * root.k + root.d-low;
@@ -6864,7 +6878,7 @@ export component AppWindow inherits Window {
         if !root.wiping(root.mt-misc, root.detail.misc): Text {
             x: root.col-x + root.po-right;
             y: root.narrow ? 24px + 118px * root.k : 24px + 202px * root.k - dt.lift;
-            opacity: root.rev(0);
+            opacity: root.rev(0) * (1 - root.top-out-p);
             width: root.info-w;
             height: 24px * root.k;
             text: root.detail.misc;
@@ -6878,7 +6892,7 @@ export component AppWindow inherits Window {
         if root.detail.overview != "": Rectangle {
             x: root.d-low-x + root.po-right;
             y: 24px + 232px * root.k - dt.lift + root.d-low - (root.narrow ? 30px * root.k : 0px);
-            opacity: (root.sw-ov ? root.sw-e : 1) * root.rev(2);
+            opacity: (root.sw-ov ? root.sw-e : 1) * root.rev(2) * (1 - root.top-out-p);
             width: root.d-low-w;
             height: 80px * root.k;
             border-radius: 14px;
@@ -6923,7 +6937,7 @@ export component AppWindow inherits Window {
         if root.show-next: Rectangle {
             x: parent.width - 32px - root.next-w + root.po * (root.next-w + 64px);
             y: 24px;
-            opacity: (root.sw-next ? root.sw-e : 1) * root.rev(2);
+            opacity: (root.sw-next ? root.sw-e : 1) * root.rev(2) * (1 - root.top-out-p);
             width: root.next-w;
             height: 228px * root.k;
 
