@@ -1811,9 +1811,6 @@ msgstr "Step 3 of 3 · Type the new password again."
 msgid "Arrêter de piloter {}"
 msgstr "Stop controlling {}"
 
-msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
-msgstr "No device. Open Turtlefin (or a Jellyfin app) on the TV with the same account, or turn on a DLNA-capable TV on this network."
-
 msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
 msgstr "Pick a device: Turtlefin becomes its remote, and “Play on” appears on item pages."
 
@@ -1841,9 +1838,6 @@ msgstr "Looking for devices…"
 msgid "Rien en lecture"
 msgstr "Nothing playing"
 
-msgid "Télé DLNA : la vidéo y est envoyée"
-msgstr "DLNA TV: the video is sent to it"
-
 msgid "Télécommande · {}"
 msgstr "Remote · {}"
 
@@ -1852,9 +1846,6 @@ msgstr "{} isn't responding: {}"
 
 msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
 msgstr "No other Turtlefin is open with this account. Open it on the TV (or the Pi), then come back here."
-
-msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "No screen. Turn on a DLNA-capable TV on this network, or open Turtlefin (or a Jellyfin app) on the TV with the same account."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Pick the screen to send videos to: “Play on” then appears on item pages."
@@ -1924,9 +1915,6 @@ msgstr "Continue on this device"
 
 msgid "Voir la lecture · {}"
 msgstr "Show playback · {}"
-
-msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
-msgstr "{} can't play HEVC: the server converts the picture, playback may stutter or not start."
 
 msgid "Changement de piste…"
 msgstr "Switching track…"
@@ -2021,6 +2009,99 @@ msgstr "Found servers forgotten."
 msgid "Si besoin"
 msgstr "When needed"
 
-msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
-msgstr "DLNA TVs: subtitles are burned into the picture by the server. Chromecast: they change without reloading the video."
+msgid "Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."
+msgstr "Beyond this, nothing more is downloaded. No limit: as much as the files need, as long as the disk has room."
 
+msgid "Aucun réseau"
+msgstr "No network"
+
+msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "No screen. Turn on a Chromecast on this network, or open Turtlefin (or a Jellyfin app) on the TV with the same account."
+
+msgid "Choisir ce dossier"
+msgstr "Choose this folder"
+
+msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Choose a drive, then the folder for downloaded movies and shows."
+
+msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Choose a folder that is neither inside the old one nor above it."
+
+msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
+msgstr "Chromecast: subtitles change without reloading the video."
+
+msgid "Disque : place libre inconnue"
+msgstr "Disk: free space unknown"
+
+msgid "Disque : {} libres sur {}"
+msgstr "Disk: {} free of {}"
+
+msgid "Dossier actuel des téléchargements"
+msgstr "Current downloads folder"
+
+msgid "Dossier des téléchargements"
+msgstr "Downloads folder"
+
+msgid "Décodage matériel"
+msgstr "Hardware decoding"
+
+msgid "Déplacement des téléchargements…"
+msgstr "Moving downloads…"
+
+msgid "Impossible d'écrire dans {}."
+msgstr "Cannot write to {}."
+
+msgid "La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."
+msgstr "The graphics card decodes the video. Turn off if the picture shows lines or glitches (the processor works harder)."
+
+msgid "Limite de place"
+msgstr "Space limit"
+
+msgid "Ordinateur"
+msgstr "Computer"
+
+msgid "Revenir au dossier par défaut"
+msgstr "Back to the default folder"
+
+msgid "Sans limite"
+msgstr "No limit"
+
+msgid "Serveur de nouveau joignable."
+msgstr "Server reachable again."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
+msgstr "Server unreachable: choose an account to watch its downloads offline."
+
+msgid "Téléchargements : {}"
+msgstr "Downloads: {}"
+
+msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgstr "A download is in progress: change folders once it is done."
+
+msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
+msgstr "space limit reached ({} of {}; Settings → Storage)"
+
+msgid "nouvel essai automatique"
+msgstr "retrying automatically"
+
+msgid "pas assez de place sur le disque (il faut {}, {} libres)"
+msgstr "not enough disk space ({} needed, {} free)"
+
+msgid "{} déplacés, {} restés dans l'ancien dossier (place, droits ?)."
+msgstr "{} moved, {} left in the old folder (space, permissions?)."
+
+msgid "{} libres sur {}"
+msgstr "{} free of {}"
+
+msgid "« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés."
+msgstr "“Choose this folder”: downloads will go here ({}). Existing ones are moved here."
+
+msgid "{n} téléchargement à regarder hors ligne"
+msgid_plural "{n} téléchargements à regarder hors ligne"
+msgstr[0] "{n} download to watch offline"
+msgstr[1] "{n} downloads to watch offline"
+
+msgid "{n} téléchargement déplacé."
+msgid_plural "{n} téléchargements déplacés."
+msgstr[0] "{n} download moved."
+msgstr[1] "{n} downloads moved."

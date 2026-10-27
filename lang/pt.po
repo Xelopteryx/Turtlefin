@@ -1811,9 +1811,6 @@ msgstr "Passo 3 de 3 · Escreve de novo a nova palavra-passe."
 msgid "Arrêter de piloter {}"
 msgstr "Parar de controlar {}"
 
-msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
-msgstr "Nenhum dispositivo. Abre o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta, ou liga uma TV compatível com DLNA nesta rede."
-
 msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
 msgstr "Escolhe um dispositivo: o Turtlefin torna-se o seu comando, e «Reproduzir em» aparece nas fichas."
 
@@ -1841,9 +1838,6 @@ msgstr "A procurar dispositivos…"
 msgid "Rien en lecture"
 msgstr "Nada em reprodução"
 
-msgid "Télé DLNA : la vidéo y est envoyée"
-msgstr "TV DLNA: o vídeo é enviado para lá"
-
 msgid "Télécommande · {}"
 msgstr "Comando · {}"
 
@@ -1852,9 +1846,6 @@ msgstr "{} não responde: {}"
 
 msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
 msgstr "Nenhum outro Turtlefin aberto com esta conta. Abre-o na TV (ou no Pi) e volta aqui."
-
-msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "Nenhum ecrã. Liga uma TV compatível com DLNA nesta rede, ou abre o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Escolhe o ecrã para onde enviar os vídeos: «Reproduzir em» aparece depois nas fichas."
@@ -1924,9 +1915,6 @@ msgstr "Continuar neste dispositivo"
 
 msgid "Voir la lecture · {}"
 msgstr "Ver a reprodução · {}"
-
-msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
-msgstr "{} não reproduz HEVC: o servidor converte a imagem, a reprodução pode engasgar ou não começar."
 
 msgid "Changement de piste…"
 msgstr "A mudar de faixa…"
@@ -2021,6 +2009,99 @@ msgstr "Servidores encontrados esquecidos."
 msgid "Si besoin"
 msgstr "Se for preciso"
 
-msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
-msgstr "Televisões DLNA: as legendas são gravadas na imagem pelo servidor. Chromecast: mudam sem recarregar o vídeo."
+msgid "Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."
+msgstr "Acima disso, nada mais é transferido. Sem limite: o que os ficheiros pedirem, enquanto o disco tiver espaço."
 
+msgid "Aucun réseau"
+msgstr "Sem rede"
+
+msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Nenhum ecrã. Liga um Chromecast nesta rede, ou abre o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta."
+
+msgid "Choisir ce dossier"
+msgstr "Escolher esta pasta"
+
+msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Escolhe um disco e depois a pasta onde guardar os filmes e séries transferidos."
+
+msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Escolhe uma pasta que não esteja dentro da antiga nem acima dela."
+
+msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
+msgstr "Chromecast: as legendas mudam sem recarregar o vídeo."
+
+msgid "Disque : place libre inconnue"
+msgstr "Disco: espaço livre desconhecido"
+
+msgid "Disque : {} libres sur {}"
+msgstr "Disco: {} livres de {}"
+
+msgid "Dossier actuel des téléchargements"
+msgstr "Pasta atual das transferências"
+
+msgid "Dossier des téléchargements"
+msgstr "Pasta das transferências"
+
+msgid "Décodage matériel"
+msgstr "Descodificação por hardware"
+
+msgid "Déplacement des téléchargements…"
+msgstr "A mover as transferências…"
+
+msgid "Impossible d'écrire dans {}."
+msgstr "Não é possível escrever em {}."
+
+msgid "La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."
+msgstr "A placa gráfica descodifica o vídeo. Desliga se a imagem tiver linhas ou falhas (o processador trabalha mais)."
+
+msgid "Limite de place"
+msgstr "Limite de espaço"
+
+msgid "Ordinateur"
+msgstr "Computador"
+
+msgid "Revenir au dossier par défaut"
+msgstr "Voltar à pasta predefinida"
+
+msgid "Sans limite"
+msgstr "Sem limite"
+
+msgid "Serveur de nouveau joignable."
+msgstr "Servidor novamente acessível."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
+msgstr "Servidor inacessível: escolhe uma conta para ver as suas transferências offline."
+
+msgid "Téléchargements : {}"
+msgstr "Transferências: {}"
+
+msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgstr "Há uma transferência em curso: muda de pasta quando terminar."
+
+msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
+msgstr "limite de espaço atingido ({} de {}; Definições → Armazenamento)"
+
+msgid "nouvel essai automatique"
+msgstr "nova tentativa automática"
+
+msgid "pas assez de place sur le disque (il faut {}, {} libres)"
+msgstr "espaço em disco insuficiente (são precisos {}, {} livres)"
+
+msgid "{} déplacés, {} restés dans l'ancien dossier (place, droits ?)."
+msgstr "{} movidos, {} ficaram na pasta antiga (espaço, permissões?)."
+
+msgid "{} libres sur {}"
+msgstr "{} livres de {}"
+
+msgid "« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés."
+msgstr "«Escolher esta pasta»: as transferências vão para aqui ({}). As já feitas são movidas para aqui."
+
+msgid "{n} téléchargement à regarder hors ligne"
+msgid_plural "{n} téléchargements à regarder hors ligne"
+msgstr[0] "{n} transferência para ver offline"
+msgstr[1] "{n} transferências para ver offline"
+
+msgid "{n} téléchargement déplacé."
+msgid_plural "{n} téléchargements déplacés."
+msgstr[0] "{n} transferência movida."
+msgstr[1] "{n} transferências movidas."

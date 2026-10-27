@@ -1,6 +1,7 @@
 //! Téléchargements (lecture hors ligne).
 //!
-//! Rangement dans `<données>/turtlefin/downloads/`, comme une bibliothèque Jellyfin :
+//! Rangement dans `<données>/turtlefin/downloads/` (ou le dossier choisi dans Paramètres → Stockage),
+//! comme une bibliothèque Jellyfin :
 //! ```text
 //! <bibliothèque>/                       (ex. « Anime »)
 //!   <série>/                            poster.jpg, logo.png, backdrop.jpg : partagés par les épisodes
@@ -22,6 +23,9 @@
 //!
 //! Noms et identifiants viennent du serveur : ils sont nettoyés (`fs_name`, `id_ok`) avant de
 //! devenir des chemins (pas de « ../ », de séparateur ni de nom réservé de Windows).
+//!
+//! Le dossier choisi peut contenir d'autres fichiers de l'utilisateur : une suppression n'enlève que
+//! les fichiers de Turtlefin, puis les dossiers restés vides.
 
 use crate::i18n::{tr, trf};
 use std::collections::HashMap;
@@ -230,20 +234,25 @@ fn invalidate() {
     *INDEX.lock().unwrap() = None;
 }
 
-/// Fichiers de description trouvés sous `dir` (sur `depth` niveaux).
-fn scan(dir: &Path, depth: u32, out: &mut Vec<PathBuf>) {
+/// Fichiers de description trouvés sous `dir` (sur `depth` niveaux), hors ceux de la racine `top`
+/// (file d'attente).
+fn scan_in(dir: &Path, top: &Path, depth: u32, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else { return };
     for d in rd.flatten() {
         let p = d.path();
         let Ok(ft) = d.file_type() else { continue };
         if ft.is_dir() {
             if depth > 0 {
-                scan(&p, depth - 1, out);
+                scan_in(&p, top, depth - 1, out);
             }
-        } else if p.extension().is_some_and(|x| x == "json") && dir != root() {
+        } else if p.extension().is_some_and(|x| x == "json") && dir != top {
             out.push(p);
         }
     }
+}
+
+fn scan(dir: &Path, depth: u32, out: &mut Vec<PathBuf>) {
+    scan_in(dir, &root(), depth, out);
 }
 
 fn read_entry(loc: &Path) -> Option<Entry> {
@@ -259,7 +268,8 @@ fn read_entry(loc: &Path) -> Option<Entry> {
 /// Tous les éléments complets, avec la date de leur description.
 fn all() -> Vec<(std::time::SystemTime, Entry)> {
     let mut files = Vec::new();
-    scan(&root(), 3, &mut files);
+    let top = root();
+    scan_in(&top, &top, 3, &mut files);
     let mut out = Vec::new();
     let mut index = HashMap::new();
     for f in files {
@@ -550,10 +560,213 @@ pub fn load_queue() -> Vec<(String, String)> {
         .collect()
 }
 
-pub fn root() -> PathBuf {
+/// Dossier des téléchargements choisi (Paramètres → Stockage), lu une fois dans les préférences.
+static ROOT: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Dossier par défaut : `downloads` dans le dossier de données de Turtlefin.
+pub fn default_root() -> PathBuf {
     crate::paths::data_dir()
         .map(|d| d.join("downloads"))
         .unwrap_or_else(|| PathBuf::from("downloads"))
+}
+
+pub fn root() -> PathBuf {
+    let mut r = ROOT.lock().unwrap();
+    if let Some(p) = r.as_ref() {
+        return p.clone();
+    }
+    let custom = crate::config::ui_prefs().download_dir;
+    let p = if custom.is_empty() { default_root() } else { PathBuf::from(custom) };
+    *r = Some(p.clone());
+    p
+}
+
+/// Nouveau dossier des téléchargements (vide : celui par défaut), gardé dans les préférences.
+pub fn set_root(dir: Option<&Path>) {
+    let mut p = crate::config::ui_prefs();
+    p.download_dir = dir.map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+    crate::config::save_ui_prefs(&p);
+    *ROOT.lock().unwrap() = None;
+    invalidate();
+}
+
+/// « 1.4 Go », « 350 Mo ».
+pub fn fmt_size(b: u64) -> String {
+    if b >= 1 << 30 {
+        format!("{:.1} Go", b as f64 / (1u64 << 30) as f64)
+    } else {
+        format!("{} Mo", b >> 20)
+    }
+}
+
+/// Place sur le disque qui contient `p` (ou son plus proche dossier existant) : (libre, total), en
+/// octets. Libre : ce que ce compte peut encore écrire (quotas compris).
+pub fn disk_space(p: &Path) -> Option<(u64, u64)> {
+    let mut at = p;
+    while !at.exists() {
+        at = at.parent()?;
+    }
+    disk_space_of(at)
+}
+
+#[cfg(windows)]
+fn disk_space_of(p: &Path) -> Option<(u64, u64)> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDiskFreeSpaceExW(dir: *const u16, free_to_caller: *mut u64, total: *mut u64, total_free: *mut u64) -> i32;
+    }
+    let wide: Vec<u16> = p.as_os_str().encode_wide().chain([0]).collect();
+    let (mut free, mut total, mut all_free) = (0u64, 0u64, 0u64);
+    // SAFETY : chaîne terminée par 0, pointeurs vers des variables locales.
+    let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, &mut all_free) };
+    (ok != 0).then_some((free, total))
+}
+
+#[cfg(unix)]
+fn disk_space_of(p: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::ffi::OsStrExt;
+    let c = std::ffi::CString::new(p.as_os_str().as_bytes()).ok()?;
+    // SAFETY : chemin terminé par 0 ; statvfs remplit la structure ou rend une erreur.
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
+        return None;
+    }
+    let unit = st.f_frsize as u64;
+    Some((st.f_bavail as u64 * unit, st.f_blocks as u64 * unit))
+}
+
+#[cfg(not(any(windows, unix)))]
+fn disk_space_of(_: &Path) -> Option<(u64, u64)> {
+    None
+}
+
+/// Place prise par les téléchargements : médias, sous-titres et transferts en cours.
+pub fn used_bytes() -> u64 {
+    let len = |p: &Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+    let mut n: u64 = list().iter().map(|e| len(&e.media_path()) + e.subs.iter().map(|(f, _)| len(&e.dir().join(f))).sum::<u64>()).sum();
+    fn parts(dir: &Path, depth: u32, n: &mut u64) {
+        for d in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let p = d.path();
+            match d.file_type() {
+                Ok(t) if t.is_dir() && depth > 0 => parts(&p, depth - 1, n),
+                Ok(t) if t.is_file() && p.extension().is_some_and(|x| x == "part") => *n += d.metadata().map(|m| m.len()).unwrap_or(0),
+                _ => {}
+            }
+        }
+    }
+    parts(&root(), 3, &mut n);
+    n
+}
+
+/// Limite de place choisie (Paramètres → Stockage), en octets ; None : sans limite.
+pub fn limit_bytes() -> Option<u64> {
+    let gb = crate::config::ui_prefs().download_limit_gb;
+    (gb > 0).then(|| u64::from(gb) << 30)
+}
+
+/// Assez de place pour `need` octets de plus ? (disque, et limite choisie). Sinon : la raison.
+fn check_room(dir: &Path, need: u64) -> Result<()> {
+    // Marge laissée au système (et aux images, sous-titres) : 256 Mo.
+    const MARGIN: u64 = 256 << 20;
+    if let Some((free, _)) = disk_space(dir) {
+        if need + MARGIN > free {
+            return Err(Refused(trf("pas assez de place sur le disque (il faut {}, {} libres)", &[&fmt_size(need), &fmt_size(free)])).into());
+        }
+    }
+    if let Some(lim) = limit_bytes() {
+        let used = used_bytes();
+        if used + need > lim {
+            return Err(Refused(trf("limite de place atteinte ({} sur {} ; Paramètres → Stockage)", &[&fmt_size(used), &fmt_size(lim)])).into());
+        }
+    }
+    Ok(())
+}
+
+/// Fichiers partagés que Turtlefin range à côté des médias (images de la série, de la saison…).
+const SHARED_FILES: [&str; 6] = ["poster.jpg", "logo.png", "backdrop.jpg", "thumb.jpg", "season.jpg", "series.jpg"];
+
+/// `dir` ne contient plus aucun téléchargement : ses images partagées sont retirées, puis le dossier
+/// s'il est vide (d'autres fichiers de l'utilisateur le gardent). Rend vrai s'il a disparu.
+fn prune(dir: &Path) -> bool {
+    for f in SHARED_FILES {
+        let _ = std::fs::remove_file(dir.join(f));
+    }
+    std::fs::remove_dir(dir).is_ok()
+}
+
+/// Déplace tous les téléchargements de `from` vers `to` (mêmes sous-dossiers), transferts en cours
+/// et file d'attente compris. Rend (éléments déplacés, éléments restés en place). À lancer hors
+/// du fil de l'interface (copie d'un disque à l'autre : plusieurs minutes).
+pub fn move_all(from: &Path, to: &Path) -> (usize, usize) {
+    let (mut moved, mut failed) = (0, 0);
+    let mut files = Vec::new();
+    scan_in(from, from, 3, &mut files);
+    let mut touched: Vec<PathBuf> = Vec::new();
+    for f in files {
+        let Some(e) = read_entry(&f) else { continue };
+        let Ok(rel) = e.dir().strip_prefix(from).map(Path::to_path_buf) else { continue };
+        // Le dossier de l'élément et ceux au-dessus de lui, jusqu'à la racine (bibliothèque, série).
+        let mut d = e.dir();
+        while d.starts_with(from) && d != from {
+            touched.push(d.clone());
+            match d.parent() {
+                Some(p) => d = p.to_path_buf(),
+                None => break,
+            }
+        }
+        let dest = to.join(&rel);
+        let ok = std::fs::create_dir_all(&dest).is_ok() && {
+            let base = e.base();
+            let mut names: Vec<String> = vec![e.media.clone()];
+            names.extend(e.subs.iter().map(|(n, _)| n.clone()));
+            if e.legacy() {
+                names.extend(["still.jpg", "series.jpg", "season.jpg", "poster.jpg", "thumb.jpg", "logo.png", "backdrop.jpg"].map(String::from));
+            } else {
+                names.push(format!("{base}.jpg"));
+            }
+            // Le média et les sous-titres d'abord, la description en dernier (sa présence signifie
+            // « complet »).
+            let all_ok = names.iter().all(|n| {
+                let src = e.dir().join(n);
+                !src.exists() || move_file(&src, &dest.join(n)).is_ok()
+            });
+            all_ok && move_file(&e.loc, &dest.join(e.loc.file_name().unwrap_or_default())).is_ok()
+        };
+        if ok { moved += 1 } else { failed += 1 }
+    }
+    // Restes des dossiers qui avaient un téléchargement (images partagées, transferts en cours),
+    // puis ces dossiers s'ils sont vides, du plus profond au moins profond ; la file d'attente.
+    touched.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    touched.dedup();
+    for d in &touched {
+        let Ok(rel) = d.strip_prefix(from) else { continue };
+        for f in std::fs::read_dir(d).into_iter().flatten().flatten() {
+            let name = f.file_name().to_string_lossy().into_owned();
+            let p = f.path();
+            if p.is_file() && (SHARED_FILES.contains(&name.as_str()) || name.ends_with(".part")) {
+                let target = to.join(rel).join(&name);
+                if !target.exists() && std::fs::create_dir_all(to.join(rel)).is_ok() {
+                    let _ = move_file(&p, &target);
+                }
+            }
+        }
+        let _ = std::fs::remove_dir(d);
+    }
+    let q = from.join("queue.json");
+    if q.exists() && !to.join("queue.json").exists() {
+        let _ = move_file(&q, &to.join("queue.json"));
+    }
+    let _ = std::fs::remove_dir(from);
+    invalidate();
+    (moved, failed)
+}
+
+/// Éléments complets rangés sous `dir` (autre dossier que celui en cours).
+pub fn list_in(dir: &Path) -> Vec<Entry> {
+    let mut files = Vec::new();
+    scan_in(dir, dir, 3, &mut files);
+    files.iter().filter_map(|f| read_entry(f)).collect()
 }
 
 /// Éléments complètement téléchargés, du plus récent au plus ancien.
@@ -609,15 +822,15 @@ pub fn remove(id: &str) {
     }
     let _ = std::fs::remove_file(dir.join(format!("{base}.jpg")));
     let _ = std::fs::remove_file(&e.loc);
-    // Dossiers devenus inutiles (plus aucun élément dedans), jusqu'à la bibliothèque.
+    // Dossiers devenus inutiles (plus aucun élément dedans), jusqu'à la bibliothèque : seuls les
+    // fichiers de Turtlefin en sont retirés, un dossier qui garde autre chose reste.
     let mut d = dir;
     while d.starts_with(root()) && d != root() {
         let mut files = Vec::new();
         scan(&d, 2, &mut files);
-        if files.iter().any(|f| read_entry(f).is_some()) || has_partial(&d) {
+        if files.iter().any(|f| read_entry(f).is_some()) || has_partial(&d) || !prune(&d) {
             break;
         }
-        let _ = std::fs::remove_dir_all(&d);
         match d.parent() {
             Some(p) => d = p.to_path_buf(),
             None => break,
@@ -687,6 +900,12 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
     let part = dir.join(format!("{media}.part"));
     // Transfert interrompu : on reprend après ce qui est déjà sur le disque.
     let have = tokio::fs::metadata(&part).await.map(|m| m.len()).unwrap_or(0);
+    // Assez de place (disque, limite choisie) pour ce qui reste à recevoir ?
+    let size = source.and_then(|s| s.size).unwrap_or(0);
+    {
+        let (dir, need) = (dir.clone(), size.saturating_sub(have));
+        tokio::task::spawn_blocking(move || check_room(&dir, need)).await??;
+    }
     let mut req = http.get(client.download_url(&item.id)).header("Authorization", client.auth());
     if have > 0 {
         req = req.header("Range", format!("bytes={have}-"));
@@ -782,6 +1001,30 @@ mod tests {
         assert!(id_ok("13562385d903c96cf4c7f20f40768987"));
         assert_eq!(sub_name("B S01E01", 0, "fre", "srt"), "B S01E01.0.fre.srt");
         assert_eq!(sub_name("B", 1, "../", "s/rt?x"), "B.1.srtx");
+    }
+
+    #[test]
+    fn move_and_prune() {
+        // Un film déplacé d'un dossier à l'autre ; un fichier de l'utilisateur reste où il est.
+        let base = std::env::temp_dir().join(format!("tf-dl-{}", std::process::id()));
+        let (from, to) = (base.join("a"), base.join("b"));
+        let dir = from.join("Films").join("Akira (1988)");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Akira (1988).mkv"), b"film").unwrap();
+        std::fs::write(dir.join("poster.jpg"), b"img").unwrap();
+        std::fs::write(from.join("Films").join("perso.txt"), b"a moi").unwrap();
+        let e = Entry { id: "a3".into(), kind: "Movie".into(), media: "Akira (1988).mkv".into(), ..Default::default() };
+        std::fs::write(dir.join("Akira (1988).json"), serde_json::to_string(&e).unwrap()).unwrap();
+        assert_eq!(move_all(&from, &to), (1, 0));
+        let moved = to.join("Films").join("Akira (1988)");
+        assert!(moved.join("Akira (1988).mkv").exists() && moved.join("Akira (1988).json").exists() && moved.join("poster.jpg").exists());
+        assert!(!dir.exists());
+        assert!(from.join("Films").join("perso.txt").exists());
+        // Un dossier qui garde un fichier de l'utilisateur n'est pas supprimé.
+        std::fs::write(moved.join("notes.txt"), b"a moi").unwrap();
+        assert!(!prune(&moved));
+        assert!(moved.join("notes.txt").exists() && !moved.join("poster.jpg").exists());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

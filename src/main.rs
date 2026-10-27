@@ -4,7 +4,6 @@
 
 mod api;
 mod boot;
-mod cast;
 mod chromecast;
 #[cfg(windows)]
 mod winfull;
@@ -17,6 +16,7 @@ mod discovery;
 mod downloads;
 mod dust;
 mod i18n;
+mod lan;
 mod mpv;
 mod password;
 mod paths;
@@ -32,6 +32,7 @@ use std::sync::{Arc, Mutex};
 
 use slint::{ComponentHandle, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
+use crate::downloads::fmt_size;
 use crate::i18n::{tr, trf};
 
 slint::include_modules!();
@@ -44,6 +45,7 @@ slint::include_modules!();
 //   options : --tv | --desktop | --server=URL | --no-intro (pas d'animation) | --console (journal)
 //             --tutorial (visite guidée à l'arrivée sur l'accueil) | --lang=CODE | --theme=NOM
 //             --play=« Titre » ou « Titre S2E5 » (ou ID) | --open=« Titre » (ou ID) | --help
+//             --sub=LANGUE|off | --audio=LANGUE (pistes de ce lancement)
 //   (voir USAGE)
 //   le mot de passe peut aussi venir de la variable TURTLEFIN_PASSWORD
 //   (un argument de ligne de commande est visible par les autres processus).
@@ -97,13 +99,15 @@ turtlefin [COMPTE [MOT_DE_PASSE]] [options]
   --play=\"Titre S2E5\"    lit un épisode précis (aussi « Titre 2x05 ») ; un ID marche aussi,
                          suivi de @SECONDES pour partir d'un moment précis
   --open=\"Titre\"         ouvre la fiche (aussi --open=settings, --open=downloads)
+  --sub=LANGUE           sous-titres de ce lancement (fr, en, ja… ou off pour aucun)
+  --audio=LANGUE         langue audio de ce lancement (fr, en, ja…)
   --tv | --desktop       interface TV (plein écran, grands éléments) ou ordinateur
   --fullscreen           plein écran sans l'interface TV
   --no-intro             pas d'animation de démarrage
   --tutorial             visite guidée à l'arrivée sur l'accueil
   --console              fenêtre de journal (Windows)
 
-Exemple : turtlefin Cody --server=http://salon:8096 --lang=en --play=\"Bleach S1E3\" --tv
+Exemple : turtlefin Cody --server=http://salon:8096 --lang=en --play=\"Bleach S1E3\" --sub=fr --tv
 ";
 
 fn parse_cli() -> Cli {
@@ -155,6 +159,9 @@ fn parse_cli() -> Cli {
             s if s.starts_with("--test-video=") => cli.test_video = Some(s["--test-video=".len()..].to_string()),
             s if s.starts_with("--play=") => cli.play = Some(s["--play=".len()..].to_string()),
             s if s.starts_with("--open=") => cli.play = Some(format!("open:{}", &s["--open=".len()..])),
+            // Pistes voulues pour ce lancement (les préférences enregistrées ne changent pas).
+            s if s.starts_with("--sub=") => player::cli_tracks(None, Some(&s["--sub=".len()..])),
+            s if s.starts_with("--audio=") => player::cli_tracks(Some(&s["--audio=".len()..]), None),
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -279,13 +286,12 @@ struct App {
     lx_dir: Mutex<std::path::PathBuf>,
     /// Bibliothèque en cours d'ouverture : titre, et ouverte depuis l'accueil (posés avec sa première page).
     lib_title: Mutex<(String, bool)>,
-    /// Diffuser : appareil piloté (voir cast_pick), télés DLNA trouvées, état relu régulièrement.
+    /// Diffuser : appareil piloté (voir cast_pick), état relu régulièrement.
     cast: Mutex<Option<CastTarget>>,
-    dlna_found: Mutex<Vec<cast::Renderer>>,
     /// Appareils Google Cast trouvés (Chromecast, Google TV, décodeurs « Chromecast intégré »).
     gcast_found: Mutex<Vec<chromecast::Device>>,
-    /// Noms d'origine des écrans trouvés (DLNA, Google Cast), dans l'ordre des listes ci-dessus.
-    screen_orig: Mutex<(Vec<String>, Vec<String>)>,
+    /// Noms d'origine des écrans Google Cast trouvés, dans l'ordre de la liste ci-dessus.
+    screen_orig: Mutex<Vec<String>>,
     /// Vidéo en cours sur l'écran de diffusion, et ses pistes (changeables pendant la lecture).
     cast_now: Mutex<Option<CastNow>>,
     /// Épisodes de la série diffusée (précédent / suivant depuis le lecteur-télécommande).
@@ -296,14 +302,8 @@ struct App {
     /// Télécommande (menu) : Turtlefin piloté (session, nom) et relecture de son état.
     remote: Mutex<Option<(String, String)>>,
     remote_poll: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    /// Télé DLNA : (en pause, position, durée, volume) à la dernière lecture de son état.
-    dlna_state: Mutex<(bool, f64, f64, u32)>,
-    /// Télé DLNA qui lit une conversion du serveur : position (s) où la conversion a commencé. La
-    /// télé compte depuis là et ne sait pas s'y déplacer (la vidéo lui est renvoyée plus loin).
-    cast_live: Mutex<Option<f64>>,
-    /// Télé DLNA « en pause » sur une conversion (qu'elle ne sait pas mettre en pause) : arrêtée, à
-    /// relancer depuis cette position.
-    cast_held: Mutex<Option<f64>>,
+    /// Chromecast : (en pause, position, durée, volume) à la dernière lecture de son état.
+    screen_state: Mutex<(bool, f64, f64, u32)>,
     /// Vidéo diffusée : intro et générique (segments du serveur) et ce qui en a déjà été proposé.
     cast_marks: Mutex<CastMarks>,
     lx_paths: Mutex<Vec<(std::path::PathBuf, &'static str)>>,
@@ -1360,6 +1360,22 @@ fn login_pick(app: &Arc<App>, action: String) {
         };
         match client.user_config().await {
             Ok(_) => start_session(app2, client, None).await,
+            // Serveur injoignable, téléchargements sur l'appareil : ce compte, hors ligne (ses
+            // lectures seront envoyées au serveur à son retour).
+            Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() && !downloads::list().is_empty() => {
+                let _ = e;
+                let mut saved = config::load();
+                saved.user_id = acc.user_id.clone();
+                saved.user_name = acc.user_name.clone();
+                saved.token = acc.token.clone();
+                saved.server_id = acc.server_id.clone();
+                config::save(&saved);
+                let _ = app2.ui().upgrade_in_event_loop(|u| {
+                    u.set_busy(false);
+                    u.set_error_text("".into());
+                });
+                go_offline(&app2);
+            }
             // Serveur injoignable (réseau, serveur arrêté) : le compte reste enregistré.
             Err(e) if e.downcast_ref::<api::Unauthorized>().is_none() => {
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
@@ -2317,14 +2333,13 @@ fn remote_received(app: &Arc<App>, r: syncplay::Remote) {
 }
 
 // ---------------------------------------------------------------------------
-// Diffuser : vidéos envoyées à un écran (télé DLNA, Turtlefin ou appli Jellyfin du compte) ;
+// Diffuser : vidéos envoyées à un écran (Chromecast, Turtlefin ou appli Jellyfin du compte) ;
 // Télécommande : un autre Turtlefin du compte piloté comme avec sa télécommande
 // ---------------------------------------------------------------------------
 #[derive(Clone)]
 enum CastTarget {
     /// Session Jellyfin (Turtlefin sur un Pi, une Android TV, ou une autre appli Jellyfin).
     Jf { session: String, name: String },
-    Dlna(cast::Renderer),
     /// Chromecast ou appareil « Chromecast intégré ».
     Gcast(chromecast::Device),
 }
@@ -2333,7 +2348,6 @@ impl CastTarget {
     fn name(&self) -> String {
         match self {
             CastTarget::Jf { name, .. } => name.clone(),
-            CastTarget::Dlna(r) => r.name.clone(),
             CastTarget::Gcast(d) => d.name.clone(),
         }
     }
@@ -2344,7 +2358,7 @@ fn fmt_clock(secs: f64) -> String {
     if s >= 3600 { format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60) } else { format!("{}:{:02}", s / 60, s % 60) }
 }
 
-/// Panneau « Diffuser » ouvert : appareils du compte et télés DLNA du réseau.
+/// Panneau « Diffuser » ouvert : appareils du compte et Chromecast du réseau.
 fn cast_refresh(app: &Arc<App>) {
     let Some(client) = app.client() else { return };
     if let Some(u) = app.ui().upgrade() {
@@ -2356,21 +2370,17 @@ fn cast_refresh(app: &Arc<App>) {
     let a = app.clone();
     app.rt.spawn(async move {
         let wait = std::time::Duration::from_millis(2500);
-        let (jf, mut dlna, mut gcast) = tokio::join!(client.remote_targets(), cast::discover(wait), chromecast::discover(wait));
+        let (jf, mut gcast) = tokio::join!(client.remote_targets(), chromecast::discover(wait));
         // Noms choisis dans Paramètres → Lecture (deux télés « [TV] Living room »…).
         let screens = config::ui_prefs().cast_screens;
         let named = |key: String, original: &str| -> String {
             screens.iter().find(|s| s.key == key && !s.name.is_empty()).map(|s| s.name.clone()).unwrap_or_else(|| original.to_string())
         };
-        let dlna_orig: Vec<String> = dlna.iter().map(|r| r.name.clone()).collect();
         let gcast_orig: Vec<String> = gcast.iter().map(|d| d.name.clone()).collect();
-        for r in dlna.iter_mut() {
-            r.name = named(format!("dlna:{}", r.id), &r.name);
-        }
         for d in gcast.iter_mut() {
             d.name = named(format!("gcast:{}", d.id), &d.name);
         }
-        *a.screen_orig.lock().unwrap() = (dlna_orig, gcast_orig);
+        *a.screen_orig.lock().unwrap() = gcast_orig;
         let mut items: Vec<CastItem> = Vec::new();
         for t in jf.unwrap_or_default() {
             let sub = if t.now_playing.is_empty() { t.client.clone() } else { format!("{} · {}", t.client, t.now_playing) };
@@ -2379,10 +2389,6 @@ fn cast_refresh(app: &Arc<App>) {
         for (i, d) in gcast.iter().enumerate() {
             items.push(CastItem { id: format!("gcast:{i}").into(), name: d.name.clone().into(), sub: tr("Chromecast : la vidéo y est envoyée").into(), kind: "gcast".into() });
         }
-        for (i, r) in dlna.iter().enumerate() {
-            items.push(CastItem { id: format!("dlna:{i}").into(), name: r.name.clone().into(), sub: tr("Télé DLNA : la vidéo y est envoyée").into(), kind: "dlna".into() });
-        }
-        *a.dlna_found.lock().unwrap() = dlna;
         *a.gcast_found.lock().unwrap() = gcast;
         a.remember_screens();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
@@ -2413,8 +2419,8 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
     let saved = config::load();
     let server_id = saved.server_id.clone();
     // Même réseau que l'écran, et joint par ce réseau (pas par Tailscale, qui peut faire suivre le
-    // réseau de la maison jusqu'ici, voir cast::lan_reachable).
-    if same_net(&client.server) && cast::lan_reachable(&client.server, scr).await {
+    // réseau de la maison jusqu'ici, voir lan::lan_reachable).
+    if same_net(&client.server) && lan::lan_reachable(&client.server, scr).await {
         note_lan_server(&server_id, &client.server);
         return url.to_string();
     }
@@ -2425,7 +2431,7 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
     let http = api::http_client();
     let mut base = None;
     for b in known.into_iter().chain([saved.server_main.clone(), saved.server_backup.clone()]) {
-        if b.is_empty() || !same_net(&b) || !cast::lan_reachable(&b, scr).await {
+        if b.is_empty() || !same_net(&b) || !lan::lan_reachable(&b, scr).await {
             continue;
         }
         if discovery::probe(&http, &b).await.is_some_and(|(id, ..)| server_id.is_empty() || id == server_id) {
@@ -2439,7 +2445,7 @@ async fn screen_url(client: &api::Client, url: &str, screen: Option<std::net::Ip
                 continue;
             }
             for b in [f.main, f.backup].into_iter().flatten() {
-                if same_net(&b) && cast::lan_reachable(&b, scr).await {
+                if same_net(&b) && lan::lan_reachable(&b, scr).await {
                     base = Some(b);
                     break;
                 }
@@ -2494,8 +2500,7 @@ fn screen_rows(p: &config::UiPrefs) -> Vec<(String, String, String, String, &'st
         "action",
     )];
     for sc in &p.cast_screens {
-        let kind = if sc.key.starts_with("gcast:") { "Chromecast" } else { "DLNA" };
-        let hint = if sc.name.is_empty() { kind.to_string() } else { format!("{} · {kind}", sc.original) };
+        let hint = if sc.name.is_empty() { "Chromecast".to_string() } else { format!("{} · Chromecast", sc.original) };
         v.push((format!("screen:{}", sc.key), sc.shown().to_string(), hint, tr("Renommer").to_string(), "action"));
     }
     v
@@ -2504,11 +2509,8 @@ fn screen_rows(p: &config::UiPrefs) -> Vec<(String, String, String, String, &'st
 impl App {
     /// Écrans trouvés gardés dans les préférences (pour les renommer même éteints), 24 au plus.
     fn remember_screens(&self) {
-        let (dlna_orig, gcast_orig) = self.screen_orig.lock().unwrap().clone();
+        let gcast_orig = self.screen_orig.lock().unwrap().clone();
         let mut found: Vec<(String, String)> = Vec::new();
-        for (r, o) in self.dlna_found.lock().unwrap().iter().zip(dlna_orig) {
-            found.push((format!("dlna:{}", r.id), o));
-        }
         for (d, o) in self.gcast_found.lock().unwrap().iter().zip(gcast_orig) {
             found.push((format!("gcast:{}", d.id), o));
         }
@@ -2531,15 +2533,11 @@ impl App {
         let Some(sc) = config::ui_prefs().cast_screens.into_iter().find(|s| s.key == key) else { return };
         let shown = sc.shown().to_string();
         let mut old = None;
-        for r in self.dlna_found.lock().unwrap().iter_mut().filter(|r| format!("dlna:{}", r.id) == key) {
-            old = Some(std::mem::replace(&mut r.name, shown.clone()));
-        }
         for d in self.gcast_found.lock().unwrap().iter_mut().filter(|d| format!("gcast:{}", d.id) == key) {
             old = Some(std::mem::replace(&mut d.name, shown.clone()));
         }
         let mut cast = self.cast.lock().unwrap();
         match cast.as_mut() {
-            Some(CastTarget::Dlna(r)) if format!("dlna:{}", r.id) == key => r.name = shown.clone(),
             Some(CastTarget::Gcast(d)) if format!("gcast:{}", d.id) == key => d.name = shown.clone(),
             _ => {}
         }
@@ -2562,7 +2560,7 @@ impl App {
 }
 
 /// Écran choisi : les vidéos y sont envoyées (« Lire sur … » des fiches) ; le panneau montre ce qui y
-/// passe. DLNA : la fiche ouverte y est lue tout de suite.
+/// passe. Chromecast : la fiche ouverte y est lue tout de suite.
 fn cast_pick(app: &Arc<App>, id: &str) {
     let Some(u) = app.ui().upgrade() else { return };
     let target = if let Some(session) = id.strip_prefix("jf:") {
@@ -2572,11 +2570,6 @@ fn cast_pick(app: &Arc<App>, id: &str) {
             .map(|c| c.name.to_string())
             .unwrap_or_default();
         CastTarget::Jf { session: session.to_string(), name }
-    } else if let Some(n) = id.strip_prefix("dlna:").and_then(|n| n.parse::<usize>().ok()) {
-        match app.dlna_found.lock().unwrap().get(n).cloned() {
-            Some(r) => CastTarget::Dlna(r),
-            None => return,
-        }
     } else if let Some(n) = id.strip_prefix("gcast:").and_then(|n| n.parse::<usize>().ok()) {
         match app.gcast_found.lock().unwrap().get(n).cloned() {
             Some(d) => CastTarget::Gcast(d),
@@ -2585,8 +2578,8 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     } else {
         return;
     };
-    // Télé DLNA ou Chromecast : l'écran lit lui-même la vidéo (la fiche ouverte y part tout de suite).
-    let dlna = matches!(target, CastTarget::Dlna(_) | CastTarget::Gcast(_));
+    // Chromecast : l'écran lit lui-même la vidéo (la fiche ouverte y part tout de suite).
+    let direct = matches!(target, CastTarget::Gcast(_));
     u.set_cast_target(target.name().into());
     u.set_cast_on(true);
     u.set_cast_now("".into());
@@ -2598,7 +2591,7 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     refresh_detail_buttons(app);
     // Choisi depuis le lecteur : c'est la vidéo en cours qui part (plus bas), pas la fiche restée
     // dessous (deux envois à la fois : la télé les refusait tous les deux).
-    if dlna && !u.get_cast_handoff() {
+    if direct && !u.get_cast_handoff() {
         if let Some(id) = detail_id {
             cast_play_item(app, id, None);
         }
@@ -2742,10 +2735,8 @@ fn push_cast_tracks(app: &Arc<App>) {
     }
 }
 
-/// Envoie la vidéo (avec ses pistes) à l'écran, à partir de `start` secondes. Renvoie, pour une
-/// télé DLNA à qui part une conversion du serveur, la position où elle commence (voir App::cast_live),
-/// et si l'image elle-même doit être convertie (HEVC vers une télé qui ne lit que le H.264 : lent).
-async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, start: Option<f64>) -> anyhow::Result<(Option<f64>, bool)> {
+/// Envoie la vidéo diffusée (avec ses pistes) à l'écran, à partir de `start` secondes.
+async fn cast_resend(client: &api::Client, target: &CastTarget, now: &CastNow, start: Option<f64>) -> anyhow::Result<()> {
     let item = &now.item;
     let (title, _) = item.titles();
     let source = item.media_sources.as_ref().and_then(|m| m.first()).map(|m| m.id.clone()).unwrap_or_else(|| item.id.clone());
@@ -2754,53 +2745,13 @@ async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, sta
     let audio = (now.audio >= 0 && now.audio != default_audio).then_some(now.audio);
     let subs = item_streams(item, "Subtitle");
     let sub = subs.iter().find(|s| s.index == now.sub).map(|s| (*s).clone());
-    let mut live = None;
-    let mut slow = false;
     match target {
         CastTarget::Jf { session, .. } => client.remote_play(session, &item.id, start).await?,
-        CastTarget::Dlna(r) => {
-            // La télé lit le fichier tel quel et y prend d'elle-même les sous-titres marqués par
-            // défaut ; elle ignore les sous-titres donnés à part (Samsung). Les sous-titres voulus
-            // sont donc incrustés, et le flux réassemblé sans eux quand ils sont désactivés.
-            let default_sub = subs.iter().find(|s| s.is_default).map(|s| s.index).unwrap_or(-1);
-            let burn = sub.as_ref().map(|s| s.index);
-            let force = now.sub != default_sub;
-            // La télé lit le flux elle-même : l'adresse porte le jeton de la session (comme le fait
-            // Jellyfin pour ses propres télés DLNA), seulement vers une télé du réseau local.
-            let hevc = cast::supports_hevc(r).await;
-            slow = !hevc && item_streams(item, "Video").first().and_then(|s| s.codec.as_deref()).is_some_and(|c| c.eq_ignore_ascii_case("hevc") || c.eq_ignore_ascii_case("h265"));
-            let (mut url, mime) = client.cast_stream(&item.id, &source, true, hevc, audio, burn, force).await?;
-            // Conversion (flux continu, où la télé ne se déplace pas) : le serveur la commence à la
-            // bonne position. Fichier lu tel quel : la télé y va elle-même.
-            let converted = mime == "video/mpeg";
-            let at = start.filter(|s| *s > 1.0);
-            if converted {
-                if let Some(s) = at {
-                    url.push_str(&format!("&StartTimeTicks={}", (s * 1e7) as i64));
-                }
-                live = Some(at.unwrap_or(0.0));
-            }
-            let screen = reqwest::Url::parse(&r.av_control).ok().and_then(|u| u.host_str().and_then(|h| h.parse::<std::net::IpAddr>().ok()));
-            // Conversion reprise en cours de vidéo : ses horodatages partent de la reprise, et une
-            // Samsung attend alors l'image sans fin (le son passe, pause refusée). Elle passe par le
-            // relais, qui les ramène à 0.
-            let url = match (converted, at, screen) {
-                (true, Some(_), Some(std::net::IpAddr::V4(scr))) => match relay::url_rebased(&url, scr).await {
-                    Ok(u) => u,
-                    Err(_) => screen_url(client, &url, screen).await,
-                },
-                _ => screen_url(client, &url, screen).await,
-            };
-            cast::play_url(r, &url, &mime, &title, None).await?;
-            if let (Some(s), false) = (at, converted) {
-                let _ = cast::control(r, "seek", s).await;
-            }
-        }
         CastTarget::Gcast(d) => {
             // Sous-titres en texte : tous donnés à l'appareil (on passe de l'un à l'autre sans
             // recharger, voir cast_track) ; en images : incrustés.
             let burn = sub.as_ref().filter(|s| !s.is_text_subtitle_stream).map(|s| s.index);
-            let (url, mime) = client.cast_stream(&item.id, &source, false, false, audio, burn, false).await?;
+            let (url, mime) = client.cast_stream(&item.id, &source, audio, burn).await?;
             let url = screen_url(client, &url, Some(d.addr.ip())).await;
             let mut tracks = Vec::new();
             if burn.is_none() {
@@ -2813,7 +2764,7 @@ async fn cast_send(client: &api::Client, target: &CastTarget, now: &CastNow, sta
             chromecast::play_url(d, &url, &mime, &title, start, &tracks, active).await?;
         }
     }
-    Ok((live, slow))
+    Ok(())
 }
 
 /// Numéro de piste Google Cast d'un sous-titre (index Jellyfin, qui peut valoir 0 ; il faut > 0).
@@ -2821,28 +2772,6 @@ fn gcast_track(index: i32) -> i32 {
     index + 1
 }
 
-/// Envoie la vidéo diffusée à l'écran à partir de `at` secondes et note où elle reprend.
-async fn cast_resend(a: &Arc<App>, client: &api::Client, target: &CastTarget, now: &CastNow, at: Option<f64>) -> anyhow::Result<()> {
-    let (live, slow) = cast_send(client, target, now, at).await?;
-    *a.cast_live.lock().unwrap() = live;
-    *a.cast_held.lock().unwrap() = None;
-    if slow {
-        let msg = trf("{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer.", &[&target.name()]);
-        let _ = a.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
-    }
-    Ok(())
-}
-
-/// Télé DLNA qui lit une conversion : aller à `to` secondes, c'est lui renvoyer la vidéo depuis là
-/// (None : la télé sait se déplacer elle-même).
-async fn cast_live_seek(a: &Arc<App>, target: &CastTarget, to: f64) -> Option<anyhow::Result<()>> {
-    if !matches!(target, CastTarget::Dlna(_)) || a.cast_live.lock().unwrap().is_none() {
-        return None;
-    }
-    let now = a.cast_now.lock().unwrap().clone()?;
-    let client = a.client()?;
-    Some(cast_resend(a, &client, target, &now, Some(to.max(0.0))).await)
-}
 
 /// Lire un élément sur l'appareil piloté (série / saison : l'épisode à suivre), avec les pistes
 /// préférées. `at` : position imposée (vidéo passée depuis le lecteur), sinon là où on en était.
@@ -2860,7 +2789,7 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
             let start = at.or_else(|| item.user_data.as_ref().map(|u| u.playback_position_ticks as f64 / 1e7).filter(|s| *s > 5.0));
             let (audio, sub) = cast_tracks(&item);
             let now = CastNow { item, audio, sub };
-            cast_resend(&a, &client, &target, &now, start).await?;
+            cast_resend(&client, &target, &now, start).await?;
             let title = now.item.titles().0;
             *a.cast_now.lock().unwrap() = Some(now);
             Ok(title)
@@ -2929,7 +2858,7 @@ fn cast_track(app: &Arc<App>, kind: &str, id: i32) {
             _ => {
                 // La vidéo repart sur l'écran au même endroit, avec la nouvelle piste.
                 let pos = target_state(&a, &target).await.map(|s| s.2).filter(|p| *p > 1.0);
-                cast_resend(&a, &client, &target, &now, pos).await
+                cast_resend(&client, &target, &now, pos).await
             }
         };
         let msg = res.err().map(|e| trf("{} ne répond pas : {}", &[&target.name(), &human_err(&e)]));
@@ -2960,7 +2889,7 @@ fn open_remote_player(app: &Arc<App>) {
     u.set_p_chapter_count(0);
     u.set_p_episodes(ModelRc::default());
     u.set_p_has_bg(false);
-    u.set_p_volume(app.dlna_state.lock().unwrap().3 as i32);
+    u.set_p_volume(app.screen_state.lock().unwrap().3 as i32);
     push_remote_tracks(&u, &now);
     u.set_cast_pop(false);
     u.set_p_remote(true);
@@ -3059,9 +2988,8 @@ fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
                 let res = match verb.as_str() {
                     "volume" => {
                         let v = arg.parse::<f64>().unwrap_or(50.0);
-                        a.dlna_state.lock().unwrap().3 = v as u32;
+                        a.screen_state.lock().unwrap().3 = v as u32;
                         match &target {
-                            CastTarget::Dlna(r) => cast::control(r, "vol", v).await,
                             CastTarget::Gcast(d) => chromecast::control(d, "vol", v).await,
                             CastTarget::Jf { .. } => Ok(()),
                         }
@@ -3075,11 +3003,8 @@ fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
                         };
                         if verb == "seek-to" && dur <= 0.0 {
                             Ok(())
-                        } else if let Some(r) = cast_live_seek(&a, &target, to).await {
-                            r
                         } else {
                             match &target {
-                                CastTarget::Dlna(r) => cast::control(r, "seek", to.max(0.0)).await,
                                 CastTarget::Gcast(d) => chromecast::control(d, "seek", to.max(0.0)).await,
                                 CastTarget::Jf { session, .. } => match a.client() {
                                     Some(c) => c.remote_playstate(session, "Seek", Some(to.max(0.0))).await,
@@ -3172,27 +3097,7 @@ async fn target_state(a: &Arc<App>, target: &CastTarget) -> Option<(String, bool
             c.remote_targets().await.ok()?.into_iter().find(|t| &t.session == session).map(|t| (t.now_playing, t.paused, t.position, t.duration))
         }
         CastTarget::Gcast(d) => chromecast::status(d).await.map(|(paused, pos, dur, vol)| {
-            let mut st = a.dlna_state.lock().unwrap();
-            let v = vol.unwrap_or(st.3);
-            *st = (paused, pos, dur, v);
-            (String::new(), paused, pos, dur)
-        }),
-        CastTarget::Dlna(r) => cast::status(r).await.map(|(paused, pos, dur, vol)| {
-            let len = || a.cast_now.lock().unwrap().as_ref().and_then(|n| n.item.run_time_ticks).map(|t| t as f64 / 1e7).unwrap_or(0.0);
-            // En pause par arrêt (voir App::cast_held) : la position notée, en pause.
-            if let Some(at) = *a.cast_held.lock().unwrap() {
-                let mut st = a.dlna_state.lock().unwrap();
-                let v = vol.unwrap_or(st.3);
-                *st = (true, at, len(), v);
-                return (String::new(), true, at, len());
-            }
-            // Conversion : la télé compte depuis son début et n'en connaît pas la durée (celle de la
-            // vidéo, donnée par le serveur).
-            let (pos, dur) = match *a.cast_live.lock().unwrap() {
-                Some(off) => (pos + off, if dur > 0.0 { dur + off } else { len() }),
-                None => (pos, dur),
-            };
-            let mut st = a.dlna_state.lock().unwrap();
+            let mut st = a.screen_state.lock().unwrap();
             let v = vol.unwrap_or(st.3);
             *st = (paused, pos, dur, v);
             (String::new(), paused, pos, dur)
@@ -3280,8 +3185,8 @@ fn start_cast_poll(app: &Arc<App>) {
             let Some(target) = a.cast.lock().unwrap().clone() else { return };
             if let Some((now, paused, pos, dur)) = target_state(&a, &target).await {
                 cast_marks_tick(&a, pos, dur, paused);
-                // Volume de l'écran (DLNA, Chromecast), relu avec le reste.
-                let vol = (!matches!(target, CastTarget::Jf { .. })).then(|| a.dlna_state.lock().unwrap().3 as i32);
+                // Volume de l'écran (Chromecast), relu avec le reste.
+                let vol = (!matches!(target, CastTarget::Jf { .. })).then(|| a.screen_state.lock().unwrap().3 as i32);
                 let _ = a.ui().upgrade_in_event_loop(move |u| {
                     let (p, t) = clock_pair(pos, dur);
                     if !now.is_empty() {
@@ -3443,44 +3348,8 @@ fn send_cmd(app: &Arc<App>, target: CastTarget, c: &str) {
                     }
                 }
             }
-            CastTarget::Dlna(r) => {
-                let (paused, pos, _dur, vol) = *a.dlna_state.lock().unwrap();
-                let r2 = r.clone();
-                let jump = match c.as_str() {
-                    "ff" => Some(pos + 30.0),
-                    "rew" => Some((pos - 10.0).max(0.0)),
-                    _ => None,
-                };
-                let live = match jump {
-                    Some(to) => cast_live_seek(&a, &target, to).await,
-                    None => None,
-                };
-                let held = *a.cast_held.lock().unwrap();
-                match c.as_str() {
-                    _ if live.is_some() => live.unwrap_or(Ok(())),
-                    // Reprise d'une pause faite en arrêtant (voir plus bas) : la vidéo repart d'où elle était.
-                    "playpause" if held.is_some() => cast_live_seek(&a, &target, held.unwrap_or(pos)).await.unwrap_or(Ok(())),
-                    // Conversion en cours (flux continu) : une Samsung accepte la pause puis reste
-                    // bloquée en chargement (seul « Stop » permis). Elle s'arrête plutôt ; la
-                    // lecture reprendra au même endroit.
-                    "playpause" if a.cast_live.lock().unwrap().is_some() => {
-                        *a.cast_held.lock().unwrap() = Some(pos);
-                        cast::control(&r2, "stop", 0.0).await
-                    }
-                    "playpause" if paused => cast::control(&r2, "play", 0.0).await,
-                    "playpause" => cast::control(&r2, "pause", 0.0).await,
-                    "stop" => cast::control(&r2, "stop", 0.0).await,
-                    "ff" | "rew" => cast::control(&r2, "seek", jump.unwrap_or(pos)).await,
-                    "vol+" | "vol-" | "mute" => {
-                        let v = match c.as_str() { "vol+" => (vol + 5).min(100), "vol-" => vol.saturating_sub(5), _ => 0 };
-                        a.dlna_state.lock().unwrap().3 = v;
-                        cast::control(&r2, "vol", v as f64).await
-                    }
-                    _ => Ok(()),
-                }
-            }
             CastTarget::Gcast(d) => {
-                let (paused, pos, _dur, vol) = *a.dlna_state.lock().unwrap();
+                let (paused, pos, _dur, vol) = *a.screen_state.lock().unwrap();
                 match c.as_str() {
                     "playpause" => chromecast::control(d, if paused { "play" } else { "pause" }, 0.0).await,
                     "stop" => chromecast::control(d, "stop", 0.0).await,
@@ -3489,7 +3358,7 @@ fn send_cmd(app: &Arc<App>, target: CastTarget, c: &str) {
                     "mute" => chromecast::control(d, "mute", 0.0).await,
                     "vol+" | "vol-" => {
                         let v = if c == "vol+" { (vol + 5).min(100) } else { vol.saturating_sub(5) };
-                        a.dlna_state.lock().unwrap().3 = v;
+                        a.screen_state.lock().unwrap().3 = v;
                         chromecast::control(d, "vol", v as f64).await
                     }
                     _ => Ok(()),
@@ -4380,7 +4249,7 @@ fn cache_size() -> u64 {
 /// Lignes de la catégorie affichée : (clé, libellé, aide, valeur, type « toggle » / « choice » /
 /// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
 /// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Diffusion · 6 Animations
-/// · 7 À propos.
+/// · 7 Stockage · 8 À propos.
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let mut rows = settings_rows_all(app, cat);
     // Android : ni plein écran (une appli y est toujours en plein écran), ni dossiers de langues,
@@ -4389,7 +4258,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     // sur Android TV elle est imposée.
     if cfg!(target_os = "android") {
         let tv_box = android_tv();
-        rows.retain(|r| !matches!(r.key.as_str(), "fullscreen" | "addlang" | "themeimport" | "themeexport" | "animexport" | "animimport" | "quit")
+        rows.retain(|r| !matches!(r.key.as_str(), "fullscreen" | "addlang" | "themeimport" | "themeexport" | "animexport" | "animimport" | "quit" | "dldir" | "dldefault")
             && !(tv_box && r.key == "tvmode"));
         for r in rows.iter_mut().filter(|r| r.key == "tvmode") {
             r.label = tr("Mode tablette").into();
@@ -4399,6 +4268,10 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     // Créateur de thèmes (navigateur) : au bureau seulement (voir external_ok).
     if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
         rows.retain(|r| r.key != "themecreate");
+    }
+    // Borne : pas d'explorateur de tout le disque à la télécommande (dossier des téléchargements).
+    if KIOSK.load(Ordering::Relaxed) {
+        rows.retain(|r| r.key != "dldir" && r.key != "dldefault");
     }
     rows
 }
@@ -4463,6 +4336,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
             row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
+            row("hwdec", tr("Décodage matériel"), tr("La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."), String::new(), "toggle", !prefs.no_hwdec),
             match ytdlp() {
                 Some(_) => row("yttrailers", tr("Bandes-annonces YouTube"), tr("Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."), String::new(), "toggle", !prefs.no_yt_trailers),
                 None => row("info", "", tr("Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."), String::new(), "info", false),
@@ -4526,7 +4400,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         5 => {
             let mut v: Vec<SettingRow> = screen_rows(&prefs).into_iter().map(|(k, l, h, v, kind)| row(&k, &l, &h, v, kind, false)).collect();
             v.push(row("relay", tr("Relais par cet appareil"), tr("Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."), relay_label(&prefs.relay_mode).into(), "choice", false));
-            v.push(row("info", "", tr("Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."), String::new(), "info", false));
+            v.push(row("info", "", tr("Chromecast : les sous-titres changent sans recharger la vidéo."), String::new(), "info", false));
             v
         }
         6 => {
@@ -4545,6 +4419,23 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             v
         }
         7 => {
+            let dir = downloads::root();
+            let custom = !prefs.download_dir.is_empty();
+            let mut v = vec![row("dldir", tr("Dossier des téléchargements"), &dir.display().to_string(), tr("Changer").into(), "action", false)];
+            if custom {
+                v.push(row("dldefault", tr("Revenir au dossier par défaut"), &downloads::default_root().display().to_string(), String::new(), "action", false));
+            }
+            let disk = match downloads::disk_space(&dir) {
+                Some((free, total)) => trf("Disque : {} libres sur {}", &[&fmt_size(free), &fmt_size(total)]),
+                None => tr("Disque : place libre inconnue").to_string(),
+            };
+            v.push(row("info", "", &disk, String::new(), "info", false));
+            let used = downloads::used_bytes();
+            v.push(row("info", "", &trf("Téléchargements : {}", &[&fmt_size(used)]), String::new(), "info", false));
+            v.push(row("dllimit", tr("Limite de place"), tr("Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."), limit_label(prefs.download_limit_gb), "choice", false));
+            v
+        }
+        8 => {
             let size = cache_size();
             let srv = app.client().map(|c| c.server).unwrap_or_default();
             let up = app.update_state.lock().unwrap().clone();
@@ -4629,6 +4520,10 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             list.extend(p.themes.iter().map(|t| (format!("custom:{}", t.name), t.name.clone())));
             Some((tr("Thème").into(), list, p.theme.clone()))
         }
+        "dllimit" => {
+            let list = DL_LIMITS.iter().map(|&g| (g.to_string(), limit_label(g))).collect();
+            Some((tr("Limite de place").into(), list, config::ui_prefs().download_limit_gb.to_string()))
+        }
         "maxrate" => {
             let list: Vec<(String, String)> = api::BITRATES.iter().map(|&k| (k.to_string(), player::bitrate_label(k))).collect();
             Some((tr("Débit maximal").into(), list, config::ui_prefs().max_bitrate.to_string()))
@@ -4643,6 +4538,17 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             Some((tr("Taille des sous-titres").into(), own(&SUB_SIZES), v.into()))
         }
         _ => None,
+    }
+}
+
+/// Limites de place des téléchargements proposées, en Go (0 : sans limite).
+const DL_LIMITS: [u32; 10] = [0, 10, 25, 50, 100, 200, 500, 1000, 2000, 4000];
+
+fn limit_label(gb: u32) -> String {
+    match gb {
+        0 => tr("Sans limite").to_string(),
+        g if g >= 1000 && g % 1000 == 0 => format!("{} To", g / 1000),
+        g => format!("{g} Go"),
     }
 }
 
@@ -4743,6 +4649,13 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
     if key == "relay" {
         let mut p = config::ui_prefs();
         p.relay_mode = if RELAY_MODES.contains(&value) { value.to_string() } else { String::new() };
+        config::save_ui_prefs(&p);
+        refresh_settings(app);
+        return;
+    }
+    if key == "dllimit" {
+        let mut p = config::ui_prefs();
+        p.download_limit_gb = value.parse().ok().filter(|g| DL_LIMITS.contains(g)).unwrap_or(0);
         config::save_ui_prefs(&p);
         refresh_settings(app);
         return;
@@ -5305,6 +5218,9 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         }
         "autoskip" => toggle_ui_pref(app, |p| p.auto_skip_intro = !p.auto_skip_intro),
         "yttrailers" => toggle_ui_pref(app, |p| p.no_yt_trailers = !p.no_yt_trailers),
+        "hwdec" => toggle_ui_pref(app, |p| p.no_hwdec = !p.no_hwdec),
+        "dldir" => lx_open_mode(app, "dldir"),
+        "dldefault" => change_download_dir(app, downloads::default_root(), true),
         "forgetsrv" => {
             let mut p = config::ui_prefs();
             p.known_servers.clear();
@@ -5759,6 +5675,8 @@ fn lx_open(app: &Arc<App>) {
 /// Dossier racine de l'explorateur selon son usage (langues ou presets d'animations).
 fn lx_root(app: &Arc<App>) -> Option<std::path::PathBuf> {
     match *app.lx_mode.lock().unwrap() {
+        // Dossier des téléchargements : tout l'ordinateur (Windows : la liste des disques).
+        "dldir" => Some(if cfg!(windows) { std::path::PathBuf::new() } else { std::path::PathBuf::from("/") }),
         "preset" => presets_dir(),
         "theme" => theme::dir(),
         _ => i18n::lang_dir(),
@@ -5773,7 +5691,20 @@ fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
         }
         return;
     };
-    lx_show(app, root, None);
+    // Dossier des téléchargements : l'explorateur s'ouvre sur le dossier actuel (ou ce qui en existe).
+    let start = if mode == "dldir" {
+        let mut d = downloads::root();
+        while !d.is_dir() {
+            match d.parent() {
+                Some(p) => d = p.to_path_buf(),
+                None => break,
+            }
+        }
+        if d.is_dir() { d } else { root }
+    } else {
+        root
+    };
+    lx_show(app, start, None);
     if let Some(u) = app.ui().upgrade() {
         u.set_lx_open(true);
     }
@@ -5787,6 +5718,9 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         return;
     }
     let mode = *app.lx_mode.lock().unwrap();
+    if mode == "dldir" {
+        return dldir_show(app, dir, select);
+    }
     let presets = mode == "preset";
     let themes = mode == "theme";
     let cur = i18n::current();
@@ -5854,8 +5788,126 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         u.set_lx_can_folder(external_ok(&u));
         u.set_lx_title(if presets { tr("Importer un preset") } else if themes { tr("Importer un thème") } else { tr("Ajouter une langue") }.into());
         u.set_lx_can_template(!presets && !themes);
+        u.set_lx_pick(false);
         u.set_lx_tick(u.get_lx_tick() + 1);
     }
+}
+
+/// Explorateur en choix du dossier des téléchargements : les dossiers seulement (Windows, à la
+/// racine : les disques et leur place libre) ; « Choisir ce dossier » prend le dossier affiché.
+fn dldir_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::Path>) {
+    let mut items: Vec<LxItem> = Vec::new();
+    let mut paths: Vec<(std::path::PathBuf, &'static str)> = Vec::new();
+    let current = downloads::root();
+    let free = |p: &std::path::Path| downloads::disk_space(p).map(|(f, t)| trf("{} libres sur {}", &[&fmt_size(f), &fmt_size(t)])).unwrap_or_default();
+    if dir.as_os_str().is_empty() {
+        for l in b'A'..=b'Z' {
+            let d = std::path::PathBuf::from(format!("{}:\\", l as char));
+            if d.is_dir() {
+                items.push(LxItem { kind: "dir".into(), name: d.display().to_string().into(), detail: free(&d).into(), done: 0.0, current: current.starts_with(&d) });
+                paths.push((d, "dir"));
+            }
+        }
+    } else {
+        // Remonter : au parent, ou (Windows, à la racine d'un disque) à la liste des disques.
+        let up = dir.parent().map(|p| p.to_path_buf()).or_else(|| cfg!(windows).then(std::path::PathBuf::new));
+        if let Some(parent) = up {
+            items.push(LxItem { kind: "up".into(), name: tr("Dossier parent").into(), detail: "..".into(), done: 0.0, current: false });
+            paths.push((parent, "up"));
+        }
+        let mut subs: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .map(|e| e.path())
+            .filter(|p| {
+                // Dossiers cachés ou du système (corbeille…) : pas proposés.
+                let n = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                !n.starts_with('.') && !n.starts_with('$') && n != "System Volume Information"
+            })
+            .collect();
+        subs.sort_by_key(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()));
+        for p in subs {
+            let here = p == current;
+            let detail = if here { tr("Dossier actuel des téléchargements").to_string() } else { String::new() };
+            items.push(LxItem { kind: "dir".into(), name: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default().into(), detail: detail.into(), done: 0.0, current: here });
+            paths.push((p, "dir"));
+        }
+    }
+    let sel = select.and_then(|s| paths.iter().position(|(p, _)| p == s)).unwrap_or(0) as i32;
+    let place = if dir.as_os_str().is_empty() { tr("Ordinateur").to_string() } else { dir.display().to_string() };
+    let hint = if dir.as_os_str().is_empty() {
+        tr("Choisis un disque, puis le dossier où ranger les films et séries téléchargés.").to_string()
+    } else {
+        trf("« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés.", &[&free(&dir)])
+    };
+    *app.lx_dir.lock().unwrap() = dir.clone();
+    *app.lx_paths.lock().unwrap() = paths;
+    if let Some(u) = app.ui().upgrade() {
+        u.set_lx_items(ModelRc::new(VecModel::from(items)));
+        u.set_lx_sel(sel);
+        u.set_lx_place(place.into());
+        u.set_lx_hint(hint.into());
+        u.set_lx_can_folder(false);
+        u.set_lx_title(tr("Dossier des téléchargements").into());
+        u.set_lx_can_template(false);
+        u.set_lx_pick(!dir.as_os_str().is_empty());
+        u.set_lx_tick(u.get_lx_tick() + 1);
+    }
+}
+
+/// Nouveau dossier des téléchargements : ceux déjà faits y sont déplacés (hors du fil de
+/// l'interface : d'un disque à l'autre, c'est une copie). `default` : retour au dossier de Turtlefin.
+fn change_download_dir(app: &Arc<App>, new: std::path::PathBuf, default: bool) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let old = downloads::root();
+    if new == old {
+        u.set_lx_open(false);
+        return;
+    }
+    if app.dl_current.lock().unwrap().is_some() {
+        u.set_toast(tr("Un téléchargement est en cours : change de dossier quand il est fini.").into());
+        return;
+    }
+    // L'un dans l'autre : le déplacement repasserait sur ses propres fichiers.
+    if new.starts_with(&old) || old.starts_with(&new) {
+        u.set_toast(tr("Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui.").into());
+        return;
+    }
+    // Le dossier doit accepter l'écriture (disque en lecture seule, droits…).
+    let probe = new.join(".turtlefin-write-test");
+    let writable = std::fs::create_dir_all(&new).is_ok() && std::fs::write(&probe, b"ok").is_ok();
+    let _ = std::fs::remove_file(&probe);
+    if !writable {
+        u.set_toast(trf("Impossible d'écrire dans {}.", &[&new.display()]).into());
+        return;
+    }
+    u.set_lx_open(false);
+    // Les nouveaux téléchargements vont tout de suite au nouveau dossier ; les anciens y sont déplacés.
+    downloads::set_root((!default).then_some(new.as_path()));
+    refresh_settings(app);
+    let has_old = !downloads::list_in(&old).is_empty();
+    if !has_old {
+        u.set_toast(trf("Téléchargements : {}", &[&new.display()]).into());
+        return;
+    }
+    u.set_toast(tr("Déplacement des téléchargements…").into());
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let (moved, failed) = tokio::task::spawn_blocking(move || downloads::move_all(&old, &new)).await.unwrap_or((0, 0));
+        let msg = if failed == 0 {
+            i18n::trn("{n} téléchargement déplacé.", "{n} téléchargements déplacés.", moved as i64)
+        } else {
+            trf("{} déplacés, {} restés dans l'ancien dossier (place, droits ?).", &[&moved, &failed])
+        };
+        let a2 = a.clone();
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_toast(msg.into());
+            refresh_settings(&a2);
+        });
+        refresh_downloads(&a);
+    });
 }
 
 fn lx_activate(app: &Arc<App>, i: usize) {
@@ -5926,6 +5978,12 @@ fn lx_back(app: &Arc<App>) {
 fn lx_button(app: &Arc<App>, b: &str) {
     let Some(u) = app.ui().upgrade() else { return };
     match b {
+        "pick" => {
+            let dir = app.lx_dir.lock().unwrap().clone();
+            if !dir.as_os_str().is_empty() {
+                change_download_dir(app, dir, false);
+            }
+        }
         "template" => match i18n::write_template() {
             Ok(dir) => {
                 let file = dir.join("modele.po");
@@ -7277,13 +7335,19 @@ fn install_f11(app: &Arc<App>) {
                 }
                 return EventResult::PreventDefault;
             }
-            // Télécommandes (télé en HDMI-CEC, télécommandes multimédia) : OK, Retour / Sortie et
-            // Lecture / Pause donnés comme Entrée, Échap et Espace (les touches de Turtlefin).
+            // Télécommandes (télé en HDMI-CEC, télécommandes multimédia) : touches données comme
+            // celles de Turtlefin (voir REMOTE_FF ; le moteur Android fait de même).
             use winit::keyboard::{Key, NamedKey};
+            use slint::platform::Key as K;
             let mapped = match &event.logical_key {
-                Key::Named(NamedKey::Select) => Some(slint::platform::Key::Return),
-                Key::Named(NamedKey::BrowserBack | NamedKey::GoBack | NamedKey::Exit) => Some(slint::platform::Key::Escape),
-                Key::Named(NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause) => Some(slint::platform::Key::Space),
+                Key::Named(NamedKey::Select) => Some(K::Return),
+                Key::Named(NamedKey::BrowserBack | NamedKey::GoBack | NamedKey::Exit) => Some(K::Escape),
+                Key::Named(NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause) => Some(K::Space),
+                Key::Named(NamedKey::MediaStop) => Some(K::Stop),
+                Key::Named(NamedKey::MediaTrackNext | NamedKey::ChannelUp) => Some(K::PageDown),
+                Key::Named(NamedKey::MediaTrackPrevious | NamedKey::ChannelDown) => Some(K::PageUp),
+                Key::Named(NamedKey::MediaFastForward) => Some(REMOTE_FF),
+                Key::Named(NamedKey::MediaRewind) => Some(REMOTE_REW),
                 _ => None,
             };
             if let (Some(k), Some(u)) = (mapped, weak.upgrade()) {
@@ -7299,6 +7363,14 @@ fn install_f11(app: &Arc<App>) {
         EventResult::Propagate
     });
 }
+
+/// Avance et retour rapides de la télécommande, donnés à l'interface comme F18 et F17 (Slint n'a
+/// pas de touche multimédia ; aucun clavier courant n'a ces deux touches).
+/// Le moteur Android de Slint (android/vendor) donne les mêmes.
+#[cfg_attr(target_os = "android", allow(dead_code))]
+const REMOTE_FF: slint::platform::Key = slint::platform::Key::F18;
+#[cfg_attr(target_os = "android", allow(dead_code))]
+const REMOTE_REW: slint::platform::Key = slint::platform::Key::F17;
 
 /// Android : les touchers passent par le crochet du moteur Android de Slint (android/vendor), qui
 /// laisse Swipe reprendre les glissements comme sur le bureau.
@@ -7867,18 +7939,15 @@ pub(crate) fn main() -> anyhow::Result<()> {
         lx_dir: Mutex::new(std::path::PathBuf::new()),
         lib_title: Mutex::new((String::new(), true)),
         cast: Mutex::new(None),
-        dlna_found: Mutex::new(Vec::new()),
         gcast_found: Mutex::new(Vec::new()),
-        screen_orig: Mutex::new((Vec::new(), Vec::new())),
+        screen_orig: Mutex::new(Vec::new()),
         rename_key: Mutex::new(String::new()),
         cast_now: Mutex::new(None),
         cast_eps: Mutex::new(Vec::new()),
         cast_poll: Mutex::new(None),
         remote: Mutex::new(None),
         remote_poll: Mutex::new(None),
-        dlna_state: Mutex::new((false, 0.0, 0.0, 30)),
-        cast_live: Mutex::new(None),
-        cast_held: Mutex::new(None),
+        screen_state: Mutex::new((false, 0.0, 0.0, 30)),
         cast_marks: Mutex::new(CastMarks::default()),
         lx_paths: Mutex::new(Vec::new()),
         lx_mode: Mutex::new("lang"),
@@ -8538,6 +8607,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         no_intro: cli.no_intro || cli.test_video.is_some(),
         video_ok,
         config_issues,
+        unreachable: false,
     };
     rt.spawn(boot::run(app.clone(), start));
 
@@ -8664,6 +8734,36 @@ fn retry_start(app: Arc<App>) {
                 u.set_screen("loading".into());
             });
             load_home(app, client).await;
+            return;
+        }
+    });
+}
+
+/// « Qui regarde ? » affiché alors que le serveur ne répondait pas (message `msg`) : le serveur est
+/// réessayé toutes les 5 s ; dès qu'il répond, le message s'efface (les comptes marchent de nouveau).
+fn watch_server_back(app: Arc<App>, msg: &'static str) {
+    app.rt.clone().spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                let _ = tx.send(u.get_screen().as_str() == "login" && u.get_error_text().as_str() == msg);
+            });
+            // Autre page, ou message remplacé (un compte choisi, une autre erreur) : plus rien à faire.
+            if !rx.await.unwrap_or(false) || app.client().is_some() {
+                return;
+            }
+            let saved = config::load();
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+            if best.is_empty() || !discovery::reachable(&best).await {
+                continue;
+            }
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                if u.get_error_text().as_str() == msg {
+                    u.set_error_text("".into());
+                    u.set_toast(tr("Serveur de nouveau joignable.").into());
+                }
+            });
             return;
         }
     });
@@ -8866,14 +8966,6 @@ fn push_dl_status(app: &Arc<App>) {
         u.set_dl_p(p);
         u.set_dl_paused(paused);
     });
-}
-
-fn fmt_size(b: u64) -> String {
-    if b >= 1 << 30 {
-        format!("{:.1} Go", b as f64 / (1u64 << 30) as f64)
-    } else {
-        format!("{} Mo", b >> 20)
-    }
 }
 
 fn fmt_mins(secs: f64) -> String {

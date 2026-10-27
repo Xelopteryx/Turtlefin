@@ -64,7 +64,7 @@ src/discovery.rs    recherche des serveurs (UDP, sous-réseaux, ARP, pairs VPN)
 src/downloads.rs    téléchargements (reprise Range, file, synchronisation hors ligne)
 src/mpv.rs          liaison libmpv ; src/video.rs texture OpenGL ; src/player.rs lecture, rapports, enchaînement
 src/syncplay.rs     watch party (WebSocket /socket)
-src/cast.rs         Diffuser : télés DLNA du réseau (SSDP, SOAP)
+src/chromecast.rs   Diffuser : appareils Google Cast ; src/relay.rs relais HTTP ; src/lan.rs réseau local
 src/password.rs     solidité d'un mot de passe (alerte « trop simple »)
 src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_command
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
@@ -274,7 +274,7 @@ sous Linux, faute de trousseau commun à toutes les machines visées.
 - **Diffuser** (icône en haut à droite) : choisit l'écran où envoyer les vidéos (« Lire sur … » sur les fiches) :
   autre Turtlefin ou appli Jellyfin du compte (`/Sessions?controllableByUserId`, commande `Play` du serveur ;
   pilotables = `SupportsRemoteControl` et `IsActive`, sans limite d'activité : une télé restée sur l'accueil ne
-  fait aucune requête) ou télé DLNA du réseau (`src/cast.rs` : SSDP, puis SOAP AVTransport / RenderingControl ;
+  fait aucune requête) ou télé DLNA du réseau (retirée en 1.9.6, voir 6 quater ; ancien `src/cast.rs` : SSDP, puis SOAP AVTransport / RenderingControl ;
   adresses privées seulement, l'hôte de LOCATION doit être celui qui a répondu ; la télé lit
   `/Videos/{id}/stream?static=true&api_key=…`). Le panneau montre ensuite ce qui y passe (relu toutes les 2 s)
   avec lecture, avance, arrêt et volume (`cast_cmd`).
@@ -306,6 +306,35 @@ sous Linux, faute de trousseau commun à toutes les machines visées.
 - **Publication préparée** : Linux 32 bits (armhf, i386) dans `release.yml` (job `linux32`, conteneur Debian 12) ;
   APK armeabi-v7a / x86 possibles (`build-apk.ps1 -Abi`), signature de publication `-Release` (clé
   `%USERPROFILE%\.android\turtlefin-release.jks`, mot de passe protégé par DPAPI).
+
+## 6 quater. Version 1.9.6 (27 octobre 2026)
+
+- **Décodage (ticket GitHub n° 1)** : Windows : `hwdec=d3d11va-copy,nvdec-copy,dxva2-copy` (`player::hwdec_mode`).
+  Le rendu passe par ANGLE (OpenGL ES sur Direct3D) ; `auto-safe` partageait l'image décodée avec ANGLE
+  (d3d11-egl, cuda) et donnait des lignes de parasites sur NVIDIA. `UiPrefs::no_hwdec` (Paramètres → Lecture
+  → Décodage matériel) : tout au processeur.
+- **DLNA retiré** : plus de `cast.rs` ; `lan.rs` garde `lan_ipv4s`, `multicast_socket`, `lan_reachable` ;
+  `api::cast_stream` ne sert plus que Chromecast ; relais sans réécriture MPEG-TS ; `ui_prefs()` oublie les
+  écrans `dlna:`.
+- **Stockage** (catégorie 7 des Paramètres, À propos passe en 8) : `UiPrefs::download_dir` (vide : dossier par
+  défaut), `download_limit_gb` (0 : sans limite). `downloads::root()` lu une fois (`ROOT`), `set_root`,
+  `move_all` (déplace médias, sous-titres, descriptions, images partagées, `.part`, file d'attente ; seulement
+  les dossiers qui avaient un téléchargement), `disk_space` (GetDiskFreeSpaceExW / statvfs), `used_bytes`,
+  `check_room` avant chaque transfert (taille de `MediaSource::size`, marge 256 Mo). Suppression : `prune` ne
+  retire que les fichiers de Turtlefin puis les dossiers vides (avant : `remove_dir_all`). Choix du dossier :
+  explorateur intégré en mode `dldir` (`dldir_show`, bouton « pick » de ui/langx.slint) ; caché en borne et
+  sur Android.
+- **Démarrage hors ligne** (`boot.rs`, `Outcome`) : réseau absent ou serveur muet → point orange (état 5, le
+  logo se forme normalement ; 4 reste « aucun serveur », logo sans cœur), `Start::unreachable`. `route` :
+  téléchargements + compte de démarrage ou compte unique → hors ligne ; sinon « Qui regarde ? » avec message
+  (`watch_server_back` l'efface au retour du serveur) ; `login_pick` hors ligne avec téléchargements → ce compte
+  devient la session, `go_offline`.
+- **Ligne de commande** : `--sub=LANGUE|off`, `--audio=LANGUE` (`player::cli_tracks`, `lang_codes` : fr → fre,fra,fr),
+  valables pour tout le lancement.
+- **Télécommande** : bureau (winit) et Android (vendor) donnent Stop → `Key.Stop`, suivant / précédent et
+  Chaîne ± → PageDown / PageUp, avance / retour rapides → F18 / F17 (`REMOTE_FF`, `REMOTE_REW`), Menu / Info /
+  Guide → `Key.Menu` (menu de gauche, dans `nav-key`). Manette Android : X, Y, L1, R1, L2, R2, Start, Select.
+  Android : `is_tv` regarde aussi `Configuration.uiMode`.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

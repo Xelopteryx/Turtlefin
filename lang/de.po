@@ -1811,9 +1811,6 @@ msgstr "Schritt 3 von 3 · Gib das neue Passwort noch einmal ein."
 msgid "Arrêter de piloter {}"
 msgstr "{} nicht mehr steuern"
 
-msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
-msgstr "Kein Gerät. Öffne Turtlefin (oder eine Jellyfin-App) auf dem Fernseher mit demselben Konto oder schalte einen DLNA-fähigen Fernseher in diesem Netzwerk ein."
-
 msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
 msgstr "Wähle ein Gerät: Turtlefin wird zu seiner Fernbedienung, und „Abspielen auf“ erscheint auf den Detailseiten."
 
@@ -1841,9 +1838,6 @@ msgstr "Geräte werden gesucht…"
 msgid "Rien en lecture"
 msgstr "Keine Wiedergabe"
 
-msgid "Télé DLNA : la vidéo y est envoyée"
-msgstr "DLNA-Fernseher: das Video wird dorthin gesendet"
-
 msgid "Télécommande · {}"
 msgstr "Fernbedienung · {}"
 
@@ -1852,9 +1846,6 @@ msgstr "{} antwortet nicht: {}"
 
 msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
 msgstr "Kein anderes Turtlefin ist mit diesem Konto geöffnet. Öffne es auf dem Fernseher (oder dem Pi) und komm dann hierher zurück."
-
-msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "Kein Bildschirm. Schalte einen DLNA-fähigen Fernseher in diesem Netzwerk ein oder öffne Turtlefin (oder eine Jellyfin-App) auf dem Fernseher mit demselben Konto."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Wähle den Bildschirm, an den Videos gesendet werden: „Abspielen auf“ erscheint dann auf den Detailseiten."
@@ -1924,9 +1915,6 @@ msgstr "Auf diesem Gerät fortsetzen"
 
 msgid "Voir la lecture · {}"
 msgstr "Wiedergabe anzeigen · {}"
-
-msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
-msgstr "{} kann kein HEVC abspielen: Der Server wandelt das Bild um, die Wiedergabe kann ruckeln oder nicht starten."
 
 msgid "Changement de piste…"
 msgstr "Spur wird gewechselt…"
@@ -2021,6 +2009,99 @@ msgstr "Gefundene Server vergessen."
 msgid "Si besoin"
 msgstr "Bei Bedarf"
 
-msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
-msgstr "DLNA-Fernseher: Untertitel werden vom Server ins Bild eingebrannt. Chromecast: Sie wechseln ohne Neuladen des Videos."
+msgid "Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."
+msgstr "Darüber hinaus wird nichts mehr heruntergeladen. Ohne Limit: so viel, wie die Dateien brauchen, solange die Festplatte Platz hat."
 
+msgid "Aucun réseau"
+msgstr "Kein Netzwerk"
+
+msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Kein Bildschirm. Schalte einen Chromecast in diesem Netzwerk ein oder öffne Turtlefin (oder eine Jellyfin-App) auf dem Fernseher mit demselben Konto."
+
+msgid "Choisir ce dossier"
+msgstr "Diesen Ordner wählen"
+
+msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Wähle ein Laufwerk, dann den Ordner für heruntergeladene Filme und Serien."
+
+msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Wähle einen Ordner, der weder im alten noch darüber liegt."
+
+msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
+msgstr "Chromecast: Untertitel wechseln, ohne das Video neu zu laden."
+
+msgid "Disque : place libre inconnue"
+msgstr "Festplatte: freier Platz unbekannt"
+
+msgid "Disque : {} libres sur {}"
+msgstr "Festplatte: {} frei von {}"
+
+msgid "Dossier actuel des téléchargements"
+msgstr "Aktueller Download-Ordner"
+
+msgid "Dossier des téléchargements"
+msgstr "Download-Ordner"
+
+msgid "Décodage matériel"
+msgstr "Hardware-Dekodierung"
+
+msgid "Déplacement des téléchargements…"
+msgstr "Downloads werden verschoben…"
+
+msgid "Impossible d'écrire dans {}."
+msgstr "Kann nicht in {} schreiben."
+
+msgid "La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."
+msgstr "Die Grafikkarte dekodiert das Video. Ausschalten, wenn das Bild Linien oder Störungen zeigt (der Prozessor arbeitet mehr)."
+
+msgid "Limite de place"
+msgstr "Platzlimit"
+
+msgid "Ordinateur"
+msgstr "Computer"
+
+msgid "Revenir au dossier par défaut"
+msgstr "Zurück zum Standardordner"
+
+msgid "Sans limite"
+msgstr "Ohne Limit"
+
+msgid "Serveur de nouveau joignable."
+msgstr "Server wieder erreichbar."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
+msgstr "Server nicht erreichbar: Wähle ein Konto, um seine Downloads offline anzusehen."
+
+msgid "Téléchargements : {}"
+msgstr "Downloads: {}"
+
+msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgstr "Ein Download läuft: Wechsle den Ordner, wenn er fertig ist."
+
+msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
+msgstr "Platzlimit erreicht ({} von {}; Einstellungen → Speicher)"
+
+msgid "nouvel essai automatique"
+msgstr "automatischer neuer Versuch"
+
+msgid "pas assez de place sur le disque (il faut {}, {} libres)"
+msgstr "nicht genug Platz auf der Festplatte ({} nötig, {} frei)"
+
+msgid "{} déplacés, {} restés dans l'ancien dossier (place, droits ?)."
+msgstr "{} verschoben, {} im alten Ordner geblieben (Platz, Rechte?)."
+
+msgid "{} libres sur {}"
+msgstr "{} frei von {}"
+
+msgid "« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés."
+msgstr "„Diesen Ordner wählen“: Downloads landen hier ({}). Vorhandene werden hierher verschoben."
+
+msgid "{n} téléchargement à regarder hors ligne"
+msgid_plural "{n} téléchargements à regarder hors ligne"
+msgstr[0] "{n} Download offline ansehbar"
+msgstr[1] "{n} Downloads offline ansehbar"
+
+msgid "{n} téléchargement déplacé."
+msgid_plural "{n} téléchargements déplacés."
+msgstr[0] "{n} Download verschoben."
+msgstr[1] "{n} Downloads verschoben."

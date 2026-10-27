@@ -1811,9 +1811,6 @@ msgstr "Paso 3 de 3 · Vuelve a escribir la nueva contraseña."
 msgid "Arrêter de piloter {}"
 msgstr "Dejar de controlar {}"
 
-msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
-msgstr "Ningún dispositivo. Abre Turtlefin (o una app de Jellyfin) en la tele con la misma cuenta, o enciende una tele compatible con DLNA en esta red."
-
 msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
 msgstr "Elige un dispositivo: Turtlefin se convierte en su mando, y «Reproducir en» aparece en las fichas."
 
@@ -1841,9 +1838,6 @@ msgstr "Buscando dispositivos…"
 msgid "Rien en lecture"
 msgstr "Nada en reproducción"
 
-msgid "Télé DLNA : la vidéo y est envoyée"
-msgstr "Tele DLNA: el vídeo se envía allí"
-
 msgid "Télécommande · {}"
 msgstr "Mando · {}"
 
@@ -1852,9 +1846,6 @@ msgstr "{} no responde: {}"
 
 msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
 msgstr "No hay otro Turtlefin abierto con esta cuenta. Ábrelo en la tele (o en la Pi) y vuelve aquí."
-
-msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "Ninguna pantalla. Enciende una tele compatible con DLNA en esta red, o abre Turtlefin (o una app de Jellyfin) en la tele con la misma cuenta."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Elige la pantalla a la que enviar los vídeos: «Reproducir en» aparecerá en las fichas."
@@ -1924,9 +1915,6 @@ msgstr "Continuar en este dispositivo"
 
 msgid "Voir la lecture · {}"
 msgstr "Ver la reproducción · {}"
-
-msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
-msgstr "{} no reproduce HEVC: el servidor convierte la imagen, la reproducción puede ir a tirones o no empezar."
 
 msgid "Changement de piste…"
 msgstr "Cambiando de pista…"
@@ -2021,6 +2009,99 @@ msgstr "Servidores encontrados olvidados."
 msgid "Si besoin"
 msgstr "Si hace falta"
 
-msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
-msgstr "Teles DLNA: el servidor incrusta los subtítulos en la imagen. Chromecast: cambian sin recargar el vídeo."
+msgid "Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."
+msgstr "Por encima, no se descarga nada más. Sin límite: lo que pidan los archivos, mientras el disco tenga espacio."
 
+msgid "Aucun réseau"
+msgstr "Sin red"
+
+msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Ninguna pantalla. Enciende un Chromecast en esta red, o abre Turtlefin (o una app de Jellyfin) en la tele con la misma cuenta."
+
+msgid "Choisir ce dossier"
+msgstr "Elegir esta carpeta"
+
+msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Elige un disco y luego la carpeta donde guardar las películas y series descargadas."
+
+msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Elige una carpeta que no esté dentro de la anterior ni por encima de ella."
+
+msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
+msgstr "Chromecast: los subtítulos cambian sin recargar el vídeo."
+
+msgid "Disque : place libre inconnue"
+msgstr "Disco: espacio libre desconocido"
+
+msgid "Disque : {} libres sur {}"
+msgstr "Disco: {} libres de {}"
+
+msgid "Dossier actuel des téléchargements"
+msgstr "Carpeta actual de descargas"
+
+msgid "Dossier des téléchargements"
+msgstr "Carpeta de descargas"
+
+msgid "Décodage matériel"
+msgstr "Decodificación por hardware"
+
+msgid "Déplacement des téléchargements…"
+msgstr "Moviendo las descargas…"
+
+msgid "Impossible d'écrire dans {}."
+msgstr "No se puede escribir en {}."
+
+msgid "La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."
+msgstr "La tarjeta gráfica decodifica el vídeo. Desactívalo si la imagen tiene líneas o fallos (el procesador trabaja más)."
+
+msgid "Limite de place"
+msgstr "Límite de espacio"
+
+msgid "Ordinateur"
+msgstr "Equipo"
+
+msgid "Revenir au dossier par défaut"
+msgstr "Volver a la carpeta predeterminada"
+
+msgid "Sans limite"
+msgstr "Sin límite"
+
+msgid "Serveur de nouveau joignable."
+msgstr "Servidor accesible de nuevo."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
+msgstr "Servidor inaccesible: elige una cuenta para ver sus descargas sin conexión."
+
+msgid "Téléchargements : {}"
+msgstr "Descargas: {}"
+
+msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgstr "Hay una descarga en curso: cambia de carpeta cuando termine."
+
+msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
+msgstr "límite de espacio alcanzado ({} de {}; Ajustes → Almacenamiento)"
+
+msgid "nouvel essai automatique"
+msgstr "nuevo intento automático"
+
+msgid "pas assez de place sur le disque (il faut {}, {} libres)"
+msgstr "no hay espacio suficiente en el disco (hacen falta {}, {} libres)"
+
+msgid "{} déplacés, {} restés dans l'ancien dossier (place, droits ?)."
+msgstr "{} movidos, {} se quedaron en la carpeta anterior (¿espacio, permisos?)."
+
+msgid "{} libres sur {}"
+msgstr "{} libres de {}"
+
+msgid "« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés."
+msgstr "«Elegir esta carpeta»: las descargas irán aquí ({}). Las ya hechas se mueven aquí."
+
+msgid "{n} téléchargement à regarder hors ligne"
+msgid_plural "{n} téléchargements à regarder hors ligne"
+msgstr[0] "{n} descarga para ver sin conexión"
+msgstr[1] "{n} descargas para ver sin conexión"
+
+msgid "{n} téléchargement déplacé."
+msgid_plural "{n} téléchargements déplacés."
+msgstr[0] "{n} descarga movida."
+msgstr[1] "{n} descargas movidas."

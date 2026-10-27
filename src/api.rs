@@ -114,6 +114,8 @@ pub struct MediaSource {
     /// « File » (fichier du serveur) ou « Http » (adresse distante : fichier .strm…).
     pub protocol: Option<String>,
     pub path: Option<String>,
+    /// Taille du fichier (octets), si le serveur la connaît.
+    pub size: Option<u64>,
 }
 
 /// Flux converti par le serveur (voir `Client::transcode`).
@@ -1850,57 +1852,27 @@ impl Client {
     /// WebM, H.264 / VP8 / VP9, AAC / MP3 / Opus / Vorbis), sinon un flux HLS H.264 + AAC du serveur (qui
     /// recopie ce qui est déjà compatible au lieu de le convertir). Adresse complète, jeton compris :
     /// l'appareil la lit lui-même. Renvoie (adresse, type MIME).
-    /// `dlna` : télé DLNA (Samsung, LG…) au lieu d'un Chromecast : MKV / MP4 / AVI tels quels (H.264,
-    /// MPEG-4 ; HEVC si `hevc` ; AAC, AC3, MP3), sinon un flux MPEG-TS continu (pas de HLS : peu de
-    /// télés le lisent).
     /// `audio` : piste audio voulue quand ce n'est pas celle par défaut du fichier (le flux est alors
     /// réassemblé par le serveur, l'image recopiée telle quelle). `burn` : sous-titres incrustés dans
-    /// la vidéo (conversion complète, lente sur un petit serveur). `force` : flux réassemblé même sans
-    /// piste à changer (télé qui afficherait d'elle-même des sous-titres non voulus du fichier).
-    pub async fn cast_stream(&self, item_id: &str, source_id: &str, dlna: bool, hevc: bool, audio: Option<i32>, burn: Option<i32>, force: bool) -> Result<(String, String)> {
-        let force = force || audio.is_some() || burn.is_some();
-        let dlna_video = if hevc { "h264,hevc,mpeg4" } else { "h264,mpeg4" };
-        let mut profile = if dlna {
-            serde_json::json!({
-                "MaxStreamingBitrate": 40_000_000u64,
-                "DirectPlayProfiles": [
-                    { "Type": "Video", "Container": "mkv,mp4,m4v,avi", "VideoCodec": dlna_video, "AudioCodec": "aac,ac3,eac3,mp3" }
-                ],
-                "TranscodingProfiles": [{
-                    "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,ac3,mp3",
-                    "Context": "Streaming", "Protocol": "http", "MaxAudioChannels": "6", "EstimateContentLength": false
-                }],
-                // H.264 que lisent les télés : niveau 4.1 au plus, 8 bits (au-delà, une Samsung de 2015
-                // joue le son mais pas l'image). Le serveur encode à ce niveau, et convertit les fichiers
-                // qui le dépassent au lieu de les envoyer tels quels.
-                "CodecProfiles": [{
-                    "Type": "Video", "Codec": "h264",
-                    "Conditions": [
-                        { "Condition": "LessThanEqual", "Property": "VideoLevel", "Value": "41", "IsRequired": false },
-                        { "Condition": "LessThanEqual", "Property": "VideoBitDepth", "Value": "8", "IsRequired": false },
-                        { "Condition": "EqualsAny", "Property": "VideoProfile", "Value": "high|main|baseline|constrained baseline", "IsRequired": false }
-                    ]
-                }],
-            })
-        } else {
-            serde_json::json!({
-                "MaxStreamingBitrate": 40_000_000u64,
-                "DirectPlayProfiles": [
-                    { "Type": "Video", "Container": "mp4,m4v", "VideoCodec": "h264", "AudioCodec": "aac,mp3" },
-                    { "Type": "Video", "Container": "webm", "VideoCodec": "vp8,vp9", "AudioCodec": "opus,vorbis" }
-                ],
-                "TranscodingProfiles": [{
-                    "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3",
-                    "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "2", "MinSegments": 1,
-                    "BreakOnNonKeyFrames": true
-                }],
-            })
-        };
+    /// la vidéo (conversion complète, lente sur un petit serveur).
+    pub async fn cast_stream(&self, item_id: &str, source_id: &str, audio: Option<i32>, burn: Option<i32>) -> Result<(String, String)> {
+        let force = audio.is_some() || burn.is_some();
+        let mut profile = serde_json::json!({
+            "MaxStreamingBitrate": 40_000_000u64,
+            "DirectPlayProfiles": [
+                { "Type": "Video", "Container": "mp4,m4v", "VideoCodec": "h264", "AudioCodec": "aac,mp3" },
+                { "Type": "Video", "Container": "webm", "VideoCodec": "vp8,vp9", "AudioCodec": "opus,vorbis" }
+            ],
+            "TranscodingProfiles": [{
+                "Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac,mp3",
+                "Context": "Streaming", "Protocol": "hls", "MaxAudioChannels": "2", "MinSegments": 1,
+                "BreakOnNonKeyFrames": true
+            }],
+        });
         if force {
             // Plus de lecture directe : le serveur doit garder la piste voulue (ou incruster les
             // sous-titres) ; l'image H.264 / HEVC est recopiée sans conversion quand c'est possible.
             profile["DirectPlayProfiles"] = serde_json::json!([]);
-            profile["TranscodingProfiles"][0]["VideoCodec"] = serde_json::json!(if dlna && hevc { "h264,hevc" } else { "h264" });
             profile["SubtitleProfiles"] = serde_json::json!(["srt", "subrip", "ass", "ssa", "vtt", "pgssub", "dvdsub", "dvbsub"]
                 .iter()
                 .map(|f| serde_json::json!({ "Format": f, "Method": "Encode" }))
@@ -1939,15 +1911,7 @@ impl Client {
         let source = ms["Id"].as_str().unwrap_or(item_id);
         if !force && (ms["SupportsDirectPlay"].as_bool() == Some(true) || ms["SupportsDirectStream"].as_bool() == Some(true) && ms["TranscodingUrl"].is_null()) {
             let container = ms["Container"].as_str().unwrap_or("mp4");
-            let mime = if container.contains("webm") {
-                "video/webm"
-            } else if container.contains("mkv") || container.contains("matroska") {
-                "video/x-mkv"
-            } else if container.contains("avi") {
-                "video/avi"
-            } else {
-                "video/mp4"
-            };
+            let mime = if container.contains("webm") { "video/webm" } else { "video/mp4" };
             let url = format!(
                 "{}/Videos/{}/stream?static=true&MediaSourceId={}&api_key={}",
                 self.server,
@@ -1963,7 +1927,7 @@ impl Client {
         if !url.to_ascii_lowercase().contains("api_key=") && !url.to_ascii_lowercase().contains("apikey=") {
             url.push_str(&format!("&api_key={}", seg(&self.token)));
         }
-        Ok((url, if dlna { "video/mpeg" } else { "application/x-mpegURL" }.to_string()))
+        Ok((url, "application/x-mpegURL".to_string()))
     }
 
     /// Arrête la conversion du serveur pour cette lecture (sinon elle tourne encore un moment pour rien).

@@ -499,6 +499,14 @@ pub struct UiPrefs {
     pub relay_mode: String,
     /// Bandes-annonces YouTube (par yt-dlp) refusées : seulement celles du serveur.
     pub no_yt_trailers: bool,
+    /// Décodage matériel coupé (Paramètres → Lecture) : image décodée par le processeur, pour les
+    /// cartes graphiques qui affichent des parasites.
+    pub no_hwdec: bool,
+    /// Dossier des téléchargements choisi (Paramètres → Stockage) ; vide : dossier de Turtlefin.
+    pub download_dir: String,
+    /// Place maximale des téléchargements, en Go (0 : sans limite, autant que les fichiers le
+    /// demandent tant que le disque a de la place).
+    pub download_limit_gb: u32,
 }
 
 /// Serveur déjà trouvé par la recherche : son nom et les adresses où il a répondu (6 au plus).
@@ -516,11 +524,11 @@ pub fn server_label(id: &str, original: &str) -> String {
     ui_prefs().known_servers.get(id).map(|k| k.custom.clone()).filter(|c| !c.is_empty()).unwrap_or_else(|| original.to_string())
 }
 
-/// Écran de diffusion connu : télé DLNA ou appareil Google Cast.
+/// Écran de diffusion connu : appareil Google Cast.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
 pub struct CastScreen {
-    /// « dlna:<UDN> » ou « gcast:<id> ».
+    /// « gcast:<id> » (les anciennes télés DLNA « dlna:<UDN> » sont oubliées au chargement).
     pub key: String,
     /// Nom donné par l'appareil.
     pub original: String,
@@ -650,6 +658,9 @@ impl Default for UiPrefs {
             known_servers: std::collections::BTreeMap::new(),
             relay_mode: String::new(),
             no_yt_trailers: false,
+            no_hwdec: false,
+            download_dir: String::new(),
+            download_limit_gb: 0,
         }
     }
 }
@@ -659,10 +670,13 @@ fn ui_prefs_path() -> Option<PathBuf> {
 }
 
 pub fn ui_prefs() -> UiPrefs {
-    ui_prefs_path()
+    let mut p: UiPrefs = ui_prefs_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Diffusion DLNA retirée (1.9.6) : ses télés ne sont plus proposées au renommage.
+    p.cast_screens.retain(|s| !s.key.starts_with("dlna:"));
+    p
 }
 
 pub fn save_ui_prefs(p: &UiPrefs) {

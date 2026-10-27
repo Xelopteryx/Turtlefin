@@ -135,13 +135,21 @@ pub fn is_tv() -> bool {
                 let s = env.new_string(name)?;
                 env.call_method(&pm, "hasSystemFeature", "(Ljava/lang/String;)Z", &[(&s).into()])?.z()
             };
-            Ok(has("android.software.leanback")? || !has("android.hardware.touchscreen")?)
+            if has("android.software.leanback")? || !has("android.hardware.touchscreen")? {
+                return Ok(true);
+            }
+            // Boîtiers et télés qui se disent tactiles sans l'être : le mode de l'interface du système
+            // (Configuration.uiMode, type UI_MODE_TYPE_TELEVISION = 4).
+            let res = env.call_method(&activity, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+            let conf = env.call_method(&res, "getConfiguration", "()Landroid/content/res/Configuration;", &[])?.l()?;
+            let mode = env.get_field(&conf, "uiMode", "I")?.i()?;
+            Ok(mode & 0x0f == 4)
         })
     })();
     result.unwrap_or(false)
 }
 
-/// Recherche d'écrans (DLNA, Google Cast) : Android ignore les réponses multidiffusées tant qu'aucune
+/// Recherche d'écrans (Google Cast) : Android ignore les réponses multidiffusées tant qu'aucune
 /// appli ne tient un « verrou multicast » du Wi-Fi. Il est pris pendant `secs` secondes seulement (il
 /// coûte de la batterie), dans un fil à part.
 pub fn multicast_for(secs: u64) {

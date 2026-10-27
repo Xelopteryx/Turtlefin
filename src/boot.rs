@@ -6,6 +6,13 @@
 //! Première page : ligne de commande (compte et mot de passe, ou compte enregistré nommé) >
 //! compte choisi pour le démarrage (Paramètres > Compte) > « Qui regarde ? » (ou la recherche
 //! des serveurs s'il n'y en a encore aucun).
+//!
+//! Serveur injoignable (point orange, pas une erreur : la suite ne s'arrête pas) :
+//! - des téléchargements sur l'appareil : mode hors ligne (téléchargements) avec le compte de
+//!   démarrage, ou le seul compte enregistré ; plusieurs comptes : « Qui regarde ? », et le compte
+//!   choisi ouvre ses téléchargements hors ligne. Retour en ligne tout seul dès que le serveur répond ;
+//! - rien sur l'appareil : « Qui regarde ? » (ou la connexion du compte de démarrage), avec un
+//!   nouvel essai automatique toutes les 5 s.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,6 +39,20 @@ pub struct Start {
     /// Fichiers de configuration présents mais illisibles (`config::unreadable_files`, vérifiés
     /// par `main` avant toute lecture).
     pub config_issues: Vec<&'static str>,
+    /// Le serveur n'a pas répondu pendant les vérifications (rempli par `run`).
+    pub unreachable: bool,
+}
+
+/// Résultat d'une vérification.
+enum Outcome {
+    Ok,
+    /// Point orange : pas encore de serveur, expliqué sans arrêter le démarrage (le logo se forme
+    /// sans son cœur, vers « Choisir un serveur »).
+    Notice(String),
+    /// Point orange aussi : hors ligne (réseau absent, serveur muet). Le logo se forme normalement.
+    Offline(String),
+    /// Point rouge : problème, expliqué, avec « Continuer ».
+    Fail(String),
 }
 
 /// Réponse attendue de l'interface (langue choisie, « continuer » après un échec, fin de la liaison).
@@ -93,8 +114,27 @@ fn writable(dir: Option<std::path::PathBuf>, what: &str) -> Result<(), String> {
         })
 }
 
+/// Une vérification (voir Outcome).
+async fn check(i: usize, start: &Start) -> Outcome {
+    match check_point(i, start).await {
+        Ok(true) => Outcome::Ok,
+        Ok(false) => Outcome::Notice(tr("Aucun serveur choisi : la recherche des serveurs va suivre.").to_string()),
+        Err(msg) => Outcome::Fail(msg),
+    }
+}
+
+/// Hors ligne (pas de réseau, serveur muet) : ce qui reste possible.
+fn offline_notice(what: &str) -> String {
+    let n = crate::downloads::list().len() as i64;
+    if n > 0 {
+        format!("{what} · {}", crate::i18n::trn("{n} téléchargement à regarder hors ligne", "{n} téléchargements à regarder hors ligne", n))
+    } else {
+        format!("{what} · {}", tr("nouvel essai automatique"))
+    }
+}
+
 /// Résultat d'une vérification : Ok(true) tout va bien · Ok(false) à configurer · Err(explication).
-async fn check(i: usize, start: &Start) -> Result<bool, String> {
+async fn check_point(i: usize, start: &Start) -> Result<bool, String> {
     match i {
         // Langue : celle choisie a ses traductions (sinon l'interface resterait à moitié traduite).
         0 => {
@@ -184,7 +224,7 @@ async fn check(i: usize, start: &Start) -> Result<bool, String> {
 }
 
 /// Déroulement complet (dans le runtime tokio).
-pub async fn run(app: Arc<App>, start: Start) {
+pub async fn run(app: Arc<App>, mut start: Start) {
     let animate = !start.no_intro && config::ui_prefs().anim.boot;
     let step = Duration::from_millis(if animate { 200 } else { 0 });
     let labels = labels();
@@ -290,19 +330,27 @@ pub async fn run(app: Arc<App>, start: Start) {
             }
         }
 
-        let result = check(i, &start).await;
+        let mut result = check(i, &start).await;
+        // Réseau absent ou serveur muet : attendu hors de chez soi, pas une panne de Turtlefin.
+        if let (5 | 6, Outcome::Fail(msg)) = (i, &result) {
+            if i == 5 || msg == tr("Serveur injoignable : nouvel essai automatique ensuite.") {
+                start.unreachable = true;
+                let what = if i == 5 { tr("Aucun réseau") } else { tr("Serveur injoignable") };
+                result = Outcome::Offline(offline_notice(what));
+            }
+        }
+        let offline = matches!(result, Outcome::Offline(_));
         match result {
-            Ok(true) => set_state(&app, i, 2),
-            Ok(false) => {
-                // Pas encore de serveur : point orange et explication, la recherche suit.
-                set_state(&app, i, 4);
-                let txt = tr("Aucun serveur choisi : la recherche des serveurs va suivre.");
+            Outcome::Ok => set_state(&app, i, 2),
+            Outcome::Notice(txt) | Outcome::Offline(txt) => {
+                // Point orange et explication ; la suite ne s'arrête pas.
+                set_state(&app, i, if offline { 5 } else { 4 });
                 ui(&app, move |u| u.set_boot_text(txt.into()));
                 if animate {
                     tokio::time::sleep(Duration::from_millis(1400)).await;
                 }
             }
-            Err(msg) => {
+            Outcome::Fail(msg) => {
                 eprintln!("turtlefin : démarrage : {msg}");
                 set_state(&app, i, 3);
                 if animate {
@@ -375,8 +423,14 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     }
     // 3. Compte choisi pour le démarrage (s'il est toujours enregistré sur cet appareil).
     let p = config::ui_prefs();
-    let acc = config::accounts().into_iter().find(|a| a.user_id == p.autostart_user && a.server_id == p.autostart_server);
-    if let Some(acc) = acc.filter(|_| !p.autostart_user.is_empty() && !saved.server.is_empty()) {
+    let accounts = config::accounts();
+    let acc = accounts.iter().find(|a| a.user_id == p.autostart_user && a.server_id == p.autostart_server).cloned();
+    // Hors ligne avec des téléchargements et un seul compte (sans compte de démarrage) : celui-ci,
+    // directement (« Qui regarde ? » ne mènerait qu'à lui).
+    let acc = acc.filter(|_| !p.autostart_user.is_empty()).or_else(|| {
+        (start.unreachable && accounts.len() == 1 && !crate::downloads::list().is_empty()).then(|| accounts[0].clone())
+    });
+    if let Some(acc) = acc.filter(|_| !saved.server.is_empty()) {
         let mut s = saved.clone();
         s.user_id = acc.user_id;
         s.user_name = acc.user_name;
@@ -393,4 +447,14 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     // 4. « Qui regarde ? » (la recherche des serveurs s'il n'y en a aucun).
     u.set_screen("login".into());
     let _ = api::normalize_server(&start.server);
+    // Serveur muet : on le dit, et le message s'efface dès qu'il répond.
+    if start.unreachable && !accounts.is_empty() {
+        let msg = if crate::downloads::list().is_empty() {
+            tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…")
+        } else {
+            tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne.")
+        };
+        u.set_error_text(msg.into());
+        crate::watch_server_back(app.clone(), msg);
+    }
 }

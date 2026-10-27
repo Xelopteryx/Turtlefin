@@ -45,12 +45,22 @@ pub struct PlayRequest {
 /// au format habituel. Mesuré sur un Pi 5 (4K HEVC 10 bits, profil « fast ») : aucune image perdue au
 /// lieu de 17 %, ~1 cœur au lieu de 4 ; image identique au pixel près. Le H.264 (pas de décodeur
 /// matériel sur le Pi 5) et les machines sans DRM retombent seuls sur le logiciel.
-/// Ailleurs (Windows, PC Linux) : « auto-safe ».
+/// Windows : décodeurs qui recopient l'image en mémoire (d3d11va-copy, puis nvdec-copy). L'image
+/// passe ensuite par l'OpenGL de Turtlefin ; avec « auto-safe », mpv prenait sur une carte NVIDIA un
+/// décodeur qui partage l'image avec OpenGL (interop), et des lignes de parasites barraient la vidéo
+/// (ticket GitHub n° 1, RTX 2070). La copie coûte un peu de processeur, rien de visible.
+/// Ailleurs (PC Linux) : « auto-safe ».
+/// Paramètres → Lecture → « Décodage matériel » coupé : tout par le processeur.
 fn hwdec_mode() -> String {
     if let Ok(v) = std::env::var("TURTLEFIN_HWDEC") {
         return v;
     }
-    if cfg!(target_os = "android") {
+    if crate::config::ui_prefs().no_hwdec {
+        return "no".to_string();
+    }
+    if cfg!(windows) {
+        "d3d11va-copy,nvdec-copy,dxva2-copy".to_string()
+    } else if cfg!(target_os = "android") {
         // Android : décodeurs matériels du téléphone (MediaCodec), images recopiées pour OpenGL.
         "mediacodec-copy".to_string()
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
@@ -1134,8 +1144,11 @@ async fn load(
         let pref = crate::config::track_pref(&it.pref_key());
         // Rien de choisi pour la série : préférences du compte Jellyfin.
         let (d_audio, d_sub, d_mode) = crate::config::user_defaults();
-        let audio = if pref.audio.is_empty() { d_audio } else { pref.audio.clone() };
-        let sub = if !pref.sub.is_empty() {
+        let (cli_audio, cli_sub) = CLI_TRACKS.lock().unwrap().clone();
+        let audio = cli_audio.unwrap_or(if pref.audio.is_empty() { d_audio } else { pref.audio.clone() });
+        let sub = if let Some(s) = cli_sub {
+            s
+        } else if !pref.sub.is_empty() {
             pref.sub.clone()
         } else if d_mode == "None" {
             "off".to_string()
@@ -1237,11 +1250,47 @@ fn volume_shown() -> i32 {
     app_volume() as i32
 }
 
-/// Piste audio à garder dans un flux converti (il n'en contient qu'une) : langue préférée de la
-/// série / du film, sinon celle du compte. None : le serveur prend la piste par défaut.
+/// Pistes imposées par la ligne de commande (`--audio=`, `--sub=`) : (audio, sous-titres), langues
+/// au format de mpv (« fre,fra,fr ») ou « off ». Valables pour tout ce lancement.
+static CLI_TRACKS: std::sync::Mutex<(Option<String>, Option<String>)> = std::sync::Mutex::new((None, None));
+
+/// Codes d'une langue tels que les fichiers les écrivent (ISO 639-1, 639-2/B et /T) : « fr » ou
+/// « français » donnent « fre,fra,fr ». Langue inconnue : telle quelle.
+fn lang_codes(s: &str) -> String {
+    const LANGS: [[&str; 4]; 16] = [
+        ["fr", "fre", "fra", "français"], ["en", "eng", "eng", "english"], ["ja", "jpn", "jpn", "日本語"],
+        ["de", "ger", "deu", "deutsch"], ["es", "spa", "spa", "español"], ["it", "ita", "ita", "italiano"],
+        ["pt", "por", "por", "português"], ["pl", "pol", "pol", "polski"], ["nl", "dut", "nld", "nederlands"],
+        ["ko", "kor", "kor", "한국어"], ["zh", "chi", "zho", "中文"], ["ru", "rus", "rus", "русский"],
+        ["ar", "ara", "ara", "العربية"], ["sv", "swe", "swe", "svenska"], ["da", "dan", "dan", "dansk"],
+        ["fi", "fin", "fin", "suomi"],
+    ];
+    let l = s.trim().to_lowercase();
+    match LANGS.iter().find(|c| c.contains(&l.as_str()) || (l.len() > 3 && c[3].starts_with(&l))) {
+        Some(c) if c[1] == c[2] => format!("{},{}", c[1], c[0]),
+        Some(c) => format!("{},{},{}", c[1], c[2], c[0]),
+        None => l,
+    }
+}
+
+/// `--audio=` / `--sub=` (« off », « no », « none » : sans sous-titres).
+pub fn cli_tracks(audio: Option<&str>, sub: Option<&str>) {
+    let mut t = CLI_TRACKS.lock().unwrap();
+    if let Some(a) = audio.filter(|a| !a.trim().is_empty()) {
+        t.0 = Some(lang_codes(a));
+    }
+    if let Some(s) = sub.filter(|s| !s.trim().is_empty()) {
+        t.1 = Some(if matches!(s.trim().to_lowercase().as_str(), "off" | "no" | "none" | "aucun") { "off".to_string() } else { lang_codes(s) });
+    }
+}
+
+/// Piste audio à garder dans un flux converti (il n'en contient qu'une) : langue de la ligne de
+/// commande, sinon préférée de la série / du film, sinon celle du compte. None : le serveur prend
+/// la piste par défaut.
 fn preferred_audio(it: &Item) -> Option<i32> {
     let pref = crate::config::track_pref(&it.pref_key()).audio;
-    let want = if pref.is_empty() { crate::config::user_defaults().0 } else { pref };
+    let cli = CLI_TRACKS.lock().unwrap().0.clone();
+    let want = cli.unwrap_or(if pref.is_empty() { crate::config::user_defaults().0 } else { pref });
     let langs: Vec<String> = want.split(',').map(|l| l.trim().to_lowercase()).filter(|l| !l.is_empty()).collect();
     let streams = &it.media_sources.as_ref()?.first()?.media_streams;
     streams
@@ -1286,4 +1335,20 @@ fn push_chapters(ui: &slint::Weak<AppWindow>, cur: &Current) {
         u.set_p_chapters(ModelRc::new(VecModel::from(marks)));
         u.set_p_chapter_count(count);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_langs() {
+        assert_eq!(lang_codes("fr"), "fre,fra,fr");
+        assert_eq!(lang_codes("FRA"), "fre,fra,fr");
+        assert_eq!(lang_codes("Français"), "fre,fra,fr");
+        assert_eq!(lang_codes("en"), "eng,en");
+        assert_eq!(lang_codes("jpn"), "jpn,ja");
+        assert_eq!(lang_codes("deutsch"), "ger,deu,de");
+        assert_eq!(lang_codes("tlh"), "tlh");
+    }
 }

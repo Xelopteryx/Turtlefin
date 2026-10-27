@@ -956,8 +956,22 @@ export component PlayerView inherits Rectangle {
                     return EventResult.accept;
                 }
             }
-            if (event.text == "q") {
+            if (event.text == "q" || event.text == Key.Stop) {
                 root.command("stop");
+                return EventResult.accept;
+            }
+            // Télécommande (voir main.rs, remote_key) : piste suivante / précédente (et Chaîne + / −),
+            // avance rapide (F18 : +30 s) et retour rapide (F17 : -10 s).
+            if (event.text == Key.PageDown || event.text == Key.PageUp) {
+                if (event.text == Key.PageDown && root.has-next) {
+                    root.command("episode:1");
+                } else if (event.text == Key.PageUp && root.has-prev) {
+                    root.command("episode:-1");
+                }
+                return EventResult.accept;
+            }
+            if (event.text == Key.F18 || event.text == Key.F17) {
+                root.command(event.text == Key.F18 ? "seek:30" : "seek:-10");
                 return EventResult.accept;
             }
             if (event.text == "a") {

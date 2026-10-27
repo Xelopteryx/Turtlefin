@@ -92,12 +92,12 @@ export struct SettingRow {
     on: bool,
 }
 
-// Appareil vers lequel diffuser : une appli Jellyfin du compte (télécommande) ou une télé DLNA.
+// Appareil vers lequel diffuser : une appli Jellyfin du compte (télécommande) ou un Chromecast.
 export struct CastItem {
-    id: string,    // "jf:<session>" · "dlna:<n>"
+    id: string,    // "jf:<session>" · "gcast:<n>"
     name: string,
     sub: string,   // appli, titre en cours
-    kind: string,  // "jf" · "dlna"
+    kind: string,  // "jf" · "gcast"
 }
 
 export struct MenuEntry {
@@ -1113,6 +1113,19 @@ component NavIcon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 12 3 A 9 9 0 1 1 11.99 3 Z M 3 12 L 21 12 M 12 3 C 8 7 8 17 12 21 M 12 3 C 16 7 16 17 12 21";
     }
+    // Disque : boîtier et son voyant.
+    if root.name == "storage": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 3 14 L 6 5 L 18 5 L 21 14 L 21 19 L 3 19 Z M 3 14 L 21 14 M 16.5 16.5 L 16.6 16.5";
+    }
     if root.name == "about": Path {
         width: parent.width;
         height: parent.height;
@@ -1850,8 +1863,8 @@ component PadButton inherits Rectangle {
     }
 }
 
-// Télécommande d'un appareil (voir cast.rs) : nom, titre en cours et avancement ; croix directionnelle
-// et OK, Retour et Accueil ; lecture ; volume. `full` faux (télé DLNA) : lecture et volume seulement.
+// Télécommande d'un appareil : nom, titre en cours et avancement ; croix directionnelle et OK, Retour
+// et Accueil ; lecture ; volume. `full` faux : lecture et volume seulement.
 // Clavier : ← → ↑ ↓ choisissent un bouton (sel), Entrée l'active, Échap ferme.
 component RemotePad inherits Rectangle {
     in property <float> k: 1.0;
@@ -4004,7 +4017,7 @@ export component AppWindow inherits Window {
     in property <string> sp-state;
     in property <[MenuEntry]> sp-groups;     // label, action = identifiant du groupe
     in-out property <int> sp-sel;
-    // Diffuser (voir cast.rs) : écran où les vidéos sont envoyées (télé DLNA, Turtlefin ou appli Jellyfin
+    // Diffuser (voir chromecast.rs) : écran où les vidéos sont envoyées (Chromecast, Turtlefin ou appli Jellyfin
     // du compte), choisi dans le panneau sous l'icône ; le panneau montre ensuite ce qui y passe.
     in-out property <bool> cast-pop;
     in property <[CastItem]> cast-items;
@@ -4479,6 +4492,12 @@ export component AppWindow inherits Window {
     }
 
     function nav-key(t: string) -> bool {
+        // Touche Menu (télécommande : Menu, Info, Guide ; manette : Y, Start) : le menu de gauche.
+        if (t == Key.Menu) {
+            root.h-focus = false;
+            root.open-menu();
+            return true;
+        }
         if (!root.h-focus) {
             return false;
         }
@@ -8328,8 +8347,8 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "cast", "motion", "about"];
-        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "À propos")];
+        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about"];
+        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos")];
         // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
         // set-in (sélection dans les lignes) dit laquelle est affichée.
@@ -10785,7 +10804,7 @@ export component AppWindow inherits Window {
     }
 
     // Diffuser : panneau qui descend sous son icône (toucher à côté, Échap ou Retour le referment).
-    // Écrans où envoyer les vidéos (télés DLNA du réseau, Turtlefin ou applis Jellyfin du compte) ; l'écran
+    // Écrans où envoyer les vidéos (Chromecast du réseau, Turtlefin ou applis Jellyfin du compte) ; l'écran
     // choisi, le panneau montre ce qui y passe, avec lecture, avance, arrêt et volume.
     // Clavier : ↑ ↓ entre les écrans, les deux rangées de commandes et « Ne plus diffuser » ; ← → dans une rangée.
     if root.cast-p > 0.01: Rectangle {
@@ -10867,7 +10886,7 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
-                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
+                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
                         : root.cast-on ? Tr.t(Tr.k, "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran.")
                         : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches.");
                     color: Theme.muted;
@@ -12131,6 +12150,7 @@ export component AppWindow inherits Window {
     in property <[LxItem]> lx-items;
     in property <bool> lx-can-folder;
     in property <bool> lx-can-template: true;
+    in property <bool> lx-pick;            // choix d'un dossier (téléchargements) : « Choisir ce dossier »
     in property <string> lx-title;
     in property <int> lx-tick;
     in-out property <int> lx-sel;
@@ -12150,6 +12170,7 @@ export component AppWindow inherits Window {
         items: root.lx-items;
         can-open-folder: root.lx-can-folder;
         can-template: root.lx-can-template;
+        pick-mode: root.lx-pick;
         title: root.lx-title;
         tick: root.lx-tick;
         sel <=> root.lx-sel;

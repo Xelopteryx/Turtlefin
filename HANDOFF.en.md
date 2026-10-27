@@ -64,7 +64,7 @@ src/discovery.rs    server discovery (UDP, subnets, ARP, VPN peers)
 src/downloads.rs    downloads (Range resume, queue, offline sync)
 src/mpv.rs          libmpv binding; src/video.rs OpenGL texture; src/player.rs playback, reports, chaining
 src/syncplay.rs     watch party (WebSocket /socket)
-src/cast.rs         Cast: DLNA TVs on the network (SSDP, SOAP)
+src/chromecast.rs   Cast: Google Cast devices; src/relay.rs HTTP relay; src/lan.rs local network
 src/password.rs     password strength (the "too simple" alert)
 src/paths.rs        config / cache / data folders; portable mode; quiet_command
 src/update.rs       update by installation kind (Kind: Source, WinInstalled, WinPortable, AppImage, Deb)
@@ -264,7 +264,7 @@ for lack of a keyring common to all target machines.
 - **Cast** (top-right icon): picks the screen videos are sent to ("Play on …" on item pages): another Turtlefin or
   Jellyfin app of the account (`/Sessions?controllableByUserId`, server `Play` command; controllable =
   `SupportsRemoteControl` and `IsActive`, no activity window: a TV left on the home screen makes no request) or a
-  DLNA TV on the network (`src/cast.rs`: SSDP, then SOAP AVTransport / RenderingControl; private addresses only,
+  DLNA TV on the network (removed in 1.9.6; former `src/cast.rs`: SSDP, then SOAP AVTransport / RenderingControl; private addresses only,
   the LOCATION host must be the responder; the TV reads `/Videos/{id}/stream?static=true&api_key=…`). The panel
   then shows what plays there (polled every 2 s) with play, skip, stop and volume (`cast_cmd`).
 - **Remote** (side menu): lists the account's other Turtlefin instances (`Client == "Turtlefin"`), then controls the

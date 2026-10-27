@@ -1811,9 +1811,6 @@ msgstr "Stap 3 van 3 · Typ het nieuwe wachtwoord nog een keer."
 msgid "Arrêter de piloter {}"
 msgstr "{} niet meer bedienen"
 
-msgid "Aucun appareil. Ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte, ou allume une télé compatible DLNA sur ce réseau."
-msgstr "Geen apparaat. Open Turtlefin (of een Jellyfin-app) op de tv met hetzelfde account, of zet een DLNA-tv op dit netwerk aan."
-
 msgid "Choisis un appareil : Turtlefin devient sa télécommande, et « Lire sur » apparaît sur les fiches."
 msgstr "Kies een apparaat: Turtlefin wordt de afstandsbediening, en ‘Afspelen op’ verschijnt op de detailpagina's."
 
@@ -1841,9 +1838,6 @@ msgstr "Apparaten zoeken…"
 msgid "Rien en lecture"
 msgstr "Er speelt niets"
 
-msgid "Télé DLNA : la vidéo y est envoyée"
-msgstr "DLNA-tv: de video wordt erheen gestuurd"
-
 msgid "Télécommande · {}"
 msgstr "Afstandsbediening · {}"
 
@@ -1852,9 +1846,6 @@ msgstr "{} reageert niet: {}"
 
 msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
 msgstr "Er is geen andere Turtlefin open met dit account. Open hem op de tv (of de Pi) en kom dan hier terug."
-
-msgid "Aucun écran. Allume une télé compatible DLNA sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "Geen scherm. Zet een DLNA-tv op dit netwerk aan, of open Turtlefin (of een Jellyfin-app) op de tv met hetzelfde account."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Kies het scherm waar video's naartoe gaan: ‘Afspelen op’ verschijnt dan op de detailpagina's."
@@ -1924,9 +1915,6 @@ msgstr "Verder op dit apparaat"
 
 msgid "Voir la lecture · {}"
 msgstr "Afspelen tonen · {}"
-
-msgid "{} ne lit pas le HEVC : le serveur convertit l'image, la lecture peut saccader ou ne pas démarrer."
-msgstr "{} speelt geen HEVC af: de server zet het beeld om, het afspelen kan haperen of niet starten."
 
 msgid "Changement de piste…"
 msgstr "Spoor wisselen…"
@@ -2021,6 +2009,99 @@ msgstr "Gevonden servers vergeten."
 msgid "Si besoin"
 msgstr "Indien nodig"
 
-msgid "Télés DLNA : les sous-titres sont incrustés dans l'image par le serveur. Chromecast : ils changent sans recharger la vidéo."
-msgstr "DLNA-tv's: ondertitels worden door de server in het beeld gebrand. Chromecast: ze wisselen zonder de video te herladen."
+msgid "Au-delà, plus rien n'est téléchargé. Sans limite : autant que les fichiers le demandent, tant que le disque a de la place."
+msgstr "Daarboven wordt niets meer gedownload. Geen limiet: zoveel als de bestanden nodig hebben, zolang de schijf ruimte heeft."
 
+msgid "Aucun réseau"
+msgstr "Geen netwerk"
+
+msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Geen scherm. Zet een Chromecast aan op dit netwerk, of open Turtlefin (of een Jellyfin-app) op de tv met hetzelfde account."
+
+msgid "Choisir ce dossier"
+msgstr "Deze map kiezen"
+
+msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Kies een schijf en daarna de map voor gedownloade films en series."
+
+msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Kies een map die niet in de oude map ligt en er ook niet boven."
+
+msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
+msgstr "Chromecast: ondertitels wisselen zonder de video opnieuw te laden."
+
+msgid "Disque : place libre inconnue"
+msgstr "Schijf: vrije ruimte onbekend"
+
+msgid "Disque : {} libres sur {}"
+msgstr "Schijf: {} vrij van {}"
+
+msgid "Dossier actuel des téléchargements"
+msgstr "Huidige downloadmap"
+
+msgid "Dossier des téléchargements"
+msgstr "Downloadmap"
+
+msgid "Décodage matériel"
+msgstr "Hardwaredecodering"
+
+msgid "Déplacement des téléchargements…"
+msgstr "Downloads verplaatsen…"
+
+msgid "Impossible d'écrire dans {}."
+msgstr "Kan niet schrijven naar {}."
+
+msgid "La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."
+msgstr "De videokaart decodeert de video. Uitzetten als het beeld lijnen of storingen toont (de processor werkt harder)."
+
+msgid "Limite de place"
+msgstr "Ruimtelimiet"
+
+msgid "Ordinateur"
+msgstr "Computer"
+
+msgid "Revenir au dossier par défaut"
+msgstr "Terug naar de standaardmap"
+
+msgid "Sans limite"
+msgstr "Geen limiet"
+
+msgid "Serveur de nouveau joignable."
+msgstr "Server weer bereikbaar."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
+msgstr "Server onbereikbaar: kies een account om de downloads offline te bekijken."
+
+msgid "Téléchargements : {}"
+msgstr "Downloads: {}"
+
+msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgstr "Er loopt een download: wissel van map als die klaar is."
+
+msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
+msgstr "ruimtelimiet bereikt ({} van {}; Instellingen → Opslag)"
+
+msgid "nouvel essai automatique"
+msgstr "automatisch opnieuw proberen"
+
+msgid "pas assez de place sur le disque (il faut {}, {} libres)"
+msgstr "niet genoeg schijfruimte ({} nodig, {} vrij)"
+
+msgid "{} déplacés, {} restés dans l'ancien dossier (place, droits ?)."
+msgstr "{} verplaatst, {} in de oude map gebleven (ruimte, rechten?)."
+
+msgid "{} libres sur {}"
+msgstr "{} vrij van {}"
+
+msgid "« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés."
+msgstr "‘Deze map kiezen’: downloads komen hier ({}). Bestaande worden hierheen verplaatst."
+
+msgid "{n} téléchargement à regarder hors ligne"
+msgid_plural "{n} téléchargements à regarder hors ligne"
+msgstr[0] "{n} download om offline te kijken"
+msgstr[1] "{n} downloads om offline te kijken"
+
+msgid "{n} téléchargement déplacé."
+msgid_plural "{n} téléchargements déplacés."
+msgstr[0] "{n} download verplaatst."
+msgstr[1] "{n} downloads verplaatst."

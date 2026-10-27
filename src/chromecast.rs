@@ -42,8 +42,8 @@ const MAX_MSG: usize = 256 << 10;
 /// Recherche les appareils Cast pendant `wait` sur chaque réseau local de la machine.
 pub async fn discover(wait: Duration) -> Vec<Device> {
     let mut socks = Vec::new();
-    for ip in crate::cast::lan_ipv4s() {
-        if let Some(s) = crate::cast::multicast_socket(ip) {
+    for ip in crate::lan::lan_ipv4s() {
+        if let Some(s) = crate::lan::multicast_socket(ip) {
             socks.push(s);
         }
     }
