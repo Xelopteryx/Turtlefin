@@ -218,7 +218,16 @@ async fn check_point(i: usize, start: &Start) -> Result<bool, String> {
                     eprintln!("turtlefin : {best} répond avec l'identifiant {id}, attendu {}", s.server_id);
                     Err(tr("Un autre serveur Jellyfin répond à cette adresse.").to_string())
                 }
-                Some(_) => Ok(true),
+                Some(_) => {
+                    // L'adresse de secours répond (pas la principale) : c'est elle que la suite utilise
+                    // (« Qui regarde ? », connexion), pas l'adresse muette.
+                    if !start.server_from_cli && best != s.server {
+                        let mut s = config::load();
+                        s.server = best;
+                        config::save(&s);
+                    }
+                    Ok(true)
+                }
             }
         }
     }
@@ -336,9 +345,9 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         if let (5 | 6, Outcome::Fail(msg)) = (i, &result) {
             if i == 5 || msg == tr("Serveur injoignable : nouvel essai automatique ensuite.") {
                 start.unreachable = true;
-                // Des téléchargements : le cœur du logo se fend (et se ressoude si le serveur revient).
-                // Rien hors ligne : il se débranche (perdu), la recherche de serveur suivra (voir Srv).
-                let core = if crate::downloads::list().is_empty() { 3 } else { 1 };
+                // Des téléchargements : la maison prend la place du cœur (hors ligne, voir Srv). Rien
+                // hors ligne : il se débranche (perdu), la recherche de serveur suivra.
+                let core = if crate::downloads::list().is_empty() { 3 } else { 2 };
                 crate::set_core(&app, core);
                 let what = if i == 5 { tr("Aucun réseau") } else { tr("Serveur injoignable") };
                 result = Outcome::Offline(offline_notice(what));

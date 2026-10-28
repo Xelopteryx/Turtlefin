@@ -2144,3 +2144,15 @@ msgstr "Servidor inacessível: procura-o na rede ou escolhe outro."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Servidor inacessível: vê as tuas transferências offline ou espera que volte (nova tentativa a cada 5 s)."
+
+msgid "Distribution"
+msgstr "Elenco"
+
+msgid "Lire la suite"
+msgstr "Ler mais"
+
+msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgstr "Já não há transferências: procura o servidor ou espera que volte."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Servidor inacessível: escolhe uma conta para ver as suas transferências ou espera que volte (nova tentativa a cada 5 s)."

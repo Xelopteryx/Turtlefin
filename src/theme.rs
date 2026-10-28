@@ -278,36 +278,75 @@ pub fn load(path: &std::path::Path) -> Option<ThemeDef> {
     (t.turtlefin_theme >= 1 && !t.name.trim().is_empty()).then_some(t)
 }
 
+/// Hors ligne (Srv.core 2) : le thème passe à l'ambre (mêmes clartés et saturations, teinte ambrée),
+/// pour que toute l'interface dise qu'on regarde les téléchargements, pas le serveur.
+static OFFLINE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_offline(on: bool) -> bool {
+    OFFLINE.swap(on, std::sync::atomic::Ordering::Relaxed) != on
+}
+
+/// Couleur ramenée vers l'ambre (teinte 36°) : clarté et saturation gardées (un fond presque gris
+/// prend juste assez de saturation pour paraître chaud), transparence aussi.
+fn amber(c: Color) -> Color {
+    let (r, g, b) = (c.red() as f32 / 255.0, c.green() as f32 / 255.0, c.blue() as f32 / 255.0);
+    let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
+    let l = (mx + mn) / 2.0;
+    let d = mx - mn;
+    let s = if d == 0.0 { 0.0 } else { d / (1.0 - (2.0 * l - 1.0).abs()) };
+    let s = s.max(0.18).min(1.0);
+    let h = 36.0 / 360.0;
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let f = |t: f32| {
+        let t = t.rem_euclid(1.0);
+        if t < 1.0 / 6.0 {
+            p + (q - p) * 6.0 * t
+        } else if t < 0.5 {
+            q
+        } else if t < 2.0 / 3.0 {
+            p + (q - p) * (2.0 / 3.0 - t) * 6.0
+        } else {
+            p
+        }
+    };
+    let to = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    Color::from_argb_u8(c.alpha(), to(f(h + 1.0 / 3.0)), to(f(h)), to(f(h - 1.0 / 3.0)))
+}
+
 /// Applique un thème à l'interface.
 pub fn apply(u: &AppWindow, t: &ThemeDef) {
     let d = turtlefin();
+    let off = OFFLINE.load(std::sync::atomic::Ordering::Relaxed);
+    // Couleurs du thème ; `w` : celles qui passent à l'ambre hors ligne (fonds, accents, verre, cartes).
     let c = |x: &str, fallback: &str| parse(x).or_else(|| parse(fallback)).unwrap_or_default();
+    let w = |x: Color| if off { amber(x) } else { x };
     let th = u.global::<crate::Theme>();
     let fg = c(&t.fg, if t.dark { "#ffffff" } else { "#0f1a2a" });
     let alpha = |a: f32| Color::from_argb_u8((a * 255.0) as u8, fg.red(), fg.green(), fg.blue());
     th.set_dark(t.dark);
-    th.set_bg(c(&t.bg, &d.bg));
-    th.set_bg_mid(parse(&t.bg_mid).unwrap_or_else(|| c(&t.bg, &d.bg)));
-    th.set_bg_end(parse(&t.bg_end).unwrap_or_else(|| c(&t.bg, &d.bg)));
+    th.set_bg(w(c(&t.bg, &d.bg)));
+    th.set_bg_mid(w(parse(&t.bg_mid).unwrap_or_else(|| c(&t.bg, &d.bg))));
+    th.set_bg_end(w(parse(&t.bg_end).unwrap_or_else(|| c(&t.bg, &d.bg))));
     th.set_fg(fg);
     th.set_text(parse(&t.text).unwrap_or_else(|| alpha(0.9)));
     th.set_muted(parse(&t.muted).unwrap_or_else(|| alpha(0.6)));
-    th.set_accent1(c(&t.accent1, &d.accent1));
-    th.set_accent2(c(&t.accent2, &d.accent2));
+    th.set_accent1(w(c(&t.accent1, &d.accent1)));
+    th.set_accent2(w(c(&t.accent2, &d.accent2)));
     th.set_on_accent(c(&t.on_accent, &d.on_accent));
-    th.set_glass(c(&t.glass, &d.glass));
-    th.set_glass_border(c(&t.glass_border, &d.glass_border));
-    th.set_panel(c(&t.panel, &d.panel));
-    th.set_card(c(&t.card, &d.card));
-    th.set_card_focus(c(&t.card_focus, &d.card_focus));
-    th.set_card_border(c(&t.card_border, &d.card_border));
-    th.set_glow(c(&t.glow, &d.glow));
+    th.set_glass(w(c(&t.glass, &d.glass)));
+    th.set_glass_border(w(c(&t.glass_border, &d.glass_border)));
+    th.set_panel(w(c(&t.panel, &d.panel)));
+    th.set_card(w(c(&t.card, &d.card)));
+    th.set_card_focus(w(c(&t.card_focus, &d.card_focus)));
+    th.set_card_border(w(c(&t.card_border, &d.card_border)));
+    th.set_glow(w(c(&t.glow, &d.glow)));
     th.set_sheen(t.sheen.clamp(0.0, 1.0));
     th.set_player_bar(c(&t.player_bar, &d.player_bar));
     th.set_player_ink(c(&t.player_ink, &d.player_ink));
     th.set_player_orb(t.player_orb);
-    th.set_ph1(c(&t.placeholder1, &d.placeholder1));
-    th.set_ph2(c(&t.placeholder2, &d.placeholder2));
+    th.set_ph1(w(c(&t.placeholder1, &d.placeholder1)));
+    th.set_ph2(w(c(&t.placeholder2, &d.placeholder2)));
     th.set_scrim(c(&t.scrim, &d.scrim));
     th.set_danger(c(&t.danger, &d.danger));
     th.set_danger_text(c(&t.danger_text, &d.danger_text));
@@ -327,7 +366,7 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_bubbles(scenery > 0);
     th.set_scenery(scenery);
     th.set_header_glass(t.header_glass);
-    th.set_edge(c(&t.edge, &d.edge));
+    th.set_edge(w(c(&t.edge, &d.edge)));
     th.set_streaks(t.streaks);
     th.set_boot_style(match t.boot.as_str() {
         "aero" => 1,

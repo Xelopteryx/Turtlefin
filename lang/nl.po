@@ -2144,3 +2144,15 @@ msgstr "Server onbereikbaar: zoek hem op het netwerk of kies een andere."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server onbereikbaar: bekijk je downloads offline of wacht tot hij terug is (nieuwe poging elke 5 s)."
+
+msgid "Distribution"
+msgstr "Cast"
+
+msgid "Lire la suite"
+msgstr "Lees meer"
+
+msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgstr "Geen downloads meer: zoek de server of wacht tot hij terug is."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server onbereikbaar: kies een account om zijn downloads te bekijken, of wacht tot hij terug is (nieuwe poging elke 5 s)."

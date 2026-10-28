@@ -2144,3 +2144,15 @@ msgstr "Server nicht erreichbar: Suche ihn im Netzwerk oder wähle einen anderen
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server nicht erreichbar: Sieh dir deine Downloads offline an oder warte, bis er zurück ist (neuer Versuch alle 5 s)."
+
+msgid "Distribution"
+msgstr "Besetzung"
+
+msgid "Lire la suite"
+msgstr "Weiterlesen"
+
+msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgstr "Keine Downloads mehr: Suche den Server oder warte, bis er zurück ist."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server nicht erreichbar: Wähle ein Konto, um seine Downloads anzusehen, oder warte, bis er zurück ist (neuer Versuch alle 5 s)."

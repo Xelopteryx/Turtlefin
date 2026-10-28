@@ -2532,26 +2532,27 @@ component HeaderRight inherits Rectangle {
                 }
             }
         }
-        // Mode hors ligne : pastille verte à la place des icônes qui demandent le serveur.
+        // Mode hors ligne : pastille ambre (comme le thème hors ligne) à la place des icônes qui
+        // demandent le serveur.
         if root.offline: Rectangle {
             width: offline-label.preferred-width + 48px * root.k;
             border-radius: self.height / 2;
-            background: #14532d;
+            background: #4a2c05;
             border-width: 1px;
-            border-color: #4ade80;
+            border-color: #f59e0b;
             HorizontalLayout {
                 padding-left: 12px * root.k;
                 spacing: 8px * root.k;
                 alignment: start;
                 Text {
                     text: "●";
-                    color: #4ade80;
+                    color: #fbbf24;
                     font-size: 11px * root.k;
                     vertical-alignment: center;
                 }
                 offline-label := Text {
                     text: Tr.t(Tr.k, "Hors ligne");
-                    color: #bbf7d0;
+                    color: #fde68a;
                     font-size: 15px * root.k;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -3144,14 +3145,14 @@ export component AppWindow inherits Window {
         : min((root.height - root.header-h) * 0.42, root.deck-dw * 0.5625);
     // Paquet 16:9 (bibliothèque) à cette place.
     property <length> deck-w16: min(root.deck-dw, root.deck-bh / 0.5625);
-    property <length> deck-x: root.deck-live ? root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p : (root.width - root.deck-w16) / 2;
-    property <length> deck-y: root.deck-live ? root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p : root.deck-top(root.deck-w16 * 0.5625);
+    property <length> deck-x: root.deck-live ? root.hero-xp : (root.width - root.deck-w16) / 2;
+    property <length> deck-y: root.deck-live ? root.hero-yp : root.deck-top(root.deck-w16 * 0.5625);
     // Haut du paquet posé (hauteur h) : en bas au centre, ou en haut sous la barre en portrait.
     pure function deck-top(h: length) -> length {
         return root.narrow ? root.header-h + 12px * root.k : root.height - h - 32px * root.k;
     }
-    property <length> deck-w: root.deck-live ? root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p : root.deck-w16;
-    property <length> deck-h: root.deck-live ? root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p : root.deck-w16 * 0.5625;
+    property <length> deck-w: root.deck-live ? root.hero-wp : root.deck-w16;
+    property <length> deck-h: root.deck-live ? root.hero-hp : root.deck-w16 * 0.5625;
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
@@ -3227,7 +3228,28 @@ export component AppWindow inherits Window {
     // jusqu'au retour).
     property <bool> door-mode;
     property <bool> hero-door: root.door-mode && root.hero-wide && !root.hero-seerr;
-    property <duration> hero-dur: root.hero-door ? 1150ms : 480ms;
+    property <duration> hero-dur: root.hero-door ? 1150ms : root.hero-arc ? 820ms : 480ms;
+    // Position de l'image partagée en vol (hero-p : 0 sur la carte, 1 à destination). En ligne droite,
+    // sauf la carte d'une bibliothèque en portrait (sa bannière est juste au-dessus d'elle : elle ne
+    // bougeait presque pas) : elle passe par le centre de l'écran, en grand, pendant que la page
+    // s'efface, puis remonte se poser en bannière (courbe passant par ce point au milieu du vol).
+    property <bool> hero-arc: root.hero-deck && root.narrow;
+    property <length> arc-mw: root.width * 0.86;
+    property <length> arc-mh: root.arc-mw * root.hero-fh / max(1px, root.hero-fw);
+    pure function arc(f: length, t: length, m: length) -> length {
+        // Bézier quadratique de f à t qui passe par m à mi-chemin.
+        let c = 2 * m - (f + t) / 2;
+        let q = root.hero-p;
+        return (1 - q) * (1 - q) * f + 2 * (1 - q) * q * c + q * q * t;
+    }
+    property <length> hero-xp: root.hero-arc ? root.arc(root.hero-fx, root.hero-tx, (root.width - root.arc-mw) / 2)
+        : root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
+    property <length> hero-yp: root.hero-arc ? root.arc(root.hero-fy, root.hero-ty, (root.height - root.arc-mh) / 2)
+        : root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p;
+    property <length> hero-wp: root.hero-arc ? root.arc(root.hero-fw, root.hero-tw, root.arc-mw)
+        : root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
+    property <length> hero-hp: root.hero-arc ? root.arc(root.hero-fh, root.hero-th, root.arc-mh)
+        : root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
     // Avancement de la porte : 0 carte à sa place · 1 affiche sur la fiche. Retour : reste à 1 tant
     // que la fiche s'efface, puis redescend à 0 pendant le vol.
     property <float> door-q: root.hero-dest ? root.hero-q : root.hero-flying ? 1 - root.hero-q : 1;
@@ -4129,7 +4151,11 @@ export component AppWindow inherits Window {
     in-out property <bool> sr-open;
     in property <SeerrPage> sr;
     in property <[CardData]> sr-cast;
-    in-out property <int> sr-sel;           // 0 bouton Demander · 1 Fermer
+    in-out property <int> sr-sel;           // 0 bouton Demander · 1 Fermer · 2 « Lire la suite » · 3 distribution
+    // Page Seerr : tout le texte (résumé, informations, distribution) dans une fenêtre qui défile ;
+    // première colonne de la distribution affichée (elle défile sur le côté).
+    in-out property <bool> sr-more;
+    in-out property <int> sr-cast-off;
     in-out property <length> sr-scroll;
 
     // Téléchargements : liste générale (séries, films) > saisons d'une série > épisodes d'une saison
@@ -4326,6 +4352,8 @@ export component AppWindow inherits Window {
     in property <string> p-subtitle;
     in property <bool> p-paused;
     in property <float> p-progress;
+    in property <float> p-pos-secs;         // position et durée, en secondes (0 : inconnue)
+    in property <float> p-dur-secs;
     in property <string> p-pos-text;
     in property <string> p-dur-text;
     in property <string> p-end-text;
@@ -4870,10 +4898,10 @@ export component AppWindow inherits Window {
         clip: true;
     Rectangle {
         // Même trajectoire que l'image en vol (elle finit de s'agrandir derrière la page).
-        x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
-        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
-        width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
-        height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
+        x: root.hero-xp;
+        y: root.hero-yp - root.header-row;
+        width: root.hero-wp;
+        height: root.hero-hp;
         Image {
             width: parent.width;
             height: parent.height;
@@ -4903,7 +4931,8 @@ export component AppWindow inherits Window {
         property <int> saved-count: root.login-saved;
         // Rang des boutons après « Changer de serveur » (n) ; -1 : bouton absent.
         property <int> manage-i: self.saved-count > 0 ? self.n + 1 : -1;
-        property <int> offline-i: !root.offline-ok ? -1 : self.saved-count > 0 ? self.n + 2 : self.n + 1;
+        // (Ancien bouton « Regarder hors ligne » : choisir un compte suffit, voir les tuiles.)
+        property <int> offline-i: -1;
         // Tuiles puis bouton « Changer de serveur » (index n).
         // Formulaire : largeur, haut, hauteur d'un champ, des boutons, écart entre les lignes.
         property <length> fw: min(self.width - 80 * self.u, 560 * self.u);
@@ -5314,7 +5343,7 @@ export component AppWindow inherits Window {
                 property <bool> gone: t.id == lg.gone-id;
                 property <bool> chosen: lg.picking != "" && t.id == lg.picking;
                 // Gestion : seuls les comptes enregistrés restent nets. Connexion : les autres s'estompent.
-                property <float> dim: self.gone ? 0 : root.login-edit && !self.removable ? 0.35 : lg.picking != "" && !self.chosen ? 0.25 : 1;
+                property <float> dim: self.gone ? 0 : (root.login-edit || root.offline-ok) && !self.removable ? 0.35 : lg.picking != "" && !self.chosen ? 0.25 : 1;
                 animate dim { duration: Motion.login ? 240ms : 0ms; easing: ease-out; }
                 opacity: self.zx > 0 ? self.dim : 0;
                 property <float> base-s: self.gone ? 0.3 : self.chosen ? 1.18 : self.sel ? 1.08 : 1.0;
@@ -5376,7 +5405,9 @@ export component AppWindow inherits Window {
                 Text {
                     y: lg.tile + 38 * lg.u;
                     width: parent.width;
-                    text: t.subtitle;
+                    // Serveur injoignable, des téléchargements : un compte enregistré ouvre ses
+                    // téléchargements (hors ligne) ; les autres ne peuvent rien ouvrir.
+                    text: root.offline-ok && tile.removable ? Tr.t(Tr.k, "Hors ligne") : t.subtitle;
                     color: Theme.accent2;
                     font-size: 13 * lg.u;
                     horizontal-alignment: center;
@@ -5439,15 +5470,6 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.login-edit = !root.login-edit;
                         root.login-sel = 0;
-                    }
-                }
-                // Serveur injoignable, des médias sur l'appareil (de n'importe quel serveur enregistré).
-                if root.offline-ok && !root.login-edit: ActionButton {
-                    text: Tr.t(Tr.k, "Regarder hors ligne");
-                    font: 16 * lg.u;
-                    focused: root.login-sel == lg.offline-i && Nav.kb;
-                    clicked => {
-                        root.menu-action("offline");
                     }
                 }
             }
@@ -10032,7 +10054,7 @@ export component AppWindow inherits Window {
         show-home: !root.on-home;
         enter: root.page-e;
         logo-on: root.on-home;
-        title-color: root.offline ? Theme.ok : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
+        title-color: root.offline ? Theme.accent2 : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
         title: root.on-home ? "Turtlefin" : root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
             : root.screen == "party" ? Tr.t(Tr.k, "Watch party") : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
@@ -10611,12 +10633,45 @@ export component AppWindow inherits Window {
                     root.cancel-open();
                     return EventResult.accept;
                 }
-                if (event.text == Key.LeftArrow) {
-                    root.sr-sel = 0;
+                // Tout le texte affiché : ↑ ↓ le font défiler, Retour le referme.
+                if (root.sr-more) {
+                    if (event.text == Key.DownArrow) {
+                        srp.more-y = min(srp.more-max, srp.more-y + 90px * root.k);
+                    } else if (event.text == Key.UpArrow) {
+                        srp.more-y = max(0px, srp.more-y - 90px * root.k);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
+                        root.sr-more = false;
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.DownArrow) {
+                    // Boutons -> « Lire la suite » (s'il y a plus à lire) -> distribution.
+                    if (root.sr-sel <= 1 && srp.has-more) {
+                        root.sr-sel = 2;
+                    } else if (root.sr-sel <= 2 && root.sr-cast.length > 0) {
+                        root.sr-sel = 3;
+                    }
+                } else if (event.text == Key.UpArrow) {
+                    root.sr-sel = root.sr-sel == 3 && srp.has-more ? 2 : root.sr-sel >= 2 ? 0 : root.sr-sel;
+                } else if (event.text == Key.LeftArrow) {
+                    if (root.sr-sel == 3) {
+                        root.sr-cast-off = max(0, root.sr-cast-off - 1);
+                    } else {
+                        root.sr-sel = 0;
+                    }
                 } else if (event.text == Key.RightArrow) {
-                    root.sr-sel = 1;
+                    if (root.sr-sel == 3) {
+                        root.sr-cast-off = min(srp.cast-max, root.sr-cast-off + 1);
+                    } else {
+                        root.sr-sel = 1;
+                    }
                 } else if (event.text == Key.Return) {
-                    if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
+                    if (root.sr-sel == 2) {
+                        srp.more-y = 0px;
+                        root.sr-more = true;
+                    } else if (root.sr-sel == 3) {
+                        // rien : la distribution se parcourt avec ← →
+                    } else if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
                         root.seerr-action();
                     } else {
                         root.seerr-close();
@@ -10677,6 +10732,13 @@ export component AppWindow inherits Window {
         pure function blk-y(b: int) -> length {
             return (1 - srp.blk(b)) * 24 * srp.u;
         }
+        // Trop à lire pour l'écran (résumé coupé, informations qui ne tiennent pas) : « Lire la suite ».
+        in-out property <bool> has-more;
+        // Distribution : colonnes au-delà de celles affichées (elle défile sur le côté).
+        in-out property <int> cast-max;
+        // Fenêtre « tout le texte » : défilement et sa limite.
+        in-out property <length> more-y;
+        in-out property <length> more-max;
 
         if srp.ready: content := Rectangle {
             // Affiche (en fondu si elle arrive après la page).
@@ -10741,7 +10803,7 @@ export component AppWindow inherits Window {
                     overflow: elide;
                 }
                 // Informations clés en pastilles (statut, sortie, langue, studio) ; portrait : une par ligne.
-                if !srp.tall: HorizontalLayout {
+                if !srp.tall: facts-row := HorizontalLayout {
                     opacity: srp.blk(1);
                     alignment: start;
                     spacing: 10 * srp.u;
@@ -10828,29 +10890,86 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Distribution : paysage, photos rondes sur une ligne (autant qu'il en tient) ; portrait, en
-            // bas de l'écran, quatre par ligne sur deux lignes.
-            property <int> per-row: srp.tall ? 4 : 99;
+            // Distribution : paysage, photos rondes sur une ligne ; portrait, en bas de l'écran, sur deux
+            // lignes de quatre (rangées par colonnes). Plus qu'il n'en tient : elle défile sur le côté
+            // (← → sur la distribution, molette, doigt, chevrons), une colonne à la fois.
             property <length> cast-cw: srp.tall ? (self.width - 2 * srp.pad) / 4 : 118 * srp.u;
             property <length> cast-rh: srp.tall ? 190 * srp.u : 140 * srp.u;
-            property <int> cast-rows: srp.tall ? min(2, ceil(root.sr-cast.length / 4)) : 1;
+            property <int> cast-rows: srp.tall ? min(2, ceil(root.sr-cast.length / 2)) : 1;
+            property <int> cast-cols: ceil(root.sr-cast.length / max(1, self.cast-rows));
+            property <int> cast-vis: max(1, floor((self.width - 2 * srp.pad) / self.cast-cw));
+            property <int> cast-max: max(0, self.cast-cols - self.cast-vis);
+            changed cast-max => {
+                srp.cast-max = self.cast-max;
+            }
+            // Informations en pastilles (paysage) plus larges que leur place : dans « Lire la suite ».
+            property <bool> facts-cut: !srp.tall && root.sr.facts.length > 0
+                && (root.sr.facts.length * 10 * srp.u + root.sr.facts.length * 140 * srp.u > self.width - srp.pad * 2 - srp.poster-w - 32 * srp.u);
+            changed facts-cut => {
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
+            init => {
+                srp.cast-max = self.cast-max;
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
+            property <float> cast-off: root.sr-cast-off;
+            animate cast-off { duration: Motion.scroll ? 260ms : 0ms; easing: ease-out; }
             property <length> cast-y: srp.tall ? self.height - srp.pad - self.cast-rows * self.cast-rh
                 : min(self.height - self.cast-rh - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
 
             // Résumé (coupé proprement s'il est trop long) : portrait, toute la place entre les boutons
-            // et la distribution.
+            // et la distribution. Coupé : « Lire la suite » dessous ouvre tout le texte.
             property <length> ov-y: srp.tall ? self.btn-y + 92 * srp.u : srp.pad + srp.poster-h + 28 * srp.u;
+            property <length> ov-room: srp.tall ? max(0px, content.cast-y - content.ov-y - 20 * srp.u) : 100 * srp.u;
+            property <length> link-h: srp.has-more ? (srp.tall ? 40 : 28) * srp.u : 0px;
+            ovm := Text {
+                visible: false;
+                width: content.width - 2 * srp.pad;
+                text: root.sr.overview;
+                font-size: (srp.tall ? 24 : 17) * srp.u;
+                wrap: word-wrap;
+            }
+            property <bool> ov-cut: ovm.preferred-height > content.ov-room + 1px;
+            changed ov-cut => {
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
             Text {
                 opacity: srp.blk(3);
                 x: srp.pad;
                 y: content.ov-y + srp.blk-y(3);
                 width: content.width - 2 * srp.pad;
-                height: srp.tall ? max(0px, content.cast-y - content.ov-y - 20 * srp.u) : 100 * srp.u;
+                height: max(0px, content.ov-room - content.link-h);
                 text: root.sr.overview;
                 color: Theme.fg.with-alpha(0.85);
                 font-size: (srp.tall ? 24 : 17) * srp.u;
                 wrap: word-wrap;
                 overflow: elide;
+            }
+            if srp.has-more: Rectangle {
+                property <bool> lit: root.sr-sel == 2 || (more-area.has-hover && !Nav.touch);
+                opacity: srp.blk(3);
+                x: content.width - srp.pad - self.width;
+                y: content.ov-y + content.ov-room - content.link-h + srp.blk-y(3);
+                width: more-t.preferred-width + 24 * srp.u;
+                height: content.link-h;
+                border-radius: self.height / 2;
+                background: self.lit ? Theme.accent2.with-alpha(0.85) : Theme.fg.with-alpha(0.08);
+                animate background { duration: Motion.select ? 150ms : 0ms; }
+                more-t := Text {
+                    text: Tr.t(Tr.k, "Lire la suite") + "  ›";
+                    color: parent.lit ? Theme.on-accent : Theme.accent2;
+                    font-size: (srp.tall ? 20 : 14) * srp.u;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                more-area := TouchArea {
+                    clicked => {
+                        root.sr-sel = 2;
+                        srp.more-y = 0px;
+                        root.sr-more = true;
+                    }
+                }
             }
 
             Rectangle {
@@ -10859,13 +10978,34 @@ export component AppWindow inherits Window {
                 width: content.width - 2 * srp.pad;
                 height: content.cast-rows * content.cast-rh;
                 clip: true;
+                // Choisie au clavier : un liseré discret autour de la distribution.
+                border-radius: 12 * srp.u;
+                border-width: root.sr-sel == 3 && Nav.kb ? 2px : 0px;
+                border-color: Theme.accent2.with-alpha(0.6);
+                TouchArea {
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            root.sr-sel = 3;
+                        }
+                    }
+                    scroll-event(e) => {
+                        let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
+                        if (d < 0) {
+                            root.sr-cast-off = min(content.cast-max, root.sr-cast-off + 1);
+                        } else if (d > 0) {
+                            root.sr-cast-off = max(0, root.sr-cast-off - 1);
+                        }
+                        return EventResult.accept;
+                    }
+                }
                 for c[i] in root.sr-cast: Rectangle {
-                    property <int> crow: floor(i / content.per-row);
+                    property <int> ccol: floor(i / content.cast-rows);
+                    property <int> crow: mod(i, content.cast-rows);
                     property <length> ph: (srp.tall ? 110 : 84) * srp.u;
-                    visible: self.crow < content.cast-rows;
+                    visible: self.ccol >= content.cast-off - 1 && self.ccol <= content.cast-off + content.cast-vis;
                     width: (srp.tall ? 150 : 104) * srp.u;
                     height: content.cast-rh;
-                    x: mod(i, content.per-row) * content.cast-cw + (content.cast-cw - self.width) / 2;
+                    x: (self.ccol - content.cast-off) * content.cast-cw + (content.cast-cw - self.width) / 2;
                     y: self.crow * content.cast-rh + (1 - srp.cast-e(i)) * 20 * srp.u;
                     opacity: srp.cast-e(i);
                     Rectangle {
@@ -10906,6 +11046,138 @@ export component AppWindow inherits Window {
                         horizontal-alignment: center;
                         overflow: elide;
                     }
+                }
+            }
+            // Chevrons de la distribution : il y en a d'autres de ce côté (clic : une colonne de plus).
+            for side[j] in 2: Rectangle {
+                property <bool> on: j == 0 ? root.sr-cast-off > 0 : root.sr-cast-off < content.cast-max;
+                visible: self.on;
+                opacity: srp.blk(3);
+                width: (srp.tall ? 44 : 32) * srp.u;
+                height: self.width;
+                x: j == 0 ? srp.pad - self.width / 2 : content.width - srp.pad - self.width / 2;
+                y: content.cast-y + (srp.tall ? 110 : 84) * srp.u / 2 - self.height / 2;
+                border-radius: self.width / 2;
+                background: Theme.panel.with-alpha(0.85);
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                Path {
+                    width: parent.width * 0.5;
+                    height: parent.height * 0.5;
+                    x: parent.width * 0.25;
+                    y: parent.height * 0.25;
+                    viewbox-width: 16;
+                    viewbox-height: 16;
+                    fill: transparent;
+                    stroke: Theme.fg;
+                    stroke-width: 2px;
+                    stroke-line-cap: round;
+                    stroke-line-join: round;
+                    commands: j == 0 ? "M 10 3 L 5 8 L 10 13" : "M 6 3 L 11 8 L 6 13";
+                }
+                TouchArea {
+                    clicked => {
+                        root.sr-cast-off = j == 0 ? max(0, root.sr-cast-off - 1) : min(content.cast-max, root.sr-cast-off + 1);
+                    }
+                }
+            }
+        }
+
+        // « Lire la suite » : tout le texte (résumé, informations, distribution) dans une fenêtre qui
+        // défile (↑ ↓, molette, doigt) ; Retour ou un toucher à côté la referme.
+        property <float> more-p: root.sr-more ? 1 : 0;
+        animate more-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        if srp.more-p > 0.01: Rectangle {
+            background: Theme.scrim.with-alpha(0.6 * srp.more-p);
+            TouchArea {
+                clicked => {
+                    root.sr-more = false;
+                }
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
+            more-panel := Rectangle {
+                width: min(parent.width - 2 * srp.pad, (srp.tall ? 680 : 900) * srp.u);
+                height: parent.height - 2 * srp.pad;
+                x: (parent.width - self.width) / 2;
+                y: srp.pad + (1 - srp.more-p) * 40 * srp.u;
+                opacity: srp.more-p;
+                border-radius: 18 * srp.u;
+                background: Theme.panel;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                clip: true;
+                TouchArea {
+                    scroll-event(e) => {
+                        srp.more-y = clamp(srp.more-y - e.delta-y, 0px, srp.more-max);
+                        return EventResult.accept;
+                    }
+                }
+                property <length> inner: self.width - 2 * 32 * srp.u;
+                more-col := VerticalLayout {
+                    x: 32 * srp.u;
+                    y: 28 * srp.u - srp.more-y;
+                    width: more-panel.inner;
+                    spacing: 14 * srp.u;
+                    alignment: start;
+                    Text {
+                        text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                        color: Theme.fg;
+                        font-size: (srp.tall ? 36 : 28) * srp.u;
+                        font-weight: 700;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
+                            + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 22 : 16) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    for f in root.sr.facts: Text {
+                        text: f.label + " : " + f.value;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sr.overview;
+                        color: Theme.fg.with-alpha(0.9);
+                        font-size: (srp.tall ? 24 : 17) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    if root.sr-cast.length > 0: Text {
+                        text: Tr.t(Tr.k, "Distribution");
+                        color: Theme.fg;
+                        font-size: (srp.tall ? 26 : 19) * srp.u;
+                        font-weight: 700;
+                    }
+                    for c in root.sr-cast: Text {
+                        text: c.subtitle != "" ? c.title + "  ·  " + c.subtitle : c.title;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: 24 * srp.u;
+                    }
+                }
+                property <length> over: max(0px, more-col.preferred-height + 28 * srp.u - self.height);
+                changed over => {
+                    srp.more-max = self.over;
+                }
+                init => {
+                    srp.more-max = self.over;
+                }
+                // Barre de défilement discrète.
+                if self.over > 0: Rectangle {
+                    x: parent.width - 8 * srp.u;
+                    width: 4 * srp.u;
+                    height: parent.height * parent.height / (parent.height + parent.over);
+                    y: (parent.height - self.height) * srp.more-y / max(1px, parent.over);
+                    border-radius: self.width / 2;
+                    background: Theme.fg.with-alpha(0.3);
                 }
             }
         }
@@ -10953,6 +11225,8 @@ export component AppWindow inherits Window {
         subtitle: root.p-subtitle;
         paused: root.p-paused;
         progress: root.p-progress;
+        pos-secs: root.p-pos-secs;
+        dur-secs: root.p-dur-secs;
         pos-text: root.p-pos-text;
         dur-text: root.p-dur-text;
         end-text: root.p-end-text;
@@ -11598,10 +11872,10 @@ export component AppWindow inherits Window {
     Rectangle {
         // Porte (portrait) : dessinée à part (voir hero-door).
         opacity: root.hero-door ? 0 : root.hero-out-a;
-        x: root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p;
-        y: root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p - root.header-row;
-        width: root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p;
-        height: root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p;
+        x: root.hero-xp;
+        y: root.hero-yp - root.header-row;
+        width: root.hero-wp;
+        height: root.hero-hp;
         // Carte : coins du haut arrondis, bas carrés · affiche : 4 coins arrondis · plein écran : aucun.
         // Vignette qui devient le fond : les coins du haut disparaissent dès le début du vol.
         border-top-left-radius: root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;

@@ -2152,3 +2152,15 @@ msgstr "Serwer nieosiągalny: poszukaj go w sieci albo wybierz inny."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Serwer nieosiągalny: oglądaj pobrane pliki offline albo poczekaj, aż wróci (ponowna próba co 5 s)."
+
+msgid "Distribution"
+msgstr "Obsada"
+
+msgid "Lire la suite"
+msgstr "Czytaj dalej"
+
+msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgstr "Nie ma już pobranych plików: poszukaj serwera albo poczekaj, aż wróci."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Serwer nieosiągalny: wybierz konto, aby oglądać jego pobrane pliki, albo poczekaj, aż wróci (ponowna próba co 5 s)."

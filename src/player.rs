@@ -1317,6 +1317,8 @@ fn push_time(ui: &slint::Weak<AppWindow>, cur: &Current) {
     let (pos_t, dur_t) = (fmt_time(pos), if dur > 0.0 { fmt_time(dur) } else { String::new() });
     let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_p_progress(progress);
+        u.set_p_pos_secs(pos as f32);
+        u.set_p_dur_secs(dur as f32);
         u.set_p_pos_text(pos_t.into());
         u.set_p_dur_text(dur_t.into());
         u.set_p_end_text(end.into());

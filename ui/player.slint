@@ -414,6 +414,9 @@ export component PlayerView inherits Rectangle {
     in property <string> subtitle;
     in property <bool> paused;
     in property <float> progress;
+    // Position et durée en secondes (durée 0 : inconnue, pas de limite aux sauts).
+    in property <float> pos-secs;
+    in property <float> dur-secs;
     in property <string> pos-text;
     in property <string> dur-text;
     in property <string> end-text;
@@ -476,6 +479,9 @@ export component PlayerView inherits Rectangle {
     property <int> seek-side;
     property <int> seek-n;
     property <int> seek-total;
+    // Position au premier toucher de la série : les sauts s'arrêtent au début et 1 s avant la fin
+    // (le total affiché est le vrai décalage, plus de « −1000 s » au début d'un épisode).
+    property <float> seek-base;
     property <duration> seek-t0;
     property <length> tap-x;
     property <length> tap-y;
@@ -827,23 +833,26 @@ export component PlayerView inherits Rectangle {
                 root.show();
             } else if (Nav.touch) {
                 if (root.seek-chain) {
-                    // Série de touchers : 10 s de plus à chaque fois (de l'autre côté : nouvelle série).
+                    // Série de touchers : 10 s de plus à chaque fois (de l'autre côté : nouvelle série,
+                    // depuis l'endroit où la précédente a mené).
                     let side = self.mouse-x < self.width / 2 ? -1 : 1;
-                    root.seek-total = side == root.seek-side ? root.seek-total + 10 : 10;
-                    root.seek-side = side;
+                    if (side != root.seek-side) {
+                        root.seek-base = root.seek-base + root.seek-side * root.seek-total;
+                        root.seek-total = 0;
+                        root.seek-side = side;
+                    }
                     root.tap-x = self.mouse-x;
                     root.tap-y = self.mouse-y;
-                    root.command(side < 0 ? "seek:-10" : "seek:10");
-                    root.seek-n += 1;
+                    root.seek-step();
                 } else if (root.tap-wait) {
                     // Second toucher : recul ou avance de 10 s selon le côté touché.
                     root.tap-wait = false;
                     root.seek-side = self.mouse-x < self.width / 2 ? -1 : 1;
-                    root.seek-total = 10;
+                    root.seek-base = root.pos-secs;
+                    root.seek-total = 0;
                     root.tap-x = self.mouse-x;
                     root.tap-y = self.mouse-y;
-                    root.command(root.seek-side < 0 ? "seek:-10" : "seek:10");
-                    root.seek-n += 1;
+                    root.seek-step();
                     if (root.tap-osd) {
                         root.show();
                     }
@@ -864,6 +873,18 @@ export component PlayerView inherits Rectangle {
         }
     }
 
+    // Un saut de la série : 10 s, ou ce qui reste jusqu'au début / la fin (rien s'il ne reste rien).
+    function seek-step() {
+        let known = root.dur-secs > 0;
+        let room = !known ? 10 : root.seek-side < 0 ? root.seek-base - root.seek-total
+            : root.dur-secs - 1 - root.seek-base - root.seek-total;
+        let step = floor(clamp(room, 0, 10));
+        if (step > 0) {
+            root.command("seek:" + (root.seek-side * step));
+            root.seek-total += step;
+        }
+        root.seek-n += 1;
+    }
     // Toucher seul (pas suivi d'un second) : montre ou cache les commandes, comme ailleurs.
     Timer {
         interval: 260ms;
@@ -938,7 +959,7 @@ export component PlayerView inherits Rectangle {
                 // Rebond du total à chaque toucher.
                 property <float> pop: Motion.player ? clamp(sk.since / 220ms, 0, 1) : 1;
                 transform-scale: 1 + 0.3 * (1 - self.pop) * (1 - self.pop);
-                text: (root.seek-side < 0 ? "−" : "+") + root.seek-total + " s";
+                text: (root.seek-total == 0 ? "" : root.seek-side < 0 ? "−" : "+") + root.seek-total + " s";
                 color: Theme.player-ink;
                 font-size: 26px * root.k;
                 font-weight: 800;

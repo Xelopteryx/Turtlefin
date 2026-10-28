@@ -1351,6 +1351,8 @@ fn login_pick(app: &Arc<App>, action: String) {
     let Some(uid) = action.strip_prefix("acc:") else { return };
     let Some(acc) = config::accounts().into_iter().find(|a| a.user_id == uid) else { return };
     let server = u.get_server().to_string();
+    // Serveur déjà connu pour muet (téléchargements proposés) : on ne l'attend pas plus de 3 s.
+    let quick = u.get_offline_ok();
     u.set_busy(true);
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -1358,7 +1360,14 @@ fn login_pick(app: &Arc<App>, action: String) {
             Ok(c) => c,
             Err(e) => return show_login_error(&app2.ui(), format!("{}", human_err(&e))),
         };
-        match client.user_config().await {
+        let res = if quick {
+            tokio::time::timeout(std::time::Duration::from_secs(3), client.user_config())
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("{}", tr("le serveur ne répond pas"))))
+        } else {
+            client.user_config().await
+        };
+        match res {
             Ok(_) => start_session(app2, client, None).await,
             // Serveur injoignable, téléchargements sur l'appareil : ce compte, hors ligne (ses
             // lectures seront envoyées au serveur à son retour).
@@ -3202,6 +3211,8 @@ fn start_cast_poll(app: &Arc<App>) {
                         }
                         u.set_p_paused(paused);
                         u.set_p_progress(p);
+                        u.set_p_pos_secs(pos as f32);
+                        u.set_p_dur_secs(dur as f32);
                         u.set_p_pos_text(fmt_clock(pos).into());
                         u.set_p_dur_text(if dur > 0.0 { fmt_clock(dur) } else { String::new() }.into());
                         u.set_p_remote_nodur(dur <= 0.0 && pos > 0.0);
@@ -3555,6 +3566,8 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
         u.set_sr(SeerrPage { loading: true, ..Default::default() });
         u.set_sr_cast(ModelRc::default());
         u.set_sr_sel(0);
+        u.set_sr_more(false);
+        u.set_sr_cast_off(0);
         u.set_sr_scroll(0.0);
         u.set_sr_open(true);
     }
@@ -8180,6 +8193,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         move |id| {
             downloads::remove(&id);
             refresh_downloads(&app);
+            check_offline_empty(&app);
         }
     });
 
@@ -8779,7 +8793,7 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
 /// enregistrée), rouverte d'elle-même dès que le serveur répond.
 fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
     let has_dl = !downloads::list().is_empty();
-    set_core(app, if has_dl { 1 } else { 3 });
+    set_core(app, if has_dl { 2 } else { 3 });
     // Compte de démarrage : sa photo attendait la connexion au centre (fly_autostart) ; elle s'en va.
     u.set_fly_phase(0);
     if has_dl {
@@ -8787,7 +8801,7 @@ fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
         u.set_login_mode("pick".into());
         u.set_busy(false);
         u.set_offline_ok(true);
-        let msg = tr("Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s).");
+        let msg = tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s).");
         u.set_error_text(msg.into());
         if autostart {
             retry_start(app.clone());
@@ -9591,6 +9605,11 @@ fn delete_local_key(app: &Arc<App>, key: &str) {
         }
     }
     PAGES.with_borrow_mut(|p| p.retain(|k, _| !k.starts_with("dl:")));
+    if app.offline.load(Ordering::SeqCst) && downloads::list().is_empty() {
+        app.stack.lock().unwrap().clear();
+        check_offline_empty(app);
+        return;
+    }
     // Retour à la page la plus proche qui existe encore (saison, série...), sinon à la liste des
     // téléchargements (série entièrement supprimée).
     let top = {
@@ -9633,7 +9652,30 @@ fn set_core(app: &Arc<App>, v: i32) {
         if g.get_core() != v {
             g.set_core(v);
         }
+        // Hors ligne : tout le thème passe à l'ambre (et revient au retour), avec le balayage du
+        // changement de thème.
+        if theme::set_offline(v == 2) {
+            switch_theme(&u, config::ui_prefs());
+        }
     });
+}
+
+/// Hors ligne, plus rien de téléchargé (tout supprimé) : plus rien à regarder. Le cœur se débranche
+/// (perdu) et la recherche de serveur s'ouvre ; le retour du serveur ramène l'accueil (watch_reconnect).
+fn check_offline_empty(app: &Arc<App>) {
+    if !app.offline.load(Ordering::SeqCst) || !downloads::list().is_empty() {
+        return;
+    }
+    set_core(app, 3);
+    // Plus de page hors ligne où revenir ; la pastille « Hors ligne » s'en va (le serveur reste
+    // réessayé toutes les 30 s par watch_reconnect, qui ramène l'accueil).
+    app.stack.lock().unwrap().clear();
+    sync_can_back(app);
+    open_servers(app);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_offline(false);
+        u.set_toast(tr("Plus aucun téléchargement : cherche le serveur, ou attends son retour.").into());
+    }
 }
 
 /// Mode hors ligne : écran Téléchargements, avec un message.
@@ -9643,12 +9685,20 @@ fn go_offline(app: &Arc<App>) {
     // Menu sans les bibliothèques ni la watch party (rien à ouvrir sans serveur).
     set_menu(app, &[]);
     let a = app.clone();
-    let initial = initial_of(&config::load().user_name);
+    let saved = config::load();
+    let initial = initial_of(&saved.user_name);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_offline(true);
         u.set_me_initial(initial.into());
         open_downloads(&a);
         u.set_toast(tr("Serveur injoignable : mode hors ligne (téléchargements).").into());
+    });
+    // Photo du compte : celle gardée sur le disque (le serveur ne peut pas la donner).
+    let ui = app.ui();
+    app.rt.spawn(async move {
+        if let Some((_, frames)) = avatar_cached_async(saved.user_id).await {
+            let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Header, "", frames));
+        }
     });
     if !was {
         watch_reconnect(app);

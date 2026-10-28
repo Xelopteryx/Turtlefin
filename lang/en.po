@@ -2144,3 +2144,15 @@ msgstr "Server unreachable: look for it on the network, or choose another one."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server unreachable: watch your downloads offline, or wait for it to come back (retrying every 5 s)."
+
+msgid "Distribution"
+msgstr "Cast"
+
+msgid "Lire la suite"
+msgstr "Read more"
+
+msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgstr "No downloads left: look for the server, or wait for it to come back."
+
+msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server unreachable: choose an account to watch its downloads, or wait for it to come back (retrying every 5 s)."
