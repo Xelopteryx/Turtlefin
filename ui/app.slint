@@ -2757,12 +2757,15 @@ component Backdrop inherits Rectangle {
     if Theme.bubbles && Theme.scenery == 4 && !Perf.hide(4): HexDrift {
         live: Motion.scenery;
         ticking: root.ticking;
+        no-server: root.no-server || Srv.core == 3;
         opacity: root.a;
     }
-    // Aero et Nerd ont aussi leur fond animé (même réglage) : bulles et reflet, données et horloge.
+    // Aero et Nerd ont aussi leur fond animé (même réglage) : l'énergie part du serveur, au centre
+    // (bulles et anneau de lumière ; courant dans toutes les pistes).
     if Theme.bubbles && (Theme.scenery == 1 || Theme.scenery == 2) && !Perf.hide(4): AeroDrift {
         live: Motion.scenery;
         ticking: root.ticking;
+        no-server: root.no-server || Srv.core == 3;
         k: root.k;
         opacity: root.a;
     }
@@ -3215,6 +3218,15 @@ export component AppWindow inherits Window {
         }
         let t = clamp((animation-tick() - root.deal-t0 - root.deal-lead - root.deal-delay(i)) / 420ms, 0, 1);
         return 1 - (1 - t) * (1 - t) * (1 - t);
+    }
+    // Morceau n° i du paquet en vol : entier tant que la distribution n'a pas commencé, même pendant
+    // le chargement de la page (deal-wait l'exclut pour la grille : la carte disparaissait de sa place
+    // et ne revenait qu'une fois la bibliothèque reçue).
+    pure function deck-p(i: int) -> float {
+        if (root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.undeal-anim) {
+            return 0;
+        }
+        return root.deal-p(i);
     }
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
     property <bool> hero-anim;
@@ -11904,7 +11916,7 @@ export component AppWindow inherits Window {
                 property <float> fy: root.pc-fy(i);
                 property <float> fw: 1 / root.pc-cnt(i);
                 property <float> fh: 1 / root.pc-rows;
-                property <float> q: clamp(root.deal-p(i) / 0.22, 0, 1);
+                property <float> q: clamp(root.deck-p(i) / 0.22, 0, 1);
                 visible: self.q < 1;
                 x: parent.width * self.fx;
                 y: parent.height * self.fy - self.q * 14px * root.k;

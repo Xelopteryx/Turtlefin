@@ -154,7 +154,7 @@ export component BootLogo inherits Rectangle {
     property <float> o3: clamp((root.zp - 0.8) / 0.2, 0, 1);
     // Logo : centre et taille, du milieu de l'écran (côte à côte) jusqu'au titre.
     property <length> mid-cx: root.end-cx;
-    property <length> mid-cy: (root.height - root.side) / 2 - 30px * root.k + root.side / 2;
+    property <length> mid-cy: root.height / 2;
     property <length> logo-cx: root.mid-cx + (root.tgt-logo-cx - root.mid-cx) * root.o4;
     property <length> logo-cy: root.mid-cy + (root.tgt-cy - root.mid-cy) * root.o4;
     property <float> logo-s: 1 - (1 - root.mini) * root.o1 + (root.tgt-logo / root.side - root.mini) * root.o4;

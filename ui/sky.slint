@@ -196,7 +196,7 @@ component HarmonyScene inherits Rectangle {
 // qui relient les sept puces aux composants. Les puces (une par vérification du démarrage, chacune dessinée selon son rôle)
 // sont branchées autour du processeur, au centre ; le centre s'éclaire à chaque puce branchée, puis le
 // courant parcourt les pistes (surge, 0 à 1 : chaque piste s'allume à son tour, une lueur à sa pointe).
-// Mêmes positions que le logo du démarrage (centre de l'écran, 30 px plus haut) : la carte montée au
+// Mêmes positions que le logo du démarrage (centre de l'écran) : la carte montée au
 // démarrage reste en fond des pages. En fond de l'appli : tout branché, tout allumé, image figée.
 export struct TraceData {
     xs: [float],
@@ -204,36 +204,11 @@ export struct TraceData {
     d: float,
 }
 
-export component CircuitScene inherits Rectangle {
-    in property <float> k: 1.0;
-    // États des sept puces (0 absente · 1 en cours · 2 branchée · 3 échec · 4 à configurer).
-    in property <[int]> state: [2, 2, 2, 2, 2, 2, 2];
-    // Courant dans les pistes (0 rien · 1 tout parcouru).
-    in property <float> surge: 1;
-    // Intensité d'ensemble (plus bas en fond des pages).
-    in property <float> bright: 0.55;
-    // Animé (démarrage) ; en fond des pages, image figée : pas de pulsation.
-    in property <bool> live: true;
-    // Hors ligne (Srv.core = 2) : les pistes et les puces passent à l'ambre.
-    in property <bool> offline;
-    // Démarrage : les puces deviennent le logo (0 puces · 1 plots aux sommets, puce du serveur au
-    // centre, exactement ceux du logo, voir ThemeLogo) ; gone : le logo dessiné par-dessus a pris le
-    // relais et part se poser sur le titre, les puces devenues plots s'effacent (0 à 1).
-    in property <float> morph;
-    in property <float> gone;
-    property <color> a1: root.offline ? #a8620e : Theme.accent1;
-    property <color> a2: root.offline ? #f59e0b : Theme.accent2;
-    animate a1, a2 { duration: 900ms; easing: ease-in-out; }
-    background: transparent;
-    property <length> u: min(self.width, self.height) * 0.46 / 256;
-    property <length> cx: self.width / 2;
-    property <length> cy: self.height / 2 - 30px * root.k;
-    property <int> ok-n: (root.state[0] == 2 ? 1 : 0) + (root.state[1] == 2 ? 1 : 0) + (root.state[2] == 2 ? 1 : 0)
-        + (root.state[3] == 2 ? 1 : 0) + (root.state[4] == 2 ? 1 : 0) + (root.state[5] == 2 ? 1 : 0) + (root.state[6] == 2 ? 1 : 0);
-    property <float> power: root.ok-n / 7;
-    animate power { duration: 600ms; easing: ease-out; }
-    property <[{x: float, y: float}]> chips: [{x: 0, y: -68}, {x: 59, y: -34}, {x: 59, y: 34}, {x: 0, y: 68}, {x: -59, y: 34}, {x: -59, y: -34}, {x: 0, y: 0}];
-    property <[TraceData]> traces: [
+// Pistes de la carte (repère de 1400 de côté, centré sur le processeur) : 11 points chacune, du
+// côté des puces vers le composant ; d : ordre d'arrivée du courant au démarrage. Partagées par le
+// décor fixe (CircuitScene) et ce qui bouge (CircuitDrift).
+global Board {
+    out property <[TraceData]> traces: [
         { xs: [688, 688.0, 710.0, 732.0, 744.7, 757.3, 770.0, 782.7, 795.3, 808.0, 808.0], ys: [616, 598.0, 598.0, 598.0, 585.3, 572.7, 560.0, 547.3, 534.7, 522.0, 508.0], d: 0.135 },
         { xs: [696, 696.0, 718.0, 740.0, 752.7, 765.3, 778.0, 790.7, 803.3, 816.0, 816.0], ys: [616, 598.0, 598.0, 598.0, 585.3, 572.7, 560.0, 547.3, 534.7, 522.0, 508.0], d: 0.147 },
         { xs: [704, 704.0, 726.0, 748.0, 760.7, 773.3, 786.0, 798.7, 811.3, 824.0, 824.0], ys: [616, 598.0, 598.0, 598.0, 585.3, 572.7, 560.0, 547.3, 534.7, 522.0, 508.0], d: 0.159 },
@@ -289,6 +264,37 @@ export component CircuitScene inherits Rectangle {
         { xs: [419, 410.0, 401.0, 391.8, 382.5, 373.2, 364.0, 356.0, 348.0, 340.0, 326.0], ys: [562, 562.0, 562.0, 562.0, 562.0, 562.0, 562.0, 554.0, 546.0, 538.0, 538.0], d: 0.426 },
         { xs: [450, 450.0, 450.0, 464.3, 478.6, 492.9, 507.1, 521.4, 535.7, 550.0, 550.0], ys: [530, 512.0, 484.0, 469.7, 455.4, 441.1, 426.9, 412.6, 398.3, 384.0, 370.0], d: 0.39 }
     ];
+}
+
+export component CircuitScene inherits Rectangle {
+    in property <float> k: 1.0;
+    // États des sept puces (0 absente · 1 en cours · 2 branchée · 3 échec · 4 à configurer).
+    in property <[int]> state: [2, 2, 2, 2, 2, 2, 2];
+    // Courant dans les pistes (0 rien · 1 tout parcouru).
+    in property <float> surge: 1;
+    // Intensité d'ensemble (plus bas en fond des pages).
+    in property <float> bright: 0.55;
+    // Animé (démarrage) ; en fond des pages, image figée : pas de pulsation.
+    in property <bool> live: true;
+    // Hors ligne (Srv.core = 2) : les pistes et les puces passent à l'ambre.
+    in property <bool> offline;
+    // Démarrage : les puces deviennent le logo (0 puces · 1 plots aux sommets, puce du serveur au
+    // centre, exactement ceux du logo, voir ThemeLogo) ; gone : le logo dessiné par-dessus a pris le
+    // relais et part se poser sur le titre, les puces devenues plots s'effacent (0 à 1).
+    in property <float> morph;
+    in property <float> gone;
+    property <color> a1: root.offline ? #a8620e : Theme.accent1;
+    property <color> a2: root.offline ? #f59e0b : Theme.accent2;
+    animate a1, a2 { duration: 900ms; easing: ease-in-out; }
+    background: transparent;
+    property <length> u: min(self.width, self.height) * 0.46 / 256;
+    property <length> cx: self.width / 2;
+    property <length> cy: self.height / 2;
+    property <int> ok-n: (root.state[0] == 2 ? 1 : 0) + (root.state[1] == 2 ? 1 : 0) + (root.state[2] == 2 ? 1 : 0)
+        + (root.state[3] == 2 ? 1 : 0) + (root.state[4] == 2 ? 1 : 0) + (root.state[5] == 2 ? 1 : 0) + (root.state[6] == 2 ? 1 : 0);
+    property <float> power: root.ok-n / 7;
+    animate power { duration: 600ms; easing: ease-out; }
+    property <[{x: float, y: float}]> chips: [{x: 0, y: -68}, {x: 59, y: -34}, {x: 59, y: 34}, {x: 0, y: 68}, {x: -59, y: 34}, {x: -59, y: -34}, {x: 0, y: 0}];
     pure function ink(s: int) -> color {
         return s == 2 ? #4dff9a : s == 3 || s == 5 ? #ff5c5c : s == 4 ? #ffc23d : root.a2;
     }
@@ -516,7 +522,7 @@ export component CircuitScene inherits Rectangle {
     }
     // Pistes parcourues par le courant : chacune à son tour, tracée jusqu'à la pointe.
     if root.surge > 0 && root.surge < 1: Rectangle {
-        for tr[j] in root.traces: Path {
+        for tr[j] in Board.traces: Path {
             property <float> p: clamp((root.surge - tr.d) / 0.42, 0, 1);
             property <float> f: self.p * 10;
             visible: self.p > 0;
@@ -544,7 +550,7 @@ export component CircuitScene inherits Rectangle {
                 + (self.f > 9 ? " L " + (self.f >= 10 ? tr.xs[10] : tr.xs[9] + (tr.xs[10] - tr.xs[9]) * (self.f - 9)) + " " + (self.f >= 10 ? tr.ys[10] : tr.ys[9] + (tr.ys[10] - tr.ys[9]) * (self.f - 9)) : "");
         }
         // Pointe du courant : une lueur qui file devant.
-        for tr[j] in root.traces: Rectangle {
+        for tr[j] in Board.traces: Rectangle {
             property <float> p: clamp((root.surge - tr.d) / 0.42, 0, 1);
             property <int> s: min(floor(self.p * 10), 9);
             property <float> l: self.p * 10 - self.s;
@@ -892,33 +898,54 @@ component HexScene inherits Rectangle {
     }
 }
 
-// Ce qui bouge dans le décor Turtlefin (Paramètres -> Animations -> Fond animé) : deux lueurs, violette
-// et bleue, qui tournent lentement en restant symétriques par rapport au centre, et une onde
-// hexagonale qui part du centre toutes les 9 s. Redessiné 20 fois par seconde au plus (minuterie,
-// pas animation-tick : moins de calcul qu'à chaque image), rien quand `live` est faux.
-// Phase commune aux deux fonds (sous les pages et voile des changements de page) : ils restent calés.
+// Fonds animés (Paramètres -> Animations -> Fond animé), un par décor. Même idée partout : l'énergie
+// vient du serveur, au centre de l'écran (là où le logo se forme au démarrage), et part alimenter
+// tout le décor. Sans serveur (aucun choisi, ou perdu) : rien ne part du centre.
+// Phase commune (secondes) aux deux fonds (sous les pages et voile des changements de page) : ils
+// restent calés. Elle suit l'horloge (animation-tick) et non le nombre de tours de la minuterie :
+// une minuterie en retard (interface occupée) ne ralentit plus le décor, il saute seulement une image.
+// Redessiné 30 fois par seconde au plus, rien quand `live` est faux.
 global Drift {
     in-out property <float> ph;
 }
 
+// Hexagone du décor Turtlefin, rayon r (repère 1600 x 900, centre 800 450).
+export struct HexRing {
+    r: float,
+    c: string,
+}
+
+// Décor Turtlefin : une onde hexagonale part du centre (le cœur du logo) toutes les 6 s ; chaque
+// anneau du décor s'allume quand elle le traverse. Deux lueurs, violette et bleue, tournent lentement
+// en restant symétriques par rapport au centre.
 export component HexDrift inherits Rectangle {
     // Décor qui bouge (réglage) ; `ticking` : c'est cette copie qui fait avancer la phase.
     in property <bool> live;
     in property <bool> ticking;
+    in property <bool> no-server;
     property <float> ph: Drift.ph;
     Timer {
-        interval: 50ms;
+        interval: 33ms;
         running: root.live && root.ticking;
         triggered => {
-            Drift.ph = mod(Drift.ph + 0.05, 360);
+            Drift.ph = mod(animation-tick() / 1ms, 3600000) / 1000;
         }
     }
-    // Un tour en 72 s pour les lueurs ; l'onde, toutes les 9 s.
+    // Un tour en 72 s pour les lueurs.
     property <angle> a: root.ph * 5deg;
-    property <float> wave: mod(root.ph, 9) / 9;
     property <length> gw: max(self.width, self.height) * 0.62;
     property <length> ox: cos(root.a) * self.width * 0.10;
     property <length> oy: sin(root.a) * self.height * 0.08;
+    // Onde : 4,8 s de trajet du centre jusqu'au dernier anneau, puis 1,2 s de repos.
+    property <float> t: clamp(mod(root.ph, 6) / 4.8, 0, 1);
+    property <float> wr: 20 + 760 * root.t;
+    property <[HexRing]> rings: [
+        { r: 150, c: "M 800.0 300.0 L 929.9 375.0 L 929.9 525.0 L 800.0 600.0 L 670.1 525.0 L 670.1 375.0 Z" },
+        { r: 260, c: "M 800.0 190.0 L 1025.2 320.0 L 1025.2 580.0 L 800.0 710.0 L 574.8 580.0 L 574.8 320.0 Z" },
+        { r: 390, c: "M 800.0 60.0 L 1137.7 255.0 L 1137.7 645.0 L 800.0 840.0 L 462.3 645.0 L 462.3 255.0 Z" },
+        { r: 540, c: "M 800.0 -90.0 L 1267.7 180.0 L 1267.7 720.0 L 800.0 990.0 L 332.3 720.0 L 332.3 180.0 Z" },
+        { r: 720, c: "M 800.0 -270.0 L 1423.5 90.0 L 1423.5 810.0 L 800.0 1170.0 L 176.5 810.0 L 176.5 90.0 Z" }
+    ];
     clip: true;
     Rectangle {
         x: root.width * 0.22 - root.gw / 2 + root.ox;
@@ -934,69 +961,119 @@ export component HexDrift inherits Rectangle {
         height: root.gw;
         background: @radial-gradient(circle, Theme.accent2.with-alpha(0.16) 0%, Theme.accent2.with-alpha(0) 65%);
     }
-    if root.live: Rectangle {
+    // Même cadre 16:9 que HexScene (centré, rogné) : les anneaux tombent sur ceux du décor.
+    if root.live && !root.no-server: Rectangle {
         width: max(parent.width, parent.height * 16 / 9);
         height: self.width * 9 / 16;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
+        // Départ : le centre s'éclaire.
+        Rectangle {
+            property <float> f: clamp(1 - mod(root.ph, 6) / 0.7, 0, 1);
+            visible: self.f > 0;
+            width: parent.width * 300 / 1600;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: @radial-gradient(circle, Theme.accent2.with-alpha(0.30 * self.f) 0%, Theme.accent2.with-alpha(0) 70%);
+        }
         Path {
+            visible: root.t < 1;
             width: parent.width;
             height: parent.height;
             viewbox-width: 1600;
             viewbox-height: 900;
             fill: transparent;
-            stroke: Theme.accent2.with-alpha(0.22 * (1 - root.wave));
+            stroke: Theme.accent2.with-alpha(0.30 * (1 - root.t));
             stroke-width: 1.5px;
-            transform-scale: 0.15 + 3.2 * root.wave;
+            transform-scale: root.wr / 150;
             commands: "M 800.0 300.0 L 929.9 375.0 L 929.9 525.0 L 800.0 600.0 L 670.1 525.0 L 670.1 375.0 Z";
+        }
+        // Anneaux du décor : chacun s'allume au passage de l'onde (tous, à chaque fois).
+        for ring in root.rings: Path {
+            property <float> lit: max(0, 1 - abs(root.wr - ring.r) / 80);
+            visible: self.lit > 0.01;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 1600;
+            viewbox-height: 900;
+            fill: transparent;
+            stroke: Theme.accent2.with-alpha(0.38 * self.lit);
+            stroke-width: 2px;
+            commands: ring.c;
         }
     }
 }
 
-// Ce qui bouge dans les décors Aero (ciel, Harmony) : quelques bulles qui montent lentement en
-// ondulant, et de temps en temps un reflet de lumière qui balaie l'écran en diagonale. Même rythme que
-// HexDrift (phase commune Drift, 20 images par seconde au plus), rien quand `live` est faux.
+// Décors Aero (ciel, Harmony) : des bulles naissent au centre (le serveur), grossissent en
+// s'éloignant vers les bords, et un anneau de lumière part du centre toutes les 10 s.
 export component AeroDrift inherits Rectangle {
     in property <bool> live;
     in property <bool> ticking;
+    in property <bool> no-server;
     in property <float> k: 1.0;
     property <float> ph: Drift.ph;
     Timer {
-        interval: 50ms;
+        interval: 33ms;
         running: root.live && root.ticking;
         triggered => {
-            Drift.ph = mod(Drift.ph + 0.05, 360);
+            Drift.ph = mod(animation-tick() / 1ms, 3600000) / 1000;
         }
     }
     clip: true;
-    // Bulles : chacune son tempo (18 à 36 s pour traverser l'écran), sa colonne et sa taille.
-    for i in (root.live ? 7 : 0): Bubble {
-        property <float> period: 18 + 3 * i;
-        property <float> t: mod(root.ph + i * 5.3, self.period) / self.period;
-        width: (22 + mod(i * 17, 30)) * 1px * root.k;
-        x: root.width * (0.06 + 0.14 * i) + sin(self.t * 720deg + i * 40deg) * 26px * root.k;
-        y: root.height * (1.08 - 1.25 * self.t);
-        // Apparition en bas, disparition en haut.
+    property <length> cx: self.width / 2;
+    property <length> cy: self.height / 2;
+    property <length> reach: max(self.width, self.height) * 0.62;
+    // Bulles : chacune son tempo (14 à 31 s), sa direction et sa taille.
+    for i in (root.live && !root.no-server ? 8 : 0): Bubble {
+        property <float> period: 14 + 2.5 * i;
+        property <float> t: mod(root.ph + i * 3.7, self.period) / self.period;
+        property <angle> dir: i * 45deg + 20deg + sin(self.t * 360deg) * 12deg;
+        property <length> d: root.reach * self.t;
+        width: (6 + self.t * (22 + mod(i * 17, 30))) * 1px * root.k;
+        x: root.cx + cos(self.dir) * self.d - self.width / 2;
+        y: root.cy + sin(self.dir) * self.d - self.width / 2;
+        // Apparition au centre, disparition vers les bords.
         a: 0.55 * sin(self.t * 180deg);
     }
-    // Reflet : une bande claire qui traverse l'écran toutes les 16 s (le reste du temps, rien).
-    property <float> sw: mod(root.ph, 16) / 16;
-    if root.live && root.sw < 0.3: Rectangle {
-        property <float> q: root.sw / 0.3;
-        width: root.width * 0.18;
-        height: root.height * 1.6;
-        x: -root.width * 0.3 + (root.width * 1.4) * self.q;
-        y: -root.height * 0.3;
-        transform-rotation: 18deg;
-        opacity: sin(self.q * 180deg);
-        background: @linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0) 100%);
+    // Anneau de lumière : 3 s pour gagner les bords, toutes les 10 s.
+    property <float> rq: mod(root.ph, 10) / 3;
+    if root.live && !root.no-server && root.rq < 1: Rectangle {
+        width: root.reach * 2.4 * root.rq;
+        height: self.width;
+        x: root.cx - self.width / 2;
+        y: root.cy - self.height / 2;
+        border-radius: self.width / 2;
+        opacity: 1 - root.rq;
+        background: @radial-gradient(circle, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 55%, rgba(200, 240, 255, 0.16) 66%, rgba(255, 255, 255, 0) 72%);
     }
 }
 
-// Ce qui bouge sur la carte électronique (Nerd) : des paquets de données filent des puces vers le
-// processeur (le serveur), une onde d'horloge part du processeur toutes les 6 s, et une ligne de
-// balayage descend l'écran (vieux moniteur). Ambre hors ligne. Sans serveur : seulement le balayage
-// (pas de processeur, rien n'y circule). Même géométrie que CircuitScene.
+// Une étincelle sur une piste (CircuitDrift) : point lumineux à l'avancement p (0 à 1) de la piste.
+component Spark inherits Rectangle {
+    in property <TraceData> tr;
+    in property <float> p;
+    in property <length> u;
+    in property <length> cx;
+    in property <length> cy;
+    in property <float> size;
+    in property <color> c;
+    property <int> s: min(floor(root.p * 10), 9);
+    property <float> l: root.p * 10 - self.s;
+    property <float> tx: root.tr.xs[self.s] + (root.tr.xs[self.s + 1] - root.tr.xs[self.s]) * self.l - 700;
+    property <float> ty: root.tr.ys[self.s] + (root.tr.ys[self.s + 1] - root.tr.ys[self.s]) * self.l - 700;
+    x: root.cx + (self.tx - root.size / 2) * root.u;
+    y: root.cy + (self.ty - root.size / 2) * root.u;
+    width: root.size * root.u;
+    height: self.width;
+    border-radius: self.width / 2;
+    background: @radial-gradient(circle, #ffffff 0%, root.c.with-alpha(0.9) 35%, root.c.with-alpha(0) 70%);
+}
+
+// Carte électronique (Nerd) : toutes les 5 s, le processeur (le serveur ; hors ligne, la puce maison)
+// s'éclaire, l'énergie part vers les six puces, puis de chaque puce le long de TOUTES les pistes
+// jusqu'à leur composant, qui s'allume à l'arrivée. Ambre hors ligne. Sans serveur : rien.
+// Même géométrie que CircuitScene (pistes partagées : Board).
 export component CircuitDrift inherits Rectangle {
     in property <bool> live;
     in property <bool> ticking;
@@ -1005,49 +1082,83 @@ export component CircuitDrift inherits Rectangle {
     in property <bool> offline;
     property <float> ph: Drift.ph;
     Timer {
-        interval: 50ms;
+        interval: 33ms;
         running: root.live && root.ticking;
         triggered => {
-            Drift.ph = mod(Drift.ph + 0.05, 360);
+            Drift.ph = mod(animation-tick() / 1ms, 3600000) / 1000;
         }
     }
     clip: true;
     property <color> a2: root.offline ? #f59e0b : Theme.accent2;
     property <length> u: min(self.width, self.height) * 0.46 / 256;
     property <length> cx: self.width / 2;
-    property <length> cy: self.height / 2 - 30px * root.k;
+    property <length> cy: self.height / 2;
     property <[float]> chx: [0, 59, 59, 0, -59, -59];
     property <[float]> chy: [-68, -34, 34, 68, 34, -34];
-    // Paquets : un par puce, un départ toutes les ~2,4 s chacun (décalés), 0,9 s de trajet.
-    for i in (root.live && !root.no-server ? 6 : 0): Rectangle {
-        property <float> t: mod(root.ph + i * 0.41, 2.4) / 0.9;
-        property <float> f: 0.62 + (0.36 - 0.62) * clamp(self.t, 0, 1);
-        visible: self.t < 1;
-        width: 7 * root.u;
+    property <float> cyc: mod(root.ph, 5) / 5;
+    property <bool> on: root.live && !root.no-server;
+    // Départ : lueur du processeur et onde d'horloge.
+    if root.on && root.cyc < 0.2: Rectangle {
+        property <float> f: 1 - root.cyc / 0.2;
+        x: root.cx - 70 * root.u;
+        y: root.cy - 70 * root.u;
+        width: 140 * root.u;
         height: self.width;
         border-radius: self.width / 2;
-        x: root.cx + root.chx[i] * self.f * root.u - self.width / 2;
-        y: root.cy + root.chy[i] * self.f * root.u - self.height / 2;
-        opacity: 0.8 * sin(clamp(self.t, 0, 1) * 180deg);
-        background: @radial-gradient(circle, root.a2 0%, root.a2.with-alpha(0) 100%);
+        background: @radial-gradient(circle, root.a2.with-alpha(0.45 * self.f) 0%, root.a2.with-alpha(0) 70%);
     }
-    // Onde d'horloge : un carré qui s'élargit depuis le processeur.
-    property <float> clk: mod(root.ph, 6) / 1.8;
-    if root.live && !root.no-server && root.clk < 1: Rectangle {
-        property <length> w: (60 + 220 * root.clk) * root.u;
+    if root.on && root.cyc < 0.2: Rectangle {
+        property <length> w: (60 + 90 * root.cyc / 0.2) * root.u;
         x: root.cx - self.w / 2;
         y: root.cy - self.w / 2;
         width: self.w;
         height: self.w;
         border-radius: 4 * root.u;
         border-width: 1.5 * root.u;
-        border-color: root.a2.with-alpha(0.35 * (1 - root.clk));
+        border-color: root.a2.with-alpha(0.4 * (1 - root.cyc / 0.2));
     }
-    // Balayage : une fine ligne claire qui descend l'écran en 12 s.
-    if root.live: Rectangle {
-        y: root.height * mod(root.ph, 12) / 12;
-        height: 2px * root.k;
-        background: @linear-gradient(90deg, root.a2.with-alpha(0) 0%, root.a2.with-alpha(0.10) 50%, root.a2.with-alpha(0) 100%);
+    // Du processeur vers les six puces.
+    for i in (root.on ? 6 : 0): Rectangle {
+        property <float> t: root.cyc / 0.16;
+        property <float> f: 0.36 + (0.62 - 0.36) * clamp(self.t, 0, 1);
+        visible: self.t < 1.15;
+        width: 9 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        x: root.cx + root.chx[i] * self.f * root.u - self.width / 2;
+        y: root.cy + root.chy[i] * self.f * root.u - self.height / 2;
+        opacity: self.t < 1 ? 0.9 : 0.9 * (1.15 - self.t) / 0.15;
+        background: @radial-gradient(circle, #ffffff 0%, root.a2.with-alpha(0.9) 35%, root.a2.with-alpha(0) 70%);
+    }
+    // Des puces le long de chaque piste : une tête et sa traîne ; à l'arrivée, le bout de la piste
+    // (le composant) s'éclaire un instant.
+    if root.on: Rectangle {
+    for tr in Board.traces: Rectangle {
+        property <float> raw: (root.cyc - 0.15 - tr.d * 0.3) / 0.4;
+        property <float> p: clamp(self.raw, 0, 1);
+        visible: self.raw > 0 && self.raw < 1.25;
+        Spark {
+            tr: tr;
+            p: max(0, parent.p - 0.07);
+            u: root.u;
+            cx: root.cx;
+            cy: root.cy;
+            size: 9;
+            c: root.a2;
+            visible: parent.raw < 1.05;
+            opacity: 0.45;
+        }
+        Spark {
+            tr: tr;
+            p: parent.p;
+            u: root.u;
+            cx: root.cx;
+            cy: root.cy;
+            size: parent.raw < 1 ? 16 : 16 + 22 * (parent.raw - 1) / 0.25;
+            c: root.a2;
+            opacity: parent.raw < 1 ? 0.95 : 0.95 * (1.25 - parent.raw) / 0.25;
+        }
+    }
     }
 }
 

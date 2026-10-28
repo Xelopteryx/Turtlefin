@@ -375,6 +375,16 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   `hero-arc` (courbe par le centre, `hero-xp`… remplacent les interpolations linéaires).
 - **Seerr** : `sr-more` (fenêtre « Lire la suite »), `sr-cast-off` (distribution qui défile), `sr-sel` 2 et 3.
 - **Barre du haut** : plus de bouton maison (`show-home` toujours faux).
+- **Paquet en vol** : ses morceaux suivent `deck-p` (entiers tant que la distribution n'a pas commencé),
+  pas `deal-p` : `deal-wait` exclut `loading` (pour la grille), la carte disparaissait pendant le
+  chargement de la bibliothèque.
+- **Fonds animés** (ui/sky.slint) : l'énergie part du centre (le serveur). `Drift.ph` en secondes, tiré de
+  `animation-tick()` par une minuterie de 33 ms (une minuterie en retard ne ralentit plus le décor).
+  Nerd : `CircuitDrift` (processeur → puces → toutes les pistes, `Spark`), pistes partagées par le global
+  `Board` ; Turtlefin : `HexDrift` (onde qui allume chaque anneau, `HexRing`) ; Aero : `AeroDrift` (bulles
+  nées au centre, anneau de lumière). Rien sans serveur (`no-server`, core 3).
+- **Logo du démarrage** au centre exact (`mid-cy` de boot.slint, `cy` de CircuitScene et CircuitDrift :
+  plus de décalage de 30 px).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
