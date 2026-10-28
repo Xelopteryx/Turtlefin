@@ -4566,8 +4566,9 @@ export component AppWindow inherits Window {
     pure function detail-pick-down(from-key: int, from-x: int, from-w: length, to-row: int) -> int {
         return root.row-to(from-key, from-x, from-w, 1004 + to-row, root.detail-rows[to-row].items.length, root.card-w);
     }
-    // Boutons de la barre de navigation, de gauche à droite : [retour], [accueil], menu.
-    property <bool> show-home: root.screen != "home";
+    // Boutons de la barre de navigation, de gauche à droite : menu, [retour]. Plus de bouton maison :
+    // l'onglet « Accueil », visible sur toutes les pages, fait la même chose.
+    property <bool> show-home: false;
     // Retour visible aussi dans une sous-page sans pile (choix de l'avatar) : il la ferme.
     // Retour interne aux Paramètres : choix d'avatar ouvert, ou catégorie ouverte en portrait.
     property <bool> sub-back: root.screen == "settings" && (root.av-open || (root.set-one && root.set-in));
@@ -4707,9 +4708,8 @@ export component AppWindow inherits Window {
     // Monte dans la barre de navigation, sur le premier bouton (Retour s'il existe).
     function nav-enter() {
         root.h-focus = true;
-        // Hors accueil, le bouton maison est sélectionné d'abord (après le bouton retour s'il y en a un).
-        // Dans une sous-page (choix de l'avatar), c'est Retour qui est sélectionné.
-        root.h-sel = root.sub-back ? 1 : root.screen != "home" ? (root.back-ok ? 2 : 1) : 0;
+        // Retour s'il y en a un (sous-page, page précédente), sinon le menu.
+        root.h-sel = root.back-ok ? 1 : 0;
     }
 
     function tab-index() -> int {
@@ -10051,7 +10051,7 @@ export component AppWindow inherits Window {
         height: 72px * root.k;
         k: root.on-home ? root.k : root.bar-k;
         can-back: !root.on-home && root.back-ok;
-        show-home: !root.on-home;
+        show-home: false;
         enter: root.page-e;
         logo-on: root.on-home;
         title-color: root.offline ? Theme.accent2 : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
