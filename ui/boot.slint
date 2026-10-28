@@ -135,7 +135,10 @@ export component BootLogo inherits Rectangle {
         : root.nerd ? root.ease(clamp((root.lp - 0.8) / 0.18, 0, 1))
         : root.ease(clamp(root.lp * 2 - 1, 0, 1));
     // Nerd : le courant parcourt la carte (début de la liaison), avant que le logo ne se grave.
-    property <float> surge: root.phase == 0 || root.noserver ? 0 : clamp(root.lp / 0.62, 0, 1);
+    // Seulement si ce qui alimente la carte est en place : le processeur (serveur joint) ou la maison
+    // (hors ligne, téléchargements). Serveur absent, muet ou perdu : pas de courant.
+    property <bool> powered: root.state[6] == 2 || Srv.core == 2;
+    property <float> surge: root.phase == 0 || root.noserver || !root.powered ? 0 : clamp(root.lp / 0.62, 0, 1);
     // Nerd : les puces deviennent les plots du logo (le processeur, sa puce centrale), puis les pistes
     // du logo se tracent de plot en plot (edge-p, spoke-p) ; à la fin, le logo prend leur place
     // (handoff), identique, avant de partir se poser sur le titre. Autres thèmes : de même quand le

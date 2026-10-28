@@ -406,6 +406,17 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   (`Spark.under-lid`).
 - **Découverte** : « who is JellyfinServer? » aussi envoyé à l'adresse de diffusion de chaque interface
   (255.255.255.255 ne sort que par celle de la route par défaut sous Windows).
+- **Seerr sous la barre du haut** : la page est dessinée avant la barre (et le menu), `y: header-h`, son
+  fond remonte derrière la barre ; `back-anim` et `nav-out` la referment d'abord. `hero-ty` en tient compte.
+- **Arrivée sur une fiche** : l'image de la carte reste posée sur l'affiche de la fiche 250 ms puis
+  s'efface (`landed-hold`, `landed-a`, au temps) : l'affiche de la fiche pouvait mettre quelques images
+  à s'afficher (vu sur le téléphone).
+- **Nerd** : pas de courant au démarrage sans processeur branché ni maison (`powered` de boot.slint) ;
+  broches étamées (couche à part dans CircuitScene), une à chaque arrivée de piste, aucune dans le vide
+  (régénérées par script depuis Board.traces, dans CircuitScene et Board.parts).
+- **ABYDOS** : Jellyfin 12.4 portable dans `%LOCALAPPDATA%\jellyfin-test\server-12.4` (même `--datadir` ;
+  sauvegarde de la 12.2 : `data.avant-12.4`) ; Seerr 3.5 en Docker (`seerr-abydos`, port 5055, réglages
+  dans `jellyfin-test\seerr`), connecté avec le compte test ; dépôt du plugin Jellyfin Enhanced ajouté.
 - **Pi** : Xelauncher lance `turtlefin` du PATH, c'est-à-dire `/usr/bin/turtlefin` du paquet .deb ;
   une version compilée sur le PC doit y être installée (l'ancienne gardée à côté), pas seulement dans
   `~/turtlefin/target/release`.

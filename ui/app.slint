@@ -3301,12 +3301,12 @@ export component AppWindow inherits Window {
     property <float> fade-q: root.fade-anim && Motion.detail ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
-    property <length> sr-u: (root.narrow ? min(root.height / 1280px, root.width / 720px) : min(root.height / 720px, root.width / 1280px)) * 1px;
+    property <length> sr-u: (root.narrow ? min((root.height - root.header-h) / 1180px, root.width / 720px) : min((root.height - root.header-h) / 640px, root.width / 1280px)) * 1px;
     // Page Seerr : marge et largeur de l'affiche (la destination de l'image qui vole).
     property <length> sr-pad: (root.narrow ? 32 : 40) * root.sr-u;
     property <length> sr-poster-w: (root.narrow ? 280 : 200) * root.sr-u;
     property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? root.sr-pad : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
-    property <length> hero-ty: root.hero-deck ? root.deck-top(root.hero-th) : root.hero-seerr ? root.sr-pad : root.hero-wide && !root.hero-door ? 0px
+    property <length> hero-ty: root.hero-deck ? root.deck-top(root.hero-th) : root.hero-seerr ? root.header-h + root.sr-pad : root.hero-wide && !root.hero-door ? 0px
         : root.header-h + 24px - (root.hero-dest ? root.hero-keep : 0px);
     // Fiche -> fiche sans défilement : décalage de l'affiche de la page (voir open-hero).
     property <length> hero-keep;
@@ -3371,6 +3371,8 @@ export component AppWindow inherits Window {
             if (root.hero-dest && !root.hero-wide && !root.hero-seerr && !root.hero-deck && root.screen == "detail") {
                 root.landed-id = root.hero-id;
                 root.landed-img = root.hero-img;
+                root.landed-t0 = animation-tick();
+                root.landed-hold = true;
             }
             root.hero-on = false;
         }
@@ -3378,6 +3380,18 @@ export component AppWindow inherits Window {
     property <string> landed-id;
     property <image> landed-img;
     property <bool> landed: root.landed-id != "" && root.detail.id == root.landed-id;
+    // Image de la carte par-dessus l'affiche de la fiche : pleine à l'arrivée, effacée après 250 ms.
+    // (Au temps : pleine dès la première image, sans animation qui partirait de 0.)
+    property <bool> landed-hold;
+    property <duration> landed-t0;
+    property <float> landed-a: root.landed-hold ? 1 - clamp((animation-tick() - root.landed-t0 - 250ms) / 260ms, 0, 1) : 0;
+    Timer {
+        interval: 540ms;
+        running: root.landed-hold;
+        triggered => {
+            root.landed-hold = false;
+        }
+    }
     changed hero-on => {
         if (!root.hero-on) {
             Hero.hide-id = "";
@@ -3617,6 +3631,11 @@ export component AppWindow inherits Window {
         root.hero-id = "";
     }
     function back-anim() {
+        // Page Seerr ouverte (bouton retour de la barre du haut) : elle se referme.
+        if (root.sr-open) {
+            root.seerr-close();
+            return;
+        }
         if (root.veil-hold || root.undeal-anim) {
             return; // retour déjà en cours
         }
@@ -3670,6 +3689,10 @@ export component AppWindow inherits Window {
     property <string> nav-kind;
     property <string> nav-arg;
     function nav-out(kind: string, arg: string) {
+        // Onglet, menu… choisis pendant qu'une page Seerr est ouverte : elle se referme d'abord.
+        if (root.sr-open) {
+            root.seerr-close();
+        }
         if (root.veil-hold) {
             return; // une transition est déjà en cours
         }
@@ -6950,6 +6973,16 @@ export component AppWindow inherits Window {
                 source: root.detail.poster;
                 image-fit: fill;
             }
+            // Image de la carte posée par-dessus à l'arrivée, puis effacée en douceur : l'affiche de la
+            // fiche (une autre image, à une autre taille) peut mettre quelques images à s'afficher, et
+            // l'affiche semblait disparaître au moment où l'image partagée la laissait.
+            if root.landed && root.detail.has-poster && root.landed-a > 0.01: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.landed-img;
+                image-fit: fill;
+                opacity: root.landed-a;
+            }
             // Reflet de verre et contour, selon le thème.
             if Theme.sheen > 0: Sheen {
                 r: Theme.radius;
@@ -10064,6 +10097,678 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ------------------------------------------------------------ Page Seerr (premier plan)
+    // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible
+    // (unité sr-u : 1 px d'un écran 1280 x 720, ou 720 x 1280 en portrait).
+    // Paysage : affiche à gauche, titre et boutons à droite, résumé et distribution dessous.
+    // Portrait : affiche et titre côte à côte, boutons, résumé, puis la distribution sur deux lignes.
+    // Sous la barre du haut (dessinée après elle) : la barre reste visible et utilisable ; le fond de
+    // la page remonte derrière elle.
+    if (root.sr-open || root.sr-out) && !root.playing: srp := Rectangle {
+        y: root.header-h;
+        height: parent.height - root.header-h;
+        property <bool> tall: root.narrow;
+        property <length> u: root.sr-u;
+        property <length> pad: root.sr-pad;
+        property <length> poster-h: root.sr-poster-w * 1.5;
+        property <length> poster-w: root.sr-poster-w;
+
+        // Ouverture : la page (fond compris) arrive en fondu, au lieu d'apparaître d'un coup.
+        property <duration> open-t0;
+        property <bool> open-live;
+        init => {
+            self.open-t0 = animation-tick();
+            self.open-live = true;
+            if (self.ready) {
+                self.in-t0 = animation-tick();
+                self.in-live = true;
+            }
+        }
+        Timer {
+            interval: 320ms;
+            running: srp.open-live;
+            triggered => {
+                srp.open-live = false;
+            }
+        }
+        property <float> open-e: srp.open-live && Motion.pages ? 1 - pow(1 - clamp((animation-tick() - srp.open-t0) / 280ms, 0, 1), 2) : 1;
+        // Fermeture (sr-out) : le contenu descend et s'efface (la distribution d'abord, de la dernière
+        // photo à la première), puis le fond.
+        property <float> out-q: root.sr-out && !root.sr-open ? clamp((animation-tick() - root.sr-out-t0) / 300ms, 0, 1) : 0;
+        property <float> out-c: clamp(srp.out-q / 0.6, 0, 1);
+        property <float> out-b: clamp((srp.out-q - 0.3) / 0.7, 0, 1);
+        property <float> out-e: 1 - (1 - srp.out-b) * (1 - srp.out-b);
+        opacity: srp.open-e * (1 - srp.out-e);
+        transform-scale: 0.97 + 0.03 * srp.open-e - 0.04 * srp.out-e;
+        Rectangle {
+            y: -root.header-h;
+            height: parent.height + root.header-h;
+            background: Theme.bg-end;
+        }
+
+        // Glissement vers le haut (doigt, molette) : « Lire la suite » s'ouvre, comme une page qui
+        // défile. La molette ne fait pas défiler la page dessous.
+        property <length> pull;
+        TouchArea {
+            scroll-event(e) => {
+                if (root.sr-open && !root.sr-more && srp.has-more && e.delta-y < 0) {
+                    srp.pull += -e.delta-y;
+                    if (srp.pull > 60px * root.k) {
+                        srp.pull = 0px;
+                        srp.more-y = 0px;
+                        root.sr-sel = 2;
+                        root.sr-more = true;
+                    }
+                } else {
+                    srp.pull = 0px;
+                }
+                return EventResult.accept;
+            }
+        }
+
+        FocusScope {
+            // Ouverte, elle garde le clavier : les pages dessous ne le reprennent pas (voir sr-open),
+            // et un refocus (panneau refermé…) le lui rend. Sinon Retour faisait reculer la page cachée.
+            property <int> tick: root.refocus;
+            changed tick => {
+                if (root.sr-open && !root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            init => {
+                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
+                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
+            key-pressed(event) => {
+                // Page en train de s'effacer : plus d'action.
+                if (!root.sr-open) {
+                    return EventResult.accept;
+                }
+                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
+                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
+                    return EventResult.accept;
+                }
+                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
+                if (root.loading && event.text == Key.Escape) {
+                    root.cancel-open();
+                    return EventResult.accept;
+                }
+                // Tout le texte affiché : ↑ ↓ le font défiler, Retour le referme.
+                if (root.sr-more) {
+                    if (event.text == Key.DownArrow) {
+                        srp.more-y = min(srp.more-max, srp.more-y + 90px * root.k);
+                    } else if (event.text == Key.UpArrow) {
+                        srp.more-y = max(0px, srp.more-y - 90px * root.k);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
+                        root.sr-more = false;
+                    }
+                    return EventResult.accept;
+                }
+                if (event.text == Key.DownArrow) {
+                    // Boutons -> « Lire la suite » (s'il y a plus à lire) -> distribution.
+                    if (root.sr-sel <= 1 && srp.has-more) {
+                        root.sr-sel = 2;
+                    } else if (root.sr-sel <= 2 && root.sr-cast.length > 0) {
+                        root.sr-sel = 3;
+                    }
+                } else if (event.text == Key.UpArrow) {
+                    root.sr-sel = root.sr-sel == 3 && srp.has-more ? 2 : root.sr-sel >= 2 ? 0 : root.sr-sel;
+                } else if (event.text == Key.LeftArrow) {
+                    if (root.sr-sel == 3) {
+                        root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
+                    } else {
+                        root.sr-sel = 0;
+                    }
+                } else if (event.text == Key.RightArrow) {
+                    if (root.sr-sel == 3) {
+                        root.sr-cast-off = min(srp.cast-max, floor(root.sr-cast-off) + 1);
+                    } else {
+                        root.sr-sel = 1;
+                    }
+                } else if (event.text == Key.Return) {
+                    if (root.sr-sel == 2) {
+                        srp.more-y = 0px;
+                        root.sr-more = true;
+                    } else if (root.sr-sel == 3) {
+                        // rien : la distribution se parcourt avec ← →
+                    } else if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
+                        root.seerr-action();
+                    } else {
+                        root.seerr-close();
+                    }
+                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.seerr-close();
+                }
+                return EventResult.accept;
+            }
+        }
+
+        // Fond : image du média floutée (préparée une fois), en fondu à son arrivée, puis voile vers le bas.
+        property <float> bd-a: root.sr.has-backdrop ? 1 : 0;
+        animate bd-a { duration: Motion.detail ? 600ms : 0ms; easing: ease-out; }
+        if srp.bd-a > 0.001: Image {
+            y: -root.header-h;
+            width: parent.width;
+            height: parent.height + root.header-h;
+            source: root.sr.backdrop;
+            image-fit: cover;
+            opacity: srp.bd-a;
+            // Arrivée : léger recul (l'image se pose).
+            transform-scale: 1.04 - 0.04 * srp.bd-a;
+        }
+        Rectangle {
+            y: -root.header-h;
+            height: parent.height + root.header-h;
+            background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(0.4) 0%, Theme.bg-end.with-alpha(0.85) 55%, Theme.bg-end 100%);
+        }
+
+        // Chargement : rien d'autre que le fond (l'affiche vole déjà vers sa place) ; une fois là, le
+        // contenu arrive par blocs (titre, informations, boutons, résumé), en remontant un peu, puis la
+        // distribution une photo après l'autre.
+        property <bool> ready: !root.sr.loading;
+        property <duration> in-t0;
+        property <bool> in-live;
+        changed ready => {
+            if (self.ready) {
+                self.in-t0 = animation-tick();
+                self.in-live = true;
+            }
+        }
+        Timer {
+            interval: 1800ms;
+            running: srp.in-live;
+            triggered => {
+                srp.in-live = false;
+            }
+        }
+        // Bloc n° b (0 titre, 1 informations, 2 boutons, 3 résumé) : arrivée, puis départ à la fermeture.
+        pure function blk(b: int) -> float {
+            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - b * 90ms) / 420ms, 0, 1) : 1;
+            return (1 - (1 - x) * (1 - x)) * (1 - srp.out-c);
+        }
+        pure function cast-e(i: int) -> float {
+            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - 380ms - min(i, 10) * 70ms) / 360ms, 0, 1) : 1;
+            let o = clamp((srp.out-q * 300ms - max(0, 7 - min(i, 7)) * 18ms) / 160ms, 0, 1);
+            return (1 - (1 - x) * (1 - x)) * (1 - o);
+        }
+        // Décalage vertical d'un bloc qui arrive (ou repart vers le bas).
+        pure function blk-y(b: int) -> length {
+            return (1 - srp.blk(b)) * 24 * srp.u;
+        }
+        // Trop à lire pour l'écran (résumé coupé, informations qui ne tiennent pas) : « Lire la suite ».
+        in-out property <bool> has-more;
+        // Distribution : colonnes au-delà de celles affichées (elle défile sur le côté).
+        in-out property <int> cast-max;
+        // Fenêtre « tout le texte » : défilement et sa limite.
+        in-out property <length> more-y;
+        in-out property <length> more-max;
+
+        if srp.ready: content := Rectangle {
+            // Affiche (en fondu si elle arrive après la page).
+            property <float> po-a: root.sr-has-poster ? 1 : 0;
+            animate po-a { duration: Motion.detail ? 300ms : 0ms; }
+            Rectangle {
+                x: srp.pad;
+                y: srp.pad + srp.out-c * 16 * srp.u;
+                width: srp.poster-w;
+                height: srp.poster-h;
+                border-radius: 12 * srp.u;
+                opacity: 1 - srp.out-c;
+                visible: !root.hero-covers || !root.hero-seerr;
+                background: Theme.fg.with-alpha(0.08 * (1 - content.po-a));
+                clip: true;
+                if root.sr-has-poster: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.sr-card-on ? root.sr-card-img : root.sr.poster;
+                    image-fit: fill;
+                    opacity: content.po-a;
+                }
+            }
+
+            // Titre, informations, état (à droite de l'affiche) ; paysage : les boutons aussi.
+            VerticalLayout {
+                x: srp.pad + srp.poster-w + (srp.tall ? 24 : 32) * srp.u;
+                y: srp.pad;
+                width: parent.width - self.x - srp.pad;
+                height: srp.poster-h;
+                spacing: (srp.tall ? 14 : 12) * srp.u;
+                alignment: center;
+
+                if !srp.tall: Marquee {
+                    opacity: srp.blk(0);
+                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                    text-color: Theme.fg;
+                    font-size: 38 * srp.u;
+                    font-weight: 700;
+                    active: true;
+                    horizontal-alignment: TextHorizontalAlignment.left;
+                    height: self.preferred-height;
+                }
+                // Portrait : titre sur plusieurs lignes (la colonne est étroite).
+                if srp.tall: Text {
+                    opacity: srp.blk(0);
+                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                    color: Theme.fg;
+                    font-size: 40 * srp.u;
+                    font-weight: 700;
+                    wrap: word-wrap;
+                    max-height: 3 * 52 * srp.u;
+                    overflow: elide;
+                }
+                Text {
+                    opacity: srp.blk(1);
+                    text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
+                        + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                    color: Theme.fg.with-alpha(0.82);
+                    font-size: (srp.tall ? 22 : 18) * srp.u;
+                    wrap: srp.tall ? word-wrap : no-wrap;
+                    overflow: elide;
+                }
+                // Informations clés en pastilles (statut, sortie, langue, studio) ; portrait : une par ligne.
+                if !srp.tall: facts-row := HorizontalLayout {
+                    opacity: srp.blk(1);
+                    alignment: start;
+                    spacing: 10 * srp.u;
+                    height: 30 * srp.u;
+                    for f in root.sr.facts: Rectangle {
+                        border-radius: self.height / 2;
+                        background: Theme.fg.with-alpha(0.1);
+                        width: fact-t.preferred-width + 24 * srp.u;
+                        fact-t := Text {
+                            text: f.label + " : " + f.value;
+                            color: Theme.fg.with-alpha(0.88);
+                            font-size: 13 * srp.u;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                if srp.tall: VerticalLayout {
+                    opacity: srp.blk(1);
+                    spacing: 6 * srp.u;
+                    for f in root.sr.facts: Text {
+                        text: f.label + " : " + f.value;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: 20 * srp.u;
+                        overflow: elide;
+                    }
+                }
+                if root.sr.status != "": Text {
+                    opacity: srp.blk(1);
+                    text: root.sr.status;
+                    color: Theme.accent2;
+                    font-size: (srp.tall ? 22 : 18) * srp.u;
+                    font-weight: 700;
+                    wrap: word-wrap;
+                }
+                if !srp.tall: HorizontalLayout {
+                    opacity: srp.blk(2);
+                    alignment: start;
+                    spacing: 16 * srp.u;
+                    height: 50 * srp.u;
+                    if root.sr.can-request || root.sr.on-server: ActionButton {
+                        text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
+                        font: 18 * srp.u;
+                        focused: root.sr-sel == 0;
+                        clicked => {
+                            root.seerr-action();
+                        }
+                    }
+                    ActionButton {
+                        text: Tr.t(Tr.k, "Fermer");
+                        font: 18 * srp.u;
+                        focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
+                        clicked => {
+                            root.seerr-close();
+                        }
+                    }
+                }
+            }
+
+            // Portrait : boutons sous l'affiche, sur toute la largeur.
+            property <length> btn-y: srp.pad + srp.poster-h + 28 * srp.u;
+            if srp.tall: HorizontalLayout {
+                x: srp.pad;
+                y: content.btn-y + srp.blk-y(2);
+                width: content.width - 2 * srp.pad;
+                height: 64 * srp.u;
+                spacing: 16 * srp.u;
+                opacity: srp.blk(2);
+                if root.sr.can-request || root.sr.on-server: ActionButton {
+                    text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
+                    font: 24 * srp.u;
+                    focused: root.sr-sel == 0;
+                    clicked => {
+                        root.seerr-action();
+                    }
+                }
+                ActionButton {
+                    text: Tr.t(Tr.k, "Fermer");
+                    font: 24 * srp.u;
+                    focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
+                    clicked => {
+                        root.seerr-close();
+                    }
+                }
+            }
+
+            // Distribution : paysage, photos rondes sur une ligne ; portrait, en bas de l'écran, sur deux
+            // lignes de quatre (rangées par colonnes). Plus qu'il n'en tient : elle défile sur le côté
+            // (← → sur la distribution, molette, doigt, chevrons), une colonne à la fois.
+            property <length> cast-cw: srp.tall ? (self.width - 2 * srp.pad) / 4 : 118 * srp.u;
+            property <length> cast-rh: srp.tall ? 190 * srp.u : 140 * srp.u;
+            property <int> cast-rows: srp.tall ? min(2, ceil(root.sr-cast.length / 2)) : 1;
+            property <int> cast-cols: ceil(root.sr-cast.length / max(1, self.cast-rows));
+            property <int> cast-vis: max(1, floor((self.width - 2 * srp.pad) / self.cast-cw));
+            property <int> cast-max: max(0, self.cast-cols - self.cast-vis);
+            changed cast-max => {
+                srp.cast-max = self.cast-max;
+            }
+            // Informations en pastilles (paysage) plus larges que leur place : dans « Lire la suite ».
+            property <bool> facts-cut: !srp.tall && root.sr.facts.length > 0
+                && (root.sr.facts.length * 10 * srp.u + root.sr.facts.length * 140 * srp.u > self.width - srp.pad * 2 - srp.poster-w - 32 * srp.u);
+            changed facts-cut => {
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
+            init => {
+                srp.cast-max = self.cast-max;
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
+            property <float> cast-off: root.sr-cast-off;
+            // Sous le doigt (et pendant le lancer) : pas d'animation, la distribution suit.
+            animate cast-off { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: ease-out; }
+            property <length> cast-y: srp.tall ? self.height - srp.pad - self.cast-rows * self.cast-rh
+                : min(self.height - self.cast-rh - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
+
+            // Résumé (coupé proprement s'il est trop long) : portrait, toute la place entre les boutons
+            // et la distribution. Coupé : « Lire la suite » dessous ouvre tout le texte.
+            property <length> ov-y: srp.tall ? self.btn-y + 92 * srp.u : srp.pad + srp.poster-h + 28 * srp.u;
+            property <length> ov-room: srp.tall ? max(0px, content.cast-y - content.ov-y - 20 * srp.u) : 100 * srp.u;
+            property <length> link-h: srp.has-more ? (srp.tall ? 40 : 28) * srp.u : 0px;
+            ovm := Text {
+                visible: false;
+                width: content.width - 2 * srp.pad;
+                text: root.sr.overview;
+                font-size: (srp.tall ? 24 : 17) * srp.u;
+                wrap: word-wrap;
+            }
+            property <bool> ov-cut: ovm.preferred-height > content.ov-room + 1px;
+            changed ov-cut => {
+                srp.has-more = self.ov-cut || self.facts-cut;
+            }
+            Text {
+                opacity: srp.blk(3);
+                x: srp.pad;
+                y: content.ov-y + srp.blk-y(3);
+                width: content.width - 2 * srp.pad;
+                height: max(0px, content.ov-room - content.link-h);
+                text: root.sr.overview;
+                color: Theme.fg.with-alpha(0.85);
+                font-size: (srp.tall ? 24 : 17) * srp.u;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            if srp.has-more: Rectangle {
+                property <bool> lit: root.sr-sel == 2 || (more-area.has-hover && !Nav.touch);
+                opacity: srp.blk(3);
+                x: content.width - srp.pad - self.width;
+                y: content.ov-y + content.ov-room - content.link-h + srp.blk-y(3);
+                width: more-t.preferred-width + 24 * srp.u;
+                height: content.link-h;
+                border-radius: self.height / 2;
+                background: self.lit ? Theme.accent2.with-alpha(0.85) : Theme.fg.with-alpha(0.08);
+                animate background { duration: Motion.select ? 150ms : 0ms; }
+                more-t := Text {
+                    text: Tr.t(Tr.k, "Lire la suite") + "  ›";
+                    color: parent.lit ? Theme.on-accent : Theme.accent2;
+                    font-size: (srp.tall ? 20 : 14) * srp.u;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                more-area := TouchArea {
+                    clicked => {
+                        root.sr-sel = 2;
+                        srp.more-y = 0px;
+                        root.sr-more = true;
+                    }
+                }
+            }
+
+            Rectangle {
+                x: srp.pad;
+                y: content.cast-y;
+                width: content.width - 2 * srp.pad;
+                height: content.cast-rows * content.cast-rh;
+                clip: true;
+                // Choisie au clavier : un liseré discret autour de la distribution.
+                border-radius: 12 * srp.u;
+                border-width: root.sr-sel == 3 && Nav.kb ? 2px : 0px;
+                border-color: Theme.accent2.with-alpha(0.6);
+                TouchArea {
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            root.sr-sel = 3;
+                        }
+                    }
+                    // Doigt (glissement horizontal) : la distribution suit au pixel. Molette : une colonne
+                    // par cran. Glissement vertical du doigt : il va à la page (« Lire la suite »).
+                    scroll-event(e) => {
+                        if (e.delta-x != 0) {
+                            root.sr-cast-off = clamp(root.sr-cast-off - e.delta-x / content.cast-cw, 0, content.cast-max);
+                            return EventResult.accept;
+                        }
+                        if (Nav.drag) {
+                            return EventResult.reject;
+                        }
+                        if (e.delta-y < 0) {
+                            root.sr-cast-off = min(content.cast-max, floor(root.sr-cast-off) + 1);
+                        } else if (e.delta-y > 0) {
+                            root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
+                        }
+                        return EventResult.accept;
+                    }
+                }
+                for c[i] in root.sr-cast: Rectangle {
+                    property <int> ccol: floor(i / content.cast-rows);
+                    property <int> crow: mod(i, content.cast-rows);
+                    property <length> ph: (srp.tall ? 110 : 84) * srp.u;
+                    visible: self.ccol >= content.cast-off - 1 && self.ccol <= content.cast-off + content.cast-vis;
+                    width: (srp.tall ? 150 : 104) * srp.u;
+                    height: content.cast-rh;
+                    x: (self.ccol - content.cast-off) * content.cast-cw + (content.cast-cw - self.width) / 2;
+                    y: self.crow * content.cast-rh + (1 - srp.cast-e(i)) * 20 * srp.u;
+                    opacity: srp.cast-e(i);
+                    Rectangle {
+                        // La photo arrive en fondu (téléchargée après la page).
+                        property <float> a: c.has-image ? 1 : 0;
+                        animate a { duration: Motion.detail ? 320ms : 0ms; }
+                        x: (parent.width - self.width) / 2;
+                        y: 0px;
+                        width: parent.ph;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: Theme.fg.with-alpha(0.1);
+                        clip: false;
+                        if c.has-image: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: c.image;
+                            image-fit: fill;
+                            opacity: parent.a;
+                        }
+                    }
+                    Text {
+                        y: parent.ph + 8 * srp.u;
+                        width: parent.width;
+                        text: c.title;
+                        color: Theme.fg;
+                        font-size: (srp.tall ? 18 : 12) * srp.u;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    Text {
+                        y: parent.ph + (srp.tall ? 34 : 26) * srp.u;
+                        width: parent.width;
+                        text: c.subtitle;
+                        color: Theme.muted;
+                        font-size: (srp.tall ? 16 : 11) * srp.u;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+            // Chevrons de la distribution : il y en a d'autres de ce côté (clic : une colonne de plus).
+            for side[j] in 2: Rectangle {
+                // Au doigt, pas de chevrons : la distribution se fait glisser.
+                property <bool> on: !Nav.touch && (j == 0 ? root.sr-cast-off > 0.01 : root.sr-cast-off < content.cast-max - 0.01);
+                visible: self.on;
+                opacity: srp.blk(3);
+                width: (srp.tall ? 44 : 32) * srp.u;
+                height: self.width;
+                x: j == 0 ? srp.pad - self.width / 2 : content.width - srp.pad - self.width / 2;
+                y: content.cast-y + (srp.tall ? 110 : 84) * srp.u / 2 - self.height / 2;
+                border-radius: self.width / 2;
+                background: Theme.panel.with-alpha(0.85);
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                Path {
+                    width: parent.width * 0.5;
+                    height: parent.height * 0.5;
+                    x: parent.width * 0.25;
+                    y: parent.height * 0.25;
+                    viewbox-width: 16;
+                    viewbox-height: 16;
+                    fill: transparent;
+                    stroke: Theme.fg;
+                    stroke-width: 2px;
+                    stroke-line-cap: round;
+                    stroke-line-join: round;
+                    commands: j == 0 ? "M 10 3 L 5 8 L 10 13" : "M 6 3 L 11 8 L 6 13";
+                }
+                TouchArea {
+                    clicked => {
+                        root.sr-cast-off = j == 0 ? max(0, ceil(root.sr-cast-off) - 1) : min(content.cast-max, floor(root.sr-cast-off) + 1);
+                    }
+                }
+            }
+        }
+
+        // « Lire la suite » : tout le texte (résumé, informations, distribution) dans une fenêtre qui
+        // défile (↑ ↓, molette, doigt) ; Retour ou un toucher à côté la referme.
+        property <float> more-p: root.sr-more ? 1 : 0;
+        animate more-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        if srp.more-p > 0.01: Rectangle {
+            background: Theme.scrim.with-alpha(0.6 * srp.more-p);
+            TouchArea {
+                clicked => {
+                    root.sr-more = false;
+                }
+                scroll-event(e) => {
+                    return EventResult.accept;
+                }
+            }
+            more-panel := Rectangle {
+                width: min(parent.width - 2 * srp.pad, (srp.tall ? 680 : 900) * srp.u);
+                height: parent.height - 2 * srp.pad;
+                x: (parent.width - self.width) / 2;
+                y: srp.pad + (1 - srp.more-p) * 40 * srp.u;
+                opacity: srp.more-p;
+                border-radius: 18 * srp.u;
+                background: Theme.panel;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                clip: true;
+                // Doigt : tirée vers le bas depuis le début du texte, elle se referme.
+                property <length> pull;
+                TouchArea {
+                    scroll-event(e) => {
+                        if (Nav.drag && srp.more-y <= 0px && e.delta-y > 0) {
+                            more-panel.pull += e.delta-y;
+                            if (more-panel.pull > 90px * root.k) {
+                                more-panel.pull = 0px;
+                                root.sr-more = false;
+                            }
+                        } else {
+                            more-panel.pull = 0px;
+                        }
+                        srp.more-y = clamp(srp.more-y - e.delta-y, 0px, srp.more-max);
+                        return EventResult.accept;
+                    }
+                }
+                property <length> inner: self.width - 2 * 32 * srp.u;
+                more-col := VerticalLayout {
+                    x: 32 * srp.u;
+                    y: 28 * srp.u - srp.more-y;
+                    width: more-panel.inner;
+                    spacing: 14 * srp.u;
+                    alignment: start;
+                    Text {
+                        text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                        color: Theme.fg;
+                        font-size: (srp.tall ? 36 : 28) * srp.u;
+                        font-weight: 700;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
+                            + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 22 : 16) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    for f in root.sr.facts: Text {
+                        text: f.label + " : " + f.value;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.sr.overview;
+                        color: Theme.fg.with-alpha(0.9);
+                        font-size: (srp.tall ? 24 : 17) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    if root.sr-cast.length > 0: Text {
+                        text: Tr.t(Tr.k, "Distribution");
+                        color: Theme.fg;
+                        font-size: (srp.tall ? 26 : 19) * srp.u;
+                        font-weight: 700;
+                    }
+                    for c in root.sr-cast: Text {
+                        text: c.subtitle != "" ? c.title + "  ·  " + c.subtitle : c.title;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: 24 * srp.u;
+                    }
+                }
+                property <length> over: max(0px, more-col.preferred-height + 28 * srp.u - self.height);
+                changed over => {
+                    srp.more-max = self.over;
+                }
+                init => {
+                    srp.more-max = self.over;
+                }
+                // Barre de défilement discrète.
+                if self.over > 0: Rectangle {
+                    x: parent.width - 8 * srp.u;
+                    width: 4 * srp.u;
+                    height: parent.height * parent.height / (parent.height + parent.over);
+                    y: (parent.height - self.height) * srp.more-y / max(1px, parent.over);
+                    border-radius: self.width / 2;
+                    background: Theme.fg.with-alpha(0.3);
+                }
+            }
+        }
+    }
+
     // Barre de navigation des écrans autres que l'accueil (l'accueil l'intègre à son en-tête).
     property <bool> bar-screen: root.screen == "detail" || root.screen == "library" || root.screen == "soon" || root.screen == "profile"
         || root.screen == "search" || root.screen == "party" || root.screen == "servers" || root.screen == "settings" || root.screen == "downloads";
@@ -10594,667 +11299,6 @@ export component AppWindow inherits Window {
                             root.menu-go(e.action);
                         }
                     }
-                }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------ Page Seerr (premier plan)
-    // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible
-    // (unité sr-u : 1 px d'un écran 1280 x 720, ou 720 x 1280 en portrait).
-    // Paysage : affiche à gauche, titre et boutons à droite, résumé et distribution dessous.
-    // Portrait : affiche et titre côte à côte, boutons, résumé, puis la distribution sur deux lignes.
-    if (root.sr-open || root.sr-out) && !root.playing: srp := Rectangle {
-        property <bool> tall: root.narrow;
-        property <length> u: root.sr-u;
-        property <length> pad: root.sr-pad;
-        property <length> poster-h: root.sr-poster-w * 1.5;
-        property <length> poster-w: root.sr-poster-w;
-
-        // Ouverture : la page (fond compris) arrive en fondu, au lieu d'apparaître d'un coup.
-        property <duration> open-t0;
-        property <bool> open-live;
-        init => {
-            self.open-t0 = animation-tick();
-            self.open-live = true;
-            if (self.ready) {
-                self.in-t0 = animation-tick();
-                self.in-live = true;
-            }
-        }
-        Timer {
-            interval: 320ms;
-            running: srp.open-live;
-            triggered => {
-                srp.open-live = false;
-            }
-        }
-        property <float> open-e: srp.open-live && Motion.pages ? 1 - pow(1 - clamp((animation-tick() - srp.open-t0) / 280ms, 0, 1), 2) : 1;
-        // Fermeture (sr-out) : le contenu descend et s'efface (la distribution d'abord, de la dernière
-        // photo à la première), puis le fond.
-        property <float> out-q: root.sr-out && !root.sr-open ? clamp((animation-tick() - root.sr-out-t0) / 300ms, 0, 1) : 0;
-        property <float> out-c: clamp(srp.out-q / 0.6, 0, 1);
-        property <float> out-b: clamp((srp.out-q - 0.3) / 0.7, 0, 1);
-        property <float> out-e: 1 - (1 - srp.out-b) * (1 - srp.out-b);
-        opacity: srp.open-e * (1 - srp.out-e);
-        transform-scale: 0.97 + 0.03 * srp.open-e - 0.04 * srp.out-e;
-        background: Theme.bg-end;
-
-        // Glissement vers le haut (doigt, molette) : « Lire la suite » s'ouvre, comme une page qui
-        // défile. La molette ne fait pas défiler la page dessous.
-        property <length> pull;
-        TouchArea {
-            scroll-event(e) => {
-                if (root.sr-open && !root.sr-more && srp.has-more && e.delta-y < 0) {
-                    srp.pull += -e.delta-y;
-                    if (srp.pull > 60px * root.k) {
-                        srp.pull = 0px;
-                        srp.more-y = 0px;
-                        root.sr-sel = 2;
-                        root.sr-more = true;
-                    }
-                } else {
-                    srp.pull = 0px;
-                }
-                return EventResult.accept;
-            }
-        }
-
-        FocusScope {
-            // Ouverte, elle garde le clavier : les pages dessous ne le reprennent pas (voir sr-open),
-            // et un refocus (panneau refermé…) le lui rend. Sinon Retour faisait reculer la page cachée.
-            property <int> tick: root.refocus;
-            changed tick => {
-                if (root.sr-open && !root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            init => {
-                // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
-                    self.focus();
-                }
-            }
-            key-pressed(event) => {
-                // Page en train de s'effacer : plus d'action.
-                if (!root.sr-open) {
-                    return EventResult.accept;
-                }
-                // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
-                if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
-                    return EventResult.accept;
-                }
-                // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
-                if (root.loading && event.text == Key.Escape) {
-                    root.cancel-open();
-                    return EventResult.accept;
-                }
-                // Tout le texte affiché : ↑ ↓ le font défiler, Retour le referme.
-                if (root.sr-more) {
-                    if (event.text == Key.DownArrow) {
-                        srp.more-y = min(srp.more-max, srp.more-y + 90px * root.k);
-                    } else if (event.text == Key.UpArrow) {
-                        srp.more-y = max(0px, srp.more-y - 90px * root.k);
-                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Return) {
-                        root.sr-more = false;
-                    }
-                    return EventResult.accept;
-                }
-                if (event.text == Key.DownArrow) {
-                    // Boutons -> « Lire la suite » (s'il y a plus à lire) -> distribution.
-                    if (root.sr-sel <= 1 && srp.has-more) {
-                        root.sr-sel = 2;
-                    } else if (root.sr-sel <= 2 && root.sr-cast.length > 0) {
-                        root.sr-sel = 3;
-                    }
-                } else if (event.text == Key.UpArrow) {
-                    root.sr-sel = root.sr-sel == 3 && srp.has-more ? 2 : root.sr-sel >= 2 ? 0 : root.sr-sel;
-                } else if (event.text == Key.LeftArrow) {
-                    if (root.sr-sel == 3) {
-                        root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
-                    } else {
-                        root.sr-sel = 0;
-                    }
-                } else if (event.text == Key.RightArrow) {
-                    if (root.sr-sel == 3) {
-                        root.sr-cast-off = min(srp.cast-max, floor(root.sr-cast-off) + 1);
-                    } else {
-                        root.sr-sel = 1;
-                    }
-                } else if (event.text == Key.Return) {
-                    if (root.sr-sel == 2) {
-                        srp.more-y = 0px;
-                        root.sr-more = true;
-                    } else if (root.sr-sel == 3) {
-                        // rien : la distribution se parcourt avec ← →
-                    } else if (root.sr-sel == 0 && (root.sr.can-request || root.sr.on-server)) {
-                        root.seerr-action();
-                    } else {
-                        root.seerr-close();
-                    }
-                } else if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.seerr-close();
-                }
-                return EventResult.accept;
-            }
-        }
-
-        // Fond : image du média floutée (préparée une fois), en fondu à son arrivée, puis voile vers le bas.
-        property <float> bd-a: root.sr.has-backdrop ? 1 : 0;
-        animate bd-a { duration: Motion.detail ? 600ms : 0ms; easing: ease-out; }
-        if srp.bd-a > 0.001: Image {
-            width: parent.width;
-            height: parent.height;
-            source: root.sr.backdrop;
-            image-fit: cover;
-            opacity: srp.bd-a;
-            // Arrivée : léger recul (l'image se pose).
-            transform-scale: 1.04 - 0.04 * srp.bd-a;
-        }
-        Rectangle {
-            background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(0.4) 0%, Theme.bg-end.with-alpha(0.85) 55%, Theme.bg-end 100%);
-        }
-
-        // Chargement : rien d'autre que le fond (l'affiche vole déjà vers sa place) ; une fois là, le
-        // contenu arrive par blocs (titre, informations, boutons, résumé), en remontant un peu, puis la
-        // distribution une photo après l'autre.
-        property <bool> ready: !root.sr.loading;
-        property <duration> in-t0;
-        property <bool> in-live;
-        changed ready => {
-            if (self.ready) {
-                self.in-t0 = animation-tick();
-                self.in-live = true;
-            }
-        }
-        Timer {
-            interval: 1800ms;
-            running: srp.in-live;
-            triggered => {
-                srp.in-live = false;
-            }
-        }
-        // Bloc n° b (0 titre, 1 informations, 2 boutons, 3 résumé) : arrivée, puis départ à la fermeture.
-        pure function blk(b: int) -> float {
-            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - b * 90ms) / 420ms, 0, 1) : 1;
-            return (1 - (1 - x) * (1 - x)) * (1 - srp.out-c);
-        }
-        pure function cast-e(i: int) -> float {
-            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - 380ms - min(i, 10) * 70ms) / 360ms, 0, 1) : 1;
-            let o = clamp((srp.out-q * 300ms - max(0, 7 - min(i, 7)) * 18ms) / 160ms, 0, 1);
-            return (1 - (1 - x) * (1 - x)) * (1 - o);
-        }
-        // Décalage vertical d'un bloc qui arrive (ou repart vers le bas).
-        pure function blk-y(b: int) -> length {
-            return (1 - srp.blk(b)) * 24 * srp.u;
-        }
-        // Trop à lire pour l'écran (résumé coupé, informations qui ne tiennent pas) : « Lire la suite ».
-        in-out property <bool> has-more;
-        // Distribution : colonnes au-delà de celles affichées (elle défile sur le côté).
-        in-out property <int> cast-max;
-        // Fenêtre « tout le texte » : défilement et sa limite.
-        in-out property <length> more-y;
-        in-out property <length> more-max;
-
-        if srp.ready: content := Rectangle {
-            // Affiche (en fondu si elle arrive après la page).
-            property <float> po-a: root.sr-has-poster ? 1 : 0;
-            animate po-a { duration: Motion.detail ? 300ms : 0ms; }
-            Rectangle {
-                x: srp.pad;
-                y: srp.pad + srp.out-c * 16 * srp.u;
-                width: srp.poster-w;
-                height: srp.poster-h;
-                border-radius: 12 * srp.u;
-                opacity: 1 - srp.out-c;
-                visible: !root.hero-covers || !root.hero-seerr;
-                background: Theme.fg.with-alpha(0.08 * (1 - content.po-a));
-                clip: true;
-                if root.sr-has-poster: Image {
-                    width: parent.width;
-                    height: parent.height;
-                    source: root.sr-card-on ? root.sr-card-img : root.sr.poster;
-                    image-fit: fill;
-                    opacity: content.po-a;
-                }
-            }
-
-            // Titre, informations, état (à droite de l'affiche) ; paysage : les boutons aussi.
-            VerticalLayout {
-                x: srp.pad + srp.poster-w + (srp.tall ? 24 : 32) * srp.u;
-                y: srp.pad;
-                width: parent.width - self.x - srp.pad;
-                height: srp.poster-h;
-                spacing: (srp.tall ? 14 : 12) * srp.u;
-                alignment: center;
-
-                if !srp.tall: Marquee {
-                    opacity: srp.blk(0);
-                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                    text-color: Theme.fg;
-                    font-size: 38 * srp.u;
-                    font-weight: 700;
-                    active: true;
-                    horizontal-alignment: TextHorizontalAlignment.left;
-                    height: self.preferred-height;
-                }
-                // Portrait : titre sur plusieurs lignes (la colonne est étroite).
-                if srp.tall: Text {
-                    opacity: srp.blk(0);
-                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                    color: Theme.fg;
-                    font-size: 40 * srp.u;
-                    font-weight: 700;
-                    wrap: word-wrap;
-                    max-height: 3 * 52 * srp.u;
-                    overflow: elide;
-                }
-                Text {
-                    opacity: srp.blk(1);
-                    text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
-                        + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
-                    color: Theme.fg.with-alpha(0.82);
-                    font-size: (srp.tall ? 22 : 18) * srp.u;
-                    wrap: srp.tall ? word-wrap : no-wrap;
-                    overflow: elide;
-                }
-                // Informations clés en pastilles (statut, sortie, langue, studio) ; portrait : une par ligne.
-                if !srp.tall: facts-row := HorizontalLayout {
-                    opacity: srp.blk(1);
-                    alignment: start;
-                    spacing: 10 * srp.u;
-                    height: 30 * srp.u;
-                    for f in root.sr.facts: Rectangle {
-                        border-radius: self.height / 2;
-                        background: Theme.fg.with-alpha(0.1);
-                        width: fact-t.preferred-width + 24 * srp.u;
-                        fact-t := Text {
-                            text: f.label + " : " + f.value;
-                            color: Theme.fg.with-alpha(0.88);
-                            font-size: 13 * srp.u;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                }
-                if srp.tall: VerticalLayout {
-                    opacity: srp.blk(1);
-                    spacing: 6 * srp.u;
-                    for f in root.sr.facts: Text {
-                        text: f.label + " : " + f.value;
-                        color: Theme.fg.with-alpha(0.82);
-                        font-size: 20 * srp.u;
-                        overflow: elide;
-                    }
-                }
-                if root.sr.status != "": Text {
-                    opacity: srp.blk(1);
-                    text: root.sr.status;
-                    color: Theme.accent2;
-                    font-size: (srp.tall ? 22 : 18) * srp.u;
-                    font-weight: 700;
-                    wrap: word-wrap;
-                }
-                if !srp.tall: HorizontalLayout {
-                    opacity: srp.blk(2);
-                    alignment: start;
-                    spacing: 16 * srp.u;
-                    height: 50 * srp.u;
-                    if root.sr.can-request || root.sr.on-server: ActionButton {
-                        text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
-                        font: 18 * srp.u;
-                        focused: root.sr-sel == 0;
-                        clicked => {
-                            root.seerr-action();
-                        }
-                    }
-                    ActionButton {
-                        text: Tr.t(Tr.k, "Fermer");
-                        font: 18 * srp.u;
-                        focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
-                        clicked => {
-                            root.seerr-close();
-                        }
-                    }
-                }
-            }
-
-            // Portrait : boutons sous l'affiche, sur toute la largeur.
-            property <length> btn-y: srp.pad + srp.poster-h + 28 * srp.u;
-            if srp.tall: HorizontalLayout {
-                x: srp.pad;
-                y: content.btn-y + srp.blk-y(2);
-                width: content.width - 2 * srp.pad;
-                height: 64 * srp.u;
-                spacing: 16 * srp.u;
-                opacity: srp.blk(2);
-                if root.sr.can-request || root.sr.on-server: ActionButton {
-                    text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
-                    font: 24 * srp.u;
-                    focused: root.sr-sel == 0;
-                    clicked => {
-                        root.seerr-action();
-                    }
-                }
-                ActionButton {
-                    text: Tr.t(Tr.k, "Fermer");
-                    font: 24 * srp.u;
-                    focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
-                    clicked => {
-                        root.seerr-close();
-                    }
-                }
-            }
-
-            // Distribution : paysage, photos rondes sur une ligne ; portrait, en bas de l'écran, sur deux
-            // lignes de quatre (rangées par colonnes). Plus qu'il n'en tient : elle défile sur le côté
-            // (← → sur la distribution, molette, doigt, chevrons), une colonne à la fois.
-            property <length> cast-cw: srp.tall ? (self.width - 2 * srp.pad) / 4 : 118 * srp.u;
-            property <length> cast-rh: srp.tall ? 190 * srp.u : 140 * srp.u;
-            property <int> cast-rows: srp.tall ? min(2, ceil(root.sr-cast.length / 2)) : 1;
-            property <int> cast-cols: ceil(root.sr-cast.length / max(1, self.cast-rows));
-            property <int> cast-vis: max(1, floor((self.width - 2 * srp.pad) / self.cast-cw));
-            property <int> cast-max: max(0, self.cast-cols - self.cast-vis);
-            changed cast-max => {
-                srp.cast-max = self.cast-max;
-            }
-            // Informations en pastilles (paysage) plus larges que leur place : dans « Lire la suite ».
-            property <bool> facts-cut: !srp.tall && root.sr.facts.length > 0
-                && (root.sr.facts.length * 10 * srp.u + root.sr.facts.length * 140 * srp.u > self.width - srp.pad * 2 - srp.poster-w - 32 * srp.u);
-            changed facts-cut => {
-                srp.has-more = self.ov-cut || self.facts-cut;
-            }
-            init => {
-                srp.cast-max = self.cast-max;
-                srp.has-more = self.ov-cut || self.facts-cut;
-            }
-            property <float> cast-off: root.sr-cast-off;
-            // Sous le doigt (et pendant le lancer) : pas d'animation, la distribution suit.
-            animate cast-off { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: ease-out; }
-            property <length> cast-y: srp.tall ? self.height - srp.pad - self.cast-rows * self.cast-rh
-                : min(self.height - self.cast-rh - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
-
-            // Résumé (coupé proprement s'il est trop long) : portrait, toute la place entre les boutons
-            // et la distribution. Coupé : « Lire la suite » dessous ouvre tout le texte.
-            property <length> ov-y: srp.tall ? self.btn-y + 92 * srp.u : srp.pad + srp.poster-h + 28 * srp.u;
-            property <length> ov-room: srp.tall ? max(0px, content.cast-y - content.ov-y - 20 * srp.u) : 100 * srp.u;
-            property <length> link-h: srp.has-more ? (srp.tall ? 40 : 28) * srp.u : 0px;
-            ovm := Text {
-                visible: false;
-                width: content.width - 2 * srp.pad;
-                text: root.sr.overview;
-                font-size: (srp.tall ? 24 : 17) * srp.u;
-                wrap: word-wrap;
-            }
-            property <bool> ov-cut: ovm.preferred-height > content.ov-room + 1px;
-            changed ov-cut => {
-                srp.has-more = self.ov-cut || self.facts-cut;
-            }
-            Text {
-                opacity: srp.blk(3);
-                x: srp.pad;
-                y: content.ov-y + srp.blk-y(3);
-                width: content.width - 2 * srp.pad;
-                height: max(0px, content.ov-room - content.link-h);
-                text: root.sr.overview;
-                color: Theme.fg.with-alpha(0.85);
-                font-size: (srp.tall ? 24 : 17) * srp.u;
-                wrap: word-wrap;
-                overflow: elide;
-            }
-            if srp.has-more: Rectangle {
-                property <bool> lit: root.sr-sel == 2 || (more-area.has-hover && !Nav.touch);
-                opacity: srp.blk(3);
-                x: content.width - srp.pad - self.width;
-                y: content.ov-y + content.ov-room - content.link-h + srp.blk-y(3);
-                width: more-t.preferred-width + 24 * srp.u;
-                height: content.link-h;
-                border-radius: self.height / 2;
-                background: self.lit ? Theme.accent2.with-alpha(0.85) : Theme.fg.with-alpha(0.08);
-                animate background { duration: Motion.select ? 150ms : 0ms; }
-                more-t := Text {
-                    text: Tr.t(Tr.k, "Lire la suite") + "  ›";
-                    color: parent.lit ? Theme.on-accent : Theme.accent2;
-                    font-size: (srp.tall ? 20 : 14) * srp.u;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                more-area := TouchArea {
-                    clicked => {
-                        root.sr-sel = 2;
-                        srp.more-y = 0px;
-                        root.sr-more = true;
-                    }
-                }
-            }
-
-            Rectangle {
-                x: srp.pad;
-                y: content.cast-y;
-                width: content.width - 2 * srp.pad;
-                height: content.cast-rows * content.cast-rh;
-                clip: true;
-                // Choisie au clavier : un liseré discret autour de la distribution.
-                border-radius: 12 * srp.u;
-                border-width: root.sr-sel == 3 && Nav.kb ? 2px : 0px;
-                border-color: Theme.accent2.with-alpha(0.6);
-                TouchArea {
-                    pointer-event(e) => {
-                        if (e.kind == PointerEventKind.down) {
-                            root.sr-sel = 3;
-                        }
-                    }
-                    // Doigt (glissement horizontal) : la distribution suit au pixel. Molette : une colonne
-                    // par cran. Glissement vertical du doigt : il va à la page (« Lire la suite »).
-                    scroll-event(e) => {
-                        if (e.delta-x != 0) {
-                            root.sr-cast-off = clamp(root.sr-cast-off - e.delta-x / content.cast-cw, 0, content.cast-max);
-                            return EventResult.accept;
-                        }
-                        if (Nav.drag) {
-                            return EventResult.reject;
-                        }
-                        if (e.delta-y < 0) {
-                            root.sr-cast-off = min(content.cast-max, floor(root.sr-cast-off) + 1);
-                        } else if (e.delta-y > 0) {
-                            root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
-                        }
-                        return EventResult.accept;
-                    }
-                }
-                for c[i] in root.sr-cast: Rectangle {
-                    property <int> ccol: floor(i / content.cast-rows);
-                    property <int> crow: mod(i, content.cast-rows);
-                    property <length> ph: (srp.tall ? 110 : 84) * srp.u;
-                    visible: self.ccol >= content.cast-off - 1 && self.ccol <= content.cast-off + content.cast-vis;
-                    width: (srp.tall ? 150 : 104) * srp.u;
-                    height: content.cast-rh;
-                    x: (self.ccol - content.cast-off) * content.cast-cw + (content.cast-cw - self.width) / 2;
-                    y: self.crow * content.cast-rh + (1 - srp.cast-e(i)) * 20 * srp.u;
-                    opacity: srp.cast-e(i);
-                    Rectangle {
-                        // La photo arrive en fondu (téléchargée après la page).
-                        property <float> a: c.has-image ? 1 : 0;
-                        animate a { duration: Motion.detail ? 320ms : 0ms; }
-                        x: (parent.width - self.width) / 2;
-                        y: 0px;
-                        width: parent.ph;
-                        height: self.width;
-                        border-radius: self.width / 2;
-                        background: Theme.fg.with-alpha(0.1);
-                        clip: false;
-                        if c.has-image: Image {
-                            width: parent.width;
-                            height: parent.height;
-                            source: c.image;
-                            image-fit: fill;
-                            opacity: parent.a;
-                        }
-                    }
-                    Text {
-                        y: parent.ph + 8 * srp.u;
-                        width: parent.width;
-                        text: c.title;
-                        color: Theme.fg;
-                        font-size: (srp.tall ? 18 : 12) * srp.u;
-                        font-weight: 600;
-                        horizontal-alignment: center;
-                        overflow: elide;
-                    }
-                    Text {
-                        y: parent.ph + (srp.tall ? 34 : 26) * srp.u;
-                        width: parent.width;
-                        text: c.subtitle;
-                        color: Theme.muted;
-                        font-size: (srp.tall ? 16 : 11) * srp.u;
-                        horizontal-alignment: center;
-                        overflow: elide;
-                    }
-                }
-            }
-            // Chevrons de la distribution : il y en a d'autres de ce côté (clic : une colonne de plus).
-            for side[j] in 2: Rectangle {
-                // Au doigt, pas de chevrons : la distribution se fait glisser.
-                property <bool> on: !Nav.touch && (j == 0 ? root.sr-cast-off > 0.01 : root.sr-cast-off < content.cast-max - 0.01);
-                visible: self.on;
-                opacity: srp.blk(3);
-                width: (srp.tall ? 44 : 32) * srp.u;
-                height: self.width;
-                x: j == 0 ? srp.pad - self.width / 2 : content.width - srp.pad - self.width / 2;
-                y: content.cast-y + (srp.tall ? 110 : 84) * srp.u / 2 - self.height / 2;
-                border-radius: self.width / 2;
-                background: Theme.panel.with-alpha(0.85);
-                border-width: 1px;
-                border-color: Theme.glass-border;
-                Path {
-                    width: parent.width * 0.5;
-                    height: parent.height * 0.5;
-                    x: parent.width * 0.25;
-                    y: parent.height * 0.25;
-                    viewbox-width: 16;
-                    viewbox-height: 16;
-                    fill: transparent;
-                    stroke: Theme.fg;
-                    stroke-width: 2px;
-                    stroke-line-cap: round;
-                    stroke-line-join: round;
-                    commands: j == 0 ? "M 10 3 L 5 8 L 10 13" : "M 6 3 L 11 8 L 6 13";
-                }
-                TouchArea {
-                    clicked => {
-                        root.sr-cast-off = j == 0 ? max(0, ceil(root.sr-cast-off) - 1) : min(content.cast-max, floor(root.sr-cast-off) + 1);
-                    }
-                }
-            }
-        }
-
-        // « Lire la suite » : tout le texte (résumé, informations, distribution) dans une fenêtre qui
-        // défile (↑ ↓, molette, doigt) ; Retour ou un toucher à côté la referme.
-        property <float> more-p: root.sr-more ? 1 : 0;
-        animate more-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-        if srp.more-p > 0.01: Rectangle {
-            background: Theme.scrim.with-alpha(0.6 * srp.more-p);
-            TouchArea {
-                clicked => {
-                    root.sr-more = false;
-                }
-                scroll-event(e) => {
-                    return EventResult.accept;
-                }
-            }
-            more-panel := Rectangle {
-                width: min(parent.width - 2 * srp.pad, (srp.tall ? 680 : 900) * srp.u);
-                height: parent.height - 2 * srp.pad;
-                x: (parent.width - self.width) / 2;
-                y: srp.pad + (1 - srp.more-p) * 40 * srp.u;
-                opacity: srp.more-p;
-                border-radius: 18 * srp.u;
-                background: Theme.panel;
-                border-width: 1px;
-                border-color: Theme.glass-border;
-                clip: true;
-                // Doigt : tirée vers le bas depuis le début du texte, elle se referme.
-                property <length> pull;
-                TouchArea {
-                    scroll-event(e) => {
-                        if (Nav.drag && srp.more-y <= 0px && e.delta-y > 0) {
-                            more-panel.pull += e.delta-y;
-                            if (more-panel.pull > 90px * root.k) {
-                                more-panel.pull = 0px;
-                                root.sr-more = false;
-                            }
-                        } else {
-                            more-panel.pull = 0px;
-                        }
-                        srp.more-y = clamp(srp.more-y - e.delta-y, 0px, srp.more-max);
-                        return EventResult.accept;
-                    }
-                }
-                property <length> inner: self.width - 2 * 32 * srp.u;
-                more-col := VerticalLayout {
-                    x: 32 * srp.u;
-                    y: 28 * srp.u - srp.more-y;
-                    width: more-panel.inner;
-                    spacing: 14 * srp.u;
-                    alignment: start;
-                    Text {
-                        text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                        color: Theme.fg;
-                        font-size: (srp.tall ? 36 : 28) * srp.u;
-                        font-weight: 700;
-                        wrap: word-wrap;
-                    }
-                    Text {
-                        text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
-                            + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
-                        color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 22 : 16) * srp.u;
-                        wrap: word-wrap;
-                    }
-                    for f in root.sr.facts: Text {
-                        text: f.label + " : " + f.value;
-                        color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 20 : 15) * srp.u;
-                        wrap: word-wrap;
-                    }
-                    Text {
-                        text: root.sr.overview;
-                        color: Theme.fg.with-alpha(0.9);
-                        font-size: (srp.tall ? 24 : 17) * srp.u;
-                        wrap: word-wrap;
-                    }
-                    if root.sr-cast.length > 0: Text {
-                        text: Tr.t(Tr.k, "Distribution");
-                        color: Theme.fg;
-                        font-size: (srp.tall ? 26 : 19) * srp.u;
-                        font-weight: 700;
-                    }
-                    for c in root.sr-cast: Text {
-                        text: c.subtitle != "" ? c.title + "  ·  " + c.subtitle : c.title;
-                        color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 20 : 15) * srp.u;
-                        wrap: word-wrap;
-                    }
-                    Rectangle {
-                        height: 24 * srp.u;
-                    }
-                }
-                property <length> over: max(0px, more-col.preferred-height + 28 * srp.u - self.height);
-                changed over => {
-                    srp.more-max = self.over;
-                }
-                init => {
-                    srp.more-max = self.over;
-                }
-                // Barre de défilement discrète.
-                if self.over > 0: Rectangle {
-                    x: parent.width - 8 * srp.u;
-                    width: 4 * srp.u;
-                    height: parent.height * parent.height / (parent.height + parent.over);
-                    y: (parent.height - self.height) * srp.more-y / max(1px, parent.over);
-                    border-radius: self.width / 2;
-                    background: Theme.fg.with-alpha(0.3);
                 }
             }
         }
