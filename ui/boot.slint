@@ -14,7 +14,7 @@ import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
 import { AeroSky, CircuitScene } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
-import { ThemeLogo } from "logo.slint";
+import { ThemeLogo, Srv } from "logo.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
@@ -52,7 +52,7 @@ export component BootLogo inherits Rectangle {
         background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
         if Theme.bubbles && !root.nerd: AeroSky { k: root.k; }
         // Nerd : la carte mère se monte puce par puce, puis le courant parcourt ses pistes.
-        if root.nerd: CircuitScene { k: root.k; state: root.state; surge: root.surge; bright: 1; }
+        if root.nerd: CircuitScene { k: root.k; state: root.state; surge: root.surge; bright: 1; morph: root.morph; gone: root.nerd && root.phase >= 2 ? clamp(root.zp / 0.25, 0, 1) : 0; }
     }
 
     property <bool> nerd: Theme.boot-style == 2;
@@ -61,6 +61,9 @@ export component BootLogo inherits Rectangle {
     // un anneau orange qui attend. Pas d'orbe (Aero), pas de courant (Nerd : pas de processeur) ; à la
     // fin, le logo seul (sans le nom) se pose sur le titre de « Choisir un serveur », au cœur vide aussi.
     property <bool> noserver: root.state[6] == 4;
+    // Serveur muet, rien de téléchargé (Srv.core 3) : la recherche de serveur suit, comme sans serveur
+    // le logo se pose seul (sans le nom) sur son titre.
+    property <bool> lost: Srv.core == 3;
     property <float> spread: 0;
     // Vérifications réussies (0 à 7) : la machine du thème Nerd s'allume d'autant.
     property <int> ok-n: (root.state[0] == 2 ? 1 : 0) + (root.state[1] == 2 ? 1 : 0) + (root.state[2] == 2 ? 1 : 0)
@@ -131,12 +134,21 @@ export component BootLogo inherits Rectangle {
         : root.ease(clamp(root.lp * 2 - 1, 0, 1));
     // Nerd : le courant parcourt la carte (début de la liaison), avant que le logo ne se grave.
     property <float> surge: root.phase == 0 || root.noserver ? 0 : clamp(root.lp / 0.62, 0, 1);
+    // Nerd : les puces deviennent les plots du logo (le processeur, sa puce centrale), puis les pistes
+    // du logo se tracent de plot en plot (edge-p, spoke-p) ; à la fin, le logo prend leur place
+    // (handoff), identique, avant de partir se poser sur le titre. Autres thèmes : de même quand le
+    // serveur ne répond pas (le logo des titres joue alors son cœur qui se fend ou se débranche).
+    property <float> morph: root.nerd && root.phase >= 1 ? root.ease-io(clamp((root.lp - 0.48) / 0.16, 0, 1)) : 0;
+    property <bool> handoff: root.phase >= 1 && root.spoke-p >= 1 && (root.nerd || (Srv.core != 0 && !root.noserver));
+    // Fin des rayons au bord de la puce centrale (la puce est sous les pistes) : sommets du haut et
+    // du bas, puis les quatre autres.
+    property <[float]> spoke-end: [0.934, 0.803, 0.803, 0.934, 0.803, 0.803];
     // Libellés et textes : ils s'effacent pendant la liaison (ou l'écartement, sans serveur).
     property <float> lab-fade: root.noserver ? root.edge-p : root.aero ? min(1, root.swirl * 3) : root.gate || root.nerd ? clamp(root.lp * 3, 0, 1) : root.edge-p;
     // Fin (zp) : le logo rétrécit et glisse à gauche (o1), le nom « Turtlefin » apparaît à sa droite (o2),
     // puis tout s'efface sur la page suivante (o3). Sans serveur : pas de nom, le logo reste au milieu.
     property <float> o1: root.ease-io(clamp(root.zp / 0.42, 0, 1));
-    property <float> o2: root.noserver ? 0 : root.ease(clamp((root.zp - 0.3) / 0.3, 0, 1));
+    property <float> o2: root.noserver || root.lost ? 0 : root.ease(clamp((root.zp - 0.3) / 0.3, 0, 1));
     // o4 : l'ensemble monte se poser sur le titre de la page ; o3 : le fond s'efface dessous.
     property <float> o4: root.ease-io(clamp((root.zp - 0.48) / 0.4, 0, 1));
     property <float> o3: clamp((root.zp - 0.8) / 0.2, 0, 1);
@@ -150,7 +162,7 @@ export component BootLogo inherits Rectangle {
     property <length> word-gap: 20px * root.k;
     property <length> word-size: root.side * 0.17;
     property <length> group-w: root.side * root.mini + root.word-gap + word-m.preferred-width;
-    property <length> end-cx: root.noserver ? root.width / 2 : (root.width - root.group-w) / 2 + root.side * root.mini / 2;
+    property <length> end-cx: root.noserver || root.lost ? root.width / 2 : (root.width - root.group-w) / 2 + root.side * root.mini / 2;
     word-m := Text { visible: false; text: "Turtlefin"; font-size: root.word-size; font-weight: 800; }
     link-timer := Timer {
         interval: root.link-len + 150ms;
@@ -212,7 +224,7 @@ export component BootLogo inherits Rectangle {
         transform-scale: root.logo-s;
 
         // Orbe de verre derrière le logo : sphère d'accent sombre au bord, lueur en bas.
-        if root.orb && root.orb-t > 0: Rectangle {
+        if root.orb && root.orb-t > 0 && !root.handoff: Rectangle {
             x: (128 - 100 * root.orb-s) * root.u;
             y: (128 - 100 * root.orb-s) * root.u;
             width: 200 * root.orb-s * root.u;
@@ -234,7 +246,7 @@ export component BootLogo inherits Rectangle {
             }
         }
         // Aero : halo du logo qui s'allume, et éclair blanc au moment où les billes se rejoignent.
-        if root.aero && root.lp > 0.4: Rectangle {
+        if root.aero && root.lp > 0.4 && !root.handoff: Rectangle {
             property <float> w: 120 + 150 * root.reveal;
             x: (128 - self.w / 2) * root.u;
             y: (128 - self.w / 2) * root.u;
@@ -255,7 +267,7 @@ export component BootLogo inherits Rectangle {
 
         // Contour : chaque arête part de son sommet vers le suivant, toutes en même temps.
         for i in 6: Path {
-            visible: root.edge-p > 0 && !root.nerd;
+            visible: root.edge-p > 0 && !root.nerd && !root.handoff;
             // Slint réduit le dessin d'un chemin de l'épaisseur de son trait : on agrandit d'autant.
             x: (53 - 7) * root.u;
             y: (53 - 7) * root.u;
@@ -275,7 +287,7 @@ export component BootLogo inherits Rectangle {
         }
         // Rayons, des sommets vers l'hexagone central.
         for i in 6: Path {
-            visible: root.spoke-p > 0 && !root.nerd;
+            visible: root.spoke-p > 0 && !root.nerd && !root.handoff;
             x: (53 - 4) * root.u;
             y: (53 - 4) * root.u;
             width: (150 + 8) * root.u;
@@ -292,18 +304,51 @@ export component BootLogo inherits Rectangle {
                 + (root.px[i] + (root.ix[i] - root.px[i]) * root.spoke-p) + " "
                 + (root.py[i] + (root.iy[i] - root.py[i]) * root.spoke-p);
         }
-        // Nerd : le logo à pistes se grave sur la carte (le même que sur les titres, voir ThemeLogo).
-        if root.nerd && root.edge-p > 0: ThemeLogo {
+        // Nerd : les pistes du logo se tracent entre les plots (les puces devenues plots, dessous) :
+        // chaque arête part du bord de son plot vers le suivant, puis les rayons vers la puce centrale.
+        // Même dessin que ThemeLogo (repère 256, trait 9).
+        for i in 6: Path {
+            visible: root.nerd && root.edge-p > 0 && !root.handoff;
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: transparent;
+            stroke: @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
+            stroke-width: 9 * root.u;
+            property <float> f0: 14 / 68;
+            property <float> f1: self.f0 + (1 - 2 * self.f0) * root.edge-p;
+            commands: "M " + (root.px[i] + (root.px[mod(i + 1, 6)] - root.px[i]) * self.f0) + " " + (root.py[i] + (root.py[mod(i + 1, 6)] - root.py[i]) * self.f0)
+                + " L " + (root.px[i] + (root.px[mod(i + 1, 6)] - root.px[i]) * self.f1) + " " + (root.py[i] + (root.py[mod(i + 1, 6)] - root.py[i]) * self.f1);
+        }
+        for i in 6: Path {
+            visible: root.nerd && root.spoke-p > 0 && !root.handoff && !root.noserver;
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            fill: transparent;
+            stroke: @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
+            stroke-width: 9 * root.u;
+            property <float> f0: 14 / 38;
+            property <float> f1: self.f0 + (root.spoke-end[i] - self.f0) * root.spoke-p;
+            commands: "M " + (root.px[i] + (root.ix[i] - root.px[i]) * self.f0) + " " + (root.py[i] + (root.iy[i] - root.py[i]) * self.f0)
+                + " L " + (root.px[i] + (root.ix[i] - root.px[i]) * self.f1) + " " + (root.py[i] + (root.iy[i] - root.py[i]) * self.f1);
+        }
+        // Puis le logo lui-même (le même que sur les titres, voir ThemeLogo) prend le relais.
+        if root.handoff: ThemeLogo {
             hollow: root.noserver;
             width: parent.width;
             height: parent.height;
-            opacity: root.edge-p;
-            transform-scale: 1.25 - 0.25 * root.edge-p;
         }
         // Hexagone central : le point du serveur grandit jusqu'à lui.
         Path {
             property <float> g: 0.25 + 0.75 * root.spoke-p;
-            visible: root.spoke-p > 0 && !root.nerd && !root.noserver;
+            visible: root.spoke-p > 0 && !root.nerd && !root.noserver && !root.handoff;
             x: 53 * root.u;
             y: 53 * root.u;
             width: 150 * root.u;
@@ -342,7 +387,7 @@ export component BootLogo inherits Rectangle {
             width: self.d;
             height: self.d;
             border-radius: self.d / 2;
-            visible: !root.aero || root.orb-t == 0;
+            visible: (!root.aero || root.orb-t == 0) && !(root.handoff && !root.nerd);
             background: root.nerd || root.gate ? transparent : root.aero
                 ? @radial-gradient(circle, root.orb-color(self.s).brighter(0.5) 0%, root.orb-color(self.s) 55%, root.orb-color(self.s).darker(0.35) 100%)
                 : root.dot-color(self.s, root.px[i], root.py[i]);
@@ -376,6 +421,7 @@ export component BootLogo inherits Rectangle {
         }
         // Le centre (7e point) : le serveur, vérifié en dernier.
         Rectangle {
+            visible: !(root.handoff && !root.nerd);
             property <int> s: root.state[6];
             property <float> base: root.ring ? 30 : root.dot-size(self.s);
             animate base { duration: 260ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -419,7 +465,7 @@ export component BootLogo inherits Rectangle {
             }
         }
         // Grand reflet blanc de l'orbe, par-dessus la carapace.
-        if root.orb && root.orb-t > 0: Rectangle {
+        if root.orb && root.orb-t > 0 && !root.handoff: Rectangle {
             x: (128 - 100 * root.orb-s + 200 * root.orb-s * 0.13) * root.u;
             y: (128 - 100 * root.orb-s + 200 * root.orb-s * 0.04) * root.u;
             width: 200 * 0.74 * root.orb-s * root.u;

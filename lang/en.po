@@ -2114,3 +2114,33 @@ msgstr "The theme's background moves gently (a little more work; turn off on a s
 
 msgid "Regarder hors ligne"
 msgstr "Watch offline"
+
+msgid "Ce dossier existe déjà."
+msgstr "This folder already exists."
+
+msgid "Créer"
+msgstr "Create"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Created in the folder shown, then selected in the list."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "Could not create the folder: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Invalid folder name (no \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Folder name"
+
+msgid "Nouveau dossier"
+msgstr "New folder"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Server reachable again"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Server unreachable: look for it on the network, or choose another one."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server unreachable: watch your downloads offline, or wait for it to come back (retrying every 5 s)."

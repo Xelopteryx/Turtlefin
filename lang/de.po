@@ -2114,3 +2114,33 @@ msgstr "Der Hintergrund des Themas bewegt sich sanft (etwas mehr Rechenaufwand; 
 
 msgid "Regarder hors ligne"
 msgstr "Offline ansehen"
+
+msgid "Ce dossier existe déjà."
+msgstr "Dieser Ordner existiert bereits."
+
+msgid "Créer"
+msgstr "Erstellen"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Wird im angezeigten Ordner erstellt und dann in der Liste ausgewählt."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "Ordner konnte nicht erstellt werden: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Ungültiger Ordnername (kein \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Ordnername"
+
+msgid "Nouveau dossier"
+msgstr "Neuer Ordner"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Server wieder erreichbar"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Server nicht erreichbar: Suche ihn im Netzwerk oder wähle einen anderen."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server nicht erreichbar: Sieh dir deine Downloads offline an oder warte, bis er zurück ist (neuer Versuch alle 5 s)."

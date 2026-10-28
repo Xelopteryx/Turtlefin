@@ -470,14 +470,22 @@ export component PlayerView inherits Rectangle {
     // de 10 s selon le côté) ; seul, il montre ou cache les commandes.
     property <bool> tap-wait;
     property <bool> tap-osd;
-    // Retour visuel du double toucher : -1 recul, 1 avance ; seek-n relance l'animation.
+    // Retour visuel du double toucher : -1 recul, 1 avance ; seek-n relance l'animation. Après un
+    // double toucher, chaque toucher du même côté (dans la seconde qui suit le précédent) ajoute 10 s
+    // de plus : le compteur monte (+10, +20, +30…), comme sur les applis vidéo des téléphones.
     property <int> seek-side;
     property <int> seek-n;
+    property <int> seek-total;
     property <duration> seek-t0;
+    property <length> tap-x;
+    property <length> tap-y;
     changed seek-n => {
         self.seek-t0 = animation-tick();
     }
-    property <float> seek-q: root.seek-n > 0 ? clamp((animation-tick() - root.seek-t0) / 700ms, 0, 1) : 1;
+    // 0 au toucher, 1 quand le retour visuel a disparu (plus rien d'affiché : 1,1 s après le dernier).
+    property <float> seek-q: root.seek-n > 0 ? clamp((animation-tick() - root.seek-t0) / 1100ms, 0, 1) : 1;
+    // Série en cours : un toucher de plus compte tout de suite (pas d'attente du double toucher).
+    property <bool> seek-chain: root.seek-n > 0 && root.seek-q < 0.8;
     // Carte « Épisode suivant » et « Passer l'intro » : apparition et disparition en fondu.
     property <float> next-p: root.up-mode == "next" && root.menu == "" ? 1 : 0;
     animate next-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
@@ -818,10 +826,22 @@ export component PlayerView inherits Rectangle {
                 root.menu = "";
                 root.show();
             } else if (Nav.touch) {
-                if (root.tap-wait) {
+                if (root.seek-chain) {
+                    // Série de touchers : 10 s de plus à chaque fois (de l'autre côté : nouvelle série).
+                    let side = self.mouse-x < self.width / 2 ? -1 : 1;
+                    root.seek-total = side == root.seek-side ? root.seek-total + 10 : 10;
+                    root.seek-side = side;
+                    root.tap-x = self.mouse-x;
+                    root.tap-y = self.mouse-y;
+                    root.command(side < 0 ? "seek:-10" : "seek:10");
+                    root.seek-n += 1;
+                } else if (root.tap-wait) {
                     // Second toucher : recul ou avance de 10 s selon le côté touché.
                     root.tap-wait = false;
                     root.seek-side = self.mouse-x < self.width / 2 ? -1 : 1;
+                    root.seek-total = 10;
+                    root.tap-x = self.mouse-x;
+                    root.tap-y = self.mouse-y;
                     root.command(root.seek-side < 0 ? "seek:-10" : "seek:10");
                     root.seek-n += 1;
                     if (root.tap-osd) {
@@ -858,23 +878,72 @@ export component PlayerView inherits Rectangle {
         }
     }
 
-    // Double toucher : « ‹‹ 10 s » ou « 10 s ›› » s'efface du côté touché.
-    if root.seek-q < 1: Rectangle {
-        x: root.seek-side < 0 ? parent.width * 0.18 - self.width / 2 : parent.width * 0.82 - self.width / 2;
-        y: (parent.height - self.height) / 2;
-        width: 150px * root.k;
-        height: self.width;
-        border-radius: self.width / 2;
-        background: #00000080;
-        opacity: 1 - root.seek-q * root.seek-q;
-        transform-scale: 0.85 + 0.25 * root.seek-q;
-        Text {
-            text: root.seek-side < 0 ? "‹‹ 10 s" : "10 s ››";
-            color: Theme.player-ink;
-            font-size: 22px * root.k;
-            font-weight: 700;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+    // Double toucher (et touchers suivants) : du côté touché, un arc de lumière part du bord, une
+    // onde s'élargit sous le doigt, trois chevrons s'allument l'un après l'autre et le total
+    // (« +30 s », « −20 s ») rebondit à chaque nouveau toucher ; le tout s'efface ensuite.
+    if root.seek-q < 1: sk := Rectangle {
+        clip: true;
+        // Apparition au premier toucher, disparition à la fin (rien entre deux touchers).
+        property <float> a: Motion.player ? clamp((1 - root.seek-q) / 0.25, 0, 1) : 1;
+        property <duration> since: animation-tick() - root.seek-t0;
+        // Arc : grand disque centré hors de l'écran, sur le bord du côté touché.
+        Rectangle {
+            width: parent.height * 1.5;
+            height: self.width;
+            x: root.seek-side < 0 ? parent.width * 0.36 - self.width : parent.width * 0.64;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            background: #ffffff;
+            opacity: 0.10 * parent.a;
+        }
+        // Onde sous le doigt, à chaque toucher.
+        Rectangle {
+            property <float> w: Motion.player ? clamp(parent.since / 450ms, 0, 1) : 1;
+            width: (60px + 220px * (1 - (1 - self.w) * (1 - self.w))) * root.k;
+            height: self.width;
+            x: root.tap-x - self.width / 2;
+            y: root.tap-y - self.height / 2;
+            border-radius: self.width / 2;
+            background: #ffffff;
+            opacity: 0.22 * (1 - self.w) * parent.a;
+        }
+        // Chevrons et total, au milieu de l'arc.
+        Rectangle {
+            width: 160px * root.k;
+            height: 110px * root.k;
+            x: root.seek-side < 0 ? parent.width * 0.16 - self.width / 2 : parent.width * 0.84 - self.width / 2;
+            y: (parent.height - self.height) / 2;
+            opacity: parent.a;
+            for j in 3: Path {
+                // Allumés en vague, dans le sens du saut (de droite à gauche pour un recul).
+                property <int> rank: root.seek-side < 0 ? 2 - j : j;
+                property <float> ph: Motion.player ? mod(animation-tick() / 1ms + 1000 - self.rank * 140, 700) / 700 : 0.5;
+                x: (parent.width - 3 * 22px * root.k) / 2 + j * 22px * root.k;
+                y: 6px * root.k;
+                width: 22px * root.k;
+                height: 30px * root.k;
+                viewbox-width: 22;
+                viewbox-height: 30;
+                fill: transparent;
+                stroke: Theme.player-ink;
+                stroke-width: 3.5px * root.k;
+                stroke-line-cap: round;
+                stroke-line-join: round;
+                commands: root.seek-side < 0 ? "M 15 5 L 6 15 L 15 25" : "M 7 5 L 16 15 L 7 25";
+                opacity: 0.25 + 0.75 * max(0, 1 - abs(self.ph - 0.25) * 4);
+            }
+            Text {
+                y: 46px * root.k;
+                width: parent.width;
+                // Rebond du total à chaque toucher.
+                property <float> pop: Motion.player ? clamp(sk.since / 220ms, 0, 1) : 1;
+                transform-scale: 1 + 0.3 * (1 - self.pop) * (1 - self.pop);
+                text: (root.seek-side < 0 ? "−" : "+") + root.seek-total + " s";
+                color: Theme.player-ink;
+                font-size: 26px * root.k;
+                font-weight: 800;
+                horizontal-alignment: center;
+            }
         }
     }
 

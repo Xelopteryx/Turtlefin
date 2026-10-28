@@ -5094,7 +5094,7 @@ fn set_avatar(app: &Arc<App>, id: String) {
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "relay" | "language" | "animpreset" | "theme" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();
@@ -5558,6 +5558,36 @@ fn pw_step(app: &Arc<App>, which: i32, text: String) {
 }
 
 fn addr_save(app: &Arc<App>, which: i32, text: String) {
+    // Nouveau dossier (explorateur du dossier des téléchargements) : créé dans le dossier affiché,
+    // puis choisi dans la liste.
+    if which == 9 {
+        let Some(u) = app.ui().upgrade() else { return };
+        let name = text.trim();
+        // Un seul nom, sans séparateur ni caractère interdit par Windows, ni « . » / « .. ».
+        let bad = name.is_empty()
+            || name == "."
+            || name == ".."
+            || name.ends_with('.')
+            || name.chars().count() > 120
+            || name.chars().any(|c| c.is_control() || "\\/:*?\"<>|".contains(c));
+        if bad {
+            u.set_addr_err(tr("Nom de dossier impossible (pas de \\ / : * ? \" < > |).").into());
+            return;
+        }
+        let dir = app.lx_dir.lock().unwrap().clone();
+        let new = dir.join(name);
+        if new.exists() {
+            u.set_addr_err(tr("Ce dossier existe déjà.").into());
+            return;
+        }
+        if let Err(e) = std::fs::create_dir(&new) {
+            u.set_addr_err(trf("Impossible de créer le dossier : {}", &[&e]).into());
+            return;
+        }
+        u.set_addr_edit(0);
+        lx_show(app, dir, Some(&new));
+        return;
+    }
     // Nom d'un serveur (vide, ou son nom d'origine : plus de nom choisi).
     if which == 8 {
         let id = app.rename_key.lock().unwrap().clone();
@@ -6000,6 +6030,18 @@ fn lx_button(app: &Arc<App>, b: &str) {
             if !dir.as_os_str().is_empty() {
                 change_download_dir(app, dir, false);
             }
+        }
+        // Nouveau dossier dans le dossier affiché : son nom est demandé (fenêtre de saisie, mode 9).
+        "mkdir" => {
+            if app.lx_dir.lock().unwrap().as_os_str().is_empty() {
+                return;
+            }
+            u.set_addr_text("".into());
+            u.set_addr_hint(tr("Films").into());
+            u.set_addr_err("".into());
+            u.set_addr_osk(false);
+            u.set_addr_field(0);
+            u.set_addr_edit(9);
         }
         "template" => match i18n::write_template() {
             Ok(dir) => {
@@ -8704,17 +8746,11 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
         saved.server = best;
     }
     config::save(&saved);
-    // Serveur injoignable : téléchargements seulement (s'il y en a).
+    // Serveur injoignable : mode hors ligne proposé (téléchargements), sinon recherche du serveur ; la
+    // session se rouvre toute seule dès qu'il répond (télé sans clavier).
     if !discovery::reachable(&saved.server).await {
-        if !downloads::list().is_empty() {
-            go_offline(&a);
-            return;
-        }
-        // Rien hors ligne (démarrage avant le réseau, serveur éteint) : écran de connexion, et
-        // la session se rouvre toute seule dès que le serveur répond (télé sans clavier).
-        let _ = a.ui().upgrade_in_event_loop(|u| u.set_screen("login".into()));
-        show_login_error(&a.ui(), i18n::tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…").into());
-        retry_start(a);
+        let a2 = a.clone();
+        let _ = a.ui().upgrade_in_event_loop(move |u| unreachable_start(&a2, &u, true));
         return;
     }
     match api::Client::from_saved(&saved) {
@@ -8735,6 +8771,69 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
         }
         Err(e) => show_login_error(&a.ui(), human_err(&e)),
     }
+}
+
+/// Démarrage, serveur muet. Des médias téléchargés : « Qui regarde ? » propose « Regarder hors ligne »
+/// (le cœur du logo est fendu ; il devient une maison si on accepte). Rien hors ligne : le cœur se
+/// débranche et la recherche de serveur s'ouvre. `autostart` : compte de démarrage (session déjà
+/// enregistrée), rouverte d'elle-même dès que le serveur répond.
+fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
+    let has_dl = !downloads::list().is_empty();
+    set_core(app, if has_dl { 1 } else { 3 });
+    if has_dl {
+        u.set_screen("login".into());
+        u.set_login_mode("pick".into());
+        u.set_busy(false);
+        u.set_offline_ok(true);
+        let msg = tr("Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s).");
+        u.set_error_text(msg.into());
+        if autostart {
+            retry_start(app.clone());
+        }
+        watch_server_back(app.clone(), msg);
+    } else {
+        open_servers(app);
+        u.set_toast(tr("Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre.").into());
+        watch_server_found(app.clone(), autostart);
+    }
+}
+
+/// Recherche de serveur ouverte parce que le serveur enregistré ne répondait pas : il est réessayé
+/// toutes les 5 s tant que la page est affichée. Dès qu'il répond, le cœur du logo revient se brancher ;
+/// compte de démarrage : sa session s'ouvre, sinon la liste des serveurs est relancée (il y apparaît).
+fn watch_server_found(app: Arc<App>, autostart: bool) {
+    app.rt.clone().spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                let _ = tx.send(u.get_screen().as_str() == "servers" && !u.get_manual_open());
+            });
+            if !rx.await.unwrap_or(false) || app.client().is_some() {
+                return;
+            }
+            let mut saved = config::load();
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+            if best.is_empty() || !discovery::reachable(&best).await {
+                continue;
+            }
+            set_core(&app, 0);
+            let a = app.clone();
+            let _ = app.ui().upgrade_in_event_loop(move |u| {
+                u.set_toast(tr("Serveur de nouveau joignable.").into());
+                if !autostart {
+                    search_servers(&a);
+                }
+            });
+            if autostart && !saved.token.is_empty() {
+                saved.server = best;
+                config::save(&saved);
+                let _ = app.ui().upgrade_in_event_loop(|u| u.set_screen("loading".into()));
+                Box::pin(open_saved_session(app, saved)).await;
+            }
+            return;
+        }
+    });
 }
 
 /// Démarrage sans serveur joignable : toutes les 5 s, tant que l'écran de connexion attend (personne
@@ -8764,6 +8863,7 @@ fn retry_start(app: Arc<App>) {
             let Ok(client) = api::Client::from_saved(&saved) else { return };
             let _ = app.ui().upgrade_in_event_loop(|u| {
                 u.set_error_text("".into());
+                u.set_offline_ok(false);
                 u.set_screen("loading".into());
             });
             load_home(app, client).await;
@@ -9524,7 +9624,7 @@ fn local_key_exists(key: &str) -> bool {
     })
 }
 
-/// Cœur du logo (voir Srv, ui/logo.slint) : 0 serveur joint · 1 injoignable · 2 hors ligne.
+/// Cœur du logo (voir Srv, ui/logo.slint) : 0 serveur joint · 1 injoignable · 2 hors ligne · 3 perdu.
 fn set_core(app: &Arc<App>, v: i32) {
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         let g = u.global::<Srv>();

@@ -2122,3 +2122,33 @@ msgstr "Tło motywu delikatnie się porusza (trochę więcej obliczeń; wyłącz
 
 msgid "Regarder hors ligne"
 msgstr "Oglądaj offline"
+
+msgid "Ce dossier existe déjà."
+msgstr "Ten folder już istnieje."
+
+msgid "Créer"
+msgstr "Utwórz"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Zostanie utworzony w wyświetlanym folderze, a następnie wybrany na liście."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "Nie można utworzyć folderu: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Nieprawidłowa nazwa folderu (bez \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Nazwa folderu"
+
+msgid "Nouveau dossier"
+msgstr "Nowy folder"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Serwer znów dostępny"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Serwer nieosiągalny: poszukaj go w sieci albo wybierz inny."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Serwer nieosiągalny: oglądaj pobrane pliki offline albo poczekaj, aż wróci (ponowna próba co 5 s)."

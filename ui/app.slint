@@ -27,7 +27,7 @@ import "fonts/TurtlefinBlankAero-SemiBold.ttf";
 import "fonts/TurtlefinBlankAero-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder, Perf, Win7Glass, TermGlass } from "theme.slint";
-import { AeroSky, HexDrift } from "sky.slint";
+import { AeroSky, HexDrift, AeroDrift, CircuitDrift } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
 import { LxItem, LangExplorer } from "langx.slint";
@@ -2758,6 +2758,21 @@ component Backdrop inherits Rectangle {
         ticking: root.ticking;
         opacity: root.a;
     }
+    // Aero et Nerd ont aussi leur fond animé (même réglage) : bulles et reflet, données et horloge.
+    if Theme.bubbles && (Theme.scenery == 1 || Theme.scenery == 2) && !Perf.hide(4): AeroDrift {
+        live: Motion.scenery;
+        ticking: root.ticking;
+        k: root.k;
+        opacity: root.a;
+    }
+    if Theme.bubbles && Theme.scenery == 3 && !Perf.hide(4): CircuitDrift {
+        live: Motion.scenery;
+        ticking: root.ticking;
+        k: root.k;
+        no-server: root.no-server || Srv.core == 3;
+        offline: Srv.core == 2;
+        opacity: root.a;
+    }
     // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
     // Windows 7) : moitié haute claire, moitié basse plus sombre, liserés clairs.
     if Theme.header-glass && root.glass && !Perf.hide(8): Rectangle {
@@ -3028,21 +3043,26 @@ export component AppWindow inherits Window {
     // vue, attendent à leur place (rien à dessiner ni à animer, voir la grille de la bibliothèque).
     in-out property <int> deal-n: 20;
     // Durée de la distribution : un départ toutes les 70 ms, 420 ms de vol chacun.
-    property <duration> deal-len: root.deal-lead + min(root.lib-items.length, root.deal-n) * 70ms + 420ms;
+    property <duration> deal-len: root.deal-lead + root.deal-delay(min(root.lib-items.length, root.deal-n) - 1) + 420ms;
+    // Départ de la carte n° i. Portrait : rangée par rangée, du haut vers le bas (la mosaïque se
+    // déplie comme un store), un léger décalage d'une colonne à l'autre.
+    pure function deal-delay(i: int) -> duration {
+        return root.narrow ? floor(i / root.pc-cols) * 130ms + mod(i, root.pc-cols) * 40ms : i * 70ms;
+    }
     // Attente avant la première carte : celle de l'arrivée de la page (bibliothèque déjà là), presque
     // rien quand le paquet vient de se poser (il distribue aussitôt).
     property <duration> deal-lead: 260ms;
-    changed deal-anim => {
-        // Distribution finie : tous les morceaux sont partis, l'image partagée n'a plus rien à montrer.
-        if (!root.deal-anim && root.hero-deck && root.hero-on) {
-            root.hero-on = false;
-        }
-    }
     Timer {
         interval: root.deal-len;
         running: root.deal-anim;
         triggered => {
             root.deal-anim = false;
+            // Distribution finie : tous les morceaux sont partis, l'image partagée n'a plus rien à
+            // montrer. Seulement ici : un `changed deal-anim` éteignait aussi le paquet suivant
+            // (bibliothèque ouverte pendant une distribution : deal-anim remis à false à son départ).
+            if (root.hero-deck && root.hero-on && root.hero-dest && !root.undeal-anim) {
+                root.hero-on = false;
+            }
         }
     }
     // Bibliothèque ouverte (pas un retour) : ses films et séries sont distribués de la même façon,
@@ -3061,11 +3081,12 @@ export component AppWindow inherits Window {
         if (!Motion.pages || !Motion.detail || (root.hero-on && root.hero-deck)) {
             return;
         }
-        let w = min(root.width * 0.5, 560px * root.k);
+        let w = root.deck-w16;
         root.hero-fw = w;
         root.hero-fh = w * 0.5625;
         root.hero-fx = (root.width - w) / 2;
-        root.hero-fy = root.height + 12px * root.k;
+        // Portrait : il sort de sous la barre du haut (sa place est juste dessous).
+        root.hero-fy = root.narrow ? root.header-h - root.hero-fh - 8px * root.k : root.height + 12px * root.k;
         root.hero-img = card.image;
         root.hero-data = card;
         root.hero-k = root.k;
@@ -3094,7 +3115,11 @@ export component AppWindow inherits Window {
     // reforme. Lignes de `pc-cols` morceaux ; la dernière, incomplète, a des morceaux plus larges (la
     // carte reste entièrement couverte). Coordonnées en fractions de la carte.
     property <int> pc-n: max(1, min(root.lib-items.length, root.deal-n));
-    property <int> pc-cols: max(1, ceil(sqrt(root.pc-n * (root.deck-live ? root.hero-fw / max(1px, root.hero-fh) : 1.78))));
+    // Portrait : la carte, posée en bannière en haut, est une miniature de la grille (autant de
+    // colonnes) ; chaque morceau grandit jusqu'à son affiche.
+    property <int> pc-cols: root.narrow ? max(1, min(root.lib-cols, root.pc-n))
+        : max(1, ceil(sqrt(root.pc-n * (root.deck-live ? root.hero-fw / max(1px, root.hero-fh) : 1.78))));
+    in-out property <int> lib-cols: 1;      // colonnes de la grille (posé par la bibliothèque)
     property <int> pc-rows: ceil(root.pc-n / root.pc-cols);
     pure function pc-row(i: int) -> int {
         return floor(i / root.pc-cols);
@@ -3112,11 +3137,21 @@ export component AppWindow inherits Window {
     // Sans image partagée (carte sans image, ouverture au clavier d'une page déjà chargée…) : le paquet
     // est tout de même en bas au centre, au format 16:9.
     property <bool> deck-live: root.hero-on && root.hero-deck;
-    property <length> deck-dw: min(root.width * 0.5, 560px * root.k);
-    property <length> deck-x: root.deck-live ? root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p : (root.width - root.deck-dw) / 2;
-    property <length> deck-y: root.deck-live ? root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p : root.height - root.deck-dw * 0.5625 - 32px * root.k;
-    property <length> deck-w: root.deck-live ? root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p : root.deck-dw;
-    property <length> deck-h: root.deck-live ? root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p : root.deck-dw * 0.5625;
+    property <length> deck-dw: root.narrow ? root.width - 32px * root.k : min(root.width * 0.5, 560px * root.k);
+    // Place du paquet en bas au centre : largeur ci-dessus, hauteur bornée (affiche 2:3 d'une
+    // collection : elle sortait de l'écran par le haut).
+    property <length> deck-bh: root.narrow ? min((root.height - root.header-h) * 0.26, root.deck-dw * 0.5625)
+        : min((root.height - root.header-h) * 0.42, root.deck-dw * 0.5625);
+    // Paquet 16:9 (bibliothèque) à cette place.
+    property <length> deck-w16: min(root.deck-dw, root.deck-bh / 0.5625);
+    property <length> deck-x: root.deck-live ? root.hero-fx + (root.hero-tx - root.hero-fx) * root.hero-p : (root.width - root.deck-w16) / 2;
+    property <length> deck-y: root.deck-live ? root.hero-fy + (root.hero-ty - root.hero-fy) * root.hero-p : root.deck-top(root.deck-w16 * 0.5625);
+    // Haut du paquet posé (hauteur h) : en bas au centre, ou en haut sous la barre en portrait.
+    pure function deck-top(h: length) -> length {
+        return root.narrow ? root.header-h + 12px * root.k : root.height - h - 32px * root.k;
+    }
+    property <length> deck-w: root.deck-live ? root.hero-fw + (root.hero-tw - root.hero-fw) * root.hero-p : root.deck-w16;
+    property <length> deck-h: root.deck-live ? root.hero-fh + (root.hero-th - root.hero-fh) * root.hero-p : root.deck-w16 * 0.5625;
     // Avancement de la carte n° i de la grille (0 : dans le paquet, au centre · 1 : à sa place).
     // Collection ouverte, distribution pas encore commencée : les cartes restent dans le paquet.
     property <bool> deal-wait: root.hero-deck && root.hero-on && root.hero-dest && !root.deal-anim && !root.hero-out && !root.loading;
@@ -3125,7 +3160,7 @@ export component AppWindow inherits Window {
     property <bool> deck-back;
     property <bool> undeal-anim;
     property <duration> undeal-t0;
-    property <duration> undeal-len: 360ms + max(0, min(root.lib-items.length, root.deal-n) - 1) * 35ms + 160ms;
+    property <duration> undeal-len: 360ms + root.deal-delay(max(0, min(root.lib-items.length, root.deal-n) - 1)) / 2 + 160ms;
     function undeal-start() {
         // La carte reparaît au centre (paquet), les affiches s'y tassent.
         root.hero-deck = true;
@@ -3134,6 +3169,7 @@ export component AppWindow inherits Window {
         root.hero-out = false;
         root.hero-flying = false;
         root.hero-on = true;
+        root.deal-anim = false;
         root.undeal-t0 = animation-tick();
         root.undeal-anim = true;
     }
@@ -3159,7 +3195,7 @@ export component AppWindow inherits Window {
         // Retour : les affiches visibles se tassent au centre, sur la carte (voir undeal).
         if (root.undeal-anim && Motion.detail) {
             let n = min(root.lib-items.length, root.deal-n);
-            let t = clamp((animation-tick() - root.undeal-t0 - max(0, n - 1 - i) * 35ms) / 360ms, 0, 1);
+            let t = clamp((animation-tick() - root.undeal-t0 - (root.deal-delay(max(0, n - 1)) - root.deal-delay(i)) / 2) / 360ms, 0, 1);
             return 1 - t * t;
         }
         // Carte reformée qui regagne sa place (retour) : toutes les affiches sont dans la carte.
@@ -3176,7 +3212,7 @@ export component AppWindow inherits Window {
         if (!root.deal-anim || !Motion.detail) {
             return 1;
         }
-        let t = clamp((animation-tick() - root.deal-t0 - root.deal-lead - i * 70ms) / 420ms, 0, 1);
+        let t = clamp((animation-tick() - root.deal-t0 - root.deal-lead - root.deal-delay(i)) / 420ms, 0, 1);
         return 1 - (1 - t) * (1 - t) * (1 - t);
     }
     property <string> hero-id;              // page ouverte depuis une carte : retour animé
@@ -3230,16 +3266,19 @@ export component AppWindow inherits Window {
     property <float> fade-q: root.fade-anim && Motion.detail ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
-    property <length> sr-u: min(root.height / 720px, root.width / 1280px) * 1px;
-    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
-    property <length> hero-ty: root.hero-deck ? root.height - root.hero-th - 32px * root.k : root.hero-seerr ? 40 * root.sr-u : root.hero-wide && !root.hero-door ? 0px
+    property <length> sr-u: (root.narrow ? min(root.height / 1280px, root.width / 720px) : min(root.height / 720px, root.width / 1280px)) * 1px;
+    // Page Seerr : marge et largeur de l'affiche (la destination de l'image qui vole).
+    property <length> sr-pad: (root.narrow ? 32 : 40) * root.sr-u;
+    property <length> sr-poster-w: (root.narrow ? 280 : 200) * root.sr-u;
+    property <length> hero-tx: root.hero-deck ? (root.width - root.hero-tw) / 2 : root.hero-seerr ? root.sr-pad : root.hero-wide && !root.hero-door ? 0px : root.narrow ? 16px : 32px;
+    property <length> hero-ty: root.hero-deck ? root.deck-top(root.hero-th) : root.hero-seerr ? root.sr-pad : root.hero-wide && !root.hero-door ? 0px
         : root.header-h + 24px - (root.hero-dest ? root.hero-keep : 0px);
     // Fiche -> fiche sans défilement : décalage de l'affiche de la page (voir open-hero).
     property <length> hero-keep;
     // La page défile au rythme de l'affiche qui vole (saison), le reste du temps comme d'habitude.
     property <bool> hero-glide: root.d-glide || (root.hero-anim && root.hero-dest && root.screen == "detail");
-    property <length> hero-tw: root.hero-deck ? min(root.width * 0.5, 560px * root.k) : root.hero-seerr ? 200 * root.sr-u : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
-    property <length> hero-th: root.hero-deck ? min(root.width * 0.5, 560px * root.k) * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? 300 * root.sr-u : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
+    property <length> hero-tw: root.hero-deck ? min(root.deck-dw, root.deck-bh * root.hero-fw / max(1px, root.hero-fh)) : root.hero-seerr ? root.sr-poster-w : root.hero-wide && !root.hero-door ? root.width : root.poster-w;
+    property <length> hero-th: root.hero-deck ? root.hero-tw * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? root.sr-poster-w * 1.5 : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
     property <int> hero-crop: root.hero-big && root.hero-fw > 0
@@ -3262,8 +3301,9 @@ export component AppWindow inherits Window {
         if (root.hero-ready) {
             root.kid-veil = false;
         }
-        // Collection arrivée : la distribution commence (les cartes partent du paquet).
-        if (root.hero-ready && root.hero-deck) {
+        // Collection arrivée : la distribution commence (les cartes partent du paquet). Pas au
+        // ramassage du retour (le paquet reparaît au centre, hero-ready redevient vrai).
+        if (root.hero-ready && root.hero-deck && !root.undeal-anim && !root.deal-anim) {
             root.deal-lead = 40ms;
             root.deal-t0 = animation-tick();
             root.deal-anim = true;
@@ -3372,13 +3412,37 @@ export component AppWindow inherits Window {
         // quittée est gardée avec sa position (retour au même endroit). La sélection ne bouge pas
         // encore : la carte choisie doit rester sélectionnée pour donner son image (Card, hero-tick) ;
         // la nouvelle fiche la remet sur Lecture à son arrivée.
-        if (up) {
+        // Affiche de la page déjà hors de l'écran (rangées du bas) : pas de remontée visible. Le haut
+        // de la nouvelle fiche est l'écran actuel : ce qui est affiché s'efface, puis la page passe
+        // au début d'un coup (rien n'y est encore visible) et l'affiche s'y pose.
+        if (up && !kid && Motion.detail && root.d-view-y >= root.poster-w * 0.5) {
+            root.d-snap = true;
+        } else if (up) {
             root.d-glide = Motion.detail;
             root.d-free-y = 0px;
             root.d-free = true;
         }
     }
     property <bool> d-glide;
+    property <bool> d-snap;
+    property <bool> d-jump;                 // saut sans animation (voir d-snap)
+    Timer {
+        interval: 240ms;
+        running: root.d-snap;
+        triggered => {
+            root.d-snap = false;
+            root.d-jump = true;
+            root.d-free-y = 0px;
+            root.d-free = true;
+        }
+    }
+    Timer {
+        interval: 60ms;
+        running: root.d-jump;
+        triggered => {
+            root.d-jump = false;
+        }
+    }
     Timer {
         interval: root.hero-dur + 200ms;
         running: root.d-glide;
@@ -6766,7 +6830,7 @@ export component AppWindow inherits Window {
             y: 0px - root.d-view-y;
             height: parent.height + root.d-view-y;
             // Pendant le vol d'une affiche vers sa place, la page défile au même rythme qu'elle.
-            animate y { duration: Motion.scroll && !Nav.drag ? (root.hero-glide ? root.hero-dur : 180ms) : 0ms; easing: root.hero-glide ? cubic-bezier(0.65, 0, 0.35, 1) : ease-out; }
+            animate y { duration: Motion.scroll && !Nav.drag && !root.d-jump ? (root.hero-glide ? root.hero-dur : 180ms) : 0ms; easing: root.hero-glide ? cubic-bezier(0.65, 0, 0.35, 1) : ease-out; }
 
         // Windows 7 : cadre de verre épais autour de l'affiche (comme les jaquettes de Windows Media Center).
         if Theme.win7 && (!root.hero-covers || root.hero-seerr || root.hero-big): Rectangle {
@@ -7451,9 +7515,13 @@ export component AppWindow inherits Window {
         property <int> on-screen: self.cols * max(1, ceil((self.height - 12px * root.k) / (self.ch + self.gap)));
         init => {
             root.deal-n = self.on-screen;
+            root.lib-cols = self.cols;
         }
         changed on-screen => {
             root.deal-n = self.on-screen;
+        }
+        changed cols => {
+            root.lib-cols = self.cols;
         }
         // Grille centrée horizontalement.
         property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
@@ -7580,7 +7648,7 @@ export component AppWindow inherits Window {
                     x: self.bx + (1 - self.dp) * (self.pcx - lib.cw / 2 - grid.absolute-position.x - self.bx);
                     y: self.by + (1 - self.dp) * (self.pcy - lib.ch / 2 - grid.absolute-position.y - self.by);
                     extra-scale: self.dp >= 1 ? 1 : self.s0 + (1 - self.s0) * self.dp;
-                    transform-rotation: sin(self.dp * 180deg) * (mod(i * 7, 5) - 2) * 5deg;
+                    transform-rotation: root.narrow ? 0deg : sin(self.dp * 180deg) * (mod(i * 7, 5) - 2) * 5deg;
                     moving: self.dp < 1;
                     // L'affiche sort de son morceau en apparaissant (le morceau s'efface en même temps).
                     opacity: self.dp >= 1 ? 1 : min(1, self.dp / 0.22);
@@ -9749,6 +9817,7 @@ export component AppWindow inherits Window {
                         text: root.ad-mode == 1 ? Tr.t(Tr.k, "Adresse principale") : root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe administrateur")
                             : root.ad-mode == 7 ? Tr.t(Tr.k, "Renommer l'écran")
                             : root.ad-mode == 8 ? Tr.t(Tr.k, "Renommer le serveur")
+                            : root.ad-mode == 9 ? Tr.t(Tr.k, "Nouveau dossier")
                             : root.ad-mode >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
                             : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
@@ -9763,6 +9832,7 @@ export component AppWindow inherits Window {
                             : root.ad-mode == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
                             : root.ad-mode == 7 ? Tr.f(Tr.k, "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({}).", root.addr-hint, "")
                             : root.ad-mode == 8 ? Tr.f(Tr.k, "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({}).", root.addr-hint, "")
+                            : root.ad-mode == 9 ? Tr.t(Tr.k, "Créé dans le dossier affiché, puis choisi dans la liste.")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: 13px * root.k;
@@ -9775,8 +9845,9 @@ export component AppWindow inherits Window {
                         k: root.k;
                         label: root.ad-mode == 3 ? Tr.t(Tr.k, "Mot de passe") : root.ad-mode == 4 ? Tr.t(Tr.k, "Mot de passe actuel")
                             : root.ad-mode == 5 ? Tr.t(Tr.k, "Nouveau mot de passe") : root.ad-mode == 6 ? Tr.t(Tr.k, "Nouveau mot de passe, encore une fois")
-                            : root.ad-mode == 7 ? Tr.t(Tr.k, "Nom de l'écran") : root.ad-mode == 8 ? Tr.t(Tr.k, "Nom du serveur") : Tr.t(Tr.k, "Adresse du serveur");
-                        hint: root.ad-mode == 1 ? "192.168.1.32:8096" : root.ad-mode == 7 || root.ad-mode == 8 ? root.addr-hint : root.ad-mode >= 3 ? "" : "10.8.0.5:8096";
+                            : root.ad-mode == 7 ? Tr.t(Tr.k, "Nom de l'écran") : root.ad-mode == 8 ? Tr.t(Tr.k, "Nom du serveur")
+                            : root.ad-mode == 9 ? Tr.t(Tr.k, "Nom du dossier") : Tr.t(Tr.k, "Adresse du serveur");
+                        hint: root.ad-mode == 1 ? "192.168.1.32:8096" : root.ad-mode >= 7 ? root.addr-hint : root.ad-mode >= 3 ? "" : "10.8.0.5:8096";
                         password: root.ad-mode >= 3 && root.ad-mode <= 6;
                         text <=> root.addr-text;
                         shown: root.ad-mode >= 3 && root.ad-mode <= 6 ? root.mask(root.addr-text) : root.addr-text;
@@ -9874,7 +9945,7 @@ export component AppWindow inherits Window {
                         ActionButton {
                             text: root.addr-busy ? (root.ad-mode == 6 ? Tr.t(Tr.k, "Changement…") : Tr.t(Tr.k, "Vérification…"))
                                 : root.ad-mode == 3 ? Tr.t(Tr.k, "Installer") : root.ad-mode == 4 || root.ad-mode == 5 ? Tr.t(Tr.k, "Suivant")
-                                : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
+                                : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : root.ad-mode == 9 ? Tr.t(Tr.k, "Créer") : Tr.t(Tr.k, "Enregistrer");
                             font: 15px * root.k;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
@@ -9895,7 +9966,7 @@ export component AppWindow inherits Window {
                 active: root.addr-osk;
                 text: root.addr-text;
                 ok-label: root.ad-mode == 3 ? Tr.t(Tr.k, "Installer") : root.ad-mode == 4 || root.ad-mode == 5 ? Tr.t(Tr.k, "Suivant")
-                    : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : Tr.t(Tr.k, "Enregistrer");
+                    : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : root.ad-mode == 9 ? Tr.t(Tr.k, "Créer") : Tr.t(Tr.k, "Enregistrer");
                 erase(t) => {
                     return root.text-backspace("\u{8}" + t);
                 }
@@ -10472,18 +10543,45 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Page Seerr (premier plan)
-    // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible.
+    // Tout tient dans l'écran (pas de défilement) : tailles calculées sur la hauteur disponible
+    // (unité sr-u : 1 px d'un écran 1280 x 720, ou 720 x 1280 en portrait).
+    // Paysage : affiche à gauche, titre et boutons à droite, résumé et distribution dessous.
+    // Portrait : affiche et titre côte à côte, boutons, résumé, puis la distribution sur deux lignes.
     if (root.sr-open || root.sr-out) && !root.playing: srp := Rectangle {
-        // Fermeture (sr-out) : fondu et léger recul.
-        property <float> out-q: root.sr-out && !root.sr-open ? clamp((animation-tick() - root.sr-out-t0) / 280ms, 0, 1) : 0;
-        property <float> out-e: 1 - (1 - self.out-q) * (1 - self.out-q);
-        opacity: 1 - self.out-e;
-        transform-scale: 0.96 + 0.04 * root.page-e - 0.05 * self.out-e;
-        background: Theme.bg-end;
+        property <bool> tall: root.narrow;
+        property <length> u: root.sr-u;
+        property <length> pad: root.sr-pad;
+        property <length> poster-h: root.sr-poster-w * 1.5;
+        property <length> poster-w: root.sr-poster-w;
 
-        property <length> u: min(self.height / 720px, self.width / 1280px) * 1px; // unité : 1 px sur un écran 1280x720
-        property <length> pad: 40 * self.u;
-        property <length> poster-h: 300 * self.u;
+        // Ouverture : la page (fond compris) arrive en fondu, au lieu d'apparaître d'un coup.
+        property <duration> open-t0;
+        property <bool> open-live;
+        init => {
+            self.open-t0 = animation-tick();
+            self.open-live = true;
+            if (self.ready) {
+                self.in-t0 = animation-tick();
+                self.in-live = true;
+            }
+        }
+        Timer {
+            interval: 320ms;
+            running: srp.open-live;
+            triggered => {
+                srp.open-live = false;
+            }
+        }
+        property <float> open-e: srp.open-live && Motion.pages ? 1 - pow(1 - clamp((animation-tick() - srp.open-t0) / 280ms, 0, 1), 2) : 1;
+        // Fermeture (sr-out) : le contenu descend et s'efface (la distribution d'abord, de la dernière
+        // photo à la première), puis le fond.
+        property <float> out-q: root.sr-out && !root.sr-open ? clamp((animation-tick() - root.sr-out-t0) / 300ms, 0, 1) : 0;
+        property <float> out-c: clamp(srp.out-q / 0.6, 0, 1);
+        property <float> out-b: clamp((srp.out-q - 0.3) / 0.7, 0, 1);
+        property <float> out-e: 1 - (1 - srp.out-b) * (1 - srp.out-b);
+        opacity: srp.open-e * (1 - srp.out-e);
+        transform-scale: 0.97 + 0.03 * srp.open-e - 0.04 * srp.out-e;
+        background: Theme.bg-end;
 
         TouchArea {
             // La molette ne fait pas défiler la page dessous.
@@ -10530,19 +10628,25 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Fond : image du média floutée (préparée une fois), puis voile vers le bas.
-        if root.sr.has-backdrop: Image {
+        // Fond : image du média floutée (préparée une fois), en fondu à son arrivée, puis voile vers le bas.
+        property <float> bd-a: root.sr.has-backdrop ? 1 : 0;
+        animate bd-a { duration: Motion.detail ? 600ms : 0ms; easing: ease-out; }
+        if srp.bd-a > 0.001: Image {
             width: parent.width;
             height: parent.height;
             source: root.sr.backdrop;
             image-fit: cover;
+            opacity: srp.bd-a;
+            // Arrivée : léger recul (l'image se pose).
+            transform-scale: 1.04 - 0.04 * srp.bd-a;
         }
         Rectangle {
             background: @linear-gradient(180deg, Theme.bg-mid.with-alpha(0.4) 0%, Theme.bg-end.with-alpha(0.85) 55%, Theme.bg-end 100%);
         }
 
         // Chargement : rien d'autre que le fond (l'affiche vole déjà vers sa place) ; une fois là, le
-        // contenu apparaît en un fondu en remontant un peu, puis la distribution une photo après l'autre.
+        // contenu arrive par blocs (titre, informations, boutons, résumé), en remontant un peu, puis la
+        // distribution une photo après l'autre.
         property <bool> ready: !root.sr.loading;
         property <duration> in-t0;
         property <bool> in-live;
@@ -10552,55 +10656,62 @@ export component AppWindow inherits Window {
                 self.in-live = true;
             }
         }
-        init => {
-            if (self.ready) {
-                self.in-t0 = animation-tick();
-                self.in-live = true;
-            }
-        }
         Timer {
-            interval: 1400ms;
+            interval: 1800ms;
             running: srp.in-live;
             triggered => {
                 srp.in-live = false;
             }
         }
-        property <float> in-x: !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0) / 420ms, 0, 1) : 1;
-        property <float> in-e: 1 - (1 - srp.in-x) * (1 - srp.in-x);
+        // Bloc n° b (0 titre, 1 informations, 2 boutons, 3 résumé) : arrivée, puis départ à la fermeture.
+        pure function blk(b: int) -> float {
+            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - b * 90ms) / 420ms, 0, 1) : 1;
+            return (1 - (1 - x) * (1 - x)) * (1 - srp.out-c);
+        }
         pure function cast-e(i: int) -> float {
-            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - 250ms - min(i, 10) * 70ms) / 360ms, 0, 1) : 1;
-            return 1 - (1 - x) * (1 - x);
+            let x = !srp.ready ? 0 : srp.in-live && Motion.detail ? clamp((animation-tick() - srp.in-t0 - 380ms - min(i, 10) * 70ms) / 360ms, 0, 1) : 1;
+            let o = clamp((srp.out-q * 300ms - max(0, 7 - min(i, 7)) * 18ms) / 160ms, 0, 1);
+            return (1 - (1 - x) * (1 - x)) * (1 - o);
+        }
+        // Décalage vertical d'un bloc qui arrive (ou repart vers le bas).
+        pure function blk-y(b: int) -> length {
+            return (1 - srp.blk(b)) * 24 * srp.u;
         }
 
-        if srp.ready: Rectangle {
-            // Affiche
+        if srp.ready: content := Rectangle {
+            // Affiche (en fondu si elle arrive après la page).
+            property <float> po-a: root.sr.has-poster ? 1 : 0;
+            animate po-a { duration: Motion.detail ? 300ms : 0ms; }
             Rectangle {
                 x: srp.pad;
-                y: srp.pad;
-                width: srp.poster-h / 1.5;
+                y: srp.pad + srp.out-c * 16 * srp.u;
+                width: srp.poster-w;
                 height: srp.poster-h;
                 border-radius: 12 * srp.u;
+                opacity: 1 - srp.out-c;
                 visible: !root.hero-covers || !root.hero-seerr;
-                background: root.sr.has-poster ? transparent : Theme.fg.with-alpha(0.08);
+                background: Theme.fg.with-alpha(0.08 * (1 - content.po-a));
+                clip: true;
                 if root.sr.has-poster: Image {
                     width: parent.width;
                     height: parent.height;
                     source: root.sr.poster;
                     image-fit: fill;
+                    opacity: content.po-a;
                 }
             }
 
-            // Titre, informations, état, boutons
+            // Titre, informations, état (à droite de l'affiche) ; paysage : les boutons aussi.
             VerticalLayout {
-                opacity: srp.in-e;
-                x: srp.pad + srp.poster-h / 1.5 + 32 * srp.u;
-                y: srp.pad + (1 - srp.in-e) * 24 * srp.u;
+                x: srp.pad + srp.poster-w + (srp.tall ? 24 : 32) * srp.u;
+                y: srp.pad;
                 width: parent.width - self.x - srp.pad;
                 height: srp.poster-h;
-                spacing: 12 * srp.u;
+                spacing: (srp.tall ? 14 : 12) * srp.u;
                 alignment: center;
 
-                Marquee {
+                if !srp.tall: Marquee {
+                    opacity: srp.blk(0);
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
                     text-color: Theme.fg;
                     font-size: 38 * srp.u;
@@ -10609,15 +10720,29 @@ export component AppWindow inherits Window {
                     horizontal-alignment: TextHorizontalAlignment.left;
                     height: self.preferred-height;
                 }
+                // Portrait : titre sur plusieurs lignes (la colonne est étroite).
+                if srp.tall: Text {
+                    opacity: srp.blk(0);
+                    text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
+                    color: Theme.fg;
+                    font-size: 40 * srp.u;
+                    font-weight: 700;
+                    wrap: word-wrap;
+                    max-height: 3 * 52 * srp.u;
+                    overflow: elide;
+                }
                 Text {
+                    opacity: srp.blk(1);
                     text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
                         + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
                     color: Theme.fg.with-alpha(0.82);
-                    font-size: 18 * srp.u;
+                    font-size: (srp.tall ? 22 : 18) * srp.u;
+                    wrap: srp.tall ? word-wrap : no-wrap;
                     overflow: elide;
                 }
-                // Informations clés en pastilles (statut, sortie, langue, studio)
-                HorizontalLayout {
+                // Informations clés en pastilles (statut, sortie, langue, studio) ; portrait : une par ligne.
+                if !srp.tall: HorizontalLayout {
+                    opacity: srp.blk(1);
                     alignment: start;
                     spacing: 10 * srp.u;
                     height: 30 * srp.u;
@@ -10634,13 +10759,26 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+                if srp.tall: VerticalLayout {
+                    opacity: srp.blk(1);
+                    spacing: 6 * srp.u;
+                    for f in root.sr.facts: Text {
+                        text: f.label + " : " + f.value;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: 20 * srp.u;
+                        overflow: elide;
+                    }
+                }
                 if root.sr.status != "": Text {
+                    opacity: srp.blk(1);
                     text: root.sr.status;
                     color: Theme.accent2;
-                    font-size: 18 * srp.u;
+                    font-size: (srp.tall ? 22 : 18) * srp.u;
                     font-weight: 700;
+                    wrap: word-wrap;
                 }
-                HorizontalLayout {
+                if !srp.tall: HorizontalLayout {
+                    opacity: srp.blk(2);
                     alignment: start;
                     spacing: 16 * srp.u;
                     height: 50 * srp.u;
@@ -10663,36 +10801,80 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Résumé (coupé proprement s'il est trop long)
-            Text {
-                opacity: srp.in-e;
+            // Portrait : boutons sous l'affiche, sur toute la largeur.
+            property <length> btn-y: srp.pad + srp.poster-h + 28 * srp.u;
+            if srp.tall: HorizontalLayout {
                 x: srp.pad;
-                y: srp.pad + srp.poster-h + 28 * srp.u + (1 - srp.in-e) * 24 * srp.u;
-                width: parent.width - 2 * srp.pad;
-                height: 100 * srp.u;
+                y: content.btn-y + srp.blk-y(2);
+                width: content.width - 2 * srp.pad;
+                height: 64 * srp.u;
+                spacing: 16 * srp.u;
+                opacity: srp.blk(2);
+                if root.sr.can-request || root.sr.on-server: ActionButton {
+                    text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
+                    font: 24 * srp.u;
+                    focused: root.sr-sel == 0;
+                    clicked => {
+                        root.seerr-action();
+                    }
+                }
+                ActionButton {
+                    text: Tr.t(Tr.k, "Fermer");
+                    font: 24 * srp.u;
+                    focused: root.sr-sel == 1 || !(root.sr.can-request || root.sr.on-server);
+                    clicked => {
+                        root.seerr-close();
+                    }
+                }
+            }
+
+            // Distribution : paysage, photos rondes sur une ligne (autant qu'il en tient) ; portrait, en
+            // bas de l'écran, quatre par ligne sur deux lignes.
+            property <int> per-row: srp.tall ? 4 : 99;
+            property <length> cast-cw: srp.tall ? (self.width - 2 * srp.pad) / 4 : 118 * srp.u;
+            property <length> cast-rh: srp.tall ? 190 * srp.u : 140 * srp.u;
+            property <int> cast-rows: srp.tall ? min(2, ceil(root.sr-cast.length / 4)) : 1;
+            property <length> cast-y: srp.tall ? self.height - srp.pad - self.cast-rows * self.cast-rh
+                : min(self.height - self.cast-rh - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
+
+            // Résumé (coupé proprement s'il est trop long) : portrait, toute la place entre les boutons
+            // et la distribution.
+            property <length> ov-y: srp.tall ? self.btn-y + 92 * srp.u : srp.pad + srp.poster-h + 28 * srp.u;
+            Text {
+                opacity: srp.blk(3);
+                x: srp.pad;
+                y: content.ov-y + srp.blk-y(3);
+                width: content.width - 2 * srp.pad;
+                height: srp.tall ? max(0px, content.cast-y - content.ov-y - 20 * srp.u) : 100 * srp.u;
                 text: root.sr.overview;
                 color: Theme.fg.with-alpha(0.85);
-                font-size: 17 * srp.u;
+                font-size: (srp.tall ? 24 : 17) * srp.u;
                 wrap: word-wrap;
                 overflow: elide;
             }
 
-            // Distribution : photos rondes sur une ligne (autant qu'il en tient)
             Rectangle {
                 x: srp.pad;
-                y: min(parent.height - self.height - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
-                width: parent.width - 2 * srp.pad;
-                height: 140 * srp.u;
+                y: content.cast-y;
+                width: content.width - 2 * srp.pad;
+                height: content.cast-rows * content.cast-rh;
                 clip: true;
                 for c[i] in root.sr-cast: Rectangle {
-                    x: i * 118 * srp.u;
-                    width: 104 * srp.u;
+                    property <int> crow: floor(i / content.per-row);
+                    property <length> ph: (srp.tall ? 110 : 84) * srp.u;
+                    visible: self.crow < content.cast-rows;
+                    width: (srp.tall ? 150 : 104) * srp.u;
+                    height: content.cast-rh;
+                    x: mod(i, content.per-row) * content.cast-cw + (content.cast-cw - self.width) / 2;
+                    y: self.crow * content.cast-rh + (1 - srp.cast-e(i)) * 20 * srp.u;
                     opacity: srp.cast-e(i);
-                    y: (1 - srp.cast-e(i)) * 20 * srp.u;
                     Rectangle {
+                        // La photo arrive en fondu (téléchargée après la page).
+                        property <float> a: c.has-image ? 1 : 0;
+                        animate a { duration: Motion.detail ? 320ms : 0ms; }
                         x: (parent.width - self.width) / 2;
                         y: 0px;
-                        width: 84 * srp.u;
+                        width: parent.ph;
                         height: self.width;
                         border-radius: self.width / 2;
                         background: Theme.fg.with-alpha(0.1);
@@ -10702,24 +10884,25 @@ export component AppWindow inherits Window {
                             height: parent.height;
                             source: c.image;
                             image-fit: fill;
+                            opacity: parent.a;
                         }
                     }
                     Text {
-                        y: 92 * srp.u;
+                        y: parent.ph + 8 * srp.u;
                         width: parent.width;
                         text: c.title;
                         color: Theme.fg;
-                        font-size: 12 * srp.u;
+                        font-size: (srp.tall ? 18 : 12) * srp.u;
                         font-weight: 600;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
                     Text {
-                        y: 110 * srp.u;
+                        y: parent.ph + (srp.tall ? 34 : 26) * srp.u;
                         width: parent.width;
                         text: c.subtitle;
                         color: Theme.muted;
-                        font-size: 11 * srp.u;
+                        font-size: (srp.tall ? 16 : 11) * srp.u;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -11455,7 +11638,7 @@ export component AppWindow inherits Window {
                 height: parent.height * self.fh + 1px;
                 opacity: 1 - self.q;
                 transform-scale: 1 + 0.25 * self.q;
-                transform-rotation: self.q * (mod(i * 5, 7) - 3) * 4deg;
+                transform-rotation: root.narrow ? 0deg : self.q * (mod(i * 5, 7) - 3) * 4deg;
                 // Carte sans image (pas encore chargée, ou paquet monté du bas) : morceaux unis.
                 background: root.hero-img.width > 0 ? transparent : Theme.card-focus;
                 Image {
@@ -11655,7 +11838,9 @@ export component AppWindow inherits Window {
 
     // Passage hors ligne : le logo du thème, grand, au centre, le temps que son cœur (le serveur) soit
     // éjecté et qu'une maison prenne sa place (Nerd : puce « maison », pistes ambre ; voir ThemeLogo),
-    // puis il s'efface. Rien pendant la lecture ni sans animations.
+    // puis il s'efface. Retour du serveur (après le mode hors ligne, un cœur fendu ou débranché) : de
+    // même, le temps que le cœur revienne (la maison s'en va, la puce du serveur se rebranche).
+    // Rien pendant la lecture ni sans animations, ni pendant le démarrage (son logo le joue déjà).
     property <int> srv-core: Srv.core;
     property <int> srv-last;
     property <int> off-from;
@@ -11664,7 +11849,7 @@ export component AppWindow inherits Window {
     changed srv-core => {
         root.off-from = root.srv-last;
         root.srv-last = root.srv-core;
-        if (root.srv-core == 2 && Motion.pages && !root.playing) {
+        if ((root.srv-core == 2 || (root.srv-core == 0 && root.off-from != 0)) && Motion.pages && !root.playing && !root.boot-on) {
             root.off-t0 = animation-tick();
             root.off-show = true;
         }
@@ -11680,7 +11865,8 @@ export component AppWindow inherits Window {
     if root.off-show: Rectangle {
         opacity: root.off-a;
         background: Theme.bg.with-alpha(0.55);
-        TouchArea { }
+        // Hors ligne : la page change dessous (Téléchargements), rien ne se touche pendant ce temps.
+        if Srv.core == 2: TouchArea { }
         ThemeLogo {
             width: 220px * root.k;
             height: self.width;
@@ -11693,7 +11879,7 @@ export component AppWindow inherits Window {
             y: parent.height / 2 + 110px * root.k;
             width: parent.width;
             horizontal-alignment: center;
-            text: Tr.t(Tr.k, "Hors ligne : médias téléchargés");
+            text: Srv.core == 2 ? Tr.t(Tr.k, "Hors ligne : médias téléchargés") : Tr.t(Tr.k, "Serveur de nouveau joignable");
             color: Theme.text;
             font-size: 20px * root.k;
             font-weight: 600;
@@ -12315,7 +12501,8 @@ export component AppWindow inherits Window {
     }
     LangExplorer {
         k: root.k;
-        open: root.lx-open;
+        // Nom d'un nouveau dossier demandé (fenêtre de saisie) : l'explorateur s'efface le temps de la saisie.
+        open: root.lx-open && root.addr-edit != 9;
         place: root.lx-place;
         hint: root.lx-hint;
         items: root.lx-items;

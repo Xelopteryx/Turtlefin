@@ -2114,3 +2114,33 @@ msgstr "De achtergrond van het thema beweegt zacht (iets meer rekenwerk; uitzett
 
 msgid "Regarder hors ligne"
 msgstr "Offline kijken"
+
+msgid "Ce dossier existe déjà."
+msgstr "Deze map bestaat al."
+
+msgid "Créer"
+msgstr "Maken"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Wordt gemaakt in de getoonde map en daarna in de lijst gekozen."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "Kan de map niet maken: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Ongeldige mapnaam (geen \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Mapnaam"
+
+msgid "Nouveau dossier"
+msgstr "Nieuwe map"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Server weer bereikbaar"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Server onbereikbaar: zoek hem op het netwerk of kies een andere."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Server onbereikbaar: bekijk je downloads offline of wacht tot hij terug is (nieuwe poging elke 5 s)."

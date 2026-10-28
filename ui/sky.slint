@@ -1,7 +1,8 @@
 // Décor du fond pour les thèmes à `Theme.bubbles` (Frutiger Aero) : halo de soleil, voiles de
 // lumière (aurore), colline d'herbe, bulles de savon ; autres thèmes : carte électronique (Nerd),
 // hexagones (Turtlefin). Fixe (rien à redessiner tant que rien ne bouge), dessiné par-dessus l'image
-// de fond et sous les pages ; seul HexDrift bouge, si « Fond animé » est actif.
+// de fond et sous les pages ; ce qui bouge (HexDrift, AeroDrift, CircuitDrift) est à part, si « Fond animé »
+// est actif.
 import { Srv } from "logo.slint";
 import { Theme } from "theme.slint";
 
@@ -215,6 +216,11 @@ export component CircuitScene inherits Rectangle {
     in property <bool> live: true;
     // Hors ligne (Srv.core = 2) : les pistes et les puces passent à l'ambre.
     in property <bool> offline;
+    // Démarrage : les puces deviennent le logo (0 puces · 1 plots aux sommets, puce du serveur au
+    // centre, exactement ceux du logo, voir ThemeLogo) ; gone : le logo dessiné par-dessus a pris le
+    // relais et part se poser sur le titre, les puces devenues plots s'effacent (0 à 1).
+    in property <float> morph;
+    in property <float> gone;
     property <color> a1: root.offline ? #a8620e : Theme.accent1;
     property <color> a2: root.offline ? #f59e0b : Theme.accent2;
     animate a1, a2 { duration: 900ms; easing: ease-in-out; }
@@ -579,6 +585,8 @@ export component CircuitScene inherits Rectangle {
     }
     // Pistes des puces vers le processeur : le courant y entre quand la puce est branchée.
     for c[i] in 6: inflow := Rectangle {
+        // Démarrage : les rayons du logo les remplacent (même direction).
+        opacity: 1 - root.morph;
         property <float> flow: root.state[i] == 2 ? 1 : 0;
         animate flow { duration: 550ms; easing: ease-in; }
         property <float> x0: root.chips[i].x * 0.62;
@@ -646,22 +654,24 @@ export component CircuitScene inherits Rectangle {
         property <float> dx: self.cpu ? 0 : c.x / 68;
         property <float> dy: self.leaving ? 0 : self.cpu ? -1 : c.y / 68;
         // En fond des pages (bright bas), les puces restent discrètes derrière le contenu.
-        opacity: (self.leaving ? self.arrive : 1) * min(1, 0.1 + 0.9 * root.bright);
-        property <length> w: (self.cpu ? 52 : 44) * root.u;
-        property <length> h: (self.cpu ? 52 : 32) * root.u;
-        visible: self.arrive > 0.01;
+        opacity: (self.leaving ? self.arrive : 1) * min(1, 0.1 + 0.9 * root.bright) * (1 - root.gone);
+        // Logo : plot rond de 28 (anneau du logo : rayon 11, trait 6) ; processeur : puce de 65 (60, trait 5).
+        property <length> w: ((self.cpu ? 52 : 44) + ((self.cpu ? 65 : 28) - (self.cpu ? 52 : 44)) * root.morph) * root.u;
+        property <length> h: ((self.cpu ? 52 : 32) + ((self.cpu ? 65 : 28) - (self.cpu ? 52 : 32)) * root.morph) * root.u;
+        visible: self.arrive > 0.01 && root.gone < 0.999;
         x: root.cx + (c.x + self.dx * 130 * (1 - self.arrive)) * root.u - self.w / 2;
         y: root.cy + (c.y + self.dy * 130 * (1 - self.arrive)) * root.u - self.h / 2;
         width: self.w;
         height: self.h;
-        border-radius: 3 * root.u;
+        border-radius: (3 + ((self.cpu ? 0 : 14) - 3) * root.morph) * root.u;
         background: @linear-gradient(135deg, #0f2a1c 0%, #06150d 100%);
         border-width: 1 * root.u;
         border-color: self.s == 2 ? root.a2.with-alpha(0.8) : root.a2.with-alpha(0.35);
         drop-shadow-blur: self.s == 2 ? (self.cpu ? 28 : 12) * root.u * (0.5 + 0.5 * root.bright) : 0px;
         drop-shadow-color: root.a2.with-alpha(0.55);
-        // Pattes.
+        // Pattes (rentrées quand la puce devient un plot du logo).
         Path {
+            opacity: 1 - root.morph;
             width: parent.width;
             height: parent.height;
             viewbox-width: 44;
@@ -761,6 +771,22 @@ export component CircuitScene inherits Rectangle {
             background: parent.s == 2 ? #4dff9a : parent.s == 3 || parent.s == 5 ? #ff5c5c : parent.s == 4 ? #ffc23d : root.a2.with-alpha(0.6);
             drop-shadow-blur: 5 * root.u;
             drop-shadow-color: self.background;
+        }
+        // Devenir le logo : le plot (fond de la page, anneau d'accent) ou la puce du serveur (cœur
+        // d'accent) recouvre peu à peu la puce.
+        if root.morph > 0.001: Rectangle {
+            opacity: root.morph;
+            border-radius: parent.border-radius;
+            background: chip.cpu ? Theme.accent1.mix(Theme.bg, 0.25) : Theme.bg;
+            border-width: (chip.cpu ? 5 : 6) * root.u;
+            border-color: Theme.accent2;
+            if chip.cpu: Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 24 * root.u;
+                height: self.width;
+                background: Theme.accent1;
+            }
         }
     }
     // Bords assombris (pages lisibles).
@@ -927,6 +953,104 @@ export component HexDrift inherits Rectangle {
     }
 }
 
+// Ce qui bouge dans les décors Aero (ciel, Harmony) : quelques bulles qui montent lentement en
+// ondulant, et de temps en temps un reflet de lumière qui balaie l'écran en diagonale. Même rythme que
+// HexDrift (phase commune Drift, 20 images par seconde au plus), rien quand `live` est faux.
+export component AeroDrift inherits Rectangle {
+    in property <bool> live;
+    in property <bool> ticking;
+    in property <float> k: 1.0;
+    property <float> ph: Drift.ph;
+    Timer {
+        interval: 50ms;
+        running: root.live && root.ticking;
+        triggered => {
+            Drift.ph = mod(Drift.ph + 0.05, 360);
+        }
+    }
+    clip: true;
+    // Bulles : chacune son tempo (18 à 36 s pour traverser l'écran), sa colonne et sa taille.
+    for i in (root.live ? 7 : 0): Bubble {
+        property <float> period: 18 + 3 * i;
+        property <float> t: mod(root.ph + i * 5.3, self.period) / self.period;
+        width: (22 + mod(i * 17, 30)) * 1px * root.k;
+        x: root.width * (0.06 + 0.14 * i) + sin(self.t * 720deg + i * 40deg) * 26px * root.k;
+        y: root.height * (1.08 - 1.25 * self.t);
+        // Apparition en bas, disparition en haut.
+        a: 0.55 * sin(self.t * 180deg);
+    }
+    // Reflet : une bande claire qui traverse l'écran toutes les 16 s (le reste du temps, rien).
+    property <float> sw: mod(root.ph, 16) / 16;
+    if root.live && root.sw < 0.3: Rectangle {
+        property <float> q: root.sw / 0.3;
+        width: root.width * 0.18;
+        height: root.height * 1.6;
+        x: -root.width * 0.3 + (root.width * 1.4) * self.q;
+        y: -root.height * 0.3;
+        transform-rotation: 18deg;
+        opacity: sin(self.q * 180deg);
+        background: @linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0) 100%);
+    }
+}
+
+// Ce qui bouge sur la carte électronique (Nerd) : des paquets de données filent des puces vers le
+// processeur (le serveur), une onde d'horloge part du processeur toutes les 6 s, et une ligne de
+// balayage descend l'écran (vieux moniteur). Ambre hors ligne. Sans serveur : seulement le balayage
+// (pas de processeur, rien n'y circule). Même géométrie que CircuitScene.
+export component CircuitDrift inherits Rectangle {
+    in property <bool> live;
+    in property <bool> ticking;
+    in property <float> k: 1.0;
+    in property <bool> no-server;
+    in property <bool> offline;
+    property <float> ph: Drift.ph;
+    Timer {
+        interval: 50ms;
+        running: root.live && root.ticking;
+        triggered => {
+            Drift.ph = mod(Drift.ph + 0.05, 360);
+        }
+    }
+    clip: true;
+    property <color> a2: root.offline ? #f59e0b : Theme.accent2;
+    property <length> u: min(self.width, self.height) * 0.46 / 256;
+    property <length> cx: self.width / 2;
+    property <length> cy: self.height / 2 - 30px * root.k;
+    property <[float]> chx: [0, 59, 59, 0, -59, -59];
+    property <[float]> chy: [-68, -34, 34, 68, 34, -34];
+    // Paquets : un par puce, un départ toutes les ~2,4 s chacun (décalés), 0,9 s de trajet.
+    for i in (root.live && !root.no-server ? 6 : 0): Rectangle {
+        property <float> t: mod(root.ph + i * 0.41, 2.4) / 0.9;
+        property <float> f: 0.62 + (0.36 - 0.62) * clamp(self.t, 0, 1);
+        visible: self.t < 1;
+        width: 7 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        x: root.cx + root.chx[i] * self.f * root.u - self.width / 2;
+        y: root.cy + root.chy[i] * self.f * root.u - self.height / 2;
+        opacity: 0.8 * sin(clamp(self.t, 0, 1) * 180deg);
+        background: @radial-gradient(circle, root.a2 0%, root.a2.with-alpha(0) 100%);
+    }
+    // Onde d'horloge : un carré qui s'élargit depuis le processeur.
+    property <float> clk: mod(root.ph, 6) / 1.8;
+    if root.live && !root.no-server && root.clk < 1: Rectangle {
+        property <length> w: (60 + 220 * root.clk) * root.u;
+        x: root.cx - self.w / 2;
+        y: root.cy - self.w / 2;
+        width: self.w;
+        height: self.w;
+        border-radius: 4 * root.u;
+        border-width: 1.5 * root.u;
+        border-color: root.a2.with-alpha(0.35 * (1 - root.clk));
+    }
+    // Balayage : une fine ligne claire qui descend l'écran en 12 s.
+    if root.live: Rectangle {
+        y: root.height * mod(root.ph, 12) / 12;
+        height: 2px * root.k;
+        background: @linear-gradient(90deg, root.a2.with-alpha(0) 0%, root.a2.with-alpha(0.10) 50%, root.a2.with-alpha(0) 100%);
+    }
+}
+
 // Décor du thème, sur l'image de fond du média et sous les pages.
 export component AeroSky inherits Rectangle {
     in property <float> k: 1.0;
@@ -941,8 +1065,9 @@ export component AeroSky inherits Rectangle {
         k: root.k;
         bright: 0.32;
         live: false;
-        state: root.no-server ? [2, 2, 2, 2, 2, 2, 4] : [2, 2, 2, 2, 2, 2, 2];
-        surge: root.no-server ? 0 : 1;
+        // Serveur perdu (Srv.core 3) : processeur absent, comme sans serveur.
+        state: root.no-server || Srv.core == 3 ? [2, 2, 2, 2, 2, 2, 4] : [2, 2, 2, 2, 2, 2, 2];
+        surge: root.no-server || Srv.core == 3 ? 0 : 1;
         offline: Srv.core == 2;
     }
     if Theme.scenery == 4: HexScene { }

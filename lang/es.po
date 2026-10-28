@@ -2114,3 +2114,33 @@ msgstr "El fondo del tema se mueve suavemente (algo más de cálculo; desactíva
 
 msgid "Regarder hors ligne"
 msgstr "Ver sin conexión"
+
+msgid "Ce dossier existe déjà."
+msgstr "Esta carpeta ya existe."
+
+msgid "Créer"
+msgstr "Crear"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Se crea en la carpeta mostrada y luego se selecciona en la lista."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "No se pudo crear la carpeta: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Nombre de carpeta no válido (sin \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Nombre de la carpeta"
+
+msgid "Nouveau dossier"
+msgstr "Nueva carpeta"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Servidor accesible de nuevo"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Servidor inaccesible: búscalo en la red o elige otro."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Servidor inaccesible: mira tus descargas sin conexión o espera a que vuelva (nuevo intento cada 5 s)."

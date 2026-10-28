@@ -8,7 +8,9 @@ import { Theme, Motion } from "theme.slint";
 
 // Cœur du logo (le serveur), commun à toutes ses copies (démarrage, titres, en-tête), posé par Rust :
 // 0 serveur joint · 1 injoignable (le cœur se fend) · 2 hors ligne (le cœur est éjecté, une maison
-// prend sa place ; Nerd : les pistes passent à l'ambre, jusque dans le décor).
+// prend sa place ; Nerd : les pistes passent à l'ambre, jusque dans le décor) · 3 perdu (injoignable
+// et rien de téléchargé : le cœur se débranche et s'en va, l'emplacement vide reste, un radar le
+// balaie ; au retour du serveur, le cœur revient s'y brancher).
 export global Srv {
     in-out property <int> core;
 }
@@ -42,7 +44,7 @@ export component ThemeLogo inherits Rectangle {
         root.c-t0 = animation-tick();
         root.c-anim = Motion.pages;
     }
-    property <duration> c-len: root.to == 2 || root.from == 2 ? 1400ms : 1000ms;
+    property <duration> c-len: root.to == 2 || root.from == 2 || root.to == 3 || root.from == 3 ? 1400ms : 1000ms;
     Timer {
         interval: root.c-len + 40ms;
         running: root.c-anim;
@@ -63,10 +65,20 @@ export component ThemeLogo inherits Rectangle {
     property <float> split: root.to == 1
         ? (root.from == 1 ? 1 : root.ease(clamp((root.cq - 0.3) / 0.7, 0, 1)))
         : root.from == 1 && root.to == 0 ? 1 - root.ease(clamp(root.cq / 0.6, 0, 1))
-        : root.from == 1 && root.to == 2 ? 1 : 0;
+        : root.from == 1 && (root.to == 2 || root.to == 3) ? 1 : 0;
     property <float> crack: root.to == 1 ? (root.from == 1 ? 1 : clamp(root.cq / 0.3, 0, 1))
         : root.from == 1 && root.to == 0 ? 1 - clamp((root.cq - 0.55) / 0.2, 0, 1)
-        : root.from == 1 && root.to == 2 ? 1 - clamp(root.cq / 0.4, 0, 1) : 0;
+        : root.from == 1 && (root.to == 2 || root.to == 3) ? 1 - clamp(root.cq / 0.4, 0, 1) : 0;
+    // Perdu (3) : le cœur se débranche (il se soulève, vacille et s'efface, 0 à 0,6), l'emplacement
+    // vide apparaît (0,4 à 1). Retour : l'emplacement s'efface, le cœur redescend s'y brancher et une
+    // étincelle part à l'instant du contact.
+    property <float> gone: root.to == 3 ? (root.from == 3 ? 1 : root.ease(clamp(root.cq / 0.6, 0, 1)))
+        : root.from == 3 ? 1 - root.ease(clamp((root.cq - 0.2) / 0.6, 0, 1)) : 0;
+    property <float> slot: root.to == 3 ? (root.from == 3 ? 1 : clamp((root.cq - 0.4) / 0.6, 0, 1))
+        : root.from == 3 ? 1 - clamp(root.cq / 0.4, 0, 1) : 0;
+    property <float> plug: root.from == 3 && root.to != 3 ? max(0, 1 - abs(root.cq - 0.82) / 0.14) : 0;
+    // Vacillement pendant le débranchement (le cœur hésite avant de partir).
+    property <angle> wob: root.to == 3 && root.from != 3 ? sin(root.cq * 1800deg) * 7deg * (1 - root.gone) : 0deg;
     property <float> flash: root.from == 1 && root.to == 0 ? max(0, 1 - abs(root.cq - 0.65) / 0.18) : 0;
     // Hors ligne : le cœur part (0 à 0,5), la maison arrive (0,45 à 1). Retour en ligne : l'inverse.
     property <float> eject: root.to == 2 ? root.ease(clamp(root.cq / 0.5, 0, 1))
@@ -171,18 +183,18 @@ export component ThemeLogo inherits Rectangle {
     // Cœur : deux moitiés le long d'une fêlure en zigzag (jointes quand tout va bien).
     for side in 2: Path {
         property <float> dir: side == 0 ? -1 : 1;
-        visible: !root.chip && !root.hollow && root.eject < 0.999;
-        x: (53 + self.dir * 7 * root.split) * root.u;
-        y: (53 + 70 * root.eject) * root.u;
+        visible: !root.chip && !root.hollow && root.eject < 0.999 && root.gone < 0.999;
+        x: (53 + self.dir * (7 + 30 * root.gone) * root.split) * root.u;
+        y: (53 + 70 * root.eject - 46 * root.gone) * root.u;
         width: 150 * root.u;
         height: 150 * root.u;
         viewbox-x: 53;
         viewbox-y: 53;
         viewbox-width: 150;
         viewbox-height: 150;
-        transform-rotation: self.dir * 9deg * root.split + 25deg * root.eject;
-        transform-scale: 1 - 0.4 * root.eject;
-        opacity: 1 - root.eject;
+        transform-rotation: self.dir * 9deg * root.split + 25deg * root.eject + root.wob;
+        transform-scale: (1 - 0.4 * root.eject) * (1 - 0.55 * root.gone);
+        opacity: (1 - root.eject) * (1 - root.gone);
         fill: root.split > 0.01 ? (side == 0 ? #c2414b : #d9505a).mix(Theme.accent1, 0.25 + 0.6 * root.split) : root.grad;
         commands: side == 0 ? "M 128 98 L 124 112 L 133 126 L 121 141 L 128 158 L 102 143 L 102 113 Z"
             : "M 128 98 L 154 113 L 154 143 L 128 158 L 121 141 L 133 126 L 124 112 Z";
@@ -299,29 +311,51 @@ export component ThemeLogo inherits Rectangle {
     // éjectée vers le haut en tournant.
     for side in 2: Path {
         property <float> dir: side == 0 ? -1 : 1;
-        visible: root.chip && !root.hollow && root.eject < 0.999;
-        x: (self.dir * 8 * root.split) * root.u;
-        y: (-110 * root.eject + 4 * root.split) * root.u;
+        visible: root.chip && !root.hollow && root.eject < 0.999 && root.gone < 0.999;
+        x: (self.dir * (8 + 24 * root.gone) * root.split) * root.u;
+        y: (-110 * root.eject + 4 * root.split - 52 * root.gone) * root.u;
         width: parent.width;
         height: parent.height;
         viewbox-width: 256;
         viewbox-height: 256;
-        transform-rotation: self.dir * 10deg * root.split - 40deg * root.eject;
-        opacity: 1 - root.eject;
+        // Débranchée : elle se soulève vers soi (grandit un peu) avant de disparaître.
+        transform-rotation: self.dir * 10deg * root.split - 40deg * root.eject + root.wob;
+        transform-scale: 1 + 0.18 * root.gone;
+        opacity: (1 - root.eject) * (1 - root.gone);
         fill: Theme.accent1.mix(Theme.bg, 0.25);
-        stroke: root.split > 0.01 ? Theme.accent2.mix(#ff5c5c, 1 - root.split) : Theme.accent2;
+        // Entière : pas de trait le long de la fêlure (le contour est dessiné d'un seul tenant dessous).
+        stroke: root.split > 0.01 ? Theme.accent2.mix(#ff5c5c, 1 - root.split) : transparent;
         stroke-width: 5 * root.u;
         stroke-line-join: round;
         commands: side == 0 ? "M 98 98 L 125 98 L 119 115 L 132 128 L 121 142 L 127 158 L 98 158 Z"
             : "M 125 98 L 158 98 L 158 158 L 127 158 L 121 142 L 132 128 L 119 115 Z";
     }
+    // Contour de la puce entière (d'un seul tenant, sans la fêlure).
+    if root.chip && !root.hollow && root.split <= 0.01 && root.eject < 0.999 && root.gone < 0.999: Path {
+        x: 0px;
+        y: (-110 * root.eject - 52 * root.gone) * root.u;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        transform-rotation: -40deg * root.eject + root.wob;
+        transform-scale: 1 + 0.18 * root.gone;
+        opacity: (1 - root.eject) * (1 - root.gone);
+        fill: transparent;
+        stroke: Theme.accent2;
+        stroke-width: 5 * root.u;
+        stroke-line-join: round;
+        commands: "M 98 98 L 158 98 L 158 158 L 98 158 Z";
+    }
     // Cœur de la puce (carré d'accent) : seulement entière.
-    if root.chip && !root.hollow && root.split < 0.999 && root.eject < 0.999: Rectangle {
+    if root.chip && !root.hollow && root.split < 0.999 && root.eject < 0.999 && root.gone < 0.999: Rectangle {
         x: (128 - 12) * root.u;
-        y: (128 - 12 - 110 * root.eject) * root.u;
+        y: (128 - 12 - 110 * root.eject - 52 * root.gone) * root.u;
         width: 24 * root.u;
         height: self.width;
-        opacity: (1 - root.split) * (1 - root.eject);
+        transform-rotation: root.wob;
+        transform-scale: 1 + 0.18 * root.gone;
+        opacity: (1 - root.split) * (1 - root.eject) * (1 - root.gone);
         background: Theme.accent1;
     }
     // Fêlure (étincelle rouge) puis soudure (éclair clair).
@@ -360,8 +394,22 @@ export component ThemeLogo inherits Rectangle {
         }
     }
     // Sans cœur : emplacement vide, en pointillés orange (Nerd : support de processeur et ses broches).
-    property <float> pulse: root.seek ? 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 1100) / 1100 * 360deg) : 1;
-    if root.hollow: Path {
+    // Aussi quand le cœur est perdu (3) : il apparaît à sa place, et le radar le balaie.
+    property <float> slot-a: root.hollow ? 1 : root.slot;
+    property <bool> sweep: (root.hollow && root.seek) || (!root.hollow && root.heart == 3 && root.slot > 0.5);
+    property <float> pulse: root.sweep ? 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 1100) / 1100 * 360deg) : 1;
+    // Aero : orbe éteinte (assombrie) tant que le cœur est perdu.
+    if root.orb && !root.hollow && root.gone > 0.01: Rectangle {
+        x: 28 * root.u;
+        y: 28 * root.u;
+        width: 200 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        opacity: 0.5 * root.gone;
+        background: @radial-gradient(circle, Theme.bg.with-alpha(0.4) 0%, Theme.bg 100%);
+    }
+    if root.slot-a > 0.01: Path {
+        opacity: root.slot-a;
         x: 0px;
         y: 0px;
         width: parent.width;
@@ -379,7 +427,7 @@ export component ThemeLogo inherits Rectangle {
             : "M 128 101 L 133 104 M 140 108 L 145 111 M 151 117 L 151 123 M 151 133 L 151 139 M 145 145 L 140 148 M 133 152 L 128 155 M 123 152 L 116 148 M 111 145 L 105 141 M 105 133 L 105 123 M 105 117 L 111 111 M 116 108 L 123 104";
     }
     // Recherche : un balayage de radar tourne autour de l'emplacement.
-    if root.hollow && root.seek: Path {
+    if root.sweep: Path {
         x: 0px;
         y: 0px;
         width: parent.width;
@@ -392,5 +440,15 @@ export component ThemeLogo inherits Rectangle {
         stroke-line-cap: round;
         transform-rotation: mod(animation-tick() / 1ms, 1600) / 1600 * 360deg;
         commands: "M 128 82 A 46 46 0 0 1 168 105";
+    }
+    // Retour du serveur (3 -> 0) : étincelle au moment où le cœur se rebranche.
+    if root.plug > 0.01: Rectangle {
+        property <float> w: 40 + 150 * root.plug;
+        x: (128 - self.w / 2) * root.u;
+        y: (128 - self.w / 2) * root.u;
+        width: self.w * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, #ffffff.with-alpha(0.9 * root.plug) 0%, Theme.accent2.with-alpha(0.45 * root.plug) 35%, Theme.accent2.with-alpha(0) 70%);
     }
 }

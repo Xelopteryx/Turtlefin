@@ -68,14 +68,14 @@ export component LangExplorer inherits Rectangle {
     in-out property <int> sel;
     callback activate(int);
     callback back();
-    callback button(string);         // "pick" · "template" · "folder" · "close"
+    callback button(string);         // "mkdir" · "pick" · "template" · "folder" · "close"
 
     property <float> p: root.open ? 1 : 0;
     animate p { duration: Motion.panels ? 300ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     visible: self.p > 0.01;
     // Boutons sous la liste : modèle, dossier (bureau), fermer.
     property <int> n: root.items.length;
-    property <[string]> btns: root.pick-mode ? ["pick", "close"]
+    property <[string]> btns: root.pick-mode ? ["mkdir", "pick", "close"]
         : root.can-template ? (root.can-open-folder ? ["template", "folder", "close"] : ["template", "close"])
         : (root.can-open-folder ? ["folder", "close"] : ["close"]);
     property <duration> list-t0;
@@ -320,7 +320,7 @@ export component LangExplorer inherits Rectangle {
                     : ba.has-hover ? Theme.fg.with-alpha(0.15) : Theme.fg.with-alpha(0.07);
                 Gloss { r: parent.border-radius; strength: 0.8; }
                 bt := Text {
-                    text: b == "pick" ? Tr.t(Tr.k, "Choisir ce dossier") : b == "template" ? Tr.t(Tr.k, "Créer le modèle") : b == "folder" ? Tr.t(Tr.k, "Ouvrir le dossier") : Tr.t(Tr.k, "Fermer");
+                    text: b == "pick" ? Tr.t(Tr.k, "Choisir ce dossier") : b == "mkdir" ? Tr.t(Tr.k, "Nouveau dossier") : b == "template" ? Tr.t(Tr.k, "Créer le modèle") : b == "folder" ? Tr.t(Tr.k, "Ouvrir le dossier") : Tr.t(Tr.k, "Fermer");
                     color: parent.on ? Theme.on-accent : Theme.fg;
                     font-size: 15px * root.k;
                     font-weight: parent.on ? 700 : 500;

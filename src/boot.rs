@@ -336,8 +336,10 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         if let (5 | 6, Outcome::Fail(msg)) = (i, &result) {
             if i == 5 || msg == tr("Serveur injoignable : nouvel essai automatique ensuite.") {
                 start.unreachable = true;
-                // Le cœur du logo se fend (et se ressoude si le serveur revient, voir Srv).
-                crate::set_core(&app, 1);
+                // Des téléchargements : le cœur du logo se fend (et se ressoude si le serveur revient).
+                // Rien hors ligne : il se débranche (perdu), la recherche de serveur suivra (voir Srv).
+                let core = if crate::downloads::list().is_empty() { 3 } else { 1 };
+                crate::set_core(&app, core);
                 let what = if i == 5 { tr("Aucun réseau") } else { tr("Serveur injoignable") };
                 result = Outcome::Offline(offline_notice(what));
             }
@@ -377,6 +379,10 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         tokio::time::sleep(Duration::from_millis(500)).await;
         ui(&app, |u| u.set_boot_phase(1));
         wait(&app, Some(Duration::from_secs(3))).await;
+        // Serveur muet : le logo formé joue son cœur qui se fend ou se débranche avant de partir.
+        if start.unreachable {
+            tokio::time::sleep(Duration::from_millis(1300)).await;
+        }
         let a = app.clone();
         ui(&app, move |u| {
             route(&a, &start, u);
@@ -436,6 +442,12 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
         s.token = acc.token;
         s.server_id = acc.server_id;
         config::save(&s);
+        // Serveur muet : le mode hors ligne est proposé (téléchargements), sinon la recherche du serveur ;
+        // la session s'ouvre d'elle-même dès qu'il répond.
+        if start.unreachable {
+            crate::unreachable_start(app, u, true);
+            return;
+        }
         u.set_screen("loading".into());
         // La photo du compte au centre plutôt que l'écran de chargement.
         crate::fly_autostart(app, s.server.clone(), s.user_id.clone(), s.user_name.clone());
@@ -446,12 +458,8 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     // 4. « Qui regarde ? » (la recherche des serveurs s'il n'y en a aucun).
     u.set_screen("login".into());
     let _ = api::normalize_server(&start.server);
-    // Serveur muet : on le dit, et le message s'efface dès qu'il répond.
+    // Serveur muet : le mode hors ligne est proposé (téléchargements), sinon la recherche du serveur.
     if start.unreachable && !accounts.is_empty() {
-        let has_dl = !crate::downloads::list().is_empty();
-        u.set_offline_ok(has_dl);
-        let msg = tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…");
-        u.set_error_text(msg.into());
-        crate::watch_server_back(app.clone(), msg);
+        crate::unreachable_start(app, u, false);
     }
 }

@@ -2114,3 +2114,33 @@ msgstr "O fundo do tema move-se suavemente (um pouco mais de cálculo; desliga n
 
 msgid "Regarder hors ligne"
 msgstr "Ver offline"
+
+msgid "Ce dossier existe déjà."
+msgstr "Esta pasta já existe."
+
+msgid "Créer"
+msgstr "Criar"
+
+msgid "Créé dans le dossier affiché, puis choisi dans la liste."
+msgstr "Criada na pasta mostrada e depois escolhida na lista."
+
+msgid "Impossible de créer le dossier : {}"
+msgstr "Não foi possível criar a pasta: {}"
+
+msgid "Nom de dossier impossible (pas de \\ / : * ? \" < > |)."
+msgstr "Nome de pasta inválido (sem \\ / : * ? \" < > |)."
+
+msgid "Nom du dossier"
+msgstr "Nome da pasta"
+
+msgid "Nouveau dossier"
+msgstr "Nova pasta"
+
+msgid "Serveur de nouveau joignable"
+msgstr "Servidor acessível de novo"
+
+msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgstr "Servidor inacessível: procura-o na rede ou escolhe outro."
+
+msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
+msgstr "Servidor inacessível: vê as tuas transferências offline ou espera que volte (nova tentativa a cada 5 s)."
