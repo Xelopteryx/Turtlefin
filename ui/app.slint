@@ -8621,7 +8621,10 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
         }
 
-        if root.dl-sections.length == 0: EmptyNote {
+        // « Aucun téléchargement » seulement s'il n'y a rien de fini ET rien en cours : sinon le message
+        // s'affichait pendant le premier téléchargement (en haut : « Téléchargement : … », au centre :
+        // « Aucun téléchargement »).
+        if root.dl-sections.length == 0 && root.dl-status == "": EmptyNote {
             k: root.k;
             font: 18px * root.k;
             text: root.offline ? Tr.t(Tr.k, "Aucun téléchargement : rien à regarder hors ligne.")
