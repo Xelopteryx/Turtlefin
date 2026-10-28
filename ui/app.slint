@@ -1838,11 +1838,16 @@ component ActionButton inherits Rectangle {
 
     label := Text {
         text: root.text;
+        // Coupé avec « … » s'il est plus large que le bouton (titre long dans « Voir la lecture · … »
+        // ou « Ne plus diffuser sur … » : il débordait du panneau Diffuser). Le bouton veut toujours
+        // la largeur du texte entier (preferred-width ci-dessus) ; contraint par sa place, il coupe.
+        width: parent.width - 24px;
         color: root.lit ? Theme.on-accent : Theme.fg;
         font-size: root.font;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
+        overflow: elide;
     }
 
     area := TouchArea {
