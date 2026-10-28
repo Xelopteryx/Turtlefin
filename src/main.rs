@@ -6990,7 +6990,8 @@ async fn resolve_playable(client: &api::Client, item: api::Item) -> anyhow::Resu
                 .ok_or_else(|| anyhow::anyhow!("{}", tr("Cette saison n'a aucun épisode")))?;
             client.item(&pick.id).await
         }
-        "Movie" | "Episode" | "Video" | "MusicVideo" => Ok(item),
+        // Trailer : bande-annonce locale (fichier « -trailer », plugin Turtlefin Trailers).
+        "Movie" | "Episode" | "Video" | "MusicVideo" | "Trailer" => Ok(item),
         other => Err(anyhow::anyhow!("{}", trf("Impossible de lancer la lecture d'un élément de type {}", &[&other]))),
     }
 }
