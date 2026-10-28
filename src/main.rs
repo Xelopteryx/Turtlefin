@@ -1625,6 +1625,7 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
     };
     match sections {
         Ok(s) => {
+            set_core(&app, 0);
             if app.offline.swap(false, Ordering::SeqCst) {
                 let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
                 sync_offline_plays(&app, &client);
@@ -3779,6 +3780,7 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
             .filter_map(|(i, c)| ImageJob::for_card(0, loaded as usize + i, c, false))
             .collect();
         let fresh = (loaded == 0).then(|| app2.lib_title.lock().unwrap().clone());
+        let lib_id = id.clone();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {
             // Première page : la grille (et son titre) change maintenant, pas avant (l'ancienne reste
             // affichée pendant le chargement).
@@ -3817,6 +3819,19 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                 show_screen(&u, "library");
                 if select.is_none() {
                     u.invoke_page_enter();
+                    // Sans carte d'où partir (menu, clavier) : le paquet monte du bas de l'écran, avec
+                    // l'image de la bibliothèque si l'accueil l'a (rien ne se passe si une carte vole déjà).
+                    let mut deck = CardData { id: lib_id.clone().into(), deck: true, ..Default::default() };
+                    let secs = u.get_sections();
+                    if let Some(c) = (0..secs.row_count())
+                        .filter_map(|i| secs.row_data(i))
+                        .flat_map(|s| (0..s.items.row_count()).filter_map(move |j| s.items.row_data(j)))
+                        .find(|c| c.id.as_str() == lib_id && c.has_image)
+                    {
+                        deck.image = c.image;
+                        deck.has_image = true;
+                    }
+                    u.invoke_deck_rise(deck);
                     // Ses films et séries sont distribués depuis le centre, comme une collection.
                     u.invoke_lib_deal();
                 }
@@ -4173,11 +4188,12 @@ fn apply_motion(u: &AppWindow, a: &config::AnimFlags) {
     m.set_login(a.login);
     m.set_language(a.language);
     m.set_tour(a.tour);
+    m.set_scenery(a.scenery);
 }
 
 /// Presets intégrés : (clé, nom, animations).
 fn builtin_presets() -> [(&'static str, &'static str, config::AnimFlags); 3] {
-    let light = config::AnimFlags { boot: false, pages: false, detail: false, login: false, language: false, tour: false, ..config::AnimFlags::all(true) };
+    let light = config::AnimFlags { boot: false, pages: false, detail: false, login: false, language: false, tour: false, scenery: false, ..config::AnimFlags::all(true) };
     [
         ("all", tr("Toutes"), config::AnimFlags::all(true)),
         ("light", tr("Légères"), light),
@@ -4218,7 +4234,8 @@ fn anim_label(key: &str) -> (&'static str, &'static str) {
         "search" => (tr("Saisie"), tr("Lettres tapées et clavier à l'écran.")),
         "login" => (tr("Connexion"), tr("Photo du compte choisi, arrivée sur l'accueil.")),
         "language" => (tr("Changement de langue"), tr("Barre qui recouvre puis réécrit les textes.")),
-        _ => (tr("Visite guidée"), tr("Bulles et cadres de la visite.")),
+        "tour" => (tr("Visite guidée"), tr("Bulles et cadres de la visite.")),
+        _ => (tr("Fond animé"), tr("Le décor du thème bouge doucement (un peu plus de calcul, à couper sur un petit appareil).")),
     }
 }
 
@@ -6463,6 +6480,13 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
                 u.set_d_x(zone.1);
                 u.set_d_child(zone.2);
                 u.set_d_button(zone.3);
+            } else if zone.0 >= 2 {
+                // Quittée au clavier depuis les saisons / épisodes ou les rangées du bas : on y revient
+                // (l'image partagée regagne la carte choisie, à l'écran).
+                u.set_d_zone(zone.0);
+                u.set_d_x(zone.1);
+                u.set_d_child(zone.2);
+                u.set_d_button(zone.3);
             } else {
                 // Retour : la sélection revient sur Lecture (comme en ouvrant la fiche).
                 u.set_d_zone(0);
@@ -8322,6 +8346,15 @@ pub(crate) fn main() -> anyhow::Result<()> {
         let app = app.clone();
         move |action| {
             let a = action.as_str();
+            // « Regarder hors ligne » (Qui regarde ?, serveur injoignable) : les téléchargements.
+            if a == "offline" {
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_offline_ok(false);
+                    u.set_error_text("".into());
+                }
+                go_offline(&app);
+                return;
+            }
             if a == "home" {
                 // Bouton maison et « Accueil » du menu : toujours l'onglet Accueil (pas Favoris
                 // ni Demandes), rechargé s'il n'était pas affiché.
@@ -8758,7 +8791,9 @@ fn watch_server_back(app: Arc<App>, msg: &'static str) {
             if best.is_empty() || !discovery::reachable(&best).await {
                 continue;
             }
+            set_core(&app, 0);
             let _ = app.ui().upgrade_in_event_loop(move |u| {
+                u.set_offline_ok(false);
                 if u.get_error_text().as_str() == msg {
                     u.set_error_text("".into());
                     u.set_toast(tr("Serveur de nouveau joignable.").into());
@@ -9489,8 +9524,19 @@ fn local_key_exists(key: &str) -> bool {
     })
 }
 
+/// Cœur du logo (voir Srv, ui/logo.slint) : 0 serveur joint · 1 injoignable · 2 hors ligne.
+fn set_core(app: &Arc<App>, v: i32) {
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let g = u.global::<Srv>();
+        if g.get_core() != v {
+            g.set_core(v);
+        }
+    });
+}
+
 /// Mode hors ligne : écran Téléchargements, avec un message.
 fn go_offline(app: &Arc<App>) {
+    set_core(app, 2);
     let was = app.offline.swap(true, Ordering::SeqCst);
     // Menu sans les bibliothèques ni la watch party (rien à ouvrir sans serveur).
     set_menu(app, &[]);

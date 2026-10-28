@@ -4,13 +4,78 @@
 //   Theme.logo-style 0 : carapace (hexagone, rayons, centre plein) en dégradé d'accent ;
 //   1 : la même, blanc nacré, sur une orbe de verre (Aero) ;
 //   2 : pistes de circuit, plots aux sommets, puce au centre (Nerd).
-import { Theme } from "theme.slint";
+import { Theme, Motion } from "theme.slint";
 
-//   hollow : sans cœur (aucun serveur choisi) ; un anneau orange au centre, qui pulse pendant une
-//   recherche (seek).
+// Cœur du logo (le serveur), commun à toutes ses copies (démarrage, titres, en-tête), posé par Rust :
+// 0 serveur joint · 1 injoignable (le cœur se fend) · 2 hors ligne (le cœur est éjecté, une maison
+// prend sa place ; Nerd : les pistes passent à l'ambre, jusque dans le décor).
+export global Srv {
+    in-out property <int> core;
+}
+
+//   hollow : sans cœur (aucun serveur choisi) : emplacement vide (Nerd : support de processeur et ses
+//   broches), qu'un balayage de radar parcourt pendant une recherche (seek).
+//   Un changement de Srv.core se joue en direct (le cœur se fend, se ressoude, est éjecté) ; un logo
+//   qui apparaît avec un cœur fendu ou une maison le joue aussi, une fois (le logo du démarrage pose
+//   ainsi la nouvelle sur le titre de la page).
 export component ThemeLogo inherits Rectangle {
     in property <bool> hollow;
     in property <bool> seek;
+    // État d'où part l'animation jouée à l'apparition (cœur fendu avant le passage hors ligne…).
+    in property <int> start-from: 0;
+    property <int> heart: root.hollow ? 0 : Srv.core;
+    property <int> from;
+    property <int> to;
+    property <bool> c-anim;
+    property <duration> c-t0;
+    init => {
+        root.from = root.start-from;
+        root.to = root.heart;
+        if (root.heart != 0 && Motion.pages) {
+            root.c-t0 = animation-tick();
+            root.c-anim = true;
+        }
+    }
+    changed heart => {
+        root.from = root.to;
+        root.to = root.heart;
+        root.c-t0 = animation-tick();
+        root.c-anim = Motion.pages;
+    }
+    property <duration> c-len: root.to == 2 || root.from == 2 ? 1400ms : 1000ms;
+    Timer {
+        interval: root.c-len + 40ms;
+        running: root.c-anim;
+        triggered => {
+            root.c-anim = false;
+        }
+    }
+    property <float> cq: root.c-anim ? clamp((animation-tick() - root.c-t0) / root.c-len, 0, 1) : 1;
+    pure function ease(t: float) -> float {
+        return t < 0.5 ? 4 * t * t * t : 1 - (2 - 2 * t) * (2 - 2 * t) * (2 - 2 * t) / 2;
+    }
+    pure function back(t: float) -> float {
+        // Dépassement léger à l'arrivée (la maison se pose).
+        return 1 + 2.7 * (t - 1) * (t - 1) * (t - 1) + 1.7 * (t - 1) * (t - 1);
+    }
+    // Cœur fendu (0 entier · 1 deux moitiés écartées). Se fend : la fêlure court (0 à 0,35), puis les
+    // moitiés s'écartent. Se ressoude : elles se rejoignent, un éclair court le long de la soudure.
+    property <float> split: root.to == 1
+        ? (root.from == 1 ? 1 : root.ease(clamp((root.cq - 0.3) / 0.7, 0, 1)))
+        : root.from == 1 && root.to == 0 ? 1 - root.ease(clamp(root.cq / 0.6, 0, 1))
+        : root.from == 1 && root.to == 2 ? 1 : 0;
+    property <float> crack: root.to == 1 ? (root.from == 1 ? 1 : clamp(root.cq / 0.3, 0, 1))
+        : root.from == 1 && root.to == 0 ? 1 - clamp((root.cq - 0.55) / 0.2, 0, 1)
+        : root.from == 1 && root.to == 2 ? 1 - clamp(root.cq / 0.4, 0, 1) : 0;
+    property <float> flash: root.from == 1 && root.to == 0 ? max(0, 1 - abs(root.cq - 0.65) / 0.18) : 0;
+    // Hors ligne : le cœur part (0 à 0,5), la maison arrive (0,45 à 1). Retour en ligne : l'inverse.
+    property <float> eject: root.to == 2 ? root.ease(clamp(root.cq / 0.5, 0, 1))
+        : root.from == 2 ? 1 - root.ease(clamp((root.cq - 0.45) / 0.55, 0, 1)) : 0;
+    property <float> home: root.to == 2 ? clamp((root.cq - 0.45) / 0.55, 0, 1)
+        : root.from == 2 ? 1 - clamp(root.cq / 0.5, 0, 1) : 0;
+    property <float> home-s: root.home <= 0 ? 0 : root.to == 2 ? root.back(root.home) : root.home;
+    // Teinte ambre (hors ligne) : arrive avec la maison.
+    property <float> amber: root.home;
     property <length> u: min(self.width, self.height) / 256;
     property <[float]> px: [128, 187, 187, 128, 69, 69];
     property <[float]> py: [60, 94, 162, 196, 162, 94];
@@ -85,7 +150,45 @@ export component ThemeLogo inherits Rectangle {
         stroke-line-cap: round;
         commands: root.spokes;
     }
-    if !root.chip && !root.hollow: Path {
+    // Carapace teintée d'ambre hors ligne (par-dessus, en fondu).
+    if !root.chip && root.amber > 0.01: Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: @linear-gradient(135deg, #ffcf6b 0%, #f59e0b 100%);
+        stroke-width: 14 * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        opacity: root.amber;
+        commands: root.hex + " " + root.spokes;
+    }
+    // Cœur : deux moitiés le long d'une fêlure en zigzag (jointes quand tout va bien).
+    for side in 2: Path {
+        property <float> dir: side == 0 ? -1 : 1;
+        visible: !root.chip && !root.hollow && root.eject < 0.999;
+        x: (53 + self.dir * 7 * root.split) * root.u;
+        y: (53 + 70 * root.eject) * root.u;
+        width: 150 * root.u;
+        height: 150 * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        transform-rotation: self.dir * 9deg * root.split + 25deg * root.eject;
+        transform-scale: 1 - 0.4 * root.eject;
+        opacity: 1 - root.eject;
+        fill: root.split > 0.01 ? (side == 0 ? #c2414b : #d9505a).mix(Theme.accent1, 0.25 + 0.6 * root.split) : root.grad;
+        commands: side == 0 ? "M 128 98 L 124 112 L 133 126 L 121 141 L 128 158 L 102 143 L 102 113 Z"
+            : "M 128 98 L 154 113 L 154 143 L 128 158 L 121 141 L 133 126 L 124 112 Z";
+    }
+    // La fêlure qui court, puis l'éclair de la soudure.
+    if !root.chip && !root.hollow && (root.crack > 0.01 || root.flash > 0.01): Path {
         x: 53 * root.u;
         y: 53 * root.u;
         width: 150 * root.u;
@@ -94,8 +197,52 @@ export component ThemeLogo inherits Rectangle {
         viewbox-y: 53;
         viewbox-width: 150;
         viewbox-height: 150;
-        fill: root.grad;
-        commands: root.core;
+        fill: transparent;
+        stroke: root.flash > 0.01 ? #fff3b0 : #ff5c5c;
+        stroke-width: (root.flash > 0.01 ? 5 : 3) * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        opacity: max(root.flash, root.crack * (1 - root.split));
+        commands: "M 128 98 L 124 112 L 133 126 L 121 141 L 128 158";
+    }
+    // Maison (hors ligne), à la place du cœur.
+    if !root.chip && root.home > 0.01: Path {
+        x: 53 * root.u;
+        y: 53 * root.u;
+        width: 150 * root.u;
+        height: 150 * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        transform-scale: root.home-s;
+        opacity: min(1, root.home * 2);
+        fill: @linear-gradient(135deg, #ffd27a 0%, #f59e0b 100%);
+        commands: "M 128 103 L 153 125 L 146 125 L 146 152 L 134 152 L 134 137 L 122 137 L 122 152 L 110 152 L 110 125 L 103 125 Z";
+    }
+    // Aero : fêlure dans le verre de l'orbe (serveur injoignable), et orbe ambre hors ligne.
+    if root.orb && !root.hollow && root.crack > 0.01: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: transparent;
+        stroke: rgba(255, 255, 255, 0.75);
+        stroke-width: 2.5 * root.u;
+        stroke-line-join: round;
+        opacity: root.crack;
+        commands: "M 58 70 L 92 98 L 84 118 L 112 132 M 92 98 L 104 84 M 150 140 L 174 150 L 168 176 L 196 192 M 174 150 L 190 136";
+    }
+    if root.orb && !root.hollow && root.amber > 0.01: Rectangle {
+        x: 28 * root.u;
+        y: 28 * root.u;
+        width: 200 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        opacity: root.amber * 0.55;
+        background: @radial-gradient(circle, #ffb347 0%, #f59e0b.with-alpha(0.6) 60%, #f59e0b.with-alpha(0) 100%);
     }
     // Aero : grand reflet blanc par-dessus la carapace.
     if root.orb && !root.hollow: Rectangle {
@@ -133,32 +280,117 @@ export component ThemeLogo inherits Rectangle {
         stroke-width: 6 * root.u;
         commands: "M 117 60 A 11 11 0 1 0 139 60 A 11 11 0 1 0 117 60 Z M 176 94 A 11 11 0 1 0 198 94 A 11 11 0 1 0 176 94 Z M 176 162 A 11 11 0 1 0 198 162 A 11 11 0 1 0 176 162 Z M 117 196 A 11 11 0 1 0 139 196 A 11 11 0 1 0 117 196 Z M 58 162 A 11 11 0 1 0 80 162 A 11 11 0 1 0 58 162 Z M 58 94 A 11 11 0 1 0 80 94 A 11 11 0 1 0 58 94 Z";
     }
-    if root.chip && !root.hollow: Rectangle {
+    // Hors ligne : les pistes passent à l'ambre (par-dessus, en fondu).
+    if root.chip && root.amber > 0.01: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: transparent;
+        stroke: #f59e0b;
+        stroke-width: 9 * root.u;
+        stroke-line-join: round;
+        opacity: root.amber;
+        commands: root.hex + " " + root.spokes;
+    }
+    // Puce du serveur : deux moitiés le long d'une fêlure (jointes quand tout va bien) ; hors ligne,
+    // éjectée vers le haut en tournant.
+    for side in 2: Path {
+        property <float> dir: side == 0 ? -1 : 1;
+        visible: root.chip && !root.hollow && root.eject < 0.999;
+        x: (self.dir * 8 * root.split) * root.u;
+        y: (-110 * root.eject + 4 * root.split) * root.u;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        transform-rotation: self.dir * 10deg * root.split - 40deg * root.eject;
+        opacity: 1 - root.eject;
+        fill: Theme.accent1.mix(Theme.bg, 0.25);
+        stroke: root.split > 0.01 ? Theme.accent2.mix(#ff5c5c, 1 - root.split) : Theme.accent2;
+        stroke-width: 5 * root.u;
+        stroke-line-join: round;
+        commands: side == 0 ? "M 98 98 L 125 98 L 119 115 L 132 128 L 121 142 L 127 158 L 98 158 Z"
+            : "M 125 98 L 158 98 L 158 158 L 127 158 L 121 142 L 132 128 L 119 115 Z";
+    }
+    // Cœur de la puce (carré d'accent) : seulement entière.
+    if root.chip && !root.hollow && root.split < 0.999 && root.eject < 0.999: Rectangle {
+        x: (128 - 12) * root.u;
+        y: (128 - 12 - 110 * root.eject) * root.u;
+        width: 24 * root.u;
+        height: self.width;
+        opacity: (1 - root.split) * (1 - root.eject);
+        background: Theme.accent1;
+    }
+    // Fêlure (étincelle rouge) puis soudure (éclair clair).
+    if root.chip && !root.hollow && (root.crack > 0.01 || root.flash > 0.01): Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: transparent;
+        stroke: root.flash > 0.01 ? #fff3b0 : #ff5c5c;
+        stroke-width: (root.flash > 0.01 ? 5 : 3) * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        opacity: max(root.flash, root.crack * (1 - root.split));
+        commands: "M 125 98 L 119 115 L 132 128 L 121 142 L 127 158";
+    }
+    // Puce « maison » (hors ligne) : arrive par le bas et se pose dans le support.
+    if root.chip && root.home > 0.01: Rectangle {
         x: (128 - 30) * root.u;
-        y: (128 - 30) * root.u;
+        y: (128 - 30 + 90 * (1 - root.home)) * root.u;
         width: 60 * root.u;
         height: self.width;
-        background: Theme.accent1.mix(Theme.bg, 0.25);
+        opacity: min(1, root.home * 2);
+        background: #2a1a05;
         border-width: 5 * root.u;
-        border-color: Theme.accent2;
-        Rectangle {
-            x: parent.width * 0.3;
-            y: parent.height * 0.3;
-            width: parent.width * 0.4;
-            height: self.width;
-            background: Theme.accent1;
+        border-color: #f59e0b;
+        Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 60;
+            viewbox-height: 60;
+            fill: #ffc23d;
+            commands: "M 30 13 L 47 28 L 42 28 L 42 46 L 34 46 L 34 36 L 26 36 L 26 46 L 18 46 L 18 28 L 13 28 Z";
         }
     }
-    // Sans cœur : anneau orange (pulsation pendant une recherche).
-    if root.hollow: Rectangle {
-        property <float> pulse: root.seek ? 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 1100) / 1100 * 360deg) : 1;
-        x: (128 - 15) * root.u;
-        y: (128 - 15) * root.u;
-        width: 30 * root.u;
-        height: self.width;
-        border-radius: self.width / 2;
-        border-width: 5 * root.u;
-        border-color: #f59e0b.with-alpha(0.45 + 0.55 * self.pulse);
-        background: #f59e0b.with-alpha(0.25 * self.pulse);
+    // Sans cœur : emplacement vide, en pointillés orange (Nerd : support de processeur et ses broches).
+    property <float> pulse: root.seek ? 0.5 + 0.5 * sin(mod(animation-tick() / 1ms, 1100) / 1100 * 360deg) : 1;
+    if root.hollow: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: #f59e0b.with-alpha(0.10 * root.pulse);
+        stroke: #f59e0b.with-alpha(0.45 + 0.55 * root.pulse);
+        stroke-width: 4 * root.u;
+        stroke-line-cap: round;
+        commands: root.chip
+            // Support : cadre, broches sur les quatre côtés.
+            ? "M 100 100 L 156 100 L 156 156 L 100 156 Z M 108 92 L 108 100 M 120 92 L 120 100 M 132 92 L 132 100 M 144 92 L 144 100 M 108 156 L 108 164 M 120 156 L 120 164 M 132 156 L 132 164 M 144 156 L 144 164 M 92 108 L 100 108 M 92 120 L 100 120 M 92 132 L 100 132 M 92 144 L 100 144 M 156 108 L 164 108 M 156 120 L 164 120 M 156 132 L 164 132 M 156 144 L 164 144"
+            // Hexagone du cœur en pointillés.
+            : "M 128 101 L 133 104 M 140 108 L 145 111 M 151 117 L 151 123 M 151 133 L 151 139 M 145 145 L 140 148 M 133 152 L 128 155 M 123 152 L 116 148 M 111 145 L 105 141 M 105 133 L 105 123 M 105 117 L 111 111 M 116 108 L 123 104";
+    }
+    // Recherche : un balayage de radar tourne autour de l'emplacement.
+    if root.hollow && root.seek: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: transparent;
+        stroke: #f59e0b;
+        stroke-width: 5 * root.u;
+        stroke-line-cap: round;
+        transform-rotation: mod(animation-tick() / 1ms, 1600) / 1600 * 360deg;
+        commands: "M 128 82 A 46 46 0 0 1 168 105";
     }
 }

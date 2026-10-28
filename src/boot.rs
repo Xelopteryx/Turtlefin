@@ -8,9 +8,10 @@
 //! des serveurs s'il n'y en a encore aucun).
 //!
 //! Serveur injoignable (point orange, pas une erreur : la suite ne s'arrête pas) :
-//! - des téléchargements sur l'appareil : mode hors ligne (téléchargements) avec le compte de
-//!   démarrage, ou le seul compte enregistré ; plusieurs comptes : « Qui regarde ? », et le compte
-//!   choisi ouvre ses téléchargements hors ligne. Retour en ligne tout seul dès que le serveur répond ;
+//! - des téléchargements sur l'appareil : mode hors ligne avec le compte de démarrage ; sinon
+//!   « Qui regarde ? » et son bouton « Regarder hors ligne » (médias de tous les serveurs enregistrés ;
+//!   chacun ne renvoie ses lectures qu'à son serveur et son compte, voir downloads::belongs). Un compte
+//!   choisi ouvre aussi les téléchargements hors ligne. Retour en ligne tout seul dès que le serveur répond ;
 //! - rien sur l'appareil : « Qui regarde ? » (ou la connexion du compte de démarrage), avec un
 //!   nouvel essai automatique toutes les 5 s.
 
@@ -335,6 +336,8 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         if let (5 | 6, Outcome::Fail(msg)) = (i, &result) {
             if i == 5 || msg == tr("Serveur injoignable : nouvel essai automatique ensuite.") {
                 start.unreachable = true;
+                // Le cœur du logo se fend (et se ressoude si le serveur revient, voir Srv).
+                crate::set_core(&app, 1);
                 let what = if i == 5 { tr("Aucun réseau") } else { tr("Serveur injoignable") };
                 result = Outcome::Offline(offline_notice(what));
             }
@@ -425,11 +428,7 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     let p = config::ui_prefs();
     let accounts = config::accounts();
     let acc = accounts.iter().find(|a| a.user_id == p.autostart_user && a.server_id == p.autostart_server).cloned();
-    // Hors ligne avec des téléchargements et un seul compte (sans compte de démarrage) : celui-ci,
-    // directement (« Qui regarde ? » ne mènerait qu'à lui).
-    let acc = acc.filter(|_| !p.autostart_user.is_empty()).or_else(|| {
-        (start.unreachable && accounts.len() == 1 && !crate::downloads::list().is_empty()).then(|| accounts[0].clone())
-    });
+    let acc = acc.filter(|_| !p.autostart_user.is_empty());
     if let Some(acc) = acc.filter(|_| !saved.server.is_empty()) {
         let mut s = saved.clone();
         s.user_id = acc.user_id;
@@ -449,11 +448,9 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     let _ = api::normalize_server(&start.server);
     // Serveur muet : on le dit, et le message s'efface dès qu'il répond.
     if start.unreachable && !accounts.is_empty() {
-        let msg = if crate::downloads::list().is_empty() {
-            tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…")
-        } else {
-            tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne.")
-        };
+        let has_dl = !crate::downloads::list().is_empty();
+        u.set_offline_ok(has_dl);
+        let msg = tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…");
         u.set_error_text(msg.into());
         crate::watch_server_back(app.clone(), msg);
     }

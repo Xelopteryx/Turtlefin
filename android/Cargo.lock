@@ -3755,7 +3755,7 @@ dependencies = [
 
 [[package]]
 name = "turtlefin-android"
-version = "1.9.5"
+version = "1.9.6"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3767,6 +3767,7 @@ dependencies = [
  "if-addrs",
  "image",
  "jni 0.21.1",
+ "libc",
  "libloading",
  "ndk-context",
  "reqwest",

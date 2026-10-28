@@ -2069,9 +2069,6 @@ msgstr "Geen limiet"
 msgid "Serveur de nouveau joignable."
 msgstr "Server weer bereikbaar."
 
-msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
-msgstr "Server onbereikbaar: kies een account om de downloads offline te bekijken."
-
 msgid "Téléchargements : {}"
 msgstr "Downloads: {}"
 
@@ -2105,3 +2102,15 @@ msgid "{n} téléchargement déplacé."
 msgid_plural "{n} téléchargements déplacés."
 msgstr[0] "{n} download verplaatst."
 msgstr[1] "{n} downloads verplaatst."
+
+msgid "Fond animé"
+msgstr "Geanimeerde achtergrond"
+
+msgid "Hors ligne : médias téléchargés"
+msgstr "Offline: gedownloade media"
+
+msgid "Le décor du thème bouge doucement (un peu plus de calcul, à couper sur un petit appareil)."
+msgstr "De achtergrond van het thema beweegt zacht (iets meer rekenwerk; uitzetten op een klein apparaat)."
+
+msgid "Regarder hors ligne"
+msgstr "Offline kijken"

@@ -2075,9 +2075,6 @@ msgstr "Bez limitu"
 msgid "Serveur de nouveau joignable."
 msgstr "Serwer znów osiągalny."
 
-msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
-msgstr "Serwer nieosiągalny: wybierz konto, aby oglądać jego pobrane offline."
-
 msgid "Téléchargements : {}"
 msgstr "Pobrane: {}"
 
@@ -2113,3 +2110,15 @@ msgid_plural "{n} téléchargements déplacés."
 msgstr[0] "Przeniesiono {n} pobrany."
 msgstr[1] "Przeniesiono {n} pobrane."
 msgstr[2] "Przeniesiono {n} pobranych."
+
+msgid "Fond animé"
+msgstr "Animowane tło"
+
+msgid "Hors ligne : médias téléchargés"
+msgstr "Offline: pobrane multimedia"
+
+msgid "Le décor du thème bouge doucement (un peu plus de calcul, à couper sur un petit appareil)."
+msgstr "Tło motywu delikatnie się porusza (trochę więcej obliczeń; wyłącz na słabym urządzeniu)."
+
+msgid "Regarder hors ligne"
+msgstr "Oglądaj offline"

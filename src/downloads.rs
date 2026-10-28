@@ -78,6 +78,11 @@ pub struct Entry {
     pub favorite: bool,
     /// Bibliothèque du serveur (nom du premier dossier).
     pub library: String,
+    /// Serveur et compte d'où vient le téléchargement : ses lectures hors ligne ne sont renvoyées
+    /// qu'à eux (une série peut être sur deux serveurs, un même nom de compte sur les deux). Vides :
+    /// téléchargement d'avant la 1.9.6 (renvoyé au serveur connecté, comme avant).
+    pub server_id: String,
+    pub user_id: String,
     /// Fichier de description de l'élément (`<nom>.json`, ou `info.json` à l'ancienne).
     #[serde(skip)]
     pub loc: PathBuf,
@@ -321,11 +326,24 @@ fn now_rfc3339() -> String {
     format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
+/// Le téléchargement vient-il de ce serveur et de ce compte ? (Ancien téléchargement, sans origine
+/// notée : oui.)
+pub fn belongs(e: &Entry, server_id: &str, user_id: &str) -> bool {
+    (e.server_id.is_empty() || e.server_id == server_id) && (e.user_id.is_empty() || e.user_id == user_id)
+}
+
 /// Renvoie au serveur les lectures faites hors ligne (position, « vu ») et les « vu » / favoris
-/// décidés sur l'appareil. Rend le nombre de changements envoyés.
+/// décidés sur l'appareil, pour les seuls téléchargements de ce serveur et de ce compte (les
+/// autres attendent la connexion au leur). Rend le nombre de changements envoyés.
 pub async fn sync(client: &Client) -> usize {
     let mut n = 0;
+    let server_id = crate::config::load().server_id;
+    let others: std::collections::HashSet<String> =
+        list().into_iter().filter(|e| !belongs(e, &server_id, &client.user_id)).map(|e| e.id).collect();
     for (id, f) in crate::config::all_flags() {
+        if others.contains(&id) {
+            continue;
+        }
         if let (true, Some(v)) = (f.dirty_played, f.played) {
             if client.set_played(&id, v).await.is_ok() {
                 crate::config::clear_dirty(&id, false);
@@ -339,7 +357,7 @@ pub async fn sync(client: &Client) -> usize {
             }
         }
     }
-    for mut e in list().into_iter().filter(|e| e.dirty) {
+    for mut e in list().into_iter().filter(|e| e.dirty && !others.contains(&e.id)) {
         let body = serde_json::json!({
             "PlaybackPositionTicks": (e.position * 10_000_000.0) as i64,
             "Played": e.played,
@@ -457,7 +475,8 @@ pub fn outdated(e: &Entry) -> bool {
 /// Tous les anciens téléchargements rangés (à la connexion) ; rend le nombre d'éléments rangés.
 pub async fn migrate(client: &Client) -> usize {
     let mut n = 0;
-    for e in list().into_iter().filter(outdated) {
+    let server_id = crate::config::load().server_id;
+    for e in list().into_iter().filter(outdated).filter(|e| belongs(e, &server_id, &client.user_id)) {
         if enrich(client, &e.id).await {
             n += 1;
         }
@@ -967,6 +986,8 @@ pub async fn download(client: &Client, id: &str, progress: impl Fn(f32)) -> Resu
         size: done,
         library,
         loc: dir.join(format!("{base}.json")),
+        server_id: crate::config::load().server_id,
+        user_id: client.user_id.clone(),
         ..Default::default()
     };
     if let Some(ud) = &item.user_data {

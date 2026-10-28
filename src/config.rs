@@ -558,6 +558,8 @@ pub struct AnimFlags {
     pub login: bool,
     pub language: bool,
     pub tour: bool,
+    /// Décor du thème qui bouge doucement (fond redessiné en continu : plus de calcul).
+    pub scenery: bool,
 }
 
 impl AnimFlags {
@@ -575,10 +577,11 @@ impl AnimFlags {
             login: on,
             language: on,
             tour: on,
+            scenery: on,
         }
     }
     /// Clés (Paramètres, fichiers de preset), dans l'ordre d'affichage.
-    pub const KEYS: [&'static str; 12] = ["boot", "pages", "menu", "select", "scroll", "panels", "detail", "player", "search", "login", "language", "tour"];
+    pub const KEYS: [&'static str; 13] = ["boot", "pages", "menu", "select", "scroll", "panels", "detail", "player", "search", "login", "language", "tour", "scenery"];
     pub fn get(&self, key: &str) -> bool {
         match key {
             "boot" => self.boot,
@@ -593,6 +596,7 @@ impl AnimFlags {
             "login" => self.login,
             "language" => self.language,
             "tour" => self.tour,
+            "scenery" => self.scenery,
             _ => false,
         }
     }
@@ -610,6 +614,7 @@ impl AnimFlags {
             "login" => self.login = on,
             "language" => self.language = on,
             "tour" => self.tour = on,
+            "scenery" => self.scenery = on,
             _ => {}
         }
     }
@@ -620,7 +625,8 @@ impl AnimFlags {
 
 impl Default for AnimFlags {
     fn default() -> Self {
-        AnimFlags::all(true)
+        // Raspberry Pi (Linux ARM 64 bits) : décor fixe par défaut (fond redessiné en continu sinon).
+        AnimFlags { scenery: !cfg!(all(target_os = "linux", target_arch = "aarch64")), ..AnimFlags::all(true) }
     }
 }
 

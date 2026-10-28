@@ -2069,9 +2069,6 @@ msgstr "Sin límite"
 msgid "Serveur de nouveau joignable."
 msgstr "Servidor accesible de nuevo."
 
-msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements hors ligne."
-msgstr "Servidor inaccesible: elige una cuenta para ver sus descargas sin conexión."
-
 msgid "Téléchargements : {}"
 msgstr "Descargas: {}"
 
@@ -2105,3 +2102,15 @@ msgid "{n} téléchargement déplacé."
 msgid_plural "{n} téléchargements déplacés."
 msgstr[0] "{n} descarga movida."
 msgstr[1] "{n} descargas movidas."
+
+msgid "Fond animé"
+msgstr "Fondo animado"
+
+msgid "Hors ligne : médias téléchargés"
+msgstr "Sin conexión: contenido descargado"
+
+msgid "Le décor du thème bouge doucement (un peu plus de calcul, à couper sur un petit appareil)."
+msgstr "El fondo del tema se mueve suavemente (algo más de cálculo; desactívalo en un dispositivo pequeño)."
+
+msgid "Regarder hors ligne"
+msgstr "Ver sin conexión"
