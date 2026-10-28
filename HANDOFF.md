@@ -367,6 +367,14 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   `cast-e(i)`, `open-e`, `out-c` / `out-e`.
 - **Lecteur** : `seek-chain` (touchers suivants : +10 s chacun, `seek-total`).
 - **Explorateur** : bouton `mkdir` (mode 9 de la fenêtre de saisie ; l'explorateur s'efface pendant la saisie).
+- **Hors ligne** : `theme::set_offline` (appelé par `set_core`) : `apply` passe fonds, accents, verre, cartes
+  à l'ambre (`amber`, teinte 36°, clarté gardée), via `switch_theme`. Téléchargements au démarrage : core 2
+  directement ; plus de bouton « Regarder hors ligne » (tuiles « Hors ligne », `login_pick` n'attend le
+  serveur que 3 s). `check_offline_empty` : plus rien hors ligne → core 3 + recherche de serveur.
+- **Lecteur** : `pos-secs` / `dur-secs`, `seek-base`, `seek-step` (sauts bornés). **Bibliothèque portrait** :
+  `hero-arc` (courbe par le centre, `hero-xp`… remplacent les interpolations linéaires).
+- **Seerr** : `sr-more` (fenêtre « Lire la suite »), `sr-cast-off` (distribution qui défile), `sr-sel` 2 et 3.
+- **Barre du haut** : plus de bouton maison (`show-home` toujours faux).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
