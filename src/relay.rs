@@ -46,8 +46,17 @@ async fn relay() -> Result<&'static Relay> {
     let r = RELAY.get_or_init(|| Relay { port, routes: Mutex::new(HashMap::new()), http });
     if r.port == port {
         tokio::spawn(async move {
+            // 32 requêtes à la fois au plus : un appareil du réseau qui ouvre des milliers de
+            // connexions (chacune attend jusqu'à 10 s ses en-têtes) n'épuise pas l'appli. Une
+            // télé en lit 2 ou 3 à la fois (vidéo, sous-titres, morceaux HLS).
+            let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
             while let Ok((sock, peer)) = listener.accept().await {
+                let Ok(slot) = slots.clone().try_acquire_owned() else {
+                    drop(sock);
+                    continue;
+                };
                 tokio::spawn(async move {
+                    let _slot = slot;
                     if let Err(e) = serve(sock, peer.ip()).await {
                         eprintln!("turtlefin : relais : {e}");
                     }
@@ -154,7 +163,9 @@ async fn serve(mut sock: TcpStream, peer: IpAddr) -> Result<()> {
         Ok(r) => r,
         Err(e) => {
             let _ = reply(&mut sock, "502 Bad Gateway").await;
-            return Err(anyhow!("serveur injoignable : {e}"));
+            // Sans l'adresse : celle d'une diffusion porte le jeton (api_key), et ce message finit
+            // dans les journaux (sur le Pi, recopiés dans un fichier par Xelauncher).
+            return Err(anyhow!("serveur injoignable : {}", e.without_url()));
         }
     };
     let status = resp.status();

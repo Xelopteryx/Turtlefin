@@ -17,9 +17,11 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- allowBackup : pas de sauvegarde (Google, transfert vers un autre téléphone) des données de
-         l'appli : elles contiennent les jetons de connexion aux serveurs. -->
+         l'appli : elles contiennent les jetons de connexion aux serveurs. Android 12 et plus :
+         dataExtractionRules, sans quoi le transfert d'appareil à appareil copie quand même tout. -->
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Turtlefin"
         android:icon="@mipmap/ic_launcher"
         android:banner="@mipmap/ic_launcher"

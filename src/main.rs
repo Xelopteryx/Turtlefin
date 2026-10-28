@@ -478,8 +478,36 @@ fn buttons_sig(b: &[(String, String, String, bool)], icons: bool) -> String {
 }
 
 /// Erreur lisible : les erreurs réseau deviennent une phrase (le détail technique reste en console).
+/// Masque les jetons d'un message (« api_key=…», « ApiKey=… », « Token=… ») : une erreur réseau
+/// contient l'adresse demandée, et celles des diffusions portent le jeton. Ces messages vont au
+/// journal (sur le Pi, recopié dans un fichier) et parfois à l'écran.
+fn redact(msg: &str) -> String {
+    let lower = msg.to_ascii_lowercase();
+    let mut out = String::with_capacity(msg.len());
+    let mut i = 0;
+    while i < msg.len() {
+        let hit = ["api_key=", "apikey=", "token=", "x-emby-token="].iter().find(|k| lower[i..].starts_with(*k));
+        match hit {
+            Some(k) => {
+                out.push_str(&msg[i..i + k.len()]);
+                out.push_str("***");
+                i += k.len();
+                while i < msg.len() && !matches!(msg.as_bytes()[i], b'&' | b' ' | b'"' | b')' | b',' | b'\n') {
+                    i += 1;
+                }
+            }
+            None => {
+                let c = msg[i..].chars().next().unwrap_or(' ');
+                out.push(c);
+                i += c.len_utf8();
+            }
+        }
+    }
+    out
+}
+
 fn human_err(e: &anyhow::Error) -> String {
-    eprintln!("turtlefin : {e:#}");
+    eprintln!("turtlefin : {}", redact(&format!("{e:#}")));
     if let Some(r) = e.downcast_ref::<reqwest::Error>() {
         if r.is_timeout() {
             return tr("le serveur met trop de temps à répondre").into();
@@ -494,7 +522,7 @@ fn human_err(e: &anyhow::Error) -> String {
     if e.downcast_ref::<api::Unauthorized>().is_some() {
         return tr("session expirée, reconnecte-toi").into();
     }
-    format!("{e}")
+    redact(&format!("{e}"))
 }
 
 fn handle_error(ui: &slint::Weak<AppWindow>, e: anyhow::Error) {
@@ -4328,8 +4356,10 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
         rows.retain(|r| r.key != "themecreate");
     }
-    // Borne : pas d'explorateur de tout le disque à la télécommande (dossier des téléchargements).
-    if KIOSK.load(Ordering::Relaxed) {
+    // Borne, interface TV, Android : pas d'explorateur de tout le disque à la télécommande (dossier
+    // des téléchargements : il parcourt tout le disque et y crée des dossiers). Avant, seulement avec
+    // --kiosk, alors que le Pi du salon tourne en --tv.
+    if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
         rows.retain(|r| r.key != "dldir" && r.key != "dldefault");
     }
     rows
@@ -5773,6 +5803,10 @@ fn lx_root(app: &Arc<App>) -> Option<std::path::PathBuf> {
 }
 
 fn lx_open_mode(app: &Arc<App>, mode: &'static str) {
+    // Tout le disque : seulement au bureau (voir settings_rows).
+    if mode == "dldir" && !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
+        return;
+    }
     *app.lx_mode.lock().unwrap() = mode;
     let Some(root) = lx_root(app) else {
         if let Some(u) = app.ui().upgrade() {
@@ -9854,6 +9888,14 @@ fn play_download(app: &Arc<App>, id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn redact_masks_tokens() {
+        let m = "error sending request for url (http://srv:8096/Videos/x/stream?static=true&api_key=abc123&x=1)";
+        assert_eq!(redact(m), "error sending request for url (http://srv:8096/Videos/x/stream?static=true&api_key=***&x=1)");
+        assert_eq!(redact("ApiKey=zz Token=yy, ok"), "ApiKey=*** Token=***, ok");
+        assert_eq!(redact("rien à cacher é"), "rien à cacher é");
+    }
 
     #[test]
     fn avatar_categories() {

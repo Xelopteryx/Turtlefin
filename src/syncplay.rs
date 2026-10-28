@@ -260,6 +260,16 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
             let idx = data["PlayingItemIndex"].as_i64().unwrap_or(0).max(0) as usize;
             let Some(entry) = data["Playlist"].as_array().and_then(|p| p.get(idx)) else { return };
             let item_id = entry["ItemId"].as_str().unwrap_or("").to_string();
+            // Identifiant venu du groupe (d'autres comptes peuvent y être) : comme pour la
+            // télécommande, lettres, chiffres et tirets seulement (il passe dans un message interne
+            // « sp-load:<id>@<position> »).
+            if item_id.len() > 64 || !item_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                return;
+            }
+            let start_ticks = data["StartPositionTicks"].as_f64().unwrap_or(0.0);
+            if !start_ticks.is_finite() {
+                return;
+            }
             {
                 let mut st = state.lock().unwrap();
                 st.playlist_item = entry["PlaylistItemId"].as_str().unwrap_or("").to_string();
@@ -267,7 +277,7 @@ fn group_update(state: &Shared, tx: &tokio::sync::mpsc::UnboundedSender<Event>, 
             }
             let _ = tx.send(Event::Group);
             if matches!(reason, "NewPlaylist" | "SetCurrentItem" | "NextItem" | "PreviousItem") && !item_id.is_empty() {
-                let start = data["StartPositionTicks"].as_f64().unwrap_or(0.0) / 1e7;
+                let start = (start_ticks / 1e7).max(0.0);
                 let _ = tx.send(Event::Play { item_id, start });
             }
         }

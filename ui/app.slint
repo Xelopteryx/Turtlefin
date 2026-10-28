@@ -160,6 +160,43 @@ export global Rows {
 // Champ de saisie au style de l'appli : intitulé au-dessus, case de verre, contour d'accent quand
 // il est choisi, rouge (avec message) en cas d'erreur. Bureau : saisie directe (TextInput) ;
 // mode TV : le texte vient du clavier à l'écran (`shown`, curseur quand `editing`).
+// Message d'une liste vide (« Aucun favori », « Aucun téléchargement »…) : centré sur un panneau
+// discret (lisible sur n'importe quel décor : il tombait sur le capot du processeur du thème Nerd),
+// et qui arrive en fondu en remontant un peu, au lieu de surgir.
+component EmptyNote inherits Rectangle {
+    in property <string> text;
+    in property <float> k: 1.0;
+    in property <length> font: 18px;
+    property <float> a: 0;
+    init => {
+        self.a = 1;
+    }
+    animate a { duration: Motion.pages ? 320ms : 0ms; easing: ease-out; }
+    visible: root.text != "";
+    pill := Rectangle {
+        property <length> max-w: min(root.width - 48px * root.k, 760px * root.k);
+        width: min(self.max-w, note.preferred-width + 48px * root.k);
+        height: note.preferred-height + 28px * root.k;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2 + (1 - root.a) * 12px * root.k;
+        opacity: root.a;
+        border-radius: 14px * root.k;
+        background: Theme.panel.with-alpha(0.82);
+        border-width: 1px;
+        border-color: Theme.glass-border;
+        note := Text {
+            x: 24px * root.k;
+            width: parent.width - 48px * root.k;
+            text: root.text;
+            color: Theme.fg.with-alpha(0.82);
+            font-size: root.font;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
 component Field inherits Rectangle {
     in property <float> k: 1.0;
     in property <string> label;
@@ -6002,14 +6039,12 @@ export component AppWindow inherits Window {
                 }
             }
 
-            if root.sections.length == 0: Text {
+            if root.sections.length == 0: EmptyNote {
+                k: root.k;
+                font: 20px * root.k;
                 text: root.tab == "favorites" ? Tr.t(Tr.k, "Aucun favori pour l'instant.")
                     : root.tab == "watchlist" ? Tr.t(Tr.k, "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série.")
                     : root.tab == "requests" ? Tr.t(Tr.k, "Aucune demande pour l'instant.") : Tr.t(Tr.k, "Rien à afficher.");
-                color: Theme.muted;
-                font-size: 20px * root.k;
-                horizontal-alignment: center;
-                vertical-alignment: center;
             }
 
             home-clip := Rectangle {
@@ -6381,12 +6416,10 @@ export component AppWindow inherits Window {
             height: parent.height - parent.res-y;
             clip: true;
 
-            if root.search-sections.length == 0: Text {
+            if root.search-sections.length == 0: EmptyNote {
+                k: root.k;
+                font: 18px * root.k;
                 text: root.search-busy ? Tr.t(Tr.k, "Recherche…") : root.search-text.character-count >= 2 ? Tr.t(Tr.k, "Aucun résultat.") : "";
-                color: Theme.muted;
-                font-size: 18px * root.k;
-                horizontal-alignment: center;
-                vertical-alignment: center;
             }
 
             Rectangle {
@@ -8588,16 +8621,11 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
         }
 
-        if root.dl-sections.length == 0: Text {
+        if root.dl-sections.length == 0: EmptyNote {
+            k: root.k;
+            font: 18px * root.k;
             text: root.offline ? Tr.t(Tr.k, "Aucun téléchargement : rien à regarder hors ligne.")
                 : Tr.t(Tr.k, "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.");
-            x: 24px * root.k;
-            width: parent.width - 48px * root.k;
-            wrap: word-wrap;
-            color: Theme.muted;
-            font-size: 18px * root.k;
-            horizontal-alignment: center;
-            vertical-alignment: center;
         }
 
         Rectangle {
@@ -11351,6 +11379,13 @@ export component AppWindow inherits Window {
                             // Au clavier / à la télécommande (Nav.kb), un pointeur immobile sous le menu
                             // qui glisse ne doit pas déplacer la sélection.
                             if (self.has-hover && !Nav.kb && !Nav.touch) {
+                                // La liste ne bouge pas sous la souris : le défilement reste où il est
+                                // (il suivait la sélection, et l'entrée visée fuyait sous le pointeur
+                                // près du bas du menu ; les touches le rendent à la sélection).
+                                if (!root.menu-free) {
+                                    root.menu-free-y = drawer.scroll;
+                                    root.menu-free = true;
+                                }
                                 root.menu-sel = i;
                                 root.menu-hov = i;
                             } else if (root.menu-hov == i) {
