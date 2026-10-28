@@ -431,6 +431,32 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   une version compilée sur le PC doit y être installée (l'ancienne gardée à côté), pas seulement dans
   `~/turtlefin/target/release`.
 
+## 6 quinquies. Audit « sortir de l'appli » (28 octobre 2026, au soir)
+
+Vérifié sûr : commandes externes sans shell (yt-dlp `--ignore-config`, `--`, identifiant validé) ;
+`open_url` et ouverture de dossier au bureau seulement (`external_ok`) ; explorateur des langues /
+thèmes / presets confiné à son dossier ; création de dossier au nom nettoyé ; mpv sans config, sans
+scripts, sans ytdl ; relais : jeton aléatoire, IP de l'écran, hôte fixe, GET/HEAD/OPTIONS.
+Corrigé :
+- sélecteur du dossier des téléchargements (tout le disque, création de dossiers) : retiré dès que
+  `!external_ok` (kiosk, interface TV, Android) et refusé dans `lx_open_mode` ; avant, seulement avec
+  `--kiosk`, or le Pi du salon tourne en `--tv` ;
+- relais : 32 connexions à la fois au plus ;
+- watch party : identifiant d'élément du groupe validé (lettres, chiffres, tirets), position finie ;
+- journaux et messages d'erreur : jetons masqués (`redact` : api_key, ApiKey, token, X-Emby-Token ;
+  sur le Pi, la sortie est recopiée dans un fichier par Xelauncher) ; relais : erreur sans l'adresse ;
+- Android 12+ : `dataExtractionRules` (res/xml) : rien n'est copié vers le nuage ni vers un autre
+  appareil (allowBackup=false ne suffit plus pour le transfert d'appareil à appareil).
+Plugin Turtlefin Trailers : 400 Mo au plus par vidéo, cache plafonné à 5 Go, entrées bornées, yt-dlp
+sans configuration utilisateur. Reste (accepté) : un utilisateur connecté peut faire télécharger au
+serveur des vidéos YouTube (borné : 2 à la fois, 400 Mo, cache de 24 h et 5 Go).
+
+Essais d'utilisateur (PC) corrigés : menu de gauche qui défilait sous la souris (l'entrée visée fuyait
+au survol, clic raté) : au survol, le défilement est figé (`menu-free`) ; messages de liste vide
+(`EmptyNote` : panneau, fondu) qui tombaient sur le capot Nerd ; capot assombri dans le fond des pages,
+composants allumés plus discrets ; broches jamais au coin d'un composant (pistes de la ROM et de la
+carte graphique décalées, tracés fixes et points d'arrivée refaits depuis `Board.traces`).
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
