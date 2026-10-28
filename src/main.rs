@@ -1590,10 +1590,12 @@ async fn load_home(app: Arc<App>, client: api::Client) {
         start_tour(&app, 2500);
     }
     // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
-    let seerr = client.seerr_user().await;
+    let (seerr, trailers) = tokio::join!(client.seerr_user(), client.trailers_plugin());
     *app.seerr_user.lock().unwrap() = seerr;
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_has_requests(seerr.is_some());
+        // Bande-annonce des pages Seerr : préparée par le plugin Turtlefin Trailers du serveur.
+        u.set_sr_trailers(trailers);
         u.set_can_back(false);
     });
     // Liste « À regarder » du compte : les signets des fiches en dépendent.
@@ -3674,6 +3676,33 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
             }
         });
         spawn_image_jobs(&app2, &client, jobs, api::Size::Fill(160, 160), Shape { w: 160, h: 160, radius: 0.5, top_only: false }, apply);
+    });
+}
+
+/// Bande-annonce d'une page Seerr (média absent du serveur) : le plugin Turtlefin Trailers du serveur
+/// la prépare dans la langue audio du compte (sinon celle de l'interface), dans un cache qu'il vide
+/// au bout de 24 h au plus ; on lit ensuite son fichier.
+fn seerr_trailer(app: &Arc<App>) {
+    let Some(d) = app.seerr_page.lock().unwrap().clone() else { return };
+    let Some(client) = app.client() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_toast(tr("Recherche de la bande-annonce…").into());
+    }
+    let audio = config::user_defaults().0;
+    let lang = audio.split(',').map(str::trim).find(|l| !l.is_empty()).map(str::to_string).unwrap_or_else(i18n::current);
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        match client.prepare_trailer(d.tv, d.tmdb, &lang, &d.title, &d.year).await {
+            Ok((url, _)) => {
+                let title = trf("Bande-annonce · {}", &[&d.title]);
+                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast("".into()));
+                play_flow_with(app2.clone(), None, Some(url), Some((title, d.year.clone())), Vec::new()).await;
+            }
+            Err(e) => {
+                let msg = trf("Bande-annonce : {}", &[&human_err(&e)]);
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            }
+        }
     });
 }
 
@@ -8195,6 +8224,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
         move |kind, lang, label| pick_track(&app, &kind, &lang, &label)
     });
 
+    ui.on_seerr_trailer({
+        let app = app.clone();
+        move || seerr_trailer(&app)
+    });
     ui.on_seerr_action({
         let app = app.clone();
         move || seerr_action(&app)

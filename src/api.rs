@@ -2207,6 +2207,37 @@ impl Client {
 
     /// Identifiant Seerr de l'utilisateur si Seerr est configuré, joignable et relié à son compte
     /// Jellyfin. None sinon (plugin absent, Seerr désactivé ou injoignable, compte non relié).
+    /// Plugin « Turtlefin Trailers » sur le serveur (bandes-annonces des pages Seerr) ?
+    pub async fn trailers_plugin(&self) -> bool {
+        self.get::<serde_json::Value>("/TurtlefinTrailers/Info", &[]).await.is_ok()
+    }
+
+    /// Bande-annonce d'un média absent du serveur, préparée par le plugin (téléchargée au besoin :
+    /// quelques secondes, jusqu'à 3 min) : adresse complète du fichier à lire, et la langue trouvée.
+    pub async fn prepare_trailer(&self, tv: bool, tmdb: i64, lang: &str, name: &str, year: &str) -> Result<(String, String)> {
+        let tmdb = tmdb.to_string();
+        let resp = self
+            .http
+            .get(format!("{}/TurtlefinTrailers/Prepare", self.server))
+            .query(&[("type", if tv { "tv" } else { "movie" }), ("tmdbId", tmdb.as_str()), ("lang", lang), ("name", name)])
+            // Année : seulement si elle est connue (une valeur vide ferait refuser la requête).
+            .query(&[("year", year)][..usize::from(year.parse::<u16>().is_ok())])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .timeout(std::time::Duration::from_secs(180))
+            .send()
+            .await?;
+        match resp.status().as_u16() {
+            401 => Err(Unauthorized.into()),
+            404 => Err(anyhow!("{}", tr("aucune bande-annonce pour ce titre"))),
+            c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&c, &"/TurtlefinTrailers/Prepare"]))),
+            _ => {
+                let v: serde_json::Value = json_limited(resp).await?;
+                let path = v["Path"].as_str().filter(|p| p.starts_with("/TurtlefinTrailers/File/")).ok_or_else(|| anyhow!("{}", tr("aucune bande-annonce pour ce titre")))?;
+                Ok((format!("{}{}", self.server, path), v["Lang"].as_str().unwrap_or("").to_string()))
+            }
+        }
+    }
+
     pub async fn seerr_user(&self) -> Option<i64> {
         let v: serde_json::Value = self.get("/JellyfinEnhanced/jellyseerr/user-status", &[]).await.ok()?;
         if v["active"].as_bool() != Some(true) || v["userFound"].as_bool() != Some(true) {

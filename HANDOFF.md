@@ -422,6 +422,11 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   Turtlefin Trailers, `trailer_rank`), sinon celle de l'interface. Plugin : dépôt à part
   `GitHub/Turtlefin-Trailers` (une par langue voulue, versions doublées réunies, clé TMDB nécessaire
   pour les langues).
+- **Bande-annonce des pages Seerr** (média absent du serveur) : bouton « Bande-annonce » (`sr-sel` 4) si le
+  plugin Turtlefin Trailers répond (`/TurtlefinTrailers/Info`, `sr-trailers`) ; `seerr_trailer` demande
+  `/TurtlefinTrailers/Prepare` (langue audio du compte, titre, année ; jusqu'à 3 min) puis lit le fichier
+  rendu (nom aléatoire, cache du plugin effacé après 24 h au plus). Onglet / menu choisi avec Seerr
+  ouverte : l'affiche part avec la page (`nav-out`), pas de vol vers une carte absente.
 - **Pi** : Xelauncher lance `turtlefin` du PATH, c'est-à-dire `/usr/bin/turtlefin` du paquet .deb ;
   une version compilée sur le PC doit y être installée (l'ancienne gardée à côté), pas seulement dans
   `~/turtlefin/target/release`.
