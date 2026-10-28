@@ -3567,7 +3567,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
         u.set_sr_cast(ModelRc::default());
         u.set_sr_sel(0);
         u.set_sr_more(false);
-        u.set_sr_cast_off(0);
+        u.set_sr_cast_off(0.0);
         u.set_sr_scroll(0.0);
         u.set_sr_open(true);
     }

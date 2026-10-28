@@ -3110,6 +3110,7 @@ export component AppWindow inherits Window {
         root.hero-dest = true;
         root.hero-flying = false;
         root.hero-t0 = animation-tick();
+        root.hero-safe-t0 = animation-tick();
         root.hero-anim = true;
         root.hero-on = true;
         root.hero-id = card.id;
@@ -3172,6 +3173,7 @@ export component AppWindow inherits Window {
         root.hero-anim = false;
         root.hero-out = false;
         root.hero-flying = false;
+        root.hero-safe-t0 = animation-tick();
         root.hero-on = true;
         root.deal-anim = false;
         root.undeal-t0 = animation-tick();
@@ -3241,11 +3243,10 @@ export component AppWindow inherits Window {
     property <bool> door-mode;
     property <bool> hero-door: root.door-mode && root.hero-wide && !root.hero-seerr;
     property <duration> hero-dur: root.hero-door ? 1150ms : root.hero-arc ? 820ms : 480ms;
-    // Position de l'image partagée en vol (hero-p : 0 sur la carte, 1 à destination). En ligne droite,
-    // sauf la carte d'une bibliothèque en portrait (sa bannière est juste au-dessus d'elle : elle ne
-    // bougeait presque pas) : elle passe par le centre de l'écran, en grand, pendant que la page
-    // s'efface, puis remonte se poser en bannière (courbe passant par ce point au milieu du vol).
-    property <bool> hero-arc: root.hero-deck && root.narrow;
+    // Position de l'image partagée en vol (hero-p : 0 sur la carte, 1 à destination), en ligne droite.
+    // Le passage par le centre (bibliothèque en portrait) est coupé : demande du mainteneur (trop
+    // lourd sur le téléphone) ; arc() reste pour le jour où une autre courbe servirait.
+    property <bool> hero-arc: false;
     property <length> arc-mw: root.width * 0.86;
     property <length> arc-mh: root.arc-mw * root.hero-fh / max(1px, root.hero-fw);
     pure function arc(f: length, t: length, m: length) -> length {
@@ -3361,7 +3362,7 @@ export component AppWindow inherits Window {
     // Fin : l'affiche de la page (ou la carte, au retour) a pris le relais.
     property <bool> hero-done: root.hero-on && !root.hero-anim && !root.fade-anim && !(root.hero-deck && root.hero-dest) && (
         (root.hero-ready && (root.hero-big ? root.hero-faded
-            : root.hero-seerr ? root.sr.has-poster || root.hero-gave-up
+            : root.hero-seerr ? root.sr-has-poster || root.hero-gave-up
             : root.screen != "detail" || root.detail.has-poster || root.hero-gave-up))
         // Retour : la carte reprend la main une fois posée et la page arrivée (plus rien ne bouge).
         || (!root.hero-dest && root.hero-flying && !root.page-anim));
@@ -3400,12 +3401,17 @@ export component AppWindow inherits Window {
             root.fade-anim = false;
         }
     }
-    // Sécurité : jamais d'image partagée oubliée à l'écran.
+    // Sécurité : jamais d'image partagée oubliée à l'écran (6 s après son dernier départ). Compté
+    // depuis hero-safe-t0 : une image encore là (retour) quand une autre carte s'ouvre ne relance pas
+    // une minuterie qui tourne déjà, et le nouveau vol était coupé en route.
+    property <duration> hero-safe-t0;
     Timer {
-        interval: 6s;
+        interval: 250ms;
         running: root.hero-on;
         triggered => {
-            root.hero-on = false;
+            if (animation-tick() - root.hero-safe-t0 > 6s) {
+                root.hero-on = false;
+            }
         }
     }
 
@@ -3417,6 +3423,7 @@ export component AppWindow inherits Window {
     function open-hero(id: string) {
         root.hero-id = "";
         root.hero-pending = "";
+        root.sr-card-on = false;
         // Fiche : rangées du bas (autre média), et saisons : l'affiche vole jusqu'à sa place. Saison : la
         // fiche s'efface autour d'elle (kid-veil), puis la nouvelle arrive en douceur (detail-swap).
         // Épisodes (vignettes) : la fiche change en douceur, sans image qui vole.
@@ -3552,6 +3559,10 @@ export component AppWindow inherits Window {
             root.hero-data = Hero.data;
             root.hero-k = Hero.k;
             root.hero-seerr = root.is-seerr(root.hero-pending);
+            // Page Seerr : elle garde l'image de la carte (Seerr donne parfois une autre affiche,
+            // d'une autre langue, à sa page qu'à ses listes).
+            root.sr-card-on = root.hero-seerr && Hero.data.has-image && !Hero.wide;
+            root.sr-card-img = Hero.img;
             root.hero-wide = Hero.wide;
             root.door-mode = Hero.wide && root.narrow && !root.hero-seerr && !Hero.data.deck;
             root.door-has-poster = false;
@@ -3567,7 +3578,11 @@ export component AppWindow inherits Window {
             root.fade-anim = false;
             root.hero-dest = true;
             root.hero-flying = false;
+            // Image encore là d'un retour qui s'effaçait (carte introuvable) : le fondu de sortie ne
+            // doit pas rendre la nouvelle invisible (la carte, cachée, semblait disparaître).
+            root.hero-out = false;
             root.hero-t0 = animation-tick();
+            root.hero-safe-t0 = animation-tick();
             root.hero-anim = true;
             root.hero-on = true;
             Hero.hide-id = Hero.data.id;
@@ -3591,6 +3606,7 @@ export component AppWindow inherits Window {
         root.hero-flying = false;
         root.hero-anim = false;
         root.hero-gave-up = false;
+        root.hero-safe-t0 = animation-tick();
         root.hero-on = true;
         if (root.hero-big) {
             root.fade-in = true;
@@ -3638,6 +3654,10 @@ export component AppWindow inherits Window {
     }
     property <bool> sr-out;
     property <duration> sr-out-t0;
+    // Affiche de la page Seerr : celle de la carte ouverte (voir hero-seq), sinon celle de Seerr.
+    property <bool> sr-card-on;
+    property <image> sr-card-img;
+    property <bool> sr-has-poster: root.sr-card-on || root.sr.has-poster;
     Timer {
         interval: 320ms;
         running: root.sr-out;
@@ -4167,7 +4187,7 @@ export component AppWindow inherits Window {
     // Page Seerr : tout le texte (résumé, informations, distribution) dans une fenêtre qui défile ;
     // première colonne de la distribution affichée (elle défile sur le côté).
     in-out property <bool> sr-more;
-    in-out property <int> sr-cast-off;
+    in-out property <float> sr-cast-off;  // colonnes (fraction : au doigt)
     in-out property <length> sr-scroll;
 
     // Téléchargements : liste générale (séries, films) > saisons d'une série > épisodes d'une saison
@@ -5102,7 +5122,7 @@ export component AppWindow inherits Window {
                 // Bureau, formulaire affiché : le clavier va au champ à remplir, pas à la page.
                 if (!root.tv-mode && root.login-mode == "form") {
                     root.login-focus-tick += 1;
-                } else if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -5110,7 +5130,7 @@ export component AppWindow inherits Window {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
                 if (!root.tv-mode && root.login-mode == "form") {
                     root.login-focus-tick += 1;
-                } else if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -5772,14 +5792,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -5996,7 +6016,7 @@ export component AppWindow inherits Window {
             focus-on-click: root.tv-mode;
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     // Bureau : le clavier retourne au champ s'il l'avait (menu refermé, retour d'une fiche...).
                     if (!root.tv-mode && root.s-field && !root.h-focus) {
                         s-input.focus();
@@ -6344,13 +6364,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -6409,13 +6429,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -6756,14 +6776,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -7570,13 +7590,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -7685,7 +7705,10 @@ export component AppWindow inherits Window {
                     transform-rotation: root.narrow ? 0deg : sin(self.dp * 180deg) * (mod(i * 7, 5) - 2) * 5deg;
                     moving: self.dp < 1;
                     // L'affiche sort de son morceau en apparaissant (le morceau s'efface en même temps).
-                    opacity: self.dp >= 1 ? 1 : min(1, self.dp / 0.22);
+                    // Portrait (téléphone) : sans fondu, elle part déjà à la taille du morceau, qui
+                    // s'efface dessous ; une carte semi-transparente se dessine à part (calque), et
+                    // une quinzaine à la fois faisaient ramer la distribution.
+                    opacity: self.dp >= 1 || root.narrow ? 1 : min(1, self.dp / 0.22);
                     width: lib.cw;
                     height: lib.ch;
                     data: card;
@@ -7719,13 +7742,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -8011,7 +8034,7 @@ export component AppWindow inherits Window {
                 focus-on-click: root.tv-mode;
                 init => {
                     // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                    if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                         self.focus();
                     }
                 }
@@ -8309,7 +8332,7 @@ export component AppWindow inherits Window {
                 FocusScope {
                     init => {
                         // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                        if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                        if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                             self.focus();
                         }
                     }
@@ -8389,13 +8412,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -8662,13 +8685,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }
@@ -10437,7 +10460,7 @@ export component AppWindow inherits Window {
                         root.cancel-open();
                         return EventResult.accept;
                     }
-                    if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                         return EventResult.reject;
                     }
                     if (event.text == Key.UpArrow) {
@@ -10617,14 +10640,35 @@ export component AppWindow inherits Window {
         transform-scale: 0.97 + 0.03 * srp.open-e - 0.04 * srp.out-e;
         background: Theme.bg-end;
 
+        // Glissement vers le haut (doigt, molette) : « Lire la suite » s'ouvre, comme une page qui
+        // défile. La molette ne fait pas défiler la page dessous.
+        property <length> pull;
         TouchArea {
-            // La molette ne fait pas défiler la page dessous.
             scroll-event(e) => {
+                if (root.sr-open && !root.sr-more && srp.has-more && e.delta-y < 0) {
+                    srp.pull += -e.delta-y;
+                    if (srp.pull > 60px * root.k) {
+                        srp.pull = 0px;
+                        srp.more-y = 0px;
+                        root.sr-sel = 2;
+                        root.sr-more = true;
+                    }
+                } else {
+                    srp.pull = 0px;
+                }
                 return EventResult.accept;
             }
         }
 
         FocusScope {
+            // Ouverte, elle garde le clavier : les pages dessous ne le reprennent pas (voir sr-open),
+            // et un refocus (panneau refermé…) le lui rend. Sinon Retour faisait reculer la page cachée.
+            property <int> tick: root.refocus;
+            changed tick => {
+                if (root.sr-open && !root.menu-open && !root.tour-lock && !root.lx-open) {
+                    self.focus();
+                }
+            }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
                 if (!root.menu-open && !root.tour-lock && !root.lx-open) {
@@ -10667,13 +10711,13 @@ export component AppWindow inherits Window {
                     root.sr-sel = root.sr-sel == 3 && srp.has-more ? 2 : root.sr-sel >= 2 ? 0 : root.sr-sel;
                 } else if (event.text == Key.LeftArrow) {
                     if (root.sr-sel == 3) {
-                        root.sr-cast-off = max(0, root.sr-cast-off - 1);
+                        root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
                     } else {
                         root.sr-sel = 0;
                     }
                 } else if (event.text == Key.RightArrow) {
                     if (root.sr-sel == 3) {
-                        root.sr-cast-off = min(srp.cast-max, root.sr-cast-off + 1);
+                        root.sr-cast-off = min(srp.cast-max, floor(root.sr-cast-off) + 1);
                     } else {
                         root.sr-sel = 1;
                     }
@@ -10754,7 +10798,7 @@ export component AppWindow inherits Window {
 
         if srp.ready: content := Rectangle {
             // Affiche (en fondu si elle arrive après la page).
-            property <float> po-a: root.sr.has-poster ? 1 : 0;
+            property <float> po-a: root.sr-has-poster ? 1 : 0;
             animate po-a { duration: Motion.detail ? 300ms : 0ms; }
             Rectangle {
                 x: srp.pad;
@@ -10766,10 +10810,10 @@ export component AppWindow inherits Window {
                 visible: !root.hero-covers || !root.hero-seerr;
                 background: Theme.fg.with-alpha(0.08 * (1 - content.po-a));
                 clip: true;
-                if root.sr.has-poster: Image {
+                if root.sr-has-poster: Image {
                     width: parent.width;
                     height: parent.height;
-                    source: root.sr.poster;
+                    source: root.sr-card-on ? root.sr-card-img : root.sr.poster;
                     image-fit: fill;
                     opacity: content.po-a;
                 }
@@ -10925,7 +10969,8 @@ export component AppWindow inherits Window {
                 srp.has-more = self.ov-cut || self.facts-cut;
             }
             property <float> cast-off: root.sr-cast-off;
-            animate cast-off { duration: Motion.scroll ? 260ms : 0ms; easing: ease-out; }
+            // Sous le doigt (et pendant le lancer) : pas d'animation, la distribution suit.
+            animate cast-off { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: ease-out; }
             property <length> cast-y: srp.tall ? self.height - srp.pad - self.cast-rows * self.cast-rh
                 : min(self.height - self.cast-rh - 16 * srp.u, srp.pad + srp.poster-h + 148 * srp.u);
 
@@ -11000,12 +11045,20 @@ export component AppWindow inherits Window {
                             root.sr-sel = 3;
                         }
                     }
+                    // Doigt (glissement horizontal) : la distribution suit au pixel. Molette : une colonne
+                    // par cran. Glissement vertical du doigt : il va à la page (« Lire la suite »).
                     scroll-event(e) => {
-                        let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
-                        if (d < 0) {
-                            root.sr-cast-off = min(content.cast-max, root.sr-cast-off + 1);
-                        } else if (d > 0) {
-                            root.sr-cast-off = max(0, root.sr-cast-off - 1);
+                        if (e.delta-x != 0) {
+                            root.sr-cast-off = clamp(root.sr-cast-off - e.delta-x / content.cast-cw, 0, content.cast-max);
+                            return EventResult.accept;
+                        }
+                        if (Nav.drag) {
+                            return EventResult.reject;
+                        }
+                        if (e.delta-y < 0) {
+                            root.sr-cast-off = min(content.cast-max, floor(root.sr-cast-off) + 1);
+                        } else if (e.delta-y > 0) {
+                            root.sr-cast-off = max(0, ceil(root.sr-cast-off) - 1);
                         }
                         return EventResult.accept;
                     }
@@ -11062,7 +11115,8 @@ export component AppWindow inherits Window {
             }
             // Chevrons de la distribution : il y en a d'autres de ce côté (clic : une colonne de plus).
             for side[j] in 2: Rectangle {
-                property <bool> on: j == 0 ? root.sr-cast-off > 0 : root.sr-cast-off < content.cast-max;
+                // Au doigt, pas de chevrons : la distribution se fait glisser.
+                property <bool> on: !Nav.touch && (j == 0 ? root.sr-cast-off > 0.01 : root.sr-cast-off < content.cast-max - 0.01);
                 visible: self.on;
                 opacity: srp.blk(3);
                 width: (srp.tall ? 44 : 32) * srp.u;
@@ -11089,7 +11143,7 @@ export component AppWindow inherits Window {
                 }
                 TouchArea {
                     clicked => {
-                        root.sr-cast-off = j == 0 ? max(0, root.sr-cast-off - 1) : min(content.cast-max, root.sr-cast-off + 1);
+                        root.sr-cast-off = j == 0 ? max(0, ceil(root.sr-cast-off) - 1) : min(content.cast-max, floor(root.sr-cast-off) + 1);
                     }
                 }
             }
@@ -11120,8 +11174,19 @@ export component AppWindow inherits Window {
                 border-width: 1px;
                 border-color: Theme.glass-border;
                 clip: true;
+                // Doigt : tirée vers le bas depuis le début du texte, elle se referme.
+                property <length> pull;
                 TouchArea {
                     scroll-event(e) => {
+                        if (Nav.drag && srp.more-y <= 0px && e.delta-y > 0) {
+                            more-panel.pull += e.delta-y;
+                            if (more-panel.pull > 90px * root.k) {
+                                more-panel.pull = 0px;
+                                root.sr-more = false;
+                            }
+                        } else {
+                            more-panel.pull = 0px;
+                        }
                         srp.more-y = clamp(srp.more-y - e.delta-y, 0px, srp.more-max);
                         return EventResult.accept;
                     }
@@ -11585,7 +11650,7 @@ export component AppWindow inherits Window {
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
                     self.focus();
                 }
             }

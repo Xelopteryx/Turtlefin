@@ -52,7 +52,9 @@ export component BootLogo inherits Rectangle {
         background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
         if Theme.bubbles && !root.nerd: AeroSky { k: root.k; }
         // Nerd : la carte mère se monte puce par puce, puis le courant parcourt ses pistes.
-        if root.nerd: CircuitScene { k: root.k; state: root.state; surge: root.surge; bright: 1; morph: root.morph; gone: root.nerd && root.phase >= 2 ? clamp(root.zp / 0.25, 0, 1) : 0; }
+        if root.nerd: CircuitScene { k: root.k; state: root.state; surge: root.surge; bright: 1; morph: root.morph; gone: root.nerd && root.phase >= 2 ? clamp(root.zp / 0.25, 0, 1) : 0;
+            // Le logo parti, le capot du processeur se pose sur les puces (comme dans le fond des pages).
+            lid: root.nerd && root.phase >= 2 ? clamp((root.zp - 0.1) / 0.3, 0, 1) : 0; }
     }
 
     property <bool> nerd: Theme.boot-style == 2;

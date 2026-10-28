@@ -385,6 +385,30 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
   nées au centre, anneau de lumière). Rien sans serveur (`no-server`, core 3).
 - **Logo du démarrage** au centre exact (`mid-cy` de boot.slint, `cy` de CircuitScene et CircuitDrift :
   plus de décalage de 30 px).
+- **Seerr** : la page garde le clavier tant qu'elle est ouverte (les `FocusScope` des pages ont
+  `!root.sr-open`, celui de Seerr reprend le clavier à chaque `refocus`) : Retour faisait reculer la page
+  cachée dessous. Affiche = image de la carte ouverte (`sr-card-on`, `sr-card-img`, posées au départ du
+  vol) : Seerr donne parfois une autre affiche à sa page qu'à ses listes. Au doigt : la distribution suit
+  le doigt (`sr-cast-off` en colonnes, réel), pas de chevrons (`Nav.touch`) ; glisser vers le haut
+  (doigt ou molette, `pull`) ouvre « Lire la suite », tirer la fenêtre vers le bas depuis son début la
+  referme.
+- **Image partagée** : `hero-out` remis à faux au départ d'un vol et minuterie de sécurité comptée depuis
+  `hero-safe-t0` (une image encore là d'un retour pouvait rendre la nouvelle invisible ou couper son vol).
+- **Bibliothèque en portrait** : plus de passage par le centre (`hero-arc` faux) ; cartes distribuées sans
+  fondu (une carte semi-transparente est dessinée dans un calque : une quinzaine à la fois ramaient).
+- **Lecteur** : « Chargement… » seulement après 700 ms d'attente, en fondu (`load-slow`, `load-a`).
+- **Nerd** : capot du processeur (`CircuitScene.lid`, posé à la fin du démarrage et dans le fond des
+  pages, seulement processeur branché) : les sept puces dessous, logo gravé dessus. Fond animé
+  (`CircuitDrift`, cycle de 6 s) : le logo du capot s'allume (cœur, rayons, plots), puis le courant suit
+  un vrai calendrier (`TraceData.t0` / `td`, généré : vitesse constante ; une piste qui part d'un
+  composant attend qu'il soit atteint), chaque composant atteint s'allume et éclaire autour de lui
+  (`Board.parts`, `PartData`) ; tout s'éteint ensemble à la fin du cycle. Étincelles cachées sous le capot
+  (`Spark.under-lid`).
+- **Découverte** : « who is JellyfinServer? » aussi envoyé à l'adresse de diffusion de chaque interface
+  (255.255.255.255 ne sort que par celle de la route par défaut sous Windows).
+- **Pi** : Xelauncher lance `turtlefin` du PATH, c'est-à-dire `/usr/bin/turtlefin` du paquet .deb ;
+  une version compilée sur le PC doit y être installée (l'ancienne gardée à côté), pas seulement dans
+  `~/turtlefin/target/release`.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

@@ -764,7 +764,25 @@ export component PlayerView inherits Rectangle {
         }
     }
 
-    if !root.ready: Text {
+    // « Chargement… » seulement si l'attente dure (pas pour un épisode qui enchaîne en une demi-
+    // seconde : le mot apparaissait et disparaissait d'un coup), et en fondu dans les deux sens.
+    property <bool> load-slow;
+    Timer {
+        interval: 700ms;
+        running: !root.ready && !root.load-slow;
+        triggered => {
+            root.load-slow = true;
+        }
+    }
+    changed ready => {
+        if (root.ready) {
+            root.load-slow = false;
+        }
+    }
+    property <float> load-a: root.load-slow && !root.ready ? 1 : 0;
+    animate load-a { duration: Motion.player ? 300ms : 0ms; easing: ease-in-out; }
+    if root.load-a > 0.01: Text {
+        opacity: root.load-a;
         text: Tr.t(Tr.k, "Chargement…");
         color: Theme.player-ink.with-alpha(0.62);
         font-size: 22px * root.k;

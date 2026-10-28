@@ -161,6 +161,16 @@ fn udp_discovery(targets: &[Ipv4Addr]) -> Vec<(String, String, String)> {
     let _ = s.set_read_timeout(Some(Duration::from_millis(300)));
     let msg = b"who is JellyfinServer?";
     let _ = s.send_to(msg, "255.255.255.255:7359");
+    // 255.255.255.255 ne sort que par une interface (celle de la route par défaut, sous Windows) :
+    // l'adresse de diffusion de chaque réseau de la machine (Ethernet, Wi-Fi, carte virtuelle…)
+    // touche aussi les autres. Un VPN en /32 n'en a pas (ses pairs sont dans `targets`).
+    for itf in if_addrs::get_if_addrs().unwrap_or_default() {
+        if let if_addrs::IfAddr::V4(a) = &itf.addr {
+            if let Some(b) = a.broadcast.filter(|b| !itf.is_loopback() && itf.is_oper_up() && !b.is_broadcast() && local_ip(*b)) {
+                let _ = s.send_to(msg, SocketAddr::new(IpAddr::V4(b), 7359));
+            }
+        }
+    }
     for ip in targets {
         let _ = s.send_to(msg, SocketAddr::new(IpAddr::V4(*ip), 7359));
     }
