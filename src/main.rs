@@ -7429,6 +7429,7 @@ fn install_f11(app: &Arc<App>) {
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => {
                 swipe.mouse = (position.x, position.y);
+                MOUSE_AT.with(|m| m.set(Some((position.x, position.y))));
                 // Pointeur que X fait suivre au doigt (écran tactile vu aussi comme une souris) : pas
                 // un vrai mouvement de souris, le mode tactile reste.
                 let from_finger = swipe.last_finger.is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(500));
@@ -7574,6 +7575,17 @@ struct Swipe {
 thread_local! {
     /// Lancer en cours : minuterie qui fait défiler en ralentissant.
     static FLING: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+    /// Dernière position connue de la souris (pixels physiques), mise à jour à chaque mouvement.
+    static MOUSE_AT: std::cell::Cell<Option<(f64, f64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Rend à l'interface la vraie position de la souris : un défilement envoyé ailleurs (lancer, fin
+/// d'un glissement) lui fait croire qu'elle est à l'endroit du défilement, et la carte survolée restait
+/// celle du relâchement pendant que la souris bougeait.
+fn mouse_resync(u: &AppWindow) {
+    let Some((x, y)) = MOUSE_AT.with(|m| m.get()) else { return };
+    let s = u.window().scale_factor() as f64;
+    u.window().dispatch_event(slint::platform::WindowEvent::PointerMoved { position: slint::LogicalPosition::new((x / s) as f32, (y / s) as f32) });
 }
 
 /// Défilement de `d` pixels physiques à la position `p` : vertical (positif : le contenu descend) ou
@@ -7694,7 +7706,7 @@ impl Swipe {
                     } else if !self.edge {
                         let v = if self.horizontal { self.v.0 } else { self.v.1 };
                         if v.abs() > 300.0 * s {
-                            self.fling(u, self.last, v, self.horizontal);
+                            self.fling(u, self.last, v, self.horizontal, !finger);
                         }
                     }
                 }
@@ -7714,11 +7726,11 @@ impl Swipe {
                 // encore au point de départ (carte du départ survolée en plus de celle d'arrivée). Une
                 // fois le relâchement passé, on lui redonne sa vraie position.
                 if self.active && !finger {
-                    let (weak, pos) = (u.as_weak(), slint::LogicalPosition::new((self.last.0 / s) as f32, (self.last.1 / s) as f32));
+                    let weak = u.as_weak();
                     slint::Timer::single_shot(std::time::Duration::ZERO, move || {
                         if let Some(u) = weak.upgrade() {
                             u.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
-                            u.window().dispatch_event(slint::platform::WindowEvent::PointerMoved { position: pos });
+                            mouse_resync(&u);
                         }
                     });
                 }
@@ -7733,7 +7745,7 @@ impl Swipe {
     }
 
     /// Lancer : la page continue à la vitesse `v` (px/s), en ralentissant, jusqu'à l'arrêt.
-    fn fling(&self, u: &AppWindow, p: (f64, f64), v: f64, horizontal: bool) {
+    fn fling(&self, u: &AppWindow, p: (f64, f64), v: f64, horizontal: bool, mouse: bool) {
         let weak = u.as_weak();
         let v = std::cell::Cell::new(v.clamp(-6000.0, 6000.0));
         let last = std::cell::Cell::new(std::time::Instant::now());
@@ -7752,6 +7764,10 @@ impl Swipe {
                 return;
             }
             scroll_at(&u, p, nv * dt, horizontal);
+            // Souris : le lancer défile la rangée lâchée, mais la souris continue sa vie ailleurs.
+            if mouse {
+                mouse_resync(&u);
+            }
         });
         FLING.with(|f| *f.borrow_mut() = Some(timer));
     }
