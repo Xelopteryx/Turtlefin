@@ -417,6 +417,11 @@ Retours du 28 octobre (après la 1.9.6, même numéro) :
 - **ABYDOS** : Jellyfin 12.4 portable dans `%LOCALAPPDATA%\jellyfin-test\server-12.4` (même `--datadir` ;
   sauvegarde de la 12.2 : `data.avant-12.4`) ; Seerr 3.5 en Docker (`seerr-abydos`, port 5055, réglages
   dans `jellyfin-test\seerr`), connecté avec le compte test ; dépôt du plugin Jellyfin Enhanced ajouté.
+- **Bande-annonce** : bouton à icône (clap, `icon == "trailer"`) juste à droite de Télécharger. Plusieurs
+  bandes-annonces locales : celle dont le nom porte la langue audio du compte (« … [fr+en] », plugin
+  Turtlefin Trailers, `trailer_rank`), sinon celle de l'interface. Plugin : dépôt à part
+  `GitHub/Turtlefin-Trailers` (une par langue voulue, versions doublées réunies, clé TMDB nécessaire
+  pour les langues).
 - **Pi** : Xelauncher lance `turtlefin` du PATH, c'est-à-dire `/usr/bin/turtlefin` du paquet .deb ;
   une version compilée sur le PC doit y être installée (l'ancienne gardée à côté), pas seulement dans
   `~/turtlefin/target/release`.

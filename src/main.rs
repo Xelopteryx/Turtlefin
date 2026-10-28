@@ -6714,8 +6714,9 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     }
     // Bande-annonce : celle du serveur, sinon celle de YouTube s'il y a yt-dlp pour la lire.
     if matches!(item.kind.as_str(), "Movie" | "Series") && (item.local_trailer_count.unwrap_or(0) > 0 || (item.youtube_trailer().is_some() && yt_trailers_on())) {
-        let at = buttons.iter().take_while(|b| b.0.is_empty()).count();
-        buttons.insert(at, (tr("Bande-annonce").into(), "trailer".into(), String::new(), false));
+        // Icône, juste à droite de Télécharger (sinon de « Vu »).
+        let at = buttons.iter().position(|b| b.1 == "download").or_else(|| buttons.iter().position(|b| b.1 == "played")).map_or(0, |i| i + 1);
+        buttons.insert(at, (String::new(), "trailer".into(), "trailer".into(), false));
     }
     // Appareil piloté (Diffuser) : « Lire sur … », première pastille (après les boutons à icône).
     if let Some(t) = app.cast.lock().unwrap().as_ref() {
@@ -7088,7 +7089,11 @@ fn play_trailer(app: &Arc<App>) {
         let r: anyhow::Result<()> = async {
             let item = client.item(&id).await?;
             if item.local_trailer_count.unwrap_or(0) > 0 {
-                if let Some(t) = client.local_trailers(&id).await?.into_iter().next() {
+                // Plusieurs (plugin Turtlefin Trailers : « … [fr] », « … [fr+en] ») : celle de la langue
+                // audio du compte, sinon celle de l'interface, sinon la première.
+                let mut list = client.local_trailers(&id).await?;
+                list.sort_by_key(|t| trailer_rank(&t.name));
+                if let Some(t) = list.into_iter().next() {
                     play_flow(app2.clone(), Some(t.id), None).await;
                     return Ok(());
                 }
@@ -7115,6 +7120,24 @@ fn play_trailer(app: &Arc<App>) {
             let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
         }
     });
+}
+
+/// Rang d'une bande-annonce locale selon les langues de son nom (« Titre-trailer [fr+en] ») : 0 si
+/// elle a la langue audio du compte, 1 celle de l'interface, 2 sans langue indiquée, 3 une autre.
+fn trailer_rank(name: &str) -> u8 {
+    let Some(tags) = name.rsplit_once('[').and_then(|(_, t)| t.strip_suffix(']')) else { return 2 };
+    let has = |want: &str| -> bool {
+        let want: Vec<String> = player::lang_codes(want).split(',').map(str::to_string).collect();
+        tags.split('+').any(|t| player::lang_codes(t).split(',').any(|c| want.iter().any(|w| w == c)))
+    };
+    let audio = config::user_defaults().0;
+    if audio.split(',').any(|a| !a.trim().is_empty() && has(a)) {
+        0
+    } else if has(&i18n::current()) {
+        1
+    } else {
+        3
+    }
 }
 
 /// Lecture lancée par le groupe (watch party) à une position imposée.

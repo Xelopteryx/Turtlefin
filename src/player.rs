@@ -1256,7 +1256,7 @@ static CLI_TRACKS: std::sync::Mutex<(Option<String>, Option<String>)> = std::syn
 
 /// Codes d'une langue tels que les fichiers les écrivent (ISO 639-1, 639-2/B et /T) : « fr » ou
 /// « français » donnent « fre,fra,fr ». Langue inconnue : telle quelle.
-fn lang_codes(s: &str) -> String {
+pub fn lang_codes(s: &str) -> String {
     const LANGS: [[&str; 4]; 16] = [
         ["fr", "fre", "fra", "français"], ["en", "eng", "eng", "english"], ["ja", "jpn", "jpn", "日本語"],
         ["de", "ger", "deu", "deutsch"], ["es", "spa", "spa", "español"], ["it", "ita", "ita", "italiano"],
