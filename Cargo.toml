@@ -48,7 +48,13 @@ winresource = "0.1"
 [profile.release]
 opt-level = 3
 lto = "thin"
-codegen-units = 1
+# 16 unités de génération de code (au lieu de 1) : la longue phase finale d'optimisation se répartit
+# sur tous les cœurs au lieu d'un seul (le gros crate turtlefin : code Slint généré d'environ 21 Mo).
+# Binaire quasi identique (quelques % au plus) ; compilation bien plus rapide. Le thin-LTO, lui, est
+# déjà parallèle. incremental : réutilise ce qui n'a pas changé d'une compilation à l'autre (mises au
+# point successives). La vérification du crate reste mono-cœur (parallèle seulement en Rust nightly).
+codegen-units = 16
+incremental = true
 strip = true
 
 # Paquet .deb (cargo deb) : Debian, Ubuntu et dérivées. libmpv vient du système.
