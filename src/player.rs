@@ -1166,6 +1166,18 @@ async fn load(
             }
         }
     }
+    // Bande-annonce (locale, ou préparée par le plugin pour une page Seerr) : audio dans la langue du
+    // compte s'il y en a un, sinon sous-titres dans cette langue (mpv n'en met pas quand l'audio est
+    // déjà dans la langue voulue), quel que soit le réglage des sous-titres.
+    if item.as_ref().map_or(test_url.is_some_and(|u| u.contains("/TurtlefinTrailers/File/")), |it| it.kind == "Trailer") {
+        let audio = crate::config::user_defaults().0;
+        let want = audio.split(',').map(str::trim).find(|l| !l.is_empty()).map(str::to_string).unwrap_or_else(crate::i18n::current);
+        let codes = lang_codes(&want);
+        let _ = player.set_property("alang", &codes);
+        let _ = player.set_property("slang", &codes);
+        let _ = player.set_property("sid", "auto");
+        let _ = player.set_property("subs-with-matching-audio", "no");
+    }
     let start = if start_secs > 1.0 { format!("{start_secs:.1}") } else { "none".to_string() };
     player.set_property("start", &start)?;
     player.command(&["loadfile", &url, "replace"])?;

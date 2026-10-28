@@ -7153,21 +7153,30 @@ fn play_trailer(app: &Arc<App>) {
     });
 }
 
-/// Rang d'une bande-annonce locale selon les langues de son fichier (« Titre-trailer [fr+en].mkv ») : 0
-/// si elle a la langue audio du compte, 1 celle de l'interface, 2 sans langue indiquée, 3 une autre.
+/// Rang d'une bande-annonce locale selon les langues de son fichier (plugin Turtlefin Trailers :
+/// « Titre-trailer [en] {fr}.mkv », audio entre crochets, sous-titres entre accolades) : 0 audio dans la
+/// langue du compte, 1 sous-titres dans cette langue, 2 audio dans la langue de l'interface, 3 sans
+/// langue indiquée, 4 une autre.
 fn trailer_rank(file: &str) -> u8 {
-    let Some(tags) = file.rsplit_once('[').and_then(|(_, t)| t.split_once(']')).map(|(t, _)| t) else { return 2 };
-    let has = |want: &str| -> bool {
+    let tag = |open: char, close: char| file.rsplit_once(open).and_then(|(_, t)| t.split_once(close)).map(|(t, _)| t.to_string());
+    let (audio_tags, sub_tags) = (tag('[', ']'), tag('{', '}'));
+    if audio_tags.is_none() && sub_tags.is_none() {
+        return 3;
+    }
+    let has = |tags: &Option<String>, want: &str| -> bool {
         let want: Vec<String> = player::lang_codes(want).split(',').map(str::to_string).collect();
-        tags.split('+').any(|t| player::lang_codes(t).split(',').any(|c| want.iter().any(|w| w == c)))
+        tags.as_deref().is_some_and(|t| t.split('+').any(|t| player::lang_codes(t).split(',').any(|c| want.iter().any(|w| w == c))))
     };
     let audio = config::user_defaults().0;
-    if audio.split(',').any(|a| !a.trim().is_empty() && has(a)) {
+    let mine = audio.split(',').map(str::trim).find(|a| !a.is_empty()).map(str::to_string).unwrap_or_else(i18n::current);
+    if has(&audio_tags, &mine) {
         0
-    } else if has(&i18n::current()) {
+    } else if has(&sub_tags, &mine) {
         1
+    } else if has(&audio_tags, &i18n::current()) {
+        2
     } else {
-        3
+        4
     }
 }
 
@@ -7700,6 +7709,18 @@ impl Swipe {
                 }
                 if !FLING.with(|f| f.borrow().is_some()) {
                     u.global::<Nav>().set_drag(false);
+                }
+                // Souris : pendant le glissement, ses déplacements n'allaient pas à Slint, qui la croyait
+                // encore au point de départ (carte du départ survolée en plus de celle d'arrivée). Une
+                // fois le relâchement passé, on lui redonne sa vraie position.
+                if self.active && !finger {
+                    let (weak, pos) = (u.as_weak(), slint::LogicalPosition::new((self.last.0 / s) as f32, (self.last.1 / s) as f32));
+                    slint::Timer::single_shot(std::time::Duration::ZERO, move || {
+                        if let Some(u) = weak.upgrade() {
+                            u.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
+                            u.window().dispatch_event(slint::platform::WindowEvent::PointerMoved { position: pos });
+                        }
+                    });
                 }
                 self.id = None;
                 // Toujours transmis à Slint : il suit les doigts posés (un doigt jamais levé pour lui
