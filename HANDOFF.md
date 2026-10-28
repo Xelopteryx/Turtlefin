@@ -347,6 +347,26 @@ sous Linux, faute de trousseau commun à toutes les machines visées.
   cachée jusqu'à l'arrivée de l'affiche), `restore_page` rend aussi la zone clavier (≥ 2).
 - **Décor Turtlefin** : `HexScene` (fixe, en cache) + `HexDrift` (lueurs et onde, minuterie de 50 ms,
   phase commune `Drift`), réglage `AnimFlags::scenery` (« Fond animé », coupé par défaut sur le Pi).
+  Aero : `AeroDrift` (bulles, reflet) ; Nerd : `CircuitDrift` (paquets, horloge, balayage), même phase.
+
+Retours du 28 octobre (après la 1.9.6, même numéro) :
+- **Srv.core 3 « perdu »** (serveur muet, rien de téléchargé) : `gone`, `slot`, `plug` dans ThemeLogo.
+  `unreachable_start` (main.rs, appelé par `boot::route` et `open_saved_session`) : téléchargements →
+  « Qui regarde ? » avec « Regarder hors ligne » (core 1, plus de passage automatique) ; sinon recherche de
+  serveur (core 3) et `watch_server_found` (5 s ; compte de démarrage : session rouverte). Grand logo au
+  centre aussi au retour (core 0 depuis 1, 2 ou 3 ; `off-show`).
+- **Démarrage** : `handoff` de BootLogo (le ThemeLogo prend le relais du dessin du démarrage, identique) ;
+  Nerd : `CircuitScene.morph` (puces → plots, processeur → puce centrale) et `gone` (effacement au départ
+  du logo) ; pistes tracées de plot en plot. Serveur muet : 1,3 s de plus avant le départ (boot.rs).
+- **Bibliothèques** : la fin de distribution n'éteint plus l'image partagée que depuis le minuteur (plus de
+  `changed deal-anim`) ; `hero-ready` ne relance rien pendant le ramassage ; paquet borné en hauteur
+  (`deck-bh`, `deck-w16`). Portrait (`narrow`) : bannière en haut (`deck-top`), morceaux = colonnes de la
+  grille (`lib-cols`), départs rangée par rangée (`deal-delay`).
+- **Fiche** : `d-snap` / `d-jump` (affiche de la page hors de l'écran : saut au début sans défilement).
+- **Seerr** : `sr-pad`, `sr-poster-w` (destination de l'image qui vole), mise en page `tall` ; `blk(b)`,
+  `cast-e(i)`, `open-e`, `out-c` / `out-e`.
+- **Lecteur** : `seek-chain` (touchers suivants : +10 s chacun, `seek-total`).
+- **Explorateur** : bouton `mkdir` (mode 9 de la fenêtre de saisie ; l'explorateur s'efface pendant la saisie).
 
 ## 7. Compiler, fabriquer les paquets, publier
 

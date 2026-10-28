@@ -8780,6 +8780,8 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
 fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
     let has_dl = !downloads::list().is_empty();
     set_core(app, if has_dl { 1 } else { 3 });
+    // Compte de démarrage : sa photo attendait la connexion au centre (fly_autostart) ; elle s'en va.
+    u.set_fly_phase(0);
     if has_dl {
         u.set_screen("login".into());
         u.set_login_mode("pick".into());
