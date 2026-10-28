@@ -2184,34 +2184,36 @@ component DetailButton inherits Rectangle {
             commands: "M 4.5 20 L 19.5 20";
         }
 
-        // Bande-annonce : clap de cinéma (corps et barre rayée), fermé au repos ; à l'appui, il
-        // s'ouvre puis claque (hop). Pas de triangle : illisible à cette taille, et c'est le bouton Lecture.
-        if root.icon == "trailer": Path {
+        // Bande-annonce : pellicule (cadre, perforations des deux côtés), le symbole le plus lisible en
+        // petit ; à l'appui, elle défile d'une perforation.
+        if root.icon == "trailer": Rectangle {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             width: 22px * root.k;
             height: 22px * root.k;
-            viewbox-width: 24;
-            viewbox-height: 24;
-            fill: transparent;
-            stroke: face.ink;
-            stroke-width: 2px * root.k;
-            stroke-line-join: round;
-            commands: "M 4 10 L 20 10 L 20 18.5 Q 20 20 18.5 20 L 5.5 20 Q 4 20 4 18.5 Z M 4 14 L 20 14";
-        }
-        // Barre du clap : trois bandes épaisses en biais (lisibles à 22 px) ; pivote autour de sa
-        // charnière (4, 9.5).
-        if root.icon == "trailer": Path {
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            width: 22px * root.k;
-            height: 22px * root.k;
-            viewbox-width: 24;
-            viewbox-height: 24;
-            fill: face.ink;
-            transform-origin: { x: self.width * 4 / 24, y: self.height * 9.5 / 24 };
-            transform-rotation: -(root.kind == 1 ? root.hop : 0) * 22deg;
-            commands: "M 4 4.2 L 8.2 4.2 L 6.2 8.4 L 4 8.4 Z M 10.6 4.2 L 14.6 4.2 L 12.6 8.4 L 8.6 8.4 Z M 17 4.2 L 20 4.2 L 20 5.6 L 19 8.4 L 15 8.4 Z";
+            clip: true;
+            Path {
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 24;
+                viewbox-height: 24;
+                fill: transparent;
+                stroke: face.ink;
+                stroke-width: 2px * root.k;
+                stroke-line-join: round;
+                commands: "M 5 3.5 L 19 3.5 L 19 20.5 L 5 20.5 Z M 8.5 3.5 L 8.5 20.5 M 15.5 3.5 L 15.5 20.5";
+            }
+            Path {
+                y: -(root.kind == 1 ? root.hop : 0) * parent.height * 4 / 24;
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 24;
+                viewbox-height: 24;
+                fill: transparent;
+                stroke: face.ink;
+                stroke-width: 2px * root.k;
+                commands: "M 5 8 L 8.5 8 M 5 12 L 8.5 12 M 5 16 L 8.5 16 M 15.5 8 L 19 8 M 15.5 12 L 19 12 M 15.5 16 L 19 16";
+            }
         }
 
         // Supprimer (téléchargement) : corbeille, le couvercle se soulève à l'appui.

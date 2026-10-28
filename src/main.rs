@@ -3692,7 +3692,7 @@ fn seerr_trailer(app: &Arc<App>) {
     let lang = audio.split(',').map(str::trim).find(|l| !l.is_empty()).map(str::to_string).unwrap_or_else(i18n::current);
     let app2 = app.clone();
     app.rt.spawn(async move {
-        match client.prepare_trailer(d.tv, d.tmdb, &lang, &d.title, &d.year).await {
+        match client.prepare_trailer(d.tv, d.tmdb, &lang, &d.title, &d.year, d.genres.contains("Anim")).await {
             Ok((url, _)) => {
                 let title = trf("Bande-annonce · {}", &[&d.title]);
                 let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast("".into()));
@@ -7122,7 +7122,8 @@ fn play_trailer(app: &Arc<App>) {
                 // Plusieurs (plugin Turtlefin Trailers : « … [fr] », « … [fr+en] ») : celle de la langue
                 // audio du compte, sinon celle de l'interface, sinon la première.
                 let mut list = client.local_trailers(&id).await?;
-                list.sort_by_key(|t| trailer_rank(&t.name));
+                // Langue lue dans le nom du fichier : Jellyfin retire les crochets du nom affiché.
+                list.sort_by_key(|t| trailer_rank(t.path.as_deref().unwrap_or(&t.name)));
                 if let Some(t) = list.into_iter().next() {
                     play_flow(app2.clone(), Some(t.id), None).await;
                     return Ok(());
@@ -7152,10 +7153,10 @@ fn play_trailer(app: &Arc<App>) {
     });
 }
 
-/// Rang d'une bande-annonce locale selon les langues de son nom (« Titre-trailer [fr+en] ») : 0 si
-/// elle a la langue audio du compte, 1 celle de l'interface, 2 sans langue indiquée, 3 une autre.
-fn trailer_rank(name: &str) -> u8 {
-    let Some(tags) = name.rsplit_once('[').and_then(|(_, t)| t.strip_suffix(']')) else { return 2 };
+/// Rang d'une bande-annonce locale selon les langues de son fichier (« Titre-trailer [fr+en].mkv ») : 0
+/// si elle a la langue audio du compte, 1 celle de l'interface, 2 sans langue indiquée, 3 une autre.
+fn trailer_rank(file: &str) -> u8 {
+    let Some(tags) = file.rsplit_once('[').and_then(|(_, t)| t.split_once(']')).map(|(t, _)| t) else { return 2 };
     let has = |want: &str| -> bool {
         let want: Vec<String> = player::lang_codes(want).split(',').map(str::to_string).collect();
         tags.split('+').any(|t| player::lang_codes(t).split(',').any(|c| want.iter().any(|w| w == c)))

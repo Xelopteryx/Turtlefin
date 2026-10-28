@@ -169,6 +169,8 @@ impl MediaSource {
 pub struct Item {
     pub id: String,
     pub name: String,
+    /// Fichier sur le serveur (bandes-annonces locales : leur langue est dans le nom du fichier).
+    pub path: Option<String>,
     #[serde(rename = "Type")]
     pub kind: String,
     pub is_folder: bool,
@@ -2214,7 +2216,7 @@ impl Client {
 
     /// Bande-annonce d'un média absent du serveur, préparée par le plugin (téléchargée au besoin :
     /// quelques secondes, jusqu'à 3 min) : adresse complète du fichier à lire, et la langue trouvée.
-    pub async fn prepare_trailer(&self, tv: bool, tmdb: i64, lang: &str, name: &str, year: &str) -> Result<(String, String)> {
+    pub async fn prepare_trailer(&self, tv: bool, tmdb: i64, lang: &str, name: &str, year: &str, animated: bool) -> Result<(String, String)> {
         let tmdb = tmdb.to_string();
         let resp = self
             .http
@@ -2222,6 +2224,8 @@ impl Client {
             .query(&[("type", if tv { "tv" } else { "movie" }), ("tmdbId", tmdb.as_str()), ("lang", lang), ("name", name)])
             // Année : seulement si elle est connue (une valeur vide ferait refuser la requête).
             .query(&[("year", year)][..usize::from(year.parse::<u16>().is_ok())])
+            // Animation : le plugin écarte les adaptations en prises de vues réelles.
+            .query(&[("animated", "true")][..usize::from(animated)])
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .timeout(std::time::Duration::from_secs(180))
             .send()
