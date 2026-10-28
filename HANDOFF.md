@@ -336,6 +336,18 @@ sous Linux, faute de trousseau commun à toutes les machines visées.
   Guide → `Key.Menu` (menu de gauche, dans `nav-key`). Manette Android : X, Y, L1, R1, L2, R2, Start, Select.
   Android : `is_tv` regarde aussi `Configuration.uiMode`.
 
+- **Cœur du logo** (`global Srv` de ui/logo.slint, `set_core` dans main.rs) : 0 joint · 1 injoignable
+  (cœur fendu, ressoudé au retour) · 2 hors ligne (maison ; Nerd : pistes ambre, `CircuitScene.offline`).
+  Chaque `ThemeLogo` joue le changement, et le joue aussi à son apparition (`start-from`) ; passage hors
+  ligne : grand logo au centre (`off-show`, app.slint). Hors ligne au démarrage : bouton « Regarder hors
+  ligne » (`offline-ok`, action `offline`). Téléchargements : `Entry.server_id` / `user_id`,
+  `downloads::belongs` filtre `sync` et `migrate`.
+- **Animations** : `deck-rise` (bibliothèque sans carte de départ), `Card.moving` (textes cachés pendant
+  le vol : femtovg épaissit les lettres d'un élément tourné ou agrandi), `swap-wait` (fiche suivante
+  cachée jusqu'à l'arrivée de l'affiche), `restore_page` rend aussi la zone clavier (≥ 2).
+- **Décor Turtlefin** : `HexScene` (fixe, en cache) + `HexDrift` (lueurs et onde, minuterie de 50 ms,
+  phase commune `Drift`), réglage `AnimFlags::scenery` (« Fond animé », coupé par défaut sur le Pi).
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
