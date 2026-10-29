@@ -7293,6 +7293,7 @@ async fn play_flow_with(
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_playing(false);
+        cursor_visible(&u, true);
         // Serveur parti ou revenu pendant la lecture : le thème change maintenant, en fondu.
         if app2.theme_pending.swap(false, Ordering::SeqCst) {
             let p = config::ui_prefs();
@@ -9875,6 +9876,17 @@ fn go_offline(app: &Arc<App>) {
         }
     });
     let _ = was;
+}
+
+/// Pointeur de la souris affiché ou caché sur toute la fenêtre (lecteur : caché avec les commandes).
+pub(crate) fn cursor_visible(u: &AppWindow, on: bool) {
+    #[cfg(not(target_os = "android"))]
+    {
+        use slint::winit_030::WinitWindowAccessor;
+        u.window().with_winit_window(|w| w.set_cursor_visible(on));
+    }
+    #[cfg(target_os = "android")]
+    let _ = (u, on);
 }
 
 /// Suit le serveur en permanence (toutes les 6 s), quelle que soit la page, dans les deux sens :

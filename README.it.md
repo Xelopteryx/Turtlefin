@@ -12,10 +12,10 @@ telecomando come con tastiera e mouse — e su Android (telefono, tablet, TV), c
 > **Progetto interamente «vibecodato»**: tutto il codice, i testi e le traduzioni sono stati scritti da un'IA
 > (Claude, di Anthropic), guidata e provata da un umano che non l'ha programmato di persona.
 
-Versione attuale: **1.9.7 «Ritrovo»** · Lingue dell'interfaccia: Italiano, English, Français, Español, Deutsch, Português,
+Versione attuale: **1.9.7 «Everywhere Update»** · Lingue dell'interfaccia: Italiano, English, Français, Español, Deutsch, Português,
 Polski, Nederlands — e qualsiasi lingua aggiunta da te (vedi [Tradurre Turtlefin](#tradurre-turtlefin)).
 
-> **Su questa versione.** La 1.9.7 «Ritrovo» è stata provata su Windows, Linux (Raspberry Pi 5 collegato a
+> **Su questa versione.** La 1.9.7 «Everywhere Update» è stata provata su Windows, Linux (Raspberry Pi 5 collegato a
 > un televisore) e Android (telefono). Ci sono ancora cose da rivedere — lo sviluppatore sa che restano dei
 > problemi (vedi le note delle [versioni](https://github.com/Xelopteryx/Turtlefin/releases) e i problemi
 > noti in [HANDOFF.it.md](HANDOFF.it.md)) —, ma bisognava pur pubblicare una versione molto più avanzata della

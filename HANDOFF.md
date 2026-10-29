@@ -1,10 +1,10 @@
-# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.7 « Retrouvailles »)
+# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.7 « Everywhere Update »)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.7 (« Retrouvailles », prête mais
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.7 (« Everywhere Update », prête mais
 pas encore publiée au 29 octobre 2026 ; versions publiées avant elle : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
 
 ## 1. Objectif
@@ -458,13 +458,13 @@ au survol, clic raté) : au survol, le défilement est figé (`menu-free`) ; mes
 composants allumés plus discrets ; broches jamais au coin d'un composant (pistes de la ROM et de la
 carte graphique décalées, tracés fixes et points d'arrivée refaits depuis `Board.traces`).
 
-## 6 sexies. Version 1.9.7 « Retrouvailles » (29 octobre 2026)
+## 6 sexies. Version 1.9.7 « Everywhere Update » (29 octobre 2026)
 
 Première version publiée depuis la 1.2.0 : elle réunit tout ce qui est décrit en 6 ter, 6 quater, les retours
 du 28 octobre et 6 quinquies (Android, Diffuser et relais, télécommande, thèmes Aero et Nerd et leurs fonds
-animés, pages Seerr, bandes-annonces, hors ligne en ambre, stockage, mot de passe, audit de sécurité). Nom :
-l'appli retrouve d'elle-même son serveur (et le perd proprement), dans les deux sens et sur toutes les pages
-(voir plus bas). Le README montre les trois logos (Turtlefin, Aero, Nerd,
+animés, pages Seerr, bandes-annonces, hors ligne en ambre, stockage, mot de passe, audit de sécurité). Nom, dans
+la lignée des versions GitHub (« Interface Update », « Touch Update ») : Turtlefin partout, sur Android, à la
+télé (télécommande, diffusion entre appareils) et même sans serveur (hors ligne, retour automatique). Le README montre les trois logos (Turtlefin, Aero, Nerd,
 `packaging/icons/turtlefin-*-256.png`, tirés de `theme::icon` par le test `icon_dump`) et dit franchement
 qu'il reste des choses à revoir (voir la section 9). Pas encore publiée : le développeur veut d'abord juger
 le reste (pousser, étiquette `v1.9.7`, APK jointe à la main).
@@ -506,6 +506,10 @@ Les cinq derniers problèmes avant la sortie (vidéos du 29 octobre et retours) 
   la fin de la lecture. Essayé sur le PC avec un relais local coupé et rétabli (config de test,
   `TURTLEFIN_CONFIG_DIR`) et `TURTLEFIN_NO_DISCOVERY=1` (sinon l'appli retrouve le serveur sur le réseau
   local, ce qui est voulu).
+- **Curseur sur la vidéo** : il restait affiché quand la souris ne bougeait plus (Slint n'applique
+  `mouse-cursor: none` qu'au mouvement suivant, qui réaffiche les commandes). Le lecteur envoie maintenant
+  `cursor:hide` / `cursor:show` avec les commandes, et `cursor_visible` cache le pointeur au niveau de la
+  fenêtre (winit) ; il est réaffiché à la fin de la lecture. Vérifié avec `GetCursorInfo`.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

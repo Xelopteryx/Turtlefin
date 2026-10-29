@@ -12,10 +12,10 @@ go pilotem, jak klawiaturą i myszą — a także na Androidzie (telefon, tablet
 > **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja
 > (Claude od Anthropic), prowadzona i testowana przez człowieka, który sam go nie programował.
 
-Aktualna wersja: **1.9.7 „Powrót”** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
+Aktualna wersja: **1.9.7 „Everywhere Update”** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
 Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
 
-> **O tej wersji.** Wersja 1.9.7 „Powrót” została przetestowana na Windows, Linuksie (Raspberry Pi 5
+> **O tej wersji.** Wersja 1.9.7 „Everywhere Update” została przetestowana na Windows, Linuksie (Raspberry Pi 5
 > podłączone do telewizora) i Androidzie (telefon). Niektóre rzeczy wymagają jeszcze poprawek — autor wie, że
 > nadal są problemy (zob. opisy [wydań](https://github.com/Xelopteryx/Turtlefin/releases) i znane problemy w
 > [HANDOFF.pl.md](HANDOFF.pl.md)) — ale trzeba było wydać wersję znacznie bardziej rozwiniętą niż 1.2.0.

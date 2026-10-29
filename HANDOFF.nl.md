@@ -1,4 +1,4 @@
-# Turtlefin: projectoverdracht (stand op 29 oktober 2026, versie 1.9.7 „Weerzien”, nog niet gepubliceerd)
+# Turtlefin: projectoverdracht (stand op 29 oktober 2026, versie 1.9.7 „Everywhere Update”, nog niet gepubliceerd)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · **Nederlands** · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -183,13 +183,14 @@ gepland: optimalisatie, versie voor Android TV.
   `language` naast de exe, die bij de eerste start wordt overgenomen.
 - Namen die van de server komen (bibliotheken, media) worden niet vertaald.
 
-## 6 bis. Versie 1.9.7 „Weerzien” (29 oktober 2026, nog niet gepubliceerd)
+## 6 bis. Versie 1.9.7 „Everywhere Update” (29 oktober 2026, nog niet gepubliceerd)
 
 Deze vertaling is na 1.1.0 niet meer gedetailleerd: **[HANDOFF.md](HANDOFF.md) (Frans) is de referentie**
 voor alles daarna (secties 6 bis tot 6 sexies en de lijst „nog na te kijken” in sectie 9). Kort gezegd brengt
 1.9.7: Android, Casten en relais, tv-afstandsbediening, Aero- en Nerd-thema's met geanimeerde achtergronden,
 Seerr-pagina's, trailers (met de aparte serverplug-in Turtlefin Trailers), offlinemodus in amber,
-beveiligingsaudit, sneller compileren (`codegen-units = 16`). De naam komt van de serverbewaking
+beveiligingsaudit, sneller compileren (`codegen-units = 16`). De naam volgt de GitHub-versies
+(„Interface Update”, „Touch Update”): Turtlefin overal. Serverbewaking
 (`watch_server`, elke 6 s): de app verliest en vindt zijn server zelf terug, in beide richtingen en op elke
 pagina; tijdens het afspelen alleen één melding, thema en pagina wisselen pas daarna. Getest op Windows, Linux
 (Raspberry Pi 5) en Android; er blijven problemen.

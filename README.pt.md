@@ -12,10 +12,10 @@ teclado e rato — e no Android (telemóvel, tablet, TV), com o dedo.
 > **Projeto totalmente «vibecodado»**: todo o código, textos e traduções foram escritos por uma IA (Claude,
 > da Anthropic), guiada e testada por um humano que não o programou ele próprio.
 
-Versão atual: **1.9.7 «Reencontro»** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
+Versão atual: **1.9.7 «Everywhere Update»** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
 Nederlands — e qualquer idioma que acrescentes tu mesmo (ver [Traduzir o Turtlefin](#traduzir-o-turtlefin)).
 
-> **Sobre esta versão.** A 1.9.7 «Reencontro» foi testada em Windows, Linux (Raspberry Pi 5 ligado a uma TV) e
+> **Sobre esta versão.** A 1.9.7 «Everywhere Update» foi testada em Windows, Linux (Raspberry Pi 5 ligado a uma TV) e
 > Android (telemóvel). Ainda há coisas a rever — o programador sabe que restam problemas (ver as notas das
 > [versões](https://github.com/Xelopteryx/Turtlefin/releases) e os problemas conhecidos em
 > [HANDOFF.pt.md](HANDOFF.pt.md)) —, mas era preciso publicar uma versão muito mais avançada do que a 1.2.0.

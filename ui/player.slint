@@ -655,6 +655,7 @@ export component PlayerView inherits Rectangle {
     }
     changed osd => {
         root.sub-margin();
+        root.command("cursor:" + (root.osd ? "show" : "hide"));
     }
 
     function show() {

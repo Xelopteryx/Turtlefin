@@ -702,6 +702,13 @@ pub async fn play(
                         }
                     }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
+                    // Commandes cachées : le pointeur aussi, même immobile (Slint ne change son curseur
+                    // qu'au mouvement suivant de la souris, et ce mouvement réaffiche les commandes).
+                    "cursor" => {
+                        let on = arg == "show";
+                        let _ = ui.upgrade_in_event_loop(move |u| crate::cursor_visible(&u, on));
+                        Ok(())
+                    }
                     "volume" => apply_volume(&player, arg.parse::<u32>().unwrap_or(100).min(100)),
                     // Télécommande : volume par pas, ou coupé / rétabli.
                     "volume-step" | "volume-mute" => {
