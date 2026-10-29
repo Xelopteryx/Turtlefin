@@ -76,6 +76,12 @@ modules:
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
+      # Options C du SDK (-O2…) remplacées : aws-lc-sys (TLS) compile son générateur de hasard
+      # (jitterentropy) en -O0 et refuse d'être optimisé ; le -O2 du SDK passait après le sien.
+      cflags: -pipe
+      cflags-override: true
+      cxxflags: -pipe
+      cxxflags-override: true
       env:
         CARGO_HOME: /run/build/turtlefin/cargo
         # Version publiée : la mise à jour intégrée renvoie vers Flatpak (voir src/update.rs).
