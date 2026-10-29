@@ -1,4 +1,4 @@
-# Turtlefin: passaggio di consegne (stato al 14 ottobre 2026, versione 1.1.0 + lavoro non pubblicato)
+# Turtlefin: passaggio di consegne (stato al 29 ottobre 2026, versione 1.9.7 «Ritrovo», non ancora pubblicata)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · **Italiano** · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -182,6 +182,17 @@ seguito: ottimizzazione, versione per Android TV.
 - Programma di installazione: `[Languages]` e `[CustomMessages]` di `turtlefin.iss`; scrive il codice scelto in
   `language` accanto all'exe, ripreso al primo avvio.
 - I nomi che arrivano dal server (librerie, media) non vengono tradotti.
+
+## 6 bis. Versione 1.9.7 «Ritrovo» (29 ottobre 2026, non ancora pubblicata)
+
+Questa traduzione non è più dettagliata dopo la 1.1.0: **[HANDOFF.md](HANDOFF.md) (francese) è il
+riferimento** per tutto ciò che segue (sezioni 6 bis–6 sexies e l'elenco «da rivedere» della sezione 9). In
+breve, la 1.9.7 porta: Android, Trasmetti e relay, telecomando TV, temi Aero e Nerd con sfondi animati, pagine
+Seerr, trailer (con il plugin server separato Turtlefin Trailers), modalità offline in ambra, verifica di
+sicurezza, compilazione più rapida (`codegen-units = 16`). Il nome viene dalla sorveglianza del server
+(`watch_server`, ogni 6 s): l'app perde e ritrova da sola il server, nei due sensi e su ogni pagina; durante la
+riproduzione, un solo messaggio, tema e pagina cambiano alla fine. Provata su Windows, Linux (Raspberry Pi 5) e
+Android; restano dei problemi.
 
 ## 7. Compilare, produrre i pacchetti, pubblicare
 

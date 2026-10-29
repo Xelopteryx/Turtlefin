@@ -109,7 +109,9 @@ export component ThemeLogo inherits Rectangle {
         width: 200 * root.u;
         height: self.width;
         border-radius: self.width / 2;
-        background: @radial-gradient(circle, Theme.accent1 0%, Theme.accent1.mix(Theme.bg, 0.45) 70%, Theme.bg 100%);
+        // Hors ligne (ambre) : l'orbe passe à un ambre foncé, sinon l'hexagone blanc s'y perdait.
+        property <color> core: Theme.accent1.mix(#6b3200, 1 - 0.5 * root.amber);
+        background: @radial-gradient(circle, self.core 0%, self.core.mix(Theme.bg, 0.45) 70%, Theme.bg 100%);
         border-width: 2px;
         border-color: Theme.accent2.with-alpha(0.45);
         Rectangle {
@@ -130,6 +132,16 @@ export component ThemeLogo inherits Rectangle {
         background: @radial-gradient(circle, Theme.accent2.with-alpha(0.55) 0%, Theme.accent2.with-alpha(0.18) 40%, Theme.accent2.with-alpha(0) 70%);
     }
 
+    // Hors ligne : lueur ambre dans l'orbe, sous la carapace (par-dessus, elle délavait l'hexagone).
+    if root.orb && !root.hollow && root.amber > 0.01: Rectangle {
+        x: 28 * root.u;
+        y: 28 * root.u;
+        width: 200 * root.u;
+        height: self.width;
+        border-radius: self.width / 2;
+        opacity: root.amber * 0.45;
+        background: @radial-gradient(circle, #f59e0b.with-alpha(0) 30%, #f59e0b.with-alpha(0.55) 75%, #f59e0b.with-alpha(0) 100%);
+    }
     // Carapace (thèmes 0 et 1) : contour épais, rayons, centre plein.
     if !root.chip: Path {
         x: (53 - 7) * root.u;
@@ -246,15 +258,6 @@ export component ThemeLogo inherits Rectangle {
         stroke-line-join: round;
         opacity: root.crack;
         commands: "M 58 70 L 92 98 L 84 118 L 112 132 M 92 98 L 104 84 M 150 140 L 174 150 L 168 176 L 196 192 M 174 150 L 190 136";
-    }
-    if root.orb && !root.hollow && root.amber > 0.01: Rectangle {
-        x: 28 * root.u;
-        y: 28 * root.u;
-        width: 200 * root.u;
-        height: self.width;
-        border-radius: self.width / 2;
-        opacity: root.amber * 0.55;
-        background: @radial-gradient(circle, #ffb347 0%, #f59e0b.with-alpha(0.6) 60%, #f59e0b.with-alpha(0) 100%);
     }
     // Aero : grand reflet blanc par-dessus la carapace.
     if root.orb && !root.hollow: Rectangle {

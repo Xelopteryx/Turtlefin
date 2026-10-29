@@ -1,4 +1,4 @@
-# Turtlefin: passagem do projeto (estado a 14 de outubro de 2026, versão 1.1.0 + trabalho não publicado)
+# Turtlefin: passagem do projeto (estado a 29 de outubro de 2026, versão 1.9.7 «Reencontro», ainda não publicada)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · **Português**
 
@@ -180,6 +180,17 @@ seguir: otimização, versão para Android TV.
 - Instalador: `[Languages]` e `[CustomMessages]` de `turtlefin.iss`; escreve o código escolhido em `language` ao
   lado do exe, usado no primeiro arranque.
 - Os nomes que vêm do servidor (bibliotecas, conteúdos) não são traduzidos.
+
+## 6 bis. Versão 1.9.7 «Reencontro» (29 de outubro de 2026, ainda não publicada)
+
+Esta tradução deixa de ser detalhada depois da 1.1.0: **[HANDOFF.md](HANDOFF.md) (francês) é a referência**
+para tudo o que veio depois (secções 6 bis a 6 sexies e a lista «a rever» da secção 9). Em resumo, a 1.9.7
+traz: Android, Transmitir e relé, comando de TV, temas Aero e Nerd com fundos animados, páginas do Seerr,
+trailers (com o plugin de servidor à parte Turtlefin Trailers), modo offline em âmbar, auditoria de segurança,
+compilação mais rápida (`codegen-units = 16`). O nome vem da vigilância do servidor (`watch_server`, a cada
+6 s): a aplicação perde e reencontra o servidor sozinha, nos dois sentidos e em todas as páginas; durante a
+reprodução, só uma mensagem, e o tema e a página mudam no fim. Testada em Windows, Linux (Raspberry Pi 5) e
+Android; restam problemas.
 
 ## 7. Compilar, fazer os pacotes, publicar
 

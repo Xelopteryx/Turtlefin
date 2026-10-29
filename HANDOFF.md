@@ -1,10 +1,11 @@
-# Turtlefin : passation de projet (état au 14 octobre 2026, version 1.1.0 + travaux non publiés)
+# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.7 « Retrouvailles »)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.1.0.
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.7 (« Retrouvailles », prête mais
+pas encore publiée au 29 octobre 2026 ; versions publiées avant elle : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
 
 ## 1. Objectif
 
@@ -264,7 +265,7 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
 Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
 sous Linux, faute de trousseau commun à toutes les machines visées.
 
-## 6 ter. Travaux d'octobre 2026 (après la 1.2.0, non publiés)
+## 6 ter. Travaux d'octobre 2026 (après la 1.2.0 ; publiés avec la 1.9.7)
 
 - **Mot de passe** (`src/password.rs`) : `score()` 0 à 4, `is_weak()` (liste de mots de passe courants, nom du
   compte, suites, longueur). Seul le verdict est gardé (`Account.weak_pw`), jamais le mot de passe. Alerte
@@ -457,6 +458,55 @@ au survol, clic raté) : au survol, le défilement est figé (`menu-free`) ; mes
 composants allumés plus discrets ; broches jamais au coin d'un composant (pistes de la ROM et de la
 carte graphique décalées, tracés fixes et points d'arrivée refaits depuis `Board.traces`).
 
+## 6 sexies. Version 1.9.7 « Retrouvailles » (29 octobre 2026)
+
+Première version publiée depuis la 1.2.0 : elle réunit tout ce qui est décrit en 6 ter, 6 quater, les retours
+du 28 octobre et 6 quinquies (Android, Diffuser et relais, télécommande, thèmes Aero et Nerd et leurs fonds
+animés, pages Seerr, bandes-annonces, hors ligne en ambre, stockage, mot de passe, audit de sécurité). Nom :
+l'appli retrouve d'elle-même son serveur (et le perd proprement), dans les deux sens et sur toutes les pages
+(voir plus bas). Le README montre les trois logos (Turtlefin, Aero, Nerd,
+`packaging/icons/turtlefin-*-256.png`, tirés de `theme::icon` par le test `icon_dump`) et dit franchement
+qu'il reste des choses à revoir (voir la section 9). Pas encore publiée : le développeur veut d'abord juger
+le reste (pousser, étiquette `v1.9.7`, APK jointe à la main).
+
+Ajouts de la fin de session :
+- **Diffuser** : `ActionButton` coupe son libellé (« … ») au lieu de déborder (« Voir la lecture · <titre> »,
+  « Ne plus diffuser sur <nom> »). Noms de comptes : déjà coupés (`Marquee`).
+- **Téléchargements** : « Aucun téléchargement » seulement s'il n'y a rien de fini ni rien en cours
+  (`dl-status`).
+- **Compilation** : `codegen-units = 16` et `incremental = true` dans les deux `Cargo.toml` (avant :
+  `codegen-units = 1`, un seul cœur pendant toute la génération de code). Mesuré sur le Ryzen 7 5800X3D :
+  modification d'un `.rs` ~1 min au lieu de ~8 min 30 ; d'un `.slint` ~6 min (tout le code de l'interface est
+  régénéré) ; compilation complète ~7 min 20. La vérification du crate reste mono-cœur (Rust stable).
+- **Plugin Turtlefin Trailers** (dépôt à part, `GitHub/Turtlefin-Trailers`, pas encore publié) : tâche
+  planifiée (une bande-annonce par langue voulue : bibliothèque, langue audio de chaque compte, réglages ;
+  versions doublées réunies, sinon l'officielle sous-titrée), points d'accès `/TurtlefinTrailers/Info`,
+  `/Prepare` (authentifié), `/File/<nom aléatoire>` (cache de 24 h au plus et 5 Go). Il faut yt-dlp et deno
+  (moteur JavaScript de yt-dlp, sinon ni tous les formats ni les sous-titres) sur le serveur, et une clé TMDB
+  pour les langues. La recherche YouTube est coupée par défaut (peu fiable).
+- **APK** : pas dans la CI ; fabriquée à la main (`android/build-apk.ps1 -Release`) et jointe à la version.
+
+Les cinq derniers problèmes avant la sortie (vidéos du 29 octobre et retours) :
+- **Seerr depuis une fiche** : en bas d'une fiche (Similaires, Distribution), ouvrir une page Seerr ne
+  remonte plus la fiche ni ne la fond (`open-hero`, `up` faux pour une page Seerr) : la page Seerr s'ouvre
+  par-dessus, le poster vole à sa place, et le retour retrouve la fiche là où elle était.
+- **Passage en ambre** : fondu de tout l'écran (`theme-fade`, image de la fenêtre au-dessus de tout, qui
+  s'efface en 0,9 s), au démarrage compris ; avant, le balayage du changement de thème passait sous le logo
+  de démarrage et l'ambre arrivait d'un coup.
+- **Logo hors ligne** : l'orbe passe à un ambre foncé et la lueur ambre est sous la carapace (avant : par-
+  dessus, l'hexagone blanc devenait illisible).
+- **Hors ligne, Téléchargements = Accueil** : barre du haut comme sur l'accueil (« Turtlefin », onglet Accueil
+  allumé, pas de retour) tant que le serveur n'est pas revenu (`off-home` dans `NavBar`).
+- **Suivi du serveur** (`watch_server`, toutes les 6 s, remplace l'ancien essai de 30 s du mode hors ligne) :
+  perdu (deux essais ratés) → sur « Qui regarde ? », comptes « Hors ligne » et message ; ailleurs, hors ligne
+  s'il y a des téléchargements, sinon cœur fendu et message ; revenu → retour en ligne, l'accueil remplace
+  les téléchargements une fois chargé (plus de page vide ni de grand logo de chargement entre les deux). Une
+  fiche qui ne se charge plus faute de serveur passe aussi hors ligne, sans message d'échec avant.
+  **Pendant une lecture** : un seul message, rien d'autre ; le thème (`theme_pending`) et la page changent à
+  la fin de la lecture. Essayé sur le PC avec un relais local coupé et rétabli (config de test,
+  `TURTLEFIN_CONFIG_DIR`) et `TURTLEFIN_NO_DISCOVERY=1` (sinon l'appli retrouve le serveur sur le réseau
+  local, ce qui est voulu).
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
@@ -555,6 +605,15 @@ cargo-ndk : voir `android/README.md`) ; compilation dans `%LOCALAPPDATA%\turtlef
 9. Mémoire (mesurée sur le Pi le 14 octobre 2026, film de 3 h 48) : ~215 Mo à l'écran de connexion, ~465 Mo
    après une première lecture (palier gardé, aucune croissance d'une lecture à l'autre), +20 Mo/h pendant une
    lecture, rendus à la fin ; descripteurs stables (46 en lecture, 23-25 après).
+11. Reste à revoir à la 1.9.7 (connu, pas encore corrigé) :
+   - Diffuser vers une télé hors de chez soi (relais du téléphone, Chromecast) : pas essayé (aucune télé
+     disponible pour des essais) ; la télécommande d'Android TV non plus.
+   - Bandes-annonces : YouTube limite fort ses sous-titres traduits (erreur 429) ; beaucoup d'animés n'ont pas
+     de bande-annonce française chez TMDB ; une bande-annonce sans voix est étiquetée par la langue de son texte.
+   - Thème Nerd : le fond animé coûte ~35-40 % d'un cœur sur le Pi 5 (60 images/s tenues) ; il reste coupé par
+     défaut sur le Pi.
+   - Distribution d'une bibliothèque en portrait : allégée, encore lourde sur un téléphone modeste.
+   - Trailarr (bandes-annonces par Radarr / Sonarr) : pas retenu ; le plugin Turtlefin Trailers le remplace.
 
 ## 10. Préférences de travail du mainteneur
 

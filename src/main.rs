@@ -270,6 +270,9 @@ struct App {
     manual: Mutex<(Option<String>, Option<String>, Vec<String>)>,
     /// Une lecture est en cours (évite les doubles lancements).
     playing: AtomicBool,
+    /// Le serveur est parti ou revenu pendant une lecture : le changement de thème (ambre) attend sa
+    /// fin, pour ne rien changer à l'écran pendant le film.
+    theme_pending: AtomicBool,
     /// L'accueil doit être rechargé au retour (état « Reprendre » modifié par une lecture).
     home_stale: AtomicBool,
     /// Compte quitté par « Changer de compte » : Retour sur « Qui regarde ? » le rouvre.
@@ -1566,10 +1569,14 @@ fn cli_not_found(app: &Arc<App>) {
 async fn load_home(app: Arc<App>, client: api::Client) {
     *app.client.lock().unwrap() = Some(client.clone());
     watch_addresses(&app, &client);
-    app.offline.store(false, Ordering::SeqCst);
+    // Retour du serveur après le mode hors ligne : les téléchargements restent affichés (et l'onglet
+    // Accueil allumé) jusqu'à l'accueil chargé (load_tab), plutôt qu'une page vide entre les deux.
+    let was = app.offline.swap(false, Ordering::SeqCst);
     let initial = initial_of(&client.user_name);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
-        u.set_offline(false);
+        if !was {
+            u.set_offline(false);
+        }
         u.set_signed_in(true);
         u.set_me_initial(initial.into());
     });
@@ -1653,7 +1660,13 @@ async fn load_home(app: Arc<App>, client: api::Client) {
 /// Charge l'onglet affiché (« Accueil » ou « Favoris ») et le présente.
 async fn load_tab(app: Arc<App>, client: api::Client) {
     let ui = app.ui();
-    let _ = ui.upgrade_in_event_loop(|u| begin_loading(&u));
+    // Retour du serveur (hors ligne encore affiché) : pas de grand logo de chargement, l'accueil
+    // remplace les téléchargements en fondu une fois prêt.
+    let _ = ui.upgrade_in_event_loop(|u| {
+        if !u.get_offline() {
+            begin_loading(&u);
+        }
+    });
     let tab = app.tab.lock().unwrap().clone();
     let seerr = *app.seerr_user.lock().unwrap();
     let sections = match (tab.as_str(), seerr) {
@@ -1666,9 +1679,9 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
         Ok(s) => {
             set_core(&app, 0);
             if app.offline.swap(false, Ordering::SeqCst) {
-                let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
                 sync_offline_plays(&app, &client);
             }
+            let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
             present_sections(&app, &client, s)
         }
         // Serveur injoignable (pas un refus d'accès) : on bascule sur les téléchargements.
@@ -6691,6 +6704,13 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             // On annule cette ouverture : la page d'où l'on vient est toujours affichée (l'écran ne
             // change qu'une fois la fiche chargée), l'image partagée revole vers sa carte.
             app.stack.lock().unwrap().pop();
+            // Serveur injoignable (au retour d'une lecture, par exemple) avec des téléchargements :
+            // directement le mode hors ligne, sans message d'échec avant.
+            let gone = e.downcast_ref::<reqwest::Error>().is_some_and(|r| r.is_connect() || r.is_request() || r.is_timeout());
+            if gone && !downloads::list().is_empty() && !app.offline.load(Ordering::SeqCst) {
+                go_offline(&app);
+                return;
+            }
             let msg = trf("Impossible d'ouvrir la fiche : {}", &[&human_err(&e)]);
             let a = app.clone();
             let _ = ui.upgrade_in_event_loop(move |u| {
@@ -7273,6 +7293,17 @@ async fn play_flow_with(
     let app2 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_playing(false);
+        // Serveur parti ou revenu pendant la lecture : le thème change maintenant, en fondu.
+        if app2.theme_pending.swap(false, Ordering::SeqCst) {
+            let p = config::ui_prefs();
+            if p.anim.pages {
+                if let Ok(b) = u.window().take_snapshot() {
+                    u.set_theme_snap(slint::Image::from_rgba8(b));
+                    u.invoke_theme_fade_start();
+                }
+            }
+            apply_ui_prefs(&u, &p);
+        }
         #[cfg(target_os = "android")]
         android_entry::lock_landscape(false);
         u.set_p_up_mode("".into());
@@ -8134,6 +8165,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
+        theme_pending: AtomicBool::new(false),
         home_stale: AtomicBool::new(false),
         prev_account: Mutex::new(None),
         pw_cur: Mutex::new(String::new()),
@@ -8853,6 +8885,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 let p = config::ui_prefs();
                 theme::window_icon(&u, &theme::find(&p.theme, &p.themes));
             }
+            watch_server(&app);
         });
     }
     // Windows : l'interface reste animée pendant qu'on déplace ou redimensionne la fenêtre (voir
@@ -9776,15 +9809,27 @@ fn local_key_exists(key: &str) -> bool {
 
 /// Cœur du logo (voir Srv, ui/logo.slint) : 0 serveur joint · 1 injoignable · 2 hors ligne · 3 perdu.
 fn set_core(app: &Arc<App>, v: i32) {
+    let app2 = app.clone();
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         let g = u.global::<Srv>();
         if g.get_core() != v {
             g.set_core(v);
         }
-        // Hors ligne : tout le thème passe à l'ambre (et revient au retour), avec le balayage du
-        // changement de thème.
+        // Hors ligne : tout le thème passe à l'ambre (et revient au retour), en fondu (au-dessus de
+        // tout, démarrage compris). Pendant une lecture, rien ne change à l'écran : à sa fin.
         if theme::set_offline(v == 2) {
-            switch_theme(&u, config::ui_prefs());
+            if u.get_playing() {
+                app2.theme_pending.store(true, Ordering::SeqCst);
+                return;
+            }
+            let p = config::ui_prefs();
+            if p.anim.pages {
+                if let Ok(b) = u.window().take_snapshot() {
+                    u.set_theme_snap(slint::Image::from_rgba8(b));
+                    u.invoke_theme_fade_start();
+                }
+            }
+            apply_ui_prefs(&u, &p);
         }
     });
 }
@@ -9829,42 +9874,130 @@ fn go_offline(app: &Arc<App>) {
             let _ = ui.upgrade_in_event_loop(move |u| show_frames(&u, AnimSlot::Header, "", frames));
         }
     });
-    if !was {
-        watch_reconnect(app);
+    let _ = was;
+}
+
+/// Suit le serveur en permanence (toutes les 6 s), quelle que soit la page, dans les deux sens :
+/// - perdu (deux essais ratés de suite) : en ligne, passage hors ligne (téléchargements) s'il y en a,
+///   sinon cœur fendu et message ; sur « Qui regarde ? », les comptes passent « Hors ligne » ;
+/// - revenu : retour en ligne (accueil rechargé si on était hors ligne), cœur ressoudé, message.
+/// Pendant une lecture : rien qu'un message (une fois) ; le reste attend la fin de la lecture (le tour
+/// suivant s'en charge, et le thème attend dans `theme_pending`).
+/// La recherche de serveur (« servers ») a son propre suivi (watch_server_found).
+fn watch_server(app: &Arc<App>) {
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let mut misses = 0u32;
+        // Message déjà donné pendant la lecture en cours (perdu ou revenu).
+        let mut told: Option<bool> = None;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+            let saved = config::load();
+            if saved.server.is_empty() && saved.server_main.is_empty() {
+                continue;
+            }
+            // État de l'interface : page, cœur du logo, lecture, hors ligne.
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let _ = a.ui().upgrade_in_event_loop(move |u| {
+                let _ = tx.send((u.get_screen().to_string(), u.global::<Srv>().get_core(), u.get_playing(), u.get_boot_on()));
+            });
+            let Ok((screen, core, playing, boot)) = rx.await else { return };
+            if boot || screen == "servers" {
+                continue;
+            }
+            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
+            let target = if best.is_empty() { saved.server.clone() } else { best };
+            let up = !target.is_empty() && discovery::reachable(&target).await;
+            if !playing {
+                told = None;
+            }
+            if up {
+                misses = 0;
+                if core == 0 {
+                    continue;
+                }
+                if playing {
+                    if told != Some(true) {
+                        told = Some(true);
+                        let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur de nouveau joignable (retour en ligne à la fin de la lecture).").into()));
+                    }
+                    continue;
+                }
+                server_back(&a, &screen, saved, target).await;
+            } else {
+                misses += 1;
+                if misses < 2 || core != 0 {
+                    continue;
+                }
+                if playing {
+                    if told != Some(false) {
+                        told = Some(false);
+                        let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur injoignable : la lecture continue tant que possible.").into()));
+                    }
+                    continue;
+                }
+                server_lost(&a, &screen);
+            }
+        }
+    });
+}
+
+/// Le serveur ne répond plus (hors lecture), selon la page affichée.
+fn server_lost(app: &Arc<App>, screen: &str) {
+    let has_dl = !downloads::list().is_empty();
+    if screen == "login" {
+        let a = app.clone();
+        let _ = app.ui().upgrade_in_event_loop(move |u| {
+            if u.get_busy() {
+                return; // une connexion est en cours : son propre message suivra
+            }
+            if has_dl {
+                set_core(&a, 2);
+                u.set_offline_ok(true);
+                let msg = tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s).");
+                u.set_error_text(msg.into());
+                watch_server_back(a.clone(), msg);
+            } else {
+                set_core(&a, 1);
+                let msg = tr("Serveur injoignable : nouvel essai automatique toutes les 5 s…");
+                u.set_error_text(msg.into());
+                watch_server_back(a.clone(), msg);
+            }
+        });
+        return;
+    }
+    if app.client().is_none() || app.offline.load(Ordering::SeqCst) {
+        return;
+    }
+    if has_dl {
+        go_offline(app);
+    } else {
+        set_core(app, 1);
+        let _ = app.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur injoignable : nouvel essai automatique ensuite.").into()));
     }
 }
 
-/// Hors ligne : le serveur est réessayé toutes les 30 s. Dès qu'il répond (et hors lecture), les
-/// lectures faites hors ligne lui sont envoyées et l'accueil revient.
-fn watch_reconnect(app: &Arc<App>) {
-    let a = app.clone();
-    app.rt.spawn(async move {
-        loop {
-            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-            if !a.offline.load(Ordering::SeqCst) {
-                return;
-            }
-            if a.playing.load(Ordering::SeqCst) {
-                continue;
-            }
-            let mut saved = config::load();
-            if saved.token.is_empty() {
-                return;
-            }
-            let best = discovery::pick(&saved.server_main, &saved.server_backup).await;
-            if !best.is_empty() {
-                saved.server = best;
-            }
-            if !discovery::reachable(&saved.server).await {
-                continue;
-            }
-            let Ok(client) = api::Client::from_saved(&saved) else { return };
-            config::save(&saved);
-            let _ = a.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur de nouveau joignable : retour en ligne.").into()));
-            load_home(a.clone(), client).await;
+/// Le serveur répond de nouveau (hors lecture).
+async fn server_back(app: &Arc<App>, screen: &str, mut saved: config::Saved, target: String) {
+    // Écran de connexion : watch_server_back s'en charge (message à effacer) ; sinon, au cas où.
+    if screen == "login" {
+        set_core(app, 0);
+        let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline_ok(false));
+        return;
+    }
+    if app.offline.load(Ordering::SeqCst) {
+        if saved.token.is_empty() {
             return;
         }
-    });
+        saved.server = target;
+        let Ok(client) = api::Client::from_saved(&saved) else { return };
+        config::save(&saved);
+        let _ = app.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur de nouveau joignable : retour en ligne.").into()));
+        load_home(app.clone(), client).await;
+        return;
+    }
+    set_core(app, 0);
+    let _ = app.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Serveur de nouveau joignable.").into()));
 }
 
 fn open_downloads(app: &Arc<App>) {

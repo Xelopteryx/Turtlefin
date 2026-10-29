@@ -1,4 +1,4 @@
-# Turtlefin: project handoff (state on October 14, 2026, version 1.1.0 + unreleased work)
+# Turtlefin: project handoff (state on October 29, 2026, version 1.9.7 “Reunion”, not yet released)
 
 [Français](HANDOFF.md) · **English** · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -293,6 +293,17 @@ for lack of a keyring common to all target machines.
 - **Release prepared**: 32-bit Linux (armhf, i386) in `release.yml` (`linux32` job, Debian 12 container); APK
   armeabi-v7a / x86 possible (`build-apk.ps1 -Abi`), release signing with `-Release` (key
   `%USERPROFILE%\.android\turtlefin-release.jks`, password protected by DPAPI).
+
+## 6 sexies. Version 1.9.7 “Reunion” (October 29, 2026, not yet released)
+
+This translation stops being detailed after 1.2.0: **[HANDOFF.md](HANDOFF.md) (French) is the reference** for
+everything since (sections 6 ter to 6 sexies, and the “still to review” list in section 9). In short, 1.9.7
+brings: Android, Cast and relay, TV remote, Aero and Nerd themes with animated backgrounds, Seerr pages,
+trailers (with the separate Turtlefin Trailers server plugin), amber offline mode, security audit, faster
+builds (`codegen-units = 16`). Its name comes from the server watcher (`watch_server`, every 6 s): the app
+loses and finds its server again by itself, both ways and on every page; during playback it only shows one
+message, and the theme and page change once playback ends. Tested on Windows, Linux (Raspberry Pi 5) and
+Android; some issues remain.
 
 ## 7. Building, packaging, publishing
 

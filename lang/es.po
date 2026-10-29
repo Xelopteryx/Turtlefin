@@ -2156,3 +2156,9 @@ msgstr "Ya no quedan descargas: busca el servidor o espera a que vuelva."
 
 msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Servidor inaccesible: elige una cuenta para ver sus descargas o espera a que vuelva (nuevo intento cada 5 s)."
+
+msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
+msgstr "Servidor accesible de nuevo (vuelta en línea al terminar la reproducción)."
+
+msgid "Serveur injoignable : la lecture continue tant que possible."
+msgstr "Servidor inaccesible: la reproducción sigue mientras sea posible."

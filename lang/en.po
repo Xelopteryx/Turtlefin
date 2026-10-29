@@ -2156,3 +2156,9 @@ msgstr "No downloads left: look for the server, or wait for it to come back."
 
 msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server unreachable: choose an account to watch its downloads, or wait for it to come back (retrying every 5 s)."
+
+msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
+msgstr "Server reachable again (back online when playback ends)."
+
+msgid "Serveur injoignable : la lecture continue tant que possible."
+msgstr "Server unreachable: playback continues as long as possible."

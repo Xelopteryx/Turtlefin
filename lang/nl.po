@@ -2156,3 +2156,9 @@ msgstr "Geen downloads meer: zoek de server of wacht tot hij terug is."
 
 msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server onbereikbaar: kies een account om zijn downloads te bekijken, of wacht tot hij terug is (nieuwe poging elke 5 s)."
+
+msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
+msgstr "Server weer bereikbaar (weer online na het afspelen)."
+
+msgid "Serveur injoignable : la lecture continue tant que possible."
+msgstr "Server onbereikbaar: het afspelen gaat zo lang mogelijk door."

@@ -1,4 +1,4 @@
-<p align="center"><img src="packaging/icons/turtlefin-256.png" width="128" alt="Logo van Turtlefin"></p>
+<p align="center"><img src="packaging/icons/turtlefin-aero-256.png" width="96" alt="Turtlefin logo (Frutiger Aero theme)">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-256.png" width="128" alt="Turtlefin logo">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-nerd-256.png" width="96" alt="Turtlefin logo (Nerd theme)"></p>
 
 # Turtlefin
 
@@ -7,13 +7,19 @@
 **Een native, lichte en geanimeerde Jellyfin-client, gemaakt voor de woonkamer én het bureau.** Geschreven in Rust
 met Slint (interface) en libmpv (afspelen): geen Qt, geen ingebouwde browser. Hij draait op elke Windows- of
 Linux-computer, van een oude laptop tot een klein kastje aan de tv, en werkt even goed met een afstandsbediening
-als met toetsenbord en muis.
+als met toetsenbord en muis — en op Android (telefoon, tablet, tv), met de vinger.
 
 > **Volledig gevibecodeerd project**: alle code, teksten en vertalingen zijn geschreven door een AI (Claude,
 > van Anthropic), begeleid en getest door een mens die het niet zelf heeft geprogrammeerd.
 
-Huidige versie: **1.1.0** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
+Huidige versie: **1.9.7 „Weerzien”** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
 Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertalen](#turtlefin-vertalen)).
+
+> **Over deze versie.** 1.9.7 „Weerzien” is getest op Windows, Linux (Raspberry Pi 5 aan een tv) en Android
+> (telefoon). Er moet nog het een en ander verbeterd worden — de ontwikkelaar weet dat er nog problemen zijn
+> (zie de toelichting bij de [versies](https://github.com/Xelopteryx/Turtlefin/releases) en de bekende
+> problemen in [HANDOFF.nl.md](HANDOFF.nl.md)) —, maar het werd tijd om een versie uit te brengen die veel
+> verder is dan 1.2.0. Reacties zijn welkom bij de [issues](https://github.com/Xelopteryx/Turtlefin/issues).
 
 ## Wat hij kan
 
@@ -34,6 +40,21 @@ Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertale
   suggesties aan het einde van een serie, eigen volume van Turtlefin, maximale bitrate (daarboven zet de server de video om); positie en „gezien” worden naar de server
   gestuurd.
 - **Watch party** (SyncPlay): op meerdere apparaten tegelijk hetzelfde kijken.
+- **Android** (telefoon, tablet, Android TV): dezelfde applicatie, staand en liggend, met de vinger (rijen,
+  cast, afleveringen vegen; vanaf de linkerrand: terug), volume van de telefoon, afstandsbediening en gamepad van
+  Android TV.
+- **Casten**: een video naar een ander scherm sturen — een andere Turtlefin, een Jellyfin-app van het account of
+  een Chromecast (met een doorgeefluik via het apparaat als de tv de server niet bereikt) — en hem vanuit de
+  speler bedienen. **Afstandsbediening**: een andere Turtlefin van het account bedienen.
+- **Seerr-pagina's**: media die niet op de server staan openen op een eigen pagina (samenvatting, informatie,
+  cast, „Lees verder”), met Aanvragen en **Trailer** (op de server voorbereid door de plug-in Turtlefin
+  Trailers, in de taal van het account, hoogstens 24 uur bewaard).
+- **Trailers**: pictogram op de detailpagina's; die van de server (in de taal van het account als er meerdere
+  zijn), anders YouTube via yt-dlp als dat geïnstalleerd is.
+- **Thema's**: Turtlefin, Frutiger Aero en Nerd, elk met een eigen logo, opstart en geanimeerde achtergrond; een
+  eigen thema (zie Thema's verderop). Offline wordt de hele interface amberkleurig.
+- **Opslag**: map voor downloads en ruimtelimiet; **wachtwoordcontrole** (waarschuwing als het te eenvoudig is,
+  wijzigen in de app).
 - **Offline**: downloads vervangen de startpagina, met volledige detailpagina's zonder server; wat offline is
   gekeken of als favoriet is gemarkeerd, gaat bij het opnieuw verbinden naar het account.
 - **Zoeken** (bibliotheek + Seerr) en een willekeurig item.
@@ -82,6 +103,7 @@ toepassingenmenu.
 | Linux, alle distributies (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Uitvoerbaar maken (`chmod +x`) en starten |
 | Linux, ARM 64-bit | `Turtlefin-<version>-linux-aarch64.AppImage` | Idem |
 | Debian, Ubuntu, Mint… | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Dubbelklikken, of `sudo apt install ./turtlefin_….deb` |
+| Android (telefoon, tablet, tv) | `Turtlefin-<version>-android-arm64.apk` | Installeren uit deze bron toestaan en het bestand openen (Android 8 of nieuwer) |
 
 De Windows-versies en de AppImage bevatten alles (libmpv-speler inbegrepen). Het `.deb`-pakket gebruikt de libmpv
 van het systeem (`libmpv2`, automatisch geïnstalleerd door apt). AppImages en pakketten vereisen een distributie
@@ -115,6 +137,7 @@ voegen functies toe:
 | [Seerr](https://github.com/seerr-team/seerr) (voorheen Jellyseerr) | De verzoekbeheerder zelf, gebruikt door Jellyfin Enhanced |
 | [Intro Skipper](https://github.com/intro-skipper/intro-skipper) | Herkent intro's en aftiteling: knop „Intro overslaan”, automatisch overslaan, „Volgende aflevering” op het juiste moment |
 | [GetAvatar](https://github.com/cedev-1/jellyfin-plugin-GetAvatar) | Een galerij met profielfoto's om uit te kiezen via Instellingen → Account |
+| Turtlefin Trailers (apart gepubliceerd) | Downloadt ontbrekende trailers op de server, in de taal van elke bibliotheek en elk account, en bereidt die van de Seerr-pagina's voor |
 
 ## Starten
 
@@ -125,6 +148,8 @@ turtlefin "Naam" --server=http://…         direct aanmelden (wachtwoord: varia
 turtlefin --tv                             tv-interface: volledig scherm, grote elementen
 turtlefin --desktop                        computerinterface (gaat voor de instelling „Tv-interface”)
 turtlefin --no-intro                       geen startanimatie
+turtlefin --sub=fr --audio=ja             ondertitels / audiotaal voor deze start (--sub=off: geen)
+turtlefin --fullscreen                     volledig scherm zonder de tv-interface
 turtlefin --console                        logvenster (Windows)
 turtlefin --tutorial                       rondleiding bij het openen van de startpagina
 ```
@@ -142,6 +167,8 @@ De opdrachtregel gaat altijd voor de instellingen (startaccount, tv-interface).
   knoppen: afleveringen van het seizoen. **Spatie**: pauze · `a` audio · `s` ondertitels · `f` volledig scherm.
 - **F11**, overal: volledig scherm (ook via Instellingen → Weergave → **Volledig scherm**, buiten de tv-interface
   onthouden tussen starts).
+- **Afstandsbediening van de tv**: Stop, volgende / vorige aflevering, vooruit- / terugspoelen, Menu (linkermenu)
+  en de gamepad (Android, Raspberry Pi via XeLauncher) werken als het toetsenbord.
 - **Muis**: klikken om te openen, scrollwiel om van rij naar rij te gaan (Shift + scrollwiel: binnen de rij).
 - **Aanraken en slepen**: tikken opent; met de vinger vegen (of slepen met de linkermuisknop) scrollt de rij of de pagina, een snelle veeg gaat verder; vanaf de linkerrand: terug.
 - **Tekst**: een letter die je op het toetsenbord typt, komt direct in het veld (zoeken, aanmelden, adres), ook in
@@ -166,13 +193,17 @@ en presets naast het programma.
 - `turtlefin --console` (Windows) of starten vanuit een terminal (Linux) toont het logboek.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: logboek van mpv · `TURTLEFIN_MPV_ARGS="…"`: extra mpv-opties.
 - `TURTLEFIN_HWDEC=no`: softwaredecodering (standaard hardware, `drm-copy` op de Raspberry Pi) · `TURTLEFIN_AO=alsa`: geluidsuitvoer.
+- Lijnen of storingen in het beeld (NVIDIA): Instellingen → Afspelen → **Hardwaredecodering** uit (alles wordt door de processor gedecodeerd).
 - `TURTLEFIN_LIBMPV=pad`: andere locatie van libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: meldt trage beelden.
 - De weergave moet OpenGL zijn (automatisch gekozen): met `SLINT_BACKEND=winit-software` is er geen video.
 
 ## Thema's
 
-Instellingen → Weergave → **Thema**: Turtlefin (standaard), Donker, Licht, Frutiger Aero (in de geest van Windows 7:
-achtergrond „Harmony”, blauwig glas, glanzende gelknoppen, speler met bol, opstarten met glazen bollen), Turtlefin groen — of een eigen thema.
+Instellingen → Weergave → **Thema**: **Turtlefin** (standaard: zeshoeken, paars → blauw), **Frutiger Aero** (in de
+geest van Windows 7: lucht en bellen, blauwig glas, glanzende knoppen, bol-logo) en **Nerd** (een moederbord bij
+nacht: de server is de processor, stroom loopt over de sporen naar elk onderdeel) — of een eigen thema.
+„Geanimeerde achtergrond” (Instellingen → Animaties) brengt elke achtergrond tot leven; op de Raspberry Pi staat
+hij standaard uit.
 
 - **Thema maken** opent de *Turtlefin Theme Creator* in de browser: elke kleur, de afronding, de glans, de lucht en
   de bellen, met een live voorbeeld; hij bewaart een `.tftheme`-bestand.

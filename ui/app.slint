@@ -3520,7 +3520,10 @@ export component AppWindow inherits Window {
         // faire sortir) ; la page change comme les autres (fondu, puis arrivée).
         // Fiche -> fiche (rangées du bas ou saison) : la page remonte au début, au rythme de l'image
         // qui vole jusqu'à l'affiche (voir plus bas).
-        let up = root.screen == "detail" && (root.d-zone >= 4 || kid);
+        // Média de Seerr (rangée « Similaires »…) : sa page s'ouvre par-dessus la fiche, qui ne change
+        // pas. Rien ne s'efface ni ne remonte (sinon, à la fermeture de Seerr, la fiche restait vide en
+        // haut et l'affiche revolait vers une carte qui n'était plus à l'écran).
+        let up = root.screen == "detail" && (root.d-zone >= 4 || kid) && !root.is-seerr(id);
         root.hero-keep = 0px;
         if ((root.screen == "home" || root.screen == "library" || root.screen == "search" || root.screen == "downloads"
                 || (root.screen == "detail" && root.d-zone >= 4) || kid)) {
@@ -10881,6 +10884,10 @@ export component AppWindow inherits Window {
     // Barre du haut : la même pour toutes les pages (accueil compris), jamais recréée en changeant de
     // page (ses boutons ne disparaissent plus à chaque chargement) ; seuls ses boutons et son titre changent.
     property <bool> on-home: root.screen == "home";
+    // Hors ligne, les téléchargements sont l'accueil (tant que le serveur n'est pas revenu) : même barre
+    // (logo, « Turtlefin ») et onglet Accueil allumé.
+    property <bool> off-home: root.offline && root.screen == "downloads" && root.dl-level == 0;
+    property <bool> home-bar: root.on-home || root.off-home;
     if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): NavBar {
         y: root.chrome-top;
         // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait) ; à l'accueil, avant
@@ -10889,13 +10896,13 @@ export component AppWindow inherits Window {
         width: root.tabs-on && !root.two-line ? root.tabs-x - 8px * root.k : parent.width - root.right-w;
         // Même hauteur que la barre (icônes réduites centrées comme celles de droite).
         height: 72px * root.k;
-        k: root.on-home ? root.k : root.bar-k;
-        can-back: !root.on-home && root.back-ok;
+        k: root.home-bar ? root.k : root.bar-k;
+        can-back: !root.home-bar && root.back-ok;
         show-home: false;
         enter: root.page-e;
-        logo-on: root.on-home;
+        logo-on: root.home-bar;
         title-color: root.offline ? Theme.accent2 : root.on-home ? (Theme.dark ? Theme.accent2 : Theme.accent1) : Theme.text;
-        title: root.on-home ? "Turtlefin" : root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
+        title: root.home-bar ? "Turtlefin" : root.screen == "library" ? root.lib-title : root.screen == "downloads" ? root.dl-title : root.screen == "search" ? Tr.t(Tr.k, "Recherche")
             : root.screen == "party" ? Tr.t(Tr.k, "Watch party") : "";
         sel: root.h-focus && root.h-sel < root.nav-n ? root.h-sel : -1;
         activate(i) => {
@@ -10928,7 +10935,7 @@ export component AppWindow inherits Window {
             icon: "home";
             compact: root.tab-icons;
             k: root.tab-k;
-            active: root.on-home && root.tab == "home";
+            active: (root.on-home && root.tab == "home") || root.off-home;
             focused: root.h-focus && root.h-sel == root.nav-n + 0;
             clicked => {
                 root.h-sel = root.nav-n + 0;
@@ -13308,6 +13315,41 @@ export component AppWindow inherits Window {
     if root.rot-veil > 0.01: Rectangle {
         background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
         opacity: 0.85 * root.rot-veil;
+    }
+
+    // Passage hors ligne et retour (thème ambre) : l'écran d'avant, photographié, s'efface en fondu
+    // sur le nouveau (déjà posé dessous). Au-dessus de tout, démarrage compris : là, le changement se
+    // faisait d'une image à l'autre (le balayage des changements de thème est sous le démarrage).
+    property <bool> theme-fade;
+    property <bool> theme-fade-armed;
+    property <duration> theme-fade-t0;
+    public function theme-fade-start() {
+        root.theme-fade-armed = false;
+        root.theme-fade = true;
+    }
+    Timer {
+        interval: 30ms;
+        running: root.theme-fade && !root.theme-fade-armed;
+        triggered => {
+            root.theme-fade-t0 = animation-tick();
+            root.theme-fade-armed = true;
+        }
+    }
+    Timer {
+        interval: 950ms;
+        running: root.theme-fade-armed;
+        triggered => {
+            root.theme-fade = false;
+            root.theme-fade-armed = false;
+        }
+    }
+    if root.theme-fade: Image {
+        width: root.width;
+        height: root.height;
+        source: root.theme-snap;
+        image-fit: fill;
+        property <float> q: root.theme-fade-armed ? clamp((animation-tick() - root.theme-fade-t0) / 900ms, 0, 1) : 0;
+        opacity: 1 - self.q * self.q * (3 - 2 * self.q);
     }
 
     // Fenêtre façon Windows 7 (Frutiger Aero, hors plein écran) : cadre de verre, poignées de

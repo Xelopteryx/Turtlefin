@@ -194,6 +194,10 @@ fn udp_discovery(targets: &[Ipv4Addr]) -> Vec<(String, String, String)> {
 
 /// Recherche complète (quelques secondes). Résultats regroupés par serveur.
 pub async fn discover() -> Vec<Found> {
+    // Essais (serveur perdu) : sans ça, l'appli retrouve le serveur sur le réseau local.
+    if std::env::var_os("TURTLEFIN_NO_DISCOVERY").is_some() {
+        return Vec::new();
+    }
     let client = http();
     let (itfs, near, mesh) = tokio::task::spawn_blocking(|| (interface_hosts(), neighbours(), mesh_peers())).await.unwrap_or_default();
     let mine: Vec<Ipv4Addr> = itfs.iter().map(|(ip, _)| *ip).collect();

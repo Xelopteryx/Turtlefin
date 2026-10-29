@@ -2156,3 +2156,9 @@ msgstr "Keine Downloads mehr: Suche den Server oder warte, bis er zurück ist."
 
 msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Server nicht erreichbar: Wähle ein Konto, um seine Downloads anzusehen, oder warte, bis er zurück ist (neuer Versuch alle 5 s)."
+
+msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
+msgstr "Server wieder erreichbar (zurück online nach der Wiedergabe)."
+
+msgid "Serveur injoignable : la lecture continue tant que possible."
+msgstr "Server nicht erreichbar: Die Wiedergabe läuft so lange wie möglich weiter."

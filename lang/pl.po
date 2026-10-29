@@ -2164,3 +2164,9 @@ msgstr "Nie ma już pobranych plików: poszukaj serwera albo poczekaj, aż wróc
 
 msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
 msgstr "Serwer nieosiągalny: wybierz konto, aby oglądać jego pobrane pliki, albo poczekaj, aż wróci (ponowna próba co 5 s)."
+
+msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
+msgstr "Serwer znów dostępny (powrót do trybu online po zakończeniu odtwarzania)."
+
+msgid "Serveur injoignable : la lecture continue tant que possible."
+msgstr "Serwer niedostępny: odtwarzanie trwa, dopóki to możliwe."
