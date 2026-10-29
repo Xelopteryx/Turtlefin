@@ -140,10 +140,9 @@ fn new_player() -> Result<Arc<Mpv>> {
     // Plafonne le cache réseau.
     m.set_option("demuxer-max-bytes", "100MiB");
     m.set_option("demuxer-max-back-bytes", "25MiB");
-    // Diagnostic : TURTLEFIN_MPV_LOG=/chemin/mpv.log enregistre le journal détaillé de mpv.
+    // Diagnostic : TURTLEFIN_MPV_LOG=/chemin/mpv.log enregistre le journal détaillé de mpv (jeton masqué).
     if let Ok(path) = std::env::var("TURTLEFIN_MPV_LOG") {
-        m.set_option("log-file", &path);
-        m.set_option("msg-level", "all=v");
+        m.log_to(&path);
     }
     // Essais : TURTLEFIN_MPV_ARGS="--hwdec=no --profile=fast" ajoute des options sans recompiler.
     if let Ok(extra) = std::env::var("TURTLEFIN_MPV_ARGS") {

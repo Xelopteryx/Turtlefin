@@ -5426,7 +5426,7 @@ dependencies = [
 
 [[package]]
 name = "turtlefin"
-version = "1.9.7"
+version = "1.9.8"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

@@ -27,6 +27,7 @@ const FORMAT_NODE_ARRAY: c_int = 7;
 const FORMAT_NODE_MAP: c_int = 8;
 
 const EVENT_SHUTDOWN: c_int = 1;
+const EVENT_LOG_MESSAGE: c_int = 2;
 const EVENT_END_FILE: c_int = 7;
 const EVENT_FILE_LOADED: c_int = 8;
 const EVENT_PLAYBACK_RESTART: c_int = 21;
@@ -54,6 +55,14 @@ struct RawEventProperty {
     name: *const c_char,
     format: c_int,
     data: *mut c_void,
+}
+
+#[repr(C)]
+struct RawEventLogMessage {
+    prefix: *const c_char,
+    level: *const c_char,
+    text: *const c_char,
+    log_level: c_int,
 }
 
 #[repr(C)]
@@ -116,6 +125,7 @@ struct Api {
     set_property_string: unsafe extern "C" fn(Handle, *const c_char, *const c_char) -> c_int,
     command: unsafe extern "C" fn(Handle, *mut *const c_char) -> c_int,
     observe_property: unsafe extern "C" fn(Handle, u64, *const c_char, c_int) -> c_int,
+    request_log_messages: unsafe extern "C" fn(Handle, *const c_char) -> c_int,
     wait_event: unsafe extern "C" fn(Handle, f64) -> *mut RawEvent,
     render_create: unsafe extern "C" fn(*mut *mut c_void, Handle, *mut RenderParam) -> c_int,
     render_set_update_callback:
@@ -210,6 +220,7 @@ fn load() -> Result<Api, String> {
             set_property_string: sym!("mpv_set_property_string"),
             command: sym!("mpv_command"),
             observe_property: sym!("mpv_observe_property"),
+            request_log_messages: sym!("mpv_request_log_messages"),
             wait_event: sym!("mpv_wait_event"),
             render_create: sym!("mpv_render_context_create"),
             render_set_update_callback: sym!("mpv_render_context_set_update_callback"),
@@ -277,10 +288,34 @@ pub enum Event {
     Shutdown,
 }
 
+/// Masque les clés d'accès d'une ligne de journal : la valeur qui suit « Token= » (en-tête
+/// Authorization passé à mpv) ou « api_key= » (adresse), guillemets éventuels compris.
+fn redact(line: &str) -> String {
+    let mut out = line.to_string();
+    for key in ["Token=", "api_key=", "ApiKey="] {
+        let mut from = 0;
+        while let Some(i) = out[from..].find(key).map(|i| i + from + key.len()) {
+            let start = i + out[i..].len() - out[i..].trim_start_matches(['\\', '"']).len();
+            let len = out[start..].find(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_').unwrap_or(out.len() - start);
+            out.replace_range(start..start + len, "***");
+            from = start + 3;
+        }
+    }
+    out
+}
+
+/// Journal détaillé (TURTLEFIN_MPV_LOG) : écrit par Turtlefin plutôt que par l'option « log-file » de
+/// mpv, pour en retirer le jeton (mpv recopie en clair les commandes, donc l'en-tête Authorization).
+struct LogFile {
+    file: std::sync::Mutex<std::fs::File>,
+    start: std::time::Instant,
+}
+
 /// Le lecteur mpv. Détruit (mpv_terminate_destroy) quand la dernière référence disparaît.
 pub struct Mpv {
     api: &'static Api,
     h: Handle,
+    log: OnceLock<LogFile>,
 }
 
 // SAFETY : l'API client de libmpv est utilisable depuis plusieurs threads.
@@ -295,7 +330,23 @@ impl Mpv {
         if h.is_null() {
             return Err(anyhow!("{}", tr("libmpv n'a pas pu créer de lecteur")));
         }
-        Ok(Mpv { api, h })
+        Ok(Mpv { api, h, log: OnceLock::new() })
+    }
+
+    /// Enregistre le journal détaillé de mpv dans `path` (clés d'accès masquées).
+    pub fn log_to(&self, path: &str) {
+        let file = match std::fs::File::create(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("turtlefin : journal de mpv {path} : {e}");
+                return;
+            }
+        };
+        let _ = self.log.set(LogFile { file: std::sync::Mutex::new(file), start: std::time::Instant::now() });
+        let level = cstr("debug");
+        // SAFETY : chaîne valide le temps de l'appel.
+        let code = unsafe { (self.api.request_log_messages)(self.h, level.as_ptr()) };
+        let _ = self.check(code, "journal");
     }
 
     fn check(&self, code: c_int, what: &str) -> Result<()> {
@@ -352,6 +403,23 @@ impl Mpv {
                 EVENT_SHUTDOWN => Some(Event::Shutdown),
                 EVENT_FILE_LOADED => Some(Event::FileLoaded),
                 EVENT_PLAYBACK_RESTART => Some(Event::Restart),
+                EVENT_LOG_MESSAGE => {
+                    if let Some(log) = self.log.get() {
+                        use std::io::Write;
+                        let m = &*(ev.data as *const RawEventLogMessage);
+                        let s = |p: *const c_char| CStr::from_ptr(p).to_string_lossy();
+                        // Même présentation que le journal de mpv : « [  21.503][v][cplayer] texte ».
+                        let line = format!(
+                            "[{:8.3}][{}][{}] {}",
+                            log.start.elapsed().as_secs_f64(),
+                            s(m.level).chars().next().unwrap_or('?'),
+                            s(m.prefix),
+                            s(m.text).trim_end_matches('\n'),
+                        );
+                        let _ = writeln!(log.file.lock().unwrap(), "{}", redact(&line));
+                    }
+                    None
+                }
                 EVENT_END_FILE => {
                     let ef = &*(ev.data as *const RawEventEndFile);
                     let error = (ef.reason == 4).then(|| {
@@ -601,5 +669,19 @@ impl Drop for Render {
             (self.api.render_free)(self.ctx);
         }
         release_leaked_fences();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn token_redacted() {
+        let l = r#"[  21.633][d][cplayer] Run command: change-list, args=[value="Authorization: MediaBrowser Client=\"Turtlefin\", DeviceId=\"12b5\", Version=\"1.9.7\", Token=\"1cb4e7e2dee34cf1\""]"#;
+        let r = super::redact(l);
+        assert!(!r.contains("1cb4e7e2"));
+        assert!(r.contains(r#"Token=\"***\""#) && r.contains(r#"DeviceId=\"12b5\""#));
+        assert_eq!(super::redact("a?api_key=abc&b=1 Token=x"), "a?api_key=***&b=1 Token=***");
+        assert_eq!(super::redact("Token="), "Token=***");
+        assert_eq!(super::redact("rien"), "rien");
     }
 }

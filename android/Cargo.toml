@@ -4,7 +4,7 @@
 # Fabrication de l'APK : build-apk.ps1 (voir README.md).
 [package]
 name = "turtlefin-android"
-version = "1.9.7"
+version = "1.9.8"
 edition = "2021"
 license = "GPL-3.0-or-later"
 publish = false

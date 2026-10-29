@@ -8018,8 +8018,16 @@ pub(crate) fn main() -> anyhow::Result<()> {
 
     // La vidéo passe par OpenGL : on demande le moteur de rendu femtovg (OpenGL / OpenGL ES),
     // sauf si SLINT_BACKEND impose autre chose. Android : moteur déjà choisi (Skia sur OpenGL ES).
+    // Windows : OpenGL classique. Slint demande sinon d'abord OpenGL ES, que seuls les pilotes NVIDIA
+    // acceptent sous Windows (les autres retombent sur OpenGL) : les images du décodage matériel (deux
+    // plans, nv12 / p010) y étaient barrées de lignes (ticket GitHub n° 1, RTX 2070, pilote 617.42).
+    // TURTLEFIN_GLES=1 pour revenir à OpenGL ES.
     if std::env::var_os("SLINT_BACKEND").is_none() && !cfg!(target_os = "android") {
-        if let Err(e) = slint::BackendSelector::new().renderer_name("femtovg".into()).select() {
+        let mut selector = slint::BackendSelector::new().renderer_name("femtovg".into());
+        if cfg!(windows) && std::env::var_os("TURTLEFIN_GLES").is_none() {
+            selector = selector.require_opengl();
+        }
+        if let Err(e) = selector.select() {
             eprintln!("turtlefin : rendu OpenGL indisponible ({e}), lecture vidéo impossible");
         }
     }

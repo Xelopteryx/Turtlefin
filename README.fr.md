@@ -12,7 +12,7 @@ qu'au clavier et à la souris — et sur Android (téléphone, tablette, télé)
 > **Projet entièrement vibecodé** : tout le code, les textes et les traductions ont été écrits par une IA
 > (Claude, d'Anthropic), guidée et testée par un humain qui ne l'a pas programmé lui-même.
 
-Version actuelle : **1.9.7 « Cast Update »** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
+Version actuelle : **1.9.8 « Cast Update »** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
 > **À propos de cette version.** La 1.9.7 « Cast Update » a été testée sous Windows, Linux (Raspberry Pi 5

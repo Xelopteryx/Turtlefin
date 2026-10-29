@@ -1,11 +1,12 @@
-# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.7 « Cast Update »)
+# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.8, correctif de la 1.9.7 « Cast Update »)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.7 (« Cast Update », publiée le
-29 octobre 2026 ; versions publiées avant elle : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.8 (correctif de la 1.9.7 « Cast Update »,
+publiées toutes deux le 29 octobre 2026 ; versions publiées avant : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0). Détail
+de la 1.9.8 : section 6 quater, « Lignes sur NVIDIA » et « Journal de mpv sans jeton ».
 
 ## 1. Objectif
 
@@ -26,7 +27,7 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Fonction Slint `unstable-winit-030` | Filtre d'événements winit pour **F11** (`install_f11`) | Seul moyen d'avoir une touche globale ; d'où `~1.18` (API instable d'une version mineure à l'autre) |
 | Réseau | `reqwest` 0.13 (rustls, magasin de certificats du système), `tokio` | `query` est une feature à activer en 0.13 |
 | Lecture | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), rendu OpenGL dans une texture affichée par Slint (`src/video.rs`), commandes Slint par-dessus (`ui/player.slint`) | Lecteur intégré, pas d'IPC, marche sous Wayland. Le lecteur est recréé à chaque lecture (mémoire bornée) |
-| Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini | La vidéo passe par une texture OpenGL |
+| Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini ; Windows : OpenGL classique exigé (`require_opengl`, `TURTLEFIN_GLES=1` pour revenir à GLES) | La vidéo passe par une texture OpenGL. Slint demande d'abord GLES 2.0 : sous Windows seules les cartes NVIDIA l'acceptent, et ce pilote barrait de lignes les images `nv12` / `p010` du décodage matériel (ticket n° 1) |
 | Texture vidéo | Pixels physiques, origine `TopLeft`, état GL sauvegardé / rétabli autour de mpv ; `loadfile` attend le contexte de rendu | Sinon image à l'envers ou « No render context set » |
 | Décodage | `hwdec=drm-copy` sous Linux ARM 64 bits, `auto-safe` ailleurs (Windows : `d3d11va-copy`) | Sur le Pi (pilote v3d), le décodeur matériel sort un format (« SAND ») que le rendu ne sait pas importer ; la copie le remet au format habituel. Pi 5, 4K HEVC 10 bits : 0 image perdue au lieu de 17 %, ~1 cœur au lieu de 4 |
 | Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
@@ -250,7 +251,7 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
   l'autre hôte) ; tous les identifiants des chemins encodés ; thème piégé (couleur avec un caractère accentué)
   qui faisait planter ; langues, thèmes, préréglages bornés en taille (`paths::read_text_limited`) ; watch party :
   délai de reprise borné, messages WebSocket de 2 Mio au plus ; scripts intégrés de mpv non chargés.
-  `TURTLEFIN_MPV_LOG` (diagnostic) écrit encore le jeton dans le journal de mpv : à ne pas partager tel quel.
+  `TURTLEFIN_MPV_LOG` (diagnostic) : jeton masqué depuis la 1.9.8 (`mpv::redact`).
 - **Troisième passe** : redirections de `https` vers `http` refusées par tous les clients HTTP
   (`api::redirect_policy` ; une 307/308 aurait renvoyé le mot de passe en clair) ; dossier de configuration en
   0700 sous Unix ; Windows : `SetDllDirectoryW("")` au démarrage (`mpv::harden_dll_search`) et libmpv cherchée
@@ -311,9 +312,19 @@ sous Linux, faute de trousseau commun à toutes les machines visées.
 ## 6 quater. Version 1.9.6 (27 octobre 2026)
 
 - **Décodage (ticket GitHub n° 1)** : Windows : `hwdec=d3d11va-copy,nvdec-copy,dxva2-copy` (`player::hwdec_mode`).
-  Le rendu passe par ANGLE (OpenGL ES sur Direct3D) ; `auto-safe` partageait l'image décodée avec ANGLE
-  (d3d11-egl, cuda) et donnait des lignes de parasites sur NVIDIA. `UiPrefs::no_hwdec` (Paramètres → Lecture
-  → Décodage matériel) : tout au processeur.
+  `UiPrefs::no_hwdec` (Paramètres → Lecture → Décodage matériel) : tout au processeur. Ce n'était pas la
+  cause : voir plus bas « Lignes sur NVIDIA ».
+- **Lignes sur NVIDIA, cause réelle (ticket n° 1, RTX 2070 Super, pilote 617.42)** : pas d'ANGLE ; Slint
+  (glutin) demande d'abord un contexte OpenGL ES 2.0, que les pilotes NVIDIA acceptent sous Windows
+  (`OpenGL ES 3.2 NVIDIA`), AMD / Intel non (OpenGL classique). Sur ce GLES, les images à deux plans
+  (`nv12` / `p010`, décodage matériel) étaient barrées de lignes ; décodeur hors de cause (d3d11va et nvdec
+  identiques, image propre avec `--vf=format=yuv420p`). Correction : `require_opengl()` sous Windows
+  (main.rs, `BackendSelector`) ; `TURTLEFIN_GLES=1` pour revenir à GLES. Confirmé par l'auteur du ticket
+  (DVD, Full HD, 4K, décodage matériel actif).
+- **Journal de mpv sans jeton** : `TURTLEFIN_MPV_LOG` est écrit par Turtlefin (`Mpv::log_to`,
+  `mpv_request_log_messages` niveau debug, même présentation que mpv) au lieu de l'option `log-file` :
+  mpv y recopiait la commande `change-list http-header-fields` avec l'en-tête Authorization. `mpv::redact`
+  masque `Token=`, `api_key=`, `ApiKey=`.
 - **DLNA retiré** : plus de `cast.rs` ; `lan.rs` garde `lan_ipv4s`, `multicast_socket`, `lan_reachable` ;
   `api::cast_stream` ne sert plus que Chromecast ; relais sans réécriture MPEG-TS ; `ui_prefs()` oublie les
   écrans `dlna:`.

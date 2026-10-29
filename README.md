@@ -12,7 +12,7 @@ keyboard and mouse — and on Android phones, tablets and TVs, with the finger.
 > **Fully vibecoded project**: all the code, texts and translations were written by an AI (Claude, by
 > Anthropic), guided and tested by a human who did not write any of the code.
 
-Current version: **1.9.7 “Cast Update”** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
+Current version: **1.9.8 “Cast Update”** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
 > **About this version.** 1.9.7 “Cast Update” has been tested on Windows, Linux (Raspberry Pi 5 plugged into a TV)

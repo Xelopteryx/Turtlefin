@@ -12,7 +12,7 @@ teclado e rato — e no Android (telemóvel, tablet, TV), com o dedo.
 > **Projeto totalmente «vibecodado»**: todo o código, textos e traduções foram escritos por uma IA (Claude,
 > da Anthropic), guiada e testada por um humano que não o programou ele próprio.
 
-Versão atual: **1.9.7 «Cast Update»** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
+Versão atual: **1.9.8 «Cast Update»** · Idiomas da interface: Português, English, Français, Español, Deutsch, Italiano, Polski,
 Nederlands — e qualquer idioma que acrescentes tu mesmo (ver [Traduzir o Turtlefin](#traduzir-o-turtlefin)).
 
 > **Sobre esta versão.** A 1.9.7 «Cast Update» foi testada em Windows, Linux (Raspberry Pi 5 ligado a uma TV) e

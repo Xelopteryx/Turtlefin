@@ -12,7 +12,7 @@ go pilotem, jak klawiaturą i myszą — a także na Androidzie (telefon, tablet
 > **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja
 > (Claude od Anthropic), prowadzona i testowana przez człowieka, który sam go nie programował.
 
-Aktualna wersja: **1.9.7 „Cast Update”** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
+Aktualna wersja: **1.9.8 „Cast Update”** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
 Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
 
 > **O tej wersji.** Wersja 1.9.7 „Cast Update” została przetestowana na Windows, Linuksie (Raspberry Pi 5
