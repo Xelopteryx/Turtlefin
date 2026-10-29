@@ -12,10 +12,10 @@ Fernbedienung genauso gut bedienen wie mit Tastatur und Maus — und auf Android
 > **Vollständig per Vibecoding entstanden**: Code, Texte und Übersetzungen wurden komplett von einer KI
 > (Claude von Anthropic) geschrieben, angeleitet und getestet von einem Menschen, der nicht selbst programmiert hat.
 
-Aktuelle Version: **1.9.7 „Everywhere Update“** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
+Aktuelle Version: **1.9.7 „Cast Update“** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
 Polski, Nederlands — und jede selbst hinzugefügte Sprache (siehe [Turtlefin übersetzen](#turtlefin-übersetzen)).
 
-> **Zu dieser Version.** 1.9.7 „Everywhere Update“ wurde unter Windows, Linux (Raspberry Pi 5 am Fernseher) und
+> **Zu dieser Version.** 1.9.7 „Cast Update“ wurde unter Windows, Linux (Raspberry Pi 5 am Fernseher) und
 > Android (Smartphone) getestet. Einiges muss noch überarbeitet werden — der Entwickler weiß, dass noch
 > Probleme bestehen (siehe die Hinweise zu den [Versionen](https://github.com/Xelopteryx/Turtlefin/releases)
 > und die bekannten Probleme in [HANDOFF.de.md](HANDOFF.de.md)) —, aber es war Zeit, eine deutlich weiter

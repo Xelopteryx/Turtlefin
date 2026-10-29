@@ -12,10 +12,10 @@ de bien con un mando a distancia que con teclado y ratón — y en Android (tel�
 > **Proyecto totalmente «vibecodeado»**: todo el código, los textos y las traducciones los escribió una IA
 > (Claude, de Anthropic), guiada y probada por un humano que no lo programó él mismo.
 
-Versión actual: **1.9.7 «Everywhere Update»** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
+Versión actual: **1.9.7 «Cast Update»** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
 Polski, Nederlands — y cualquier idioma que añadas tú mismo (ver [Traducir Turtlefin](#traducir-turtlefin)).
 
-> **Sobre esta versión.** La 1.9.7 «Everywhere Update» se ha probado en Windows, Linux (Raspberry Pi 5 conectada a
+> **Sobre esta versión.** La 1.9.7 «Cast Update» se ha probado en Windows, Linux (Raspberry Pi 5 conectada a
 > un televisor) y Android (teléfono). Aún quedan cosas por revisar — el desarrollador sabe que siguen
 > habiendo problemas (ver las notas de las [versiones](https://github.com/Xelopteryx/Turtlefin/releases) y
 > los problemas conocidos de [HANDOFF.es.md](HANDOFF.es.md)) —, pero había que publicar una versión mucho más

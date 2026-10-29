@@ -12,10 +12,10 @@ als met toetsenbord en muis — en op Android (telefoon, tablet, tv), met de vin
 > **Volledig gevibecodeerd project**: alle code, teksten en vertalingen zijn geschreven door een AI (Claude,
 > van Anthropic), begeleid en getest door een mens die het niet zelf heeft geprogrammeerd.
 
-Huidige versie: **1.9.7 „Everywhere Update”** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
+Huidige versie: **1.9.7 „Cast Update”** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
 Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertalen](#turtlefin-vertalen)).
 
-> **Over deze versie.** 1.9.7 „Everywhere Update” is getest op Windows, Linux (Raspberry Pi 5 aan een tv) en Android
+> **Over deze versie.** 1.9.7 „Cast Update” is getest op Windows, Linux (Raspberry Pi 5 aan een tv) en Android
 > (telefoon). Er moet nog het een en ander verbeterd worden — de ontwikkelaar weet dat er nog problemen zijn
 > (zie de toelichting bij de [versies](https://github.com/Xelopteryx/Turtlefin/releases) en de bekende
 > problemen in [HANDOFF.nl.md](HANDOFF.nl.md)) —, maar het werd tijd om een versie uit te brengen die veel

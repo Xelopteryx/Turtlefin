@@ -1,4 +1,4 @@
-# Turtlefin: Projektübergabe (Stand 29. Oktober 2026, Version 1.9.7 „Everywhere Update“, noch nicht veröffentlicht)
+# Turtlefin: Projektübergabe (Stand 29. Oktober 2026, Version 1.9.7 „Cast Update“)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · **Deutsch** · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -184,14 +184,14 @@ Version für Android TV.
   in `language` neben der Exe, der beim ersten Start übernommen wird.
 - Namen vom Server (Bibliotheken, Medien) werden nicht übersetzt.
 
-## 6 bis. Version 1.9.7 „Everywhere Update“ (29. Oktober 2026, noch nicht veröffentlicht)
+## 6 bis. Version 1.9.7 „Cast Update“ (29. Oktober 2026)
 
 Diese Übersetzung ist nach 1.1.0 nicht mehr ausführlich: **[HANDOFF.md](HANDOFF.md) (Französisch) ist die
 Referenz** für alles Spätere (Abschnitte 6 bis bis 6 sexies und die Liste „noch zu prüfen“ in Abschnitt 9).
 Kurz gesagt bringt 1.9.7: Android, Streamen und Relais, TV-Fernbedienung, Aero- und Nerd-Themen mit animierten
 Hintergründen, Seerr-Seiten, Trailer (mit dem separaten Server-Plugin Turtlefin Trailers), bernsteinfarbenen
 Offline-Modus, Sicherheitsprüfung, schnelleres Kompilieren (`codegen-units = 16`). Der Name folgt den GitHub-Versionen
-(„Interface Update“, „Touch Update“): Turtlefin überall. Server-Überwachung (`watch_server`, alle 6 s): Die App verliert und findet ihren Server selbst wieder, in beide
+(„Interface Update“, „Touch Update“): benannt nach Streamen (Cast), der wichtigsten Neuerung. Server-Überwachung (`watch_server`, alle 6 s): Die App verliert und findet ihren Server selbst wieder, in beide
 Richtungen und auf jeder Seite; während einer Wiedergabe nur eine Meldung, Thema und Seite wechseln erst danach.
 Getestet unter Windows, Linux (Raspberry Pi 5) und Android; es bleiben Probleme.
 
