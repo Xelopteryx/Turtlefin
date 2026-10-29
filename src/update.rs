@@ -28,7 +28,8 @@ pub enum Kind {
     WinPortable,
     AppImage,
     Deb,
-    /// Flatpak (Flathub) : mis à jour par Flatpak, jamais par l'application.
+    /// Flatpak (fichier .flatpak des versions GitHub) : ni l'application ni « flatpak update » ne le
+    /// mettent à jour, il faut installer le nouveau fichier.
     Flatpak,
     Unknown,
 }
@@ -133,8 +134,7 @@ fn newer(remote: &str, local: &str) -> bool {
 pub async fn check() -> Result<Option<(String, Vec<String>)>> {
     match kind() {
         Kind::Source => check_source().await,
-        Kind::Flatpak => Err(anyhow!("{}", tr("mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"))),
-        Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"))),
+        Kind::Flatpak | Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation : télécharge la dernière version sur GitHub"))),
         _ => check_release().await,
     }
 }
@@ -225,8 +225,7 @@ fn run(dir: &Path, prog: &str, args: &[&str]) -> Result<()> {
 pub fn install(step: impl Fn(&str)) -> Result<()> {
     match kind() {
         Kind::Source => install_source(step),
-        Kind::Flatpak => Err(anyhow!("{}", tr("mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"))),
-        Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation"))),
+        Kind::Flatpak | Kind::Unknown => Err(anyhow!("{}", tr("mise à jour automatique impossible pour cette installation"))),
         k => tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(install_release(k, step)),
     }
 }

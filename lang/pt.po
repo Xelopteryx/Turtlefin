@@ -1691,9 +1691,6 @@ msgstr "resposta do servidor demasiado grande"
 msgid "élément inconnu"
 msgstr "elemento desconhecido"
 
-msgid "mise à jour faite par Flatpak (logithèque, ou « flatpak update »)"
-msgstr "atualizado pelo Flatpak (loja de aplicações, ou «flatpak update»)"
-
 msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
 msgstr "Atenção: este endereço http:// passa pela Internet sem cifra, a palavra-passe circularia em claro. Prefere um endereço https:// (ou uma VPN). Confirma de novo para entrar mesmo assim."
 

@@ -555,9 +555,13 @@ Publier une version :
 - **Flatpak** (Flathub) : `packaging/flatpak/io.github.Xelopteryx.Turtlefin.yml` compile libass, libplacebo et
   libmpv, prend FFmpeg complet dans l'extension `org.freedesktop.Platform.ffmpeg-full`, puis Turtlefin hors ligne
   à partir de `cargo-sources.json` (`python tools/flatpak-cargo-sources.py` après chaque changement de
-  Cargo.lock). Essai : `flatpak-builder --user --install --force-clean build-dir <manifeste>`. Pour Flathub, la
-  source `dir` est à remplacer par le dépôt git (étiquette + commit). Jamais compilé pour de vrai à ce jour.
-  Dans un Flatpak, la mise à jour intégrée renvoie vers Flatpak (`update::Kind::Flatpak`).
+  Cargo.lock). Essai : `flatpak-builder --user --install --force-clean build-dir <manifeste>`.
+  **Pas sur Flathub** : leurs règles (docs.flathub.org, « Generative AI policy ») interdisent un manifeste écrit
+  ou aidé par une IA, interdisent qu'une IA ouvre la demande ou y réponde, et refusent les traductions
+  automatiques ; le reste est laissé aux relecteurs. Choix du mainteneur : un fichier
+  `Turtlefin-<v>-linux-x86_64.flatpak` joint à chaque version par `release.yml` (job `flatpak`, conteneur
+  `flatpak-github-actions:freedesktop-25.08` ; le runtime vient de Flathub à l'installation). Installé ainsi,
+  rien ne le met à jour : `update::Kind::Flatpak` renvoie vers GitHub, comme une installation inconnue.
 - Icônes : `packaging/turtlefin.svg` est le logo ; `packaging/icons/make-icons.py <dossier>` (Python + Pillow)
   régénère les PNG et l'ICO.
 

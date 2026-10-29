@@ -13,6 +13,7 @@
 #   Turtlefin-<v>-linux-x86_64.AppImage   turtlefin_<v>_amd64.deb
 #   Turtlefin-<v>-linux-aarch64.AppImage  turtlefin_<v>_arm64.deb
 #   turtlefin_<v>_armhf.deb (Raspberry Pi OS 32 bits)   turtlefin_<v>_i386.deb (PC 32 bits)
+#   Turtlefin-<v>-linux-x86_64.flatpak (pas de mise à jour intégrée : nouveau fichier à télécharger)
 name: Publication
 
 on:
@@ -164,8 +165,27 @@ jobs:
           name: linux-${{ matrix.deb }}
           path: target/*.deb
 
+  # Flatpak (x86_64) : fichier .flatpak joint à la version, à installer avec « flatpak install ». Pas sur
+  # Flathub (leurs règles sur le code écrit avec une IA, voir HANDOFF). Le runtime freedesktop vient de
+  # Flathub à l'installation. Manifeste : packaging/flatpak (tout est compilé hors ligne).
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Version
+        id: version
+        run: echo "v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/flatpak/io.github.Xelopteryx.Turtlefin.yml
+          bundle: Turtlefin-${{ steps.version.outputs.v }}-linux-x86_64.flatpak
+          artifact-name: flatpak-x86_64
+
   publish:
-    needs: [windows, linux, linux32]
+    needs: [windows, linux, linux32, flatpak]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
