@@ -2159,3 +2159,252 @@ msgstr "Server reachable again (back online when playback ends)."
 
 msgid "Serveur injoignable : la lecture continue tant que possible."
 msgstr "Server unreachable: playback continues as long as possible."
+
+msgid "Titres commençant par"
+msgstr "Titles starting with"
+
+msgid "Échap : effacer"
+msgstr "Esc: clear"
+
+msgid "Aucun titre ne commence ainsi."
+msgstr "No title starts like this."
+
+msgid "Ouvrir la fiche"
+msgstr "Open details"
+
+msgid "Marquer comme non vu (recommencer)"
+msgstr "Mark as unwatched (start over)"
+
+msgid "Marquer comme vu"
+msgstr "Mark as watched"
+
+msgid "Marqué comme vu."
+msgstr "Marked as watched."
+
+msgid "Marqué comme non vu."
+msgstr "Marked as unwatched."
+
+msgid "Distribution des bibliothèques"
+msgstr "Library card deal"
+
+msgid "À la première ouverture d'une bibliothèque, ses affiches sont distribuées comme des cartes ; ensuite, simple arrivée."
+msgstr "The first time a library is opened, its posters are dealt like cards; after that, it simply appears."
+
+msgid "Identifier… (corriger le titre reconnu)"
+msgstr "Identify… (fix the recognized title)"
+
+msgid "Actualiser les informations"
+msgstr "Refresh metadata"
+
+msgid "Identifier"
+msgstr "Identify"
+
+msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
+msgstr "Pick the right title: the server will take its information and images."
+
+msgid "Titre"
+msgstr "Title"
+
+msgid "Année"
+msgstr "Year"
+
+msgid "Rechercher"
+msgstr "Search"
+
+msgid "Aucun résultat : modifie le titre ou l'année."
+msgstr "No results: change the title or the year."
+
+msgid "Actualisation demandée : le serveur relit les informations."
+msgstr "Refresh requested: the server is reloading the information."
+
+msgid "Seuls les films et les séries s'identifient."
+msgstr "Only movies and series can be identified."
+
+msgid "Identifié comme « {} » : le serveur met à jour les informations."
+msgstr "Identified as “{}”: the server is updating the information."
+
+msgid " · en pause"
+msgstr " · paused"
+
+msgid "Activité"
+msgstr "Activity"
+
+msgid "Administrateur"
+msgstr "Administrator"
+
+msgid "Analyse de la bibliothèque lancée."
+msgstr "Library scan started."
+
+msgid "Analyse des bibliothèques lancée."
+msgstr "Library scan started."
+
+msgid "Analyser"
+msgstr "Scan"
+
+msgid "Analyser toutes les bibliothèques"
+msgstr "Scan all libraries"
+
+msgid "Appareil supprimé."
+msgstr "Device removed."
+
+msgid "Appareils"
+msgstr "Devices"
+
+msgid "Arrêter"
+msgstr "Stop"
+
+msgid "Arrêter le serveur"
+msgstr "Shut down the server"
+
+msgid "Aucune activité enregistrée."
+msgstr "No activity recorded."
+
+msgid "Aucune extension installée."
+msgstr "No plugins installed."
+
+msgid "Aucune lecture en cours."
+msgstr "Nothing is playing."
+
+msgid "Cherche les nouveaux fichiers et ceux qui ont disparu."
+msgstr "Looks for new files and those that have disappeared."
+
+msgid "Compte activé."
+msgstr "Account enabled."
+
+msgid "Compte désactivé."
+msgstr "Account disabled."
+
+msgid "Comptes"
+msgstr "Accounts"
+
+msgid "Confirmer ?"
+msgstr "Confirm?"
+
+msgid "Connecté · {}"
+msgstr "Connected · {}"
+
+msgid "Extension activée (au prochain redémarrage)."
+msgstr "Plugin enabled (on next restart)."
+
+msgid "Extension désactivée (au prochain redémarrage)."
+msgstr "Plugin disabled (on next restart)."
+
+msgid "Extensions"
+msgstr "Plugins"
+
+msgid "Il faudra le rallumer sur la machine elle-même."
+msgstr "It will have to be switched on again on the machine itself."
+
+msgid "Lancer"
+msgstr "Run"
+
+msgid "Le serveur redémarre."
+msgstr "The server is restarting."
+
+msgid "Le serveur s'arrête."
+msgstr "The server is shutting down."
+
+msgid "Lecture arrêtée."
+msgstr "Playback stopped."
+
+msgid "Lectures en cours"
+msgstr "Now playing"
+
+msgid "Les lectures en cours s'arrêtent le temps du redémarrage."
+msgstr "Current playback stops during the restart."
+
+msgid "Personne n'est connecté en ce moment."
+msgstr "Nobody is connected right now."
+
+msgid "Redémarrer"
+msgstr "Restart"
+
+msgid "Redémarrer le serveur"
+msgstr "Restart the server"
+
+msgid "Supprimer"
+msgstr "Remove"
+
+msgid "Tableau de bord"
+msgstr "Dashboard"
+
+msgid "Tâche arrêtée."
+msgstr "Task stopped."
+
+msgid "Tâche lancée."
+msgstr "Task started."
+
+msgid "Tâches planifiées"
+msgstr "Scheduled tasks"
+
+msgid "Un redémarrage est nécessaire pour appliquer des changements."
+msgstr "A restart is needed to apply changes."
+
+msgid "Une mise à jour de Jellyfin est disponible."
+msgstr "A Jellyfin update is available."
+
+msgid "active"
+msgstr "active"
+
+msgid "activée au prochain redémarrage"
+msgstr "enabled on next restart"
+
+msgid "annulée"
+msgstr "cancelled"
+
+msgid "ce compte"
+msgstr "this account"
+
+msgid "cet appareil"
+msgstr "this device"
+
+msgid "désactivée"
+msgstr "disabled"
+
+msgid "désactivée au prochain redémarrage"
+msgstr "disabled on next restart"
+
+msgid "en panne"
+msgstr "malfunctioned"
+
+msgid "flux direct"
+msgstr "direct stream"
+
+msgid "incompatible avec cette version"
+msgstr "not supported by this version"
+
+msgid "interrompue"
+msgstr "aborted"
+
+msgid "intégrée à Jellyfin"
+msgstr "built into Jellyfin"
+
+msgid "lecture directe"
+msgstr "direct play"
+
+msgid "redémarrage du serveur nécessaire"
+msgstr "server restart needed"
+
+msgid "remplacée par une version plus récente"
+msgstr "superseded by a newer version"
+
+msgid "supprimée au prochain redémarrage"
+msgstr "removed on next restart"
+
+msgid "terminée"
+msgstr "completed"
+
+msgid "transcodage"
+msgstr "transcoding"
+
+msgid "vu le {}"
+msgstr "seen {}"
+
+msgid "{} · en cours ({} %)"
+msgstr "{} · running ({} %)"
+
+msgid "{} · {} le {}"
+msgstr "{} · {} on {}"
+
+msgid "échouée"
+msgstr "failed"

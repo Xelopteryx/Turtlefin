@@ -2159,3 +2159,252 @@ msgstr "Server weer bereikbaar (weer online na het afspelen)."
 
 msgid "Serveur injoignable : la lecture continue tant que possible."
 msgstr "Server onbereikbaar: het afspelen gaat zo lang mogelijk door."
+
+msgid "Titres commençant par"
+msgstr "Titels die beginnen met"
+
+msgid "Échap : effacer"
+msgstr "Esc: wissen"
+
+msgid "Aucun titre ne commence ainsi."
+msgstr "Geen titel begint zo."
+
+msgid "Ouvrir la fiche"
+msgstr "Details openen"
+
+msgid "Marquer comme non vu (recommencer)"
+msgstr "Markeren als niet gezien (opnieuw beginnen)"
+
+msgid "Marquer comme vu"
+msgstr "Markeren als gezien"
+
+msgid "Marqué comme vu."
+msgstr "Gemarkeerd als gezien."
+
+msgid "Marqué comme non vu."
+msgstr "Gemarkeerd als niet gezien."
+
+msgid "Distribution des bibliothèques"
+msgstr "Bibliotheken uitdelen"
+
+msgid "À la première ouverture d'une bibliothèque, ses affiches sont distribuées comme des cartes ; ensuite, simple arrivée."
+msgstr "De eerste keer dat een bibliotheek wordt geopend, worden de posters als kaarten uitgedeeld; daarna verschijnt ze gewoon."
+
+msgid "Identifier… (corriger le titre reconnu)"
+msgstr "Identificeren… (herkende titel corrigeren)"
+
+msgid "Actualiser les informations"
+msgstr "Informatie vernieuwen"
+
+msgid "Identifier"
+msgstr "Identificeren"
+
+msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
+msgstr "Kies de juiste titel: de server neemt de informatie en afbeeldingen over."
+
+msgid "Titre"
+msgstr "Titel"
+
+msgid "Année"
+msgstr "Jaar"
+
+msgid "Rechercher"
+msgstr "Zoeken"
+
+msgid "Aucun résultat : modifie le titre ou l'année."
+msgstr "Geen resultaten: pas de titel of het jaar aan."
+
+msgid "Actualisation demandée : le serveur relit les informations."
+msgstr "Vernieuwen gevraagd: de server leest de informatie opnieuw in."
+
+msgid "Seuls les films et les séries s'identifient."
+msgstr "Alleen films en series kunnen worden geïdentificeerd."
+
+msgid "Identifié comme « {} » : le serveur met à jour les informations."
+msgstr "Geïdentificeerd als „{}”: de server werkt de informatie bij."
+
+msgid " · en pause"
+msgstr " · gepauzeerd"
+
+msgid "Activité"
+msgstr "Activiteit"
+
+msgid "Administrateur"
+msgstr "Beheerder"
+
+msgid "Analyse de la bibliothèque lancée."
+msgstr "Scan van de bibliotheek gestart."
+
+msgid "Analyse des bibliothèques lancée."
+msgstr "Scan van de bibliotheken gestart."
+
+msgid "Analyser"
+msgstr "Scannen"
+
+msgid "Analyser toutes les bibliothèques"
+msgstr "Alle bibliotheken scannen"
+
+msgid "Appareil supprimé."
+msgstr "Apparaat verwijderd."
+
+msgid "Appareils"
+msgstr "Apparaten"
+
+msgid "Arrêter"
+msgstr "Stoppen"
+
+msgid "Arrêter le serveur"
+msgstr "Server uitschakelen"
+
+msgid "Aucune activité enregistrée."
+msgstr "Geen activiteit geregistreerd."
+
+msgid "Aucune extension installée."
+msgstr "Geen extensies geïnstalleerd."
+
+msgid "Aucune lecture en cours."
+msgstr "Er wordt niets afgespeeld."
+
+msgid "Cherche les nouveaux fichiers et ceux qui ont disparu."
+msgstr "Zoekt nieuwe bestanden en bestanden die verdwenen zijn."
+
+msgid "Compte activé."
+msgstr "Account ingeschakeld."
+
+msgid "Compte désactivé."
+msgstr "Account uitgeschakeld."
+
+msgid "Comptes"
+msgstr "Accounts"
+
+msgid "Confirmer ?"
+msgstr "Bevestigen?"
+
+msgid "Connecté · {}"
+msgstr "Verbonden · {}"
+
+msgid "Extension activée (au prochain redémarrage)."
+msgstr "Extensie ingeschakeld (bij de volgende herstart)."
+
+msgid "Extension désactivée (au prochain redémarrage)."
+msgstr "Extensie uitgeschakeld (bij de volgende herstart)."
+
+msgid "Extensions"
+msgstr "Extensies"
+
+msgid "Il faudra le rallumer sur la machine elle-même."
+msgstr "Hij moet op de machine zelf weer worden aangezet."
+
+msgid "Lancer"
+msgstr "Starten"
+
+msgid "Le serveur redémarre."
+msgstr "De server herstart."
+
+msgid "Le serveur s'arrête."
+msgstr "De server wordt uitgeschakeld."
+
+msgid "Lecture arrêtée."
+msgstr "Afspelen gestopt."
+
+msgid "Lectures en cours"
+msgstr "Nu afgespeeld"
+
+msgid "Les lectures en cours s'arrêtent le temps du redémarrage."
+msgstr "Lopende weergaven stoppen tijdens de herstart."
+
+msgid "Personne n'est connecté en ce moment."
+msgstr "Er is nu niemand verbonden."
+
+msgid "Redémarrer"
+msgstr "Herstarten"
+
+msgid "Redémarrer le serveur"
+msgstr "Server herstarten"
+
+msgid "Supprimer"
+msgstr "Verwijderen"
+
+msgid "Tableau de bord"
+msgstr "Dashboard"
+
+msgid "Tâche arrêtée."
+msgstr "Taak gestopt."
+
+msgid "Tâche lancée."
+msgstr "Taak gestart."
+
+msgid "Tâches planifiées"
+msgstr "Geplande taken"
+
+msgid "Un redémarrage est nécessaire pour appliquer des changements."
+msgstr "Een herstart is nodig om wijzigingen toe te passen."
+
+msgid "Une mise à jour de Jellyfin est disponible."
+msgstr "Er is een Jellyfin-update beschikbaar."
+
+msgid "active"
+msgstr "actief"
+
+msgid "activée au prochain redémarrage"
+msgstr "ingeschakeld na de volgende herstart"
+
+msgid "annulée"
+msgstr "geannuleerd"
+
+msgid "ce compte"
+msgstr "dit account"
+
+msgid "cet appareil"
+msgstr "dit apparaat"
+
+msgid "désactivée"
+msgstr "uitgeschakeld"
+
+msgid "désactivée au prochain redémarrage"
+msgstr "uitgeschakeld na de volgende herstart"
+
+msgid "en panne"
+msgstr "defect"
+
+msgid "flux direct"
+msgstr "directe stream"
+
+msgid "incompatible avec cette version"
+msgstr "niet compatibel met deze versie"
+
+msgid "interrompue"
+msgstr "afgebroken"
+
+msgid "intégrée à Jellyfin"
+msgstr "ingebouwd in Jellyfin"
+
+msgid "lecture directe"
+msgstr "direct afspelen"
+
+msgid "redémarrage du serveur nécessaire"
+msgstr "herstart van de server nodig"
+
+msgid "remplacée par une version plus récente"
+msgstr "vervangen door een nieuwere versie"
+
+msgid "supprimée au prochain redémarrage"
+msgstr "verwijderd bij de volgende herstart"
+
+msgid "terminée"
+msgstr "voltooid"
+
+msgid "transcodage"
+msgstr "transcodering"
+
+msgid "vu le {}"
+msgstr "gezien op {}"
+
+msgid "{} · en cours ({} %)"
+msgstr "{} · bezig ({} %)"
+
+msgid "{} · {} le {}"
+msgstr "{} · {} op {}"
+
+msgid "échouée"
+msgstr "mislukt"

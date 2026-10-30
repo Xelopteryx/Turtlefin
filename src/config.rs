@@ -558,6 +558,8 @@ pub struct AnimFlags {
     pub login: bool,
     pub language: bool,
     pub tour: bool,
+    /// Bibliothèque ouverte : ses affiches distribuées comme des cartes (la première fois de la session).
+    pub deal: bool,
     /// Décor du thème qui bouge doucement (fond redessiné en continu : plus de calcul).
     pub scenery: bool,
 }
@@ -577,11 +579,12 @@ impl AnimFlags {
             login: on,
             language: on,
             tour: on,
+            deal: on,
             scenery: on,
         }
     }
     /// Clés (Paramètres, fichiers de preset), dans l'ordre d'affichage.
-    pub const KEYS: [&'static str; 13] = ["boot", "pages", "menu", "select", "scroll", "panels", "detail", "player", "search", "login", "language", "tour", "scenery"];
+    pub const KEYS: [&'static str; 14] = ["boot", "pages", "deal", "menu", "select", "scroll", "panels", "detail", "player", "search", "login", "language", "tour", "scenery"];
     pub fn get(&self, key: &str) -> bool {
         match key {
             "boot" => self.boot,
@@ -596,6 +599,7 @@ impl AnimFlags {
             "login" => self.login,
             "language" => self.language,
             "tour" => self.tour,
+            "deal" => self.deal,
             "scenery" => self.scenery,
             _ => false,
         }
@@ -614,6 +618,7 @@ impl AnimFlags {
             "login" => self.login = on,
             "language" => self.language = on,
             "tour" => self.tour = on,
+            "deal" => self.deal = on,
             "scenery" => self.scenery = on,
             _ => {}
         }

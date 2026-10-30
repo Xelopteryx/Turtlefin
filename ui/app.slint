@@ -807,8 +807,31 @@ component Card inherits Rectangle {
         border-color: root.lit ? #9ee0ff : rgba(255, 255, 255, 0.38);
     }
 
+    // Menu de la carte (vu, non vu...) : clic droit, ou appui long au doigt (le clic qui suit est ignoré).
+    callback menu-requested();
+    property <bool> long-fired;
+    Timer {
+        interval: 550ms;
+        running: card-area.pressed && Nav.touch && !Nav.drag && !root.long-fired;
+        triggered => {
+            root.long-fired = true;
+            root.menu-requested();
+        }
+    }
     card-area := TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                root.long-fired = false;
+                if (e.button == PointerEventButton.right) {
+                    root.menu-requested();
+                }
+            }
+        }
         clicked => {
+            if (root.long-fired) {
+                root.long-fired = false;
+                return;
+            }
             root.clicked();
         }
     }
@@ -3655,14 +3678,17 @@ export component AppWindow inherits Window {
             root.sr-card-on = root.hero-seerr && Hero.data.has-image && !Hero.wide;
             root.sr-card-img = Hero.img;
             root.hero-wide = Hero.wide;
-            root.door-mode = Hero.wide && root.narrow && !root.hero-seerr && !Hero.data.deck;
+            // Bibliothèque ou collection : distribuée comme des cartes la première fois de la session
+            // seulement (et si le réglage le permet) ; ensuite, ouverte comme un autre grand fond.
+            let deck = Hero.data.deck && root.deal-allowed(Hero.data.id);
+            root.door-mode = Hero.wide && root.narrow && !root.hero-seerr && !deck;
             root.door-has-poster = false;
             // Fiche à venir : cachée jusqu'à son arrivée (pas pour un grand fond ni une collection).
-            root.rev-hold = !(Hero.wide && !root.door-mode) && !Hero.data.deck && !root.hero-seerr && root.screen != "detail";
+            root.rev-hold = !(Hero.wide && !root.door-mode) && !deck && !root.hero-seerr && root.screen != "detail";
             // D'une fiche à une autre : l'affiche affichée reste en place jusqu'à l'arrivée de la nouvelle.
             root.hero-from-detail = root.screen == "detail";
-            root.hero-deck = Hero.data.deck;
-            root.deck-back = Hero.data.deck;
+            root.hero-deck = deck;
+            root.deck-back = deck;
             root.deal-anim = false;
             root.hero-faded = false;
             root.hero-gave-up = false;
@@ -4181,6 +4207,8 @@ export component AppWindow inherits Window {
     callback settings-choose(string, string);
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
+    // Même page, autres catégories : le tableau de bord des administrateurs (voir dashboard.rs).
+    in-out property <bool> set-dash;
     in property <[SettingRow]> set-rows;
     // Ligne réglable suivante (dir = 1) ou précédente (-1) à partir de `sel` ; depuis -1 avec dir = 1 :
     // la première. Les lignes d'information sont sautées ; s'il n'y en a pas d'autre, `sel` revient.
@@ -4465,6 +4493,48 @@ export component AppWindow inherits Window {
     in-out property <[CardData]> lib-items;
     in property <int> lib-total;
     in-out property <int> l-sel;
+    // Lettres tapées au clavier dans la grille : seuls les titres qui commencent ainsi (voir lib-key).
+    in property <string> lib-filter;
+    // Première page de la grille (ou du filtre) arrivée : « aucun titre » plutôt que « Chargement… ».
+    in property <bool> lib-done;
+    // Touche tapée dans la grille (lettre, chiffre, Retour arrière, Échap) : vrai si le filtre l'a prise.
+    callback lib-key(string) -> bool;
+    // Index A–Z : aller au premier titre qui commence par cette lettre (ou la suivante).
+    callback lib-jump(string);
+    // Largeur, depuis le bord droit, de la bande de l'index A–Z affiché (0 : pas d'index) : le geste
+    // « glisser pour défiler » ne la prend pas (on y glisse le long des lettres, voir Swipe).
+    out property <length> az-band: root.screen == "library" && !root.playing && root.lib-filter == "" && root.lib-total > root.lib-cols * 3 ? 44px * root.k : 0px;
+
+    // Menu d'une carte de la grille (clic droit, appui long, Entrée maintenue) : vu, non vu, ouvrir.
+    in-out property <bool> cm-open;
+    property <CardData> cm-card;
+    property <length> cm-x;
+    property <length> cm-y;
+    in-out property <int> cm-sel;
+    callback card-played(string, bool);
+    // Compte administrateur du serveur : actions de plus dans le menu des cartes (identifier, actualiser).
+    in property <bool> is-admin;
+    callback card-admin(string, string);    // (action « identify » | « refresh », id)
+
+    // Identifier un film ou une série mal reconnus (administrateurs) : recherche sur Internet, choix.
+    in-out property <bool> ident-open;
+    in property <string> ident-title;
+    in-out property <string> ident-name;
+    in-out property <string> ident-year;
+    in property <[CardData]> ident-results;
+    in property <bool> ident-busy;
+    in-out property <int> ident-sel;
+    callback ident-search(string, string);
+    callback ident-apply(int);
+    // Bibliothèque ou collection pas encore distribuée pendant cette session (réglage compris).
+    pure callback deal-allowed(string) -> bool;
+    public function open-card-menu(card: CardData, x: length, y: length) {
+        root.cm-card = card;
+        root.cm-x = x;
+        root.cm-y = y;
+        root.cm-sel = 0;
+        root.cm-open = true;
+    }
 
     // Fiche détail
     in-out property <DetailData> detail;
@@ -7694,6 +7764,8 @@ export component AppWindow inherits Window {
         // Grille centrée horizontalement.
         property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
 
+        // Entrée appuyée sur une carte, pas encore relâchée (court : la fiche ; long : le menu).
+        property <bool> enter-down;
         // Proche de la fin de ce qui est chargé : page suivante.
         function maybe-more() {
             if (root.l-sel >= root.lib-items.length - 2 * self.cols && root.lib-items.length < root.lib-total) {
@@ -7721,6 +7793,15 @@ export component AppWindow inherits Window {
                     root.l-sel = min(root.lib-items.length - 1, row * lib.cols + mod(root.l-sel, lib.cols));
                     root.lib-free = false;
                 }
+                // Entrée maintenue (télécommande : OK appuyé longtemps) : menu de la carte choisie ; la
+                // fiche ne s'ouvre qu'au relâchement d'un appui court (voir key-released).
+                if (event.repeat && event.text == Key.Return && lib.enter-down) {
+                    lib.enter-down = false;
+                    if (!root.cm-open && root.l-sel < root.lib-items.length) {
+                        root.open-card-menu(root.lib-items[root.l-sel], -1px, -1px);
+                    }
+                    return EventResult.accept;
+                }
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
                 if (event.repeat && (event.text == Key.Return || event.text == Key.Escape || event.text == Key.Backspace)) {
                     return EventResult.accept;
@@ -7731,6 +7812,10 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 if (root.nav-key(event.text)) {
+                    return EventResult.accept;
+                }
+                // Lettres et chiffres : filtre des titres (Retour arrière en efface une, Échap le vide).
+                if (!root.h-focus && !event.modifiers.control && !event.modifiers.alt && !event.modifiers.meta && root.lib-key(event.text)) {
                     return EventResult.accept;
                 }
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
@@ -7758,10 +7843,20 @@ export component AppWindow inherits Window {
                         root.nav-enter();
                     }
                 } else if (event.text == Key.Return) {
-                    root.open-hero(root.lib-items[root.l-sel].id);
+                    lib.enter-down = true;
                 }
                 lib.maybe-more();
                 return EventResult.accept;
+            }
+            key-released(event) => {
+                if (event.text == Key.Return && lib.enter-down) {
+                    lib.enter-down = false;
+                    if (root.l-sel < root.lib-items.length) {
+                        root.open-hero(root.lib-items[root.l-sel].id);
+                    }
+                    return EventResult.accept;
+                }
+                return EventResult.reject;
             }
             // Molette : une ligne d'affiches par cran (comme ↑ ↓).
             TouchArea {
@@ -7785,7 +7880,8 @@ export component AppWindow inherits Window {
         }
 
         if root.lib-items.length == 0: Text {
-            text: root.lib-total == 0 ? Tr.t(Tr.k, "Chargement…") : "";
+            text: root.lib-filter != "" && root.lib-done ? Tr.t(Tr.k, "Aucun titre ne commence ainsi.")
+                : root.lib-total == 0 ? Tr.t(Tr.k, "Chargement…") : "";
             color: Theme.muted;
             font-size: 20px * root.k;
             horizontal-alignment: center;
@@ -7794,6 +7890,9 @@ export component AppWindow inherits Window {
 
         lib-clip := Rectangle {
             clip: true;
+            // Filtre affiché : la grille passe sous son rappel.
+            y: root.lib-filter != "" ? 42px * root.k : 0px;
+            height: parent.height - self.y;
 
             grid := Rectangle {
                 // La rangée sélectionnée reste vers le milieu de l'écran (défilement libre : le décalage).
@@ -7837,6 +7936,108 @@ export component AppWindow inherits Window {
                         root.h-focus = false;
                         root.l-sel = i;
                         root.open-hero(card.id);
+                    }
+                    menu-requested => {
+                        root.h-focus = false;
+                        root.l-sel = i;
+                        root.open-card-menu(card, self.absolute-position.x + lib.cw / 2, self.absolute-position.y + lib.ch * 0.4);
+                    }
+                }
+            }
+        }
+
+        // Filtre tapé au clavier : rappel en haut, avec de quoi l'effacer.
+        if root.lib-filter != "": Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: 4px * root.k;
+            width: filter-row.preferred-width + 28px * root.k;
+            height: 34px * root.k;
+            border-radius: self.height / 2;
+            background: Theme.panel;
+            border-width: 1px;
+            border-color: Theme.accent2.with-alpha(0.6);
+            filter-row := HorizontalLayout {
+                padding-left: 14px * root.k;
+                padding-right: 14px * root.k;
+                spacing: 10px * root.k;
+                alignment: center;
+                Text {
+                    text: Tr.t(Tr.k, "Titres commençant par") + " « " + root.lib-filter + " »";
+                    color: Theme.text;
+                    font-size: 15px * root.k;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: Tr.t(Tr.k, "Échap : effacer");
+                    color: Theme.muted;
+                    font-size: 13px * root.k;
+                    vertical-alignment: center;
+                }
+            }
+            TouchArea {
+                clicked => {
+                    root.lib-key(Key.Escape);
+                }
+            }
+        }
+
+        // Index A–Z (et barre de défilement) : la place de la rangée affichée dans toute la bibliothèque,
+        // une lettre pour y sauter ; glisser le long des lettres fait défiler la bibliothèque.
+        if root.lib-filter == "" && root.lib-total > lib.cols * 3: az := Rectangle {
+            property <[string]> list: ["#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+            x: parent.width - self.width - 4px * root.k;
+            y: 8px * root.k;
+            width: 24px * root.k;
+            height: parent.height - 16px * root.k;
+            property <length> step: self.height / self.list.length;
+            // Pouce : rangées visibles parmi toutes celles de la bibliothèque (chargées ou non).
+            property <float> all-rows: max(1, ceil(root.lib-total / lib.cols));
+            property <float> shown-rows: max(1, lib-clip.height / (lib.ch + lib.gap));
+            property <float> first-row: max(0px, -grid.y) / (lib.ch + lib.gap);
+            // Barre de défilement, fine, à gauche des lettres (toute la bibliothèque, chargée ou non).
+            Rectangle {
+                x: -8px * root.k;
+                width: 4px * root.k;
+                border-radius: self.width / 2;
+                background: Theme.fg.with-alpha(0.12);
+                Rectangle {
+                    y: parent.height * min(1, az.first-row / az.all-rows);
+                    height: max(18px * root.k, parent.height * min(1, az.shown-rows / az.all-rows));
+                    border-radius: self.width / 2;
+                    background: Theme.accent2.with-alpha(0.85);
+                    animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                }
+            }
+            for l[j] in az.list: Text {
+                y: j * az.step;
+                width: az.width;
+                height: az.step;
+                text: l;
+                font-size: min(13px * root.k, az.step * 0.8);
+                font-weight: 600;
+                color: az-area.has-hover ? Theme.text : Theme.muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            property <int> last: -1;
+            function pick(y: length) {
+                let j = clamp(floor(y / az.step), 0, az.list.length - 1);
+                if (j != az.last) {
+                    az.last = j;
+                    root.lib-jump(az.list[j]);
+                }
+            }
+            az-area := TouchArea {
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        az.last = -1;
+                        root.h-focus = false;
+                        az.pick(self.pressed-y);
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        az.pick(self.mouse-y);
                     }
                 }
             }
@@ -8684,8 +8885,11 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cat-icons: ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about"];
-        property <[string]> cats: [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos")];
+        property <[string]> cat-icons: root.set-dash ? ["about", "play", "storage", "profile", "motion", "cast", "subs", "display"]
+            : ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about"];
+        property <[string]> cats: root.set-dash
+            ? [Tr.t(Tr.k, "Serveur"), Tr.t(Tr.k, "Lectures en cours"), Tr.t(Tr.k, "Bibliothèques"), Tr.t(Tr.k, "Comptes"), Tr.t(Tr.k, "Tâches planifiées"), Tr.t(Tr.k, "Appareils"), Tr.t(Tr.k, "Activité"), Tr.t(Tr.k, "Extensions")]
+            : [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos")];
         // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
         // set-in (sélection dans les lignes) dit laquelle est affichée.
@@ -9114,7 +9318,7 @@ export component AppWindow inherits Window {
             x: 32px * root.k;
             y: 8px * root.k;
             height: 44px * root.k;
-            text: sets.one && root.set-in ? sets.cats[root.set-cat] : Tr.t(Tr.k, "Paramètres");
+            text: sets.one && root.set-in ? sets.cats[root.set-cat] : root.set-dash ? Tr.t(Tr.k, "Tableau de bord") : Tr.t(Tr.k, "Paramètres");
             color: Theme.text;
             font-size: 28px * root.k;
             font-weight: 700;
@@ -13350,6 +13554,243 @@ export component AppWindow inherits Window {
         image-fit: fill;
         property <float> q: root.theme-fade-armed ? clamp((animation-tick() - root.theme-fade-t0) / 900ms, 0, 1) : 0;
         opacity: 1 - self.q * self.q * (3 - 2 * self.q);
+    }
+
+
+    // Identifier (administrateurs) : nom et année cherchés sur Internet, résultats en cartes ; le choix
+    // est appliqué par le serveur (identifiants, informations, images).
+    if root.ident-open: Rectangle {
+        background: #000000a0;
+        TouchArea { }
+        ident-box := Rectangle {
+            width: min(parent.width - 32px, 980px * root.k);
+            height: min(parent.height - 32px, 600px * root.k);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 16px * root.k;
+            background: Theme.bg-mid;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 30px;
+            drop-shadow-color: #000000a0;
+            property <length> cw: 150px * root.k;
+            // Clavier : flèches entre les résultats, Entrée choisit, flèche du haut vers le titre, Échap ferme.
+            ident-keys := FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.ident-open = false;
+                        root.refocus += 1;
+                    } else if (event.text == Key.LeftArrow) {
+                        root.ident-sel = max(0, root.ident-sel - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.ident-sel = min(root.ident-results.length - 1, root.ident-sel + 1);
+                    } else if (event.text == Key.UpArrow) {
+                        name-field.focus-input();
+                    } else if (event.text == Key.Return && !event.repeat && root.ident-sel < root.ident-results.length) {
+                        root.ident-apply(root.ident-sel);
+                    }
+                    return EventResult.accept;
+                }
+            }
+            VerticalLayout {
+                padding: 24px * root.k;
+                spacing: 14px * root.k;
+                Text {
+                    text: Tr.t(Tr.k, "Identifier") + " · " + root.ident-title;
+                    color: Theme.text;
+                    font-size: 22px * root.k;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    text: Tr.t(Tr.k, "Choisis le bon titre : le serveur reprendra ses informations et ses images.");
+                    color: Theme.muted;
+                    font-size: 14px * root.k;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 12px * root.k;
+                    name-field := Field {
+                        k: root.k;
+                        // Écran étroit : le titre garde la place (l'année et le bouton se serrent).
+                        horizontal-stretch: 1;
+                        min-width: 150px * root.k;
+                        label: Tr.t(Tr.k, "Titre");
+                        text <=> root.ident-name;
+                        accepted => {
+                            root.ident-search(root.ident-name, root.ident-year);
+                            ident-keys.focus();
+                        }
+                    }
+                    Field {
+                        k: root.k;
+                        width: 96px * root.k;
+                        horizontal-stretch: 0;
+                        label: Tr.t(Tr.k, "Année");
+                        text <=> root.ident-year;
+                        accepted => {
+                            root.ident-search(root.ident-name, root.ident-year);
+                            ident-keys.focus();
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: end;
+                        padding-bottom: 22px * root.k;
+                        ActionButton {
+                            height: 52px * root.k;
+                            text: Tr.t(Tr.k, "Rechercher");
+                            font: 16px * root.k;
+                            clicked => {
+                                root.ident-search(root.ident-name, root.ident-year);
+                                ident-keys.focus();
+                            }
+                        }
+                    }
+                }
+                ident-row := Rectangle {
+                    // Résultats : défilent horizontalement, la sélection reste visible.
+                    clip: true;
+                    property <length> step: ident-box.cw + 14px * root.k;
+                    property <length> shift: max(0px, min(root.ident-sel * self.step - (self.width - ident-box.cw) / 2,
+                        root.ident-results.length * self.step - 14px * root.k - self.width));
+                    animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                    if root.ident-results.length == 0: Text {
+                        text: root.ident-busy ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Aucun résultat : modifie le titre ou l'année.");
+                        color: Theme.muted;
+                        font-size: 16px * root.k;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    for r[i] in root.ident-results: Card {
+                        x: i * ident-row.step - ident-row.shift;
+                        y: 10px * root.k;
+                        width: ident-box.cw;
+                        height: ident-box.cw * 1.5 + 56px * root.k;
+                        data: r;
+                        k: root.k;
+                        focused: i == root.ident-sel;
+                        clicked => {
+                            root.ident-sel = i;
+                            root.ident-apply(i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Menu d'une carte de la grille : ouvrir, marquer comme vu ou non vu (remise à zéro).
+    if root.cm-open: cm-layer := Rectangle {
+        // Clic à côté : fermé.
+        TouchArea {
+            clicked => {
+                root.cm-open = false;
+                root.refocus += 1;
+            }
+        }
+        // Actions, dans l'ordre du menu.
+        property <string> pl: root.cm-card.played ? "unplayed" : "played";
+        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh"] : ["open", self.pl];
+        property <[string]> labels: root.is-admin ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+            Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
+            Tr.t(Tr.k, "Actualiser les informations"),
+        ] : [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+        ];
+        cm-box := Rectangle {
+            callback run(int);
+            run(i) => {
+                root.cm-open = false;
+                root.refocus += 1;
+                if (cm-layer.acts[i] == "open") {
+                    root.open-hero(root.cm-card.id);
+                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh") {
+                    root.card-admin(cm-layer.acts[i], root.cm-card.id);
+                } else {
+                    root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");
+                }
+            }
+            width: 400px * root.k;
+            height: cm-col.preferred-height;
+            // Clavier (cm-x < 0) : au centre ; souris, doigt : sur la carte, sans sortir de la fenêtre.
+            x: root.cm-x < 0 ? (parent.width - self.width) / 2 : clamp(root.cm-x - self.width / 2, 8px, parent.width - self.width - 8px);
+            y: root.cm-y < 0 ? (parent.height - self.height) / 2 : clamp(root.cm-y, 8px, parent.height - self.height - 8px);
+            border-radius: 14px * root.k;
+            // Opaque, quel que soit le thème (les cartes dessous ne doivent pas se voir à travers).
+            background: Theme.bg-mid;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 24px;
+            drop-shadow-color: #00000080;
+            property <float> in-q: 0;
+            init => {
+                self.in-q = 1;
+            }
+            animate in-q { duration: Motion.panels ? 160ms : 0ms; easing: ease-out; }
+            opacity: self.in-q;
+            transform-scale: 0.94 + 0.06 * self.in-q;
+            // Le menu prend le clavier : ↑ ↓, Entrée, Échap.
+            cm-keys := FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.repeat && event.text == Key.Return) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.UpArrow) {
+                        root.cm-sel = max(0, root.cm-sel - 1);
+                    } else if (event.text == Key.DownArrow) {
+                        root.cm-sel = min(cm-layer.acts.length - 1, root.cm-sel + 1);
+                    } else if (event.text == Key.Return) {
+                        cm-box.run(root.cm-sel);
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Menu) {
+                        root.cm-open = false;
+                        root.refocus += 1;
+                    }
+                    return EventResult.accept;
+                }
+            }
+            cm-col := VerticalLayout {
+                padding: 8px * root.k;
+                spacing: 2px * root.k;
+                Text {
+                    text: root.cm-card.title;
+                    color: Theme.muted;
+                    font-size: 14px * root.k;
+                    overflow: elide;
+                    height: 30px * root.k;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+                for label[i] in cm-layer.labels: Rectangle {
+                    height: 44px * root.k;
+                    border-radius: 10px * root.k;
+                    property <bool> lit: Nav.kb ? root.cm-sel == i : cm-row-area.has-hover && !Nav.touch;
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                    Text {
+                        x: 14px * root.k;
+                        width: parent.width - 28px * root.k;
+                        text: label;
+                        color: parent.lit ? Theme.on-accent : Theme.text;
+                        font-size: 16px * root.k;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                    cm-row-area := TouchArea {
+                        clicked => {
+                            cm-box.run(i);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Fenêtre façon Windows 7 (Frutiger Aero, hors plein écran) : cadre de verre, poignées de

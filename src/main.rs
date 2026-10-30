@@ -12,6 +12,7 @@ mod winfull;
 #[path = "../android/src/entry.rs"]
 mod android_entry;
 mod config;
+mod dashboard;
 mod discovery;
 mod downloads;
 mod dust;
@@ -202,6 +203,19 @@ struct App {
     library: Mutex<Option<(String, Option<String>, u32, u32)>>,
     /// Une page de bibliothèque est en cours de chargement.
     lib_loading: AtomicBool,
+    /// Lettres tapées dans la grille : seuls les titres qui commencent ainsi (vide : tous).
+    lib_filter: Mutex<String>,
+    /// Change à chaque ouverture de bibliothèque ou nouveau filtre : une page arrivée pour une version
+    /// précédente est ignorée (réponses dans le désordre quand on tape vite).
+    lib_gen: AtomicU64,
+    /// Bibliothèques déjà distribuées comme des cartes pendant cette session : ensuite, simple arrivée.
+    lib_dealt: Mutex<std::collections::HashSet<String>>,
+    /// Identifier (administrateurs) : élément, type (« Movie », « Series ») et résultats de la dernière
+    /// recherche (rendus tels quels au serveur pour le choix).
+    ident: Mutex<Option<(String, String, Vec<serde_json::Value>)>>,
+    /// Dernier saut de l'index A–Z demandé (en glissant le long des lettres, les réponses arrivent
+    /// dans le désordre : seule la dernière demande compte).
+    lib_jump_seq: AtomicU64,
     /// Poster sélectionné dans une bibliothèque au moment d'ouvrir une fiche : (bibliothèque, index),
     /// pour y revenir au retour.
     lib_return: Mutex<Option<(String, usize)>>,
@@ -235,6 +249,15 @@ struct App {
     seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
     can_download: AtomicBool,
+    /// Compte administrateur du serveur : tableau de bord, actions de plus sur les cartes.
+    admin: AtomicBool,
+    /// Tableau de bord : lignes déjà lues, par catégorie (voir dashboard.rs).
+    dash_rows: Mutex<std::collections::HashMap<i32, Vec<SettingRow>>>,
+    /// Tableau de bord : action risquée armée (second appui pour confirmer), sinon vide.
+    dash_armed: Mutex<String>,
+    /// Tableau de bord : extensions activées (vrai) ou désactivées (faux) pendant cette session ; le
+    /// serveur n'en tient compte qu'à son redémarrage et annonce l'ancien état d'ici là.
+    dash_plugins: Mutex<std::collections::HashMap<String, bool>>,
     /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
     dl_queue: Mutex<std::collections::VecDeque<(String, String)>>,
     dl_current: Mutex<Option<(String, String, f32)>>,
@@ -1653,7 +1676,14 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     load_header_avatar(&app, &client);
     start_syncplay(&app, &client);
     resume_downloads(&app, &client);
-    app.can_download.store(client.can_download().await, Ordering::SeqCst);
+    let (can_download, admin) = client.rights().await;
+    app.can_download.store(can_download, Ordering::SeqCst);
+    // Administrateur : le menu de gauche gagne « Tableau de bord ».
+    if app.admin.swap(admin, Ordering::SeqCst) != admin {
+        let views = app.views.lock().unwrap().clone();
+        set_menu(&app, &views);
+    }
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_is_admin(admin));
     load_tab(app, client).await;
 }
 
@@ -3805,36 +3835,60 @@ fn open_library(app: &Arc<App>, client: &api::Client, lib: api::Item) {
         _ => None,
     };
     *app.library.lock().unwrap() = Some((lib.id.clone(), lib.collection_type.clone(), 0, 0));
+    // Retour d'une fiche : le filtre tapé avant reste (la sélection est comptée dedans) ; sinon, effacé.
+    if back_to.is_none() {
+        app.lib_filter.lock().unwrap().clear();
+    }
+    let filter = app.lib_filter.lock().unwrap().clone();
+    app.lib_gen.fetch_add(1, Ordering::SeqCst);
     let at_root = app.stack.lock().unwrap().len() <= 1;
     let title = lib.name.clone();
     *app.lib_title.lock().unwrap() = (title, at_root);
     let _ = app.ui().upgrade_in_event_loop(move |u| {
         u.set_h_focus(false);
+        u.set_lib_filter(filter.into());
+        u.set_lib_done(false);
         // La page n'apparaît qu'avec ses premières affiches (avant : page vide, puis tout arrivait) ;
         // au retour d'une fiche, une fois la carte d'origine rechargée (sinon la grille défilerait
         // depuis le haut jusqu'à elle). D'ici là, la page d'où l'on vient reste affichée.
         begin_loading(&u);
     });
-    load_library_page(app, client, back_to);
+    load_library_page(app, client, back_to, false);
 }
 
 /// Charge la page suivante de la bibliothèque affichée (rien si tout est chargé ou déjà en cours).
-/// `select` : poster à resélectionner (retour depuis une fiche) ; la page est agrandie pour l'inclure.
-fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>) {
+/// `select` : poster à resélectionner (retour depuis une fiche, index A–Z) ; la page est agrandie pour
+/// l'inclure. `refilter` : nouveau filtre tapé, la grille repart de sa première page sans quitter l'écran.
+fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>, refilter: bool) {
     let Some((id, ctype, loaded, total)) = app.library.lock().unwrap().clone() else { return };
-    if (loaded > 0 && loaded >= total) || app.lib_loading.swap(true, Ordering::SeqCst) {
+    if refilter {
+        app.lib_loading.store(true, Ordering::SeqCst);
+    } else if (loaded > 0 && loaded >= total) || app.lib_loading.swap(true, Ordering::SeqCst) {
         return;
     }
+    let gen = app.lib_gen.load(Ordering::SeqCst);
+    let filter = app.lib_filter.lock().unwrap().clone();
+    // Bibliothèque ouverte (pas un retour, pas un filtre) : distribuée comme des cartes la première fois
+    // de la session seulement (réglage « Distribution des bibliothèques »), ensuite simple arrivée.
+    let deal = loaded == 0
+        && select.is_none()
+        && !refilter
+        && config::ui_prefs().anim.deal
+        && app.lib_dealt.lock().unwrap().insert(id.clone());
     let (app2, client2) = (app.clone(), client.clone());
     app.rt.spawn(async move {
-        let limit = select.map(|s| (s as u32 + LIB_PAGE / 2).max(LIB_PAGE)).unwrap_or(LIB_PAGE);
-        let page = client2.library_page(&id, ctype.as_deref(), loaded, limit).await;
+        let limit = select.map(|s| (s as u32 + LIB_PAGE / 2).saturating_sub(loaded).max(LIB_PAGE)).unwrap_or(LIB_PAGE);
+        let page = client2.library_page(&id, ctype.as_deref(), loaded, limit, &filter).await;
+        // Filtre changé (ou autre bibliothèque) pendant la requête : la plus récente s'en occupe.
+        if app2.lib_gen.load(Ordering::SeqCst) != gen {
+            return;
+        }
         app2.lib_loading.store(false, Ordering::SeqCst);
         let (items, total) = match page {
             Ok(p) => p,
             Err(e) => {
                 let msg = trf("Bibliothèque illisible : {}", &[&human_err(&e)]);
-                let first = loaded == 0;
+                let first = loaded == 0 && !refilter;
                 let _ = app2.ui().upgrade_in_event_loop(move |u| {
                     // Première page refusée : on reste sur la page d'où l'on vient.
                     if first {
@@ -3894,14 +3948,18 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
                 }
             }
             u.set_lib_total(total as i32);
+            u.set_lib_done(true);
             if let Some(sel) = select {
                 u.set_l_sel(sel.min(u.get_lib_items().row_count().saturating_sub(1)) as i32);
+                u.set_lib_free(false);
             }
             // Première page : la page arrive, remplie (les lignes en cascade).
-            if loaded == 0 {
+            if loaded == 0 && !refilter {
                 show_screen(&u, "library");
                 if select.is_none() {
                     u.invoke_page_enter();
+                }
+                if deal {
                     // Sans carte d'où partir (menu, clavier) : le paquet monte du bas de l'écran, avec
                     // l'image de la bibliothèque si l'accueil l'a (rien ne se passe si une carte vole déjà).
                     let mut deck = CardData { id: lib_id.clone().into(), deck: true, ..Default::default() };
@@ -3932,6 +3990,252 @@ fn load_library_page(app: &Arc<App>, client: &api::Client, select: Option<usize>
             model.set_row_data(job.b, card);
         });
         spawn_image_jobs(&app2, &client2, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply);
+    });
+}
+
+/// Touche tapée dans la grille : une lettre ou un chiffre complète le filtre (titres qui commencent
+/// ainsi), Retour arrière en retire une, Échap le vide. Faux : touche laissée à la grille (Échap et
+/// Retour arrière sans filtre : retour à la page précédente).
+fn lib_key(app: &Arc<App>, key: &str) -> bool {
+    let (esc, back): (char, char) = (slint::platform::Key::Escape.into(), slint::platform::Key::Backspace.into());
+    let mut chars = key.chars();
+    let (Some(c), None) = (chars.next(), chars.next()) else { return false };
+    {
+        let mut f = app.lib_filter.lock().unwrap();
+        if c == esc || c == back {
+            if f.is_empty() {
+                return false;
+            }
+            if c == esc {
+                f.clear();
+            } else {
+                f.pop();
+            }
+        } else if (c.is_alphanumeric() || "'&-.:!".contains(c) || (c == ' ' && !f.is_empty())) && f.chars().count() < 40 {
+            f.extend(c.to_lowercase());
+        } else {
+            return false;
+        }
+    }
+    let Some(client) = app.client() else { return true };
+    // La grille repart de zéro avec ce filtre (les réponses d'avant sont ignorées, voir lib_gen).
+    app.lib_gen.fetch_add(1, Ordering::SeqCst);
+    if let Some((_, _, l, t)) = app.library.lock().unwrap().as_mut() {
+        (*l, *t) = (0, 0);
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_lib_filter(app.lib_filter.lock().unwrap().clone().into());
+        u.set_lib_done(false);
+    }
+    load_library_page(app, &client, None, true);
+    true
+}
+
+/// Index A–Z : sélectionne le premier titre qui commence par `letter` (ou par la lettre suivante qui
+/// existe), en chargeant les pages jusqu'à lui si besoin. « # » : le début de la grille.
+fn lib_jump(app: &Arc<App>, letter: String) {
+    let Some(client) = app.client() else { return };
+    let Some((id, ctype, _, _)) = app.library.lock().unwrap().clone() else { return };
+    if !app.lib_filter.lock().unwrap().is_empty() {
+        return;
+    }
+    let seq = app.lib_jump_seq.fetch_add(1, Ordering::SeqCst) + 1;
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let index = if letter == "#" {
+            0
+        } else {
+            match client.library_index(&id, ctype.as_deref(), &letter.to_lowercase()).await {
+                Ok(n) => n,
+                Err(_) => return,
+            }
+        };
+        // Une page est déjà en route (autre saut, défilement) : on attend qu'elle arrive (5 s au plus).
+        for _ in 0..50 {
+            if !app2.lib_loading.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        if app2.lib_jump_seq.load(Ordering::SeqCst) != seq {
+            return;
+        }
+        let Some((cur, _, loaded, total)) = app2.library.lock().unwrap().clone() else { return };
+        if cur != id || total == 0 {
+            return;
+        }
+        // Lettre après le dernier titre : la fin de la grille.
+        let index = index.min(total - 1) as usize;
+        if (index as u32) < loaded {
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                u.set_lib_free(false);
+                u.set_l_sel(index as i32);
+            });
+        } else {
+            load_library_page(&app2, &client, Some(index), false);
+        }
+    });
+}
+
+/// Menu d'une carte de la grille : marque le film ou la série (tous ses épisodes) comme vu ou non vu ;
+/// non vu efface aussi la progression (recommencer depuis le début).
+fn card_played(app: &Arc<App>, id: String, on: bool) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r = client.set_played(&id, on).await;
+        app2.home_stale.store(true, Ordering::SeqCst);
+        if r.is_ok() && downloads::exists(&id) {
+            config::set_flag(&id, false, on, false);
+        }
+        // État relu sur le serveur : épisodes restant à voir (série remise à zéro : tous), progression.
+        let fresh = if r.is_ok() { client.item(&id).await.ok().map(|i| i.card()) } else { None };
+        let (played, progress, count) = match &fresh {
+            Some(c) => (c.played, c.progress, c.count),
+            None => (on, 0.0, 0),
+        };
+        let _ = app2.ui().upgrade_in_event_loop(move |u| match r {
+            Ok(()) => {
+                let model = u.get_lib_items();
+                if let Some(i) = (0..model.row_count()).find(|&i| model.row_data(i).is_some_and(|c| c.id.as_str() == id)) {
+                    if let Some(mut card) = model.row_data(i) {
+                        card.played = played;
+                        card.progress = progress;
+                        card.count = count;
+                        model.set_row_data(i, card);
+                    }
+                }
+                u.set_toast(if on { tr("Marqué comme vu.") } else { tr("Marqué comme non vu.") }.into());
+            }
+            Err(e) => u.set_toast(trf("Action impossible : {}", &[&human_err(&e)]).into()),
+        });
+    });
+}
+
+/// Menu d'une carte, actions des administrateurs : « refresh » relit les informations sur Internet,
+/// « identify » ouvre la fenêtre Identifier (films et séries).
+fn card_admin(app: &Arc<App>, action: String, id: String) {
+    let Some(client) = app.client() else { return };
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        if action == "refresh" {
+            let r = client.refresh_item(&id).await;
+            app2.home_stale.store(true, Ordering::SeqCst);
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                u.set_toast(match r {
+                    Ok(()) => tr("Actualisation demandée : le serveur relit les informations.").into(),
+                    Err(e) => trf("Action impossible : {}", &[&human_err(&e)]).into(),
+                })
+            });
+            return;
+        }
+        let item = match client.item(&id).await {
+            Ok(i) => i,
+            Err(e) => {
+                let msg = trf("Action impossible : {}", &[&human_err(&e)]);
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                return;
+            }
+        };
+        if item.kind != "Movie" && item.kind != "Series" {
+            let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Seuls les films et les séries s'identifient.").into()));
+            return;
+        }
+        *app2.ident.lock().unwrap() = Some((id, item.kind.clone(), Vec::new()));
+        let (name, year) = (item.name.clone(), item.production_year.map(|y| y.to_string()).unwrap_or_default());
+        let (n2, y2) = (name.clone(), year.clone());
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_ident_title(n2.clone().into());
+            u.set_ident_name(n2.into());
+            u.set_ident_year(y2.into());
+            u.set_ident_results(ModelRc::new(VecModel::<CardData>::default()));
+            u.set_ident_sel(0);
+            u.set_ident_open(true);
+        });
+        ident_search(&app2, name, year);
+    });
+}
+
+/// Identifier : cherche `name` (et l'année, si c'est un nombre) chez les fournisseurs du serveur.
+fn ident_search(app: &Arc<App>, name: String, year: String) {
+    let Some(client) = app.client() else { return };
+    let Some((id, kind, _)) = app.ident.lock().unwrap().clone() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_ident_busy(true);
+        u.set_ident_results(ModelRc::new(VecModel::<CardData>::default()));
+        u.set_ident_sel(0);
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r = client.identify_search(&id, &kind, name.trim(), year.trim().parse().ok()).await;
+        let results = r.unwrap_or_default();
+        if let Some((cur, _, list)) = app2.ident.lock().unwrap().as_mut() {
+            if *cur != id {
+                return;
+            }
+            *list = results.clone();
+        }
+        // (titre, année · fournisseur) : les cartes sont faites sur le fil de l'interface (images).
+        let texts: Vec<(String, String)> = results
+            .iter()
+            .map(|r| {
+                let year = r["ProductionYear"].as_i64().map(|y| y.to_string()).unwrap_or_default();
+                let from = r["SearchProviderName"].as_str().unwrap_or("");
+                let sub = [year.as_str(), from].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join(" · ");
+                (r["Name"].as_str().unwrap_or("").to_string(), sub)
+            })
+            .collect();
+        let jobs: Vec<ImageJob> = results
+            .iter()
+            .enumerate()
+            .filter_map(|(i, r)| {
+                let url = r["ImageUrl"].as_str().filter(|u| u.starts_with("https://image.tmdb.org/"))?;
+                Some(ImageJob { a: 0, b: i, item_id: i.to_string(), cands: vec![(url.to_string(), "Url", None)] })
+            })
+            .collect();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_ident_busy(false);
+            let cards: Vec<CardData> = texts
+                .into_iter()
+                .enumerate()
+                .map(|(i, (title, subtitle))| CardData { id: i.to_string().into(), title: title.into(), subtitle: subtitle.into(), ..Default::default() })
+                .collect();
+            u.set_ident_results(ModelRc::new(VecModel::from(cards)));
+        });
+        let apply: Apply = Arc::new(|u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
+            let model = u.get_ident_results();
+            let Some(mut card) = model.row_data(job.b) else { return };
+            if card.id.as_str() != job.item_id {
+                return;
+            }
+            card.image = slint::Image::from_rgba8(buf);
+            card.has_image = true;
+            model.set_row_data(job.b, card);
+        });
+        spawn_image_jobs(&app2, &client, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, 150.0), apply);
+    });
+}
+
+/// Identifier : applique le résultat n° `i` (le serveur reprend les informations et les images).
+fn ident_apply(app: &Arc<App>, i: usize) {
+    let Some(client) = app.client() else { return };
+    let Some((id, _, list)) = app.ident.lock().unwrap().clone() else { return };
+    let Some(result) = list.get(i).cloned() else { return };
+    if let Some(u) = app.ui().upgrade() {
+        u.set_ident_open(false);
+        u.set_refocus(u.get_refocus() + 1);
+    }
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r = client.identify_apply(&id, &result).await;
+        app2.home_stale.store(true, Ordering::SeqCst);
+        let name = result["Name"].as_str().unwrap_or("").to_string();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_toast(match r {
+                Ok(()) => trf("Identifié comme « {} » : le serveur met à jour les informations.", &[&name]).into(),
+                Err(e) => trf("Action impossible : {}", &[&human_err(&e)]).into(),
+            })
+        });
     });
 }
 
@@ -4318,6 +4622,7 @@ fn anim_label(key: &str) -> (&'static str, &'static str) {
         "login" => (tr("Connexion"), tr("Photo du compte choisi, arrivée sur l'accueil.")),
         "language" => (tr("Changement de langue"), tr("Barre qui recouvre puis réécrit les textes.")),
         "tour" => (tr("Visite guidée"), tr("Bulles et cadres de la visite.")),
+        "deal" => (tr("Distribution des bibliothèques"), tr("À la première ouverture d'une bibliothèque, ses affiches sont distribuées comme des cartes ; ensuite, simple arrivée.")),
         _ => (tr("Fond animé"), tr("Le décor du thème bouge doucement (un peu plus de calcul, à couper sur un petit appareil).")),
     }
 }
@@ -4871,7 +5176,7 @@ fn toggle_ui_pref(app: &Arc<App>, f: impl Fn(&mut config::UiPrefs)) {
 
 fn refresh_settings(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
-    let rows = settings_rows(app, u.get_set_cat());
+    let rows = if u.get_set_dash() { dashboard::rows(app, u.get_set_cat()) } else { settings_rows(app, u.get_set_cat()) };
     // Même liste (mêmes réglages) : rangées mises à jour sur place, les pastilles de valeur
     // changent de largeur en douceur au lieu d'être recréées.
     let cur = u.get_set_rows();
@@ -4890,6 +5195,7 @@ fn refresh_settings(app: &Arc<App>) {
 
 fn open_settings(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
+        u.set_set_dash(false);
         u.set_set_cat(0);
         u.set_set_sel(0);
         u.set_set_in(false);
@@ -5178,6 +5484,10 @@ fn set_avatar(app: &Arc<App>, id: String) {
 
 /// Ligne de paramètre activée (Entrée / clic).
 fn settings_activate(app: &Arc<App>, key: &str) {
+    if key.starts_with("dash:") {
+        dashboard::activate(app, key);
+        return;
+    }
     match key {
         "alang" | "slang" | "submode" | "subsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
@@ -6293,6 +6603,9 @@ fn set_menu(app: &Arc<App>, views: &[api::Item]) {
         e.push((label.into(), action.into(), false));
     }
     e.push((tr("Application").into(), String::new(), true));
+    if !offline && app.admin.load(Ordering::SeqCst) {
+        e.push((tr("Tableau de bord").into(), "dashboard".into(), false));
+    }
     for (label, action) in [(tr("Paramètres"), "settings"), (tr("Fermer Turtlefin"), "quit")] {
         // Android : le bouton Retour ferme l'appli.
         if cfg!(target_os = "android") && action == "quit" {
@@ -7720,6 +8033,12 @@ impl Swipe {
                         return false;
                     }
                 }
+                // Bande de l'index A–Z (bibliothèque) : on y glisse le long des lettres, pas un défilement.
+                let band = u.get_az_band() as f64;
+                if band > 0.0 && p.0 / s >= u.window().size().width as f64 / s - band {
+                    self.id = None;
+                    return false;
+                }
                 let (mouse, last_finger) = (self.mouse, self.last_finger);
                 *self = Swipe { id: Some(id), start: p, last: p, t_last: Some(std::time::Instant::now()), edge: finger && p.0 < 24.0 * s, mouse, last_finger, ..Default::default() };
                 false
@@ -8140,11 +8459,20 @@ pub(crate) fn main() -> anyhow::Result<()> {
         watch: Mutex::new(None),
         library: Mutex::new(None),
         lib_loading: AtomicBool::new(false),
+        lib_filter: Mutex::new(String::new()),
+        lib_gen: AtomicU64::new(0),
+        lib_dealt: Mutex::new(std::collections::HashSet::new()),
+        lib_jump_seq: AtomicU64::new(0),
+        ident: Mutex::new(None),
         lib_return: Mutex::new(None),
         found: Mutex::new(Vec::new()),
         play_arg: Mutex::new(cli.play.clone()),
         play_start: Mutex::new(None),
         can_download: AtomicBool::new(false),
+        admin: AtomicBool::new(false),
+        dash_rows: Mutex::new(std::collections::HashMap::new()),
+        dash_armed: Mutex::new(String::new()),
+        dash_plugins: Mutex::new(std::collections::HashMap::new()),
         seerr_page: Mutex::new(None),
         search_gen: AtomicU64::new(0),
         user_cfg: Mutex::new(serde_json::Value::Null),
@@ -8400,7 +8728,14 @@ pub(crate) fn main() -> anyhow::Result<()> {
 
     ui.on_settings_category({
         let app = app.clone();
-        move || refresh_settings(&app)
+        move || {
+            // Tableau de bord : chaque catégorie ouverte est relue (lectures en cours, tâches...).
+            if let Some(u) = app.ui().upgrade().filter(|u| u.get_set_dash()) {
+                app.dash_armed.lock().unwrap().clear();
+                app.dash_rows.lock().unwrap().remove(&u.get_set_cat());
+            }
+            refresh_settings(&app)
+        }
     });
 
     ui.on_avatar_pick({
@@ -8564,9 +8899,44 @@ pub(crate) fn main() -> anyhow::Result<()> {
         let app = app.clone();
         move || {
             if let Some(client) = app.client() {
-                load_library_page(&app, &client, None);
+                load_library_page(&app, &client, None, false);
             }
         }
+    });
+
+    ui.on_lib_key({
+        let app = app.clone();
+        move |key| lib_key(&app, key.as_str())
+    });
+
+    ui.on_lib_jump({
+        let app = app.clone();
+        move |letter| lib_jump(&app, letter.to_string())
+    });
+
+    ui.on_card_admin({
+        let app = app.clone();
+        move |action, id| card_admin(&app, action.to_string(), id.to_string())
+    });
+
+    ui.on_ident_search({
+        let app = app.clone();
+        move |name, year| ident_search(&app, name.to_string(), year.to_string())
+    });
+
+    ui.on_ident_apply({
+        let app = app.clone();
+        move |i| ident_apply(&app, i.max(0) as usize)
+    });
+
+    ui.on_deal_allowed({
+        let app = app.clone();
+        move |id| config::ui_prefs().anim.deal && !app.lib_dealt.lock().unwrap().contains(id.as_str())
+    });
+
+    ui.on_card_played({
+        let app = app.clone();
+        move |id, on| card_played(&app, id.to_string(), on)
     });
 
     ui.on_menu_action({
@@ -8617,6 +8987,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 push_detail(&app, id.to_string());
             } else if a == "settings" {
                 open_settings(&app);
+            } else if a == "dashboard" {
+                dashboard::open(&app);
             } else if a == "password" {
                 open_settings(&app);
                 open_password(&app);

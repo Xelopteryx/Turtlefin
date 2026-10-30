@@ -2159,3 +2159,252 @@ msgstr "Server di nuovo raggiungibile (di nuovo online a fine riproduzione)."
 
 msgid "Serveur injoignable : la lecture continue tant que possible."
 msgstr "Server irraggiungibile: la riproduzione continua finché possibile."
+
+msgid "Titres commençant par"
+msgstr "Titoli che iniziano con"
+
+msgid "Échap : effacer"
+msgstr "Esc: cancella"
+
+msgid "Aucun titre ne commence ainsi."
+msgstr "Nessun titolo inizia così."
+
+msgid "Ouvrir la fiche"
+msgstr "Apri la scheda"
+
+msgid "Marquer comme non vu (recommencer)"
+msgstr "Segna come non visto (ricomincia)"
+
+msgid "Marquer comme vu"
+msgstr "Segna come visto"
+
+msgid "Marqué comme vu."
+msgstr "Segnato come visto."
+
+msgid "Marqué comme non vu."
+msgstr "Segnato come non visto."
+
+msgid "Distribution des bibliothèques"
+msgstr "Distribuzione delle librerie"
+
+msgid "À la première ouverture d'une bibliothèque, ses affiches sont distribuées comme des cartes ; ensuite, simple arrivée."
+msgstr "La prima volta che si apre una libreria, le locandine vengono distribuite come carte; poi appare semplicemente."
+
+msgid "Identifier… (corriger le titre reconnu)"
+msgstr "Identifica… (correggi il titolo riconosciuto)"
+
+msgid "Actualiser les informations"
+msgstr "Aggiorna le informazioni"
+
+msgid "Identifier"
+msgstr "Identifica"
+
+msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
+msgstr "Scegli il titolo giusto: il server ne riprenderà le informazioni e le immagini."
+
+msgid "Titre"
+msgstr "Titolo"
+
+msgid "Année"
+msgstr "Anno"
+
+msgid "Rechercher"
+msgstr "Cerca"
+
+msgid "Aucun résultat : modifie le titre ou l'année."
+msgstr "Nessun risultato: modifica il titolo o l'anno."
+
+msgid "Actualisation demandée : le serveur relit les informations."
+msgstr "Aggiornamento richiesto: il server rilegge le informazioni."
+
+msgid "Seuls les films et les séries s'identifient."
+msgstr "Si possono identificare solo film e serie."
+
+msgid "Identifié comme « {} » : le serveur met à jour les informations."
+msgstr "Identificato come «{}»: il server aggiorna le informazioni."
+
+msgid " · en pause"
+msgstr " · in pausa"
+
+msgid "Activité"
+msgstr "Attività"
+
+msgid "Administrateur"
+msgstr "Amministratore"
+
+msgid "Analyse de la bibliothèque lancée."
+msgstr "Scansione della libreria avviata."
+
+msgid "Analyse des bibliothèques lancée."
+msgstr "Scansione delle librerie avviata."
+
+msgid "Analyser"
+msgstr "Scansiona"
+
+msgid "Analyser toutes les bibliothèques"
+msgstr "Scansiona tutte le librerie"
+
+msgid "Appareil supprimé."
+msgstr "Dispositivo rimosso."
+
+msgid "Appareils"
+msgstr "Dispositivi"
+
+msgid "Arrêter"
+msgstr "Ferma"
+
+msgid "Arrêter le serveur"
+msgstr "Spegni il server"
+
+msgid "Aucune activité enregistrée."
+msgstr "Nessuna attività registrata."
+
+msgid "Aucune extension installée."
+msgstr "Nessuna estensione installata."
+
+msgid "Aucune lecture en cours."
+msgstr "Nessuna riproduzione in corso."
+
+msgid "Cherche les nouveaux fichiers et ceux qui ont disparu."
+msgstr "Cerca i nuovi file e quelli scomparsi."
+
+msgid "Compte activé."
+msgstr "Account attivato."
+
+msgid "Compte désactivé."
+msgstr "Account disattivato."
+
+msgid "Comptes"
+msgstr "Account"
+
+msgid "Confirmer ?"
+msgstr "Confermare?"
+
+msgid "Connecté · {}"
+msgstr "Connesso · {}"
+
+msgid "Extension activée (au prochain redémarrage)."
+msgstr "Estensione attivata (al prossimo riavvio)."
+
+msgid "Extension désactivée (au prochain redémarrage)."
+msgstr "Estensione disattivata (al prossimo riavvio)."
+
+msgid "Extensions"
+msgstr "Estensioni"
+
+msgid "Il faudra le rallumer sur la machine elle-même."
+msgstr "Andrà riacceso sulla macchina stessa."
+
+msgid "Lancer"
+msgstr "Avvia"
+
+msgid "Le serveur redémarre."
+msgstr "Il server si riavvia."
+
+msgid "Le serveur s'arrête."
+msgstr "Il server si spegne."
+
+msgid "Lecture arrêtée."
+msgstr "Riproduzione fermata."
+
+msgid "Lectures en cours"
+msgstr "Riproduzioni in corso"
+
+msgid "Les lectures en cours s'arrêtent le temps du redémarrage."
+msgstr "Le riproduzioni in corso si fermano durante il riavvio."
+
+msgid "Personne n'est connecté en ce moment."
+msgstr "Nessuno è connesso in questo momento."
+
+msgid "Redémarrer"
+msgstr "Riavvia"
+
+msgid "Redémarrer le serveur"
+msgstr "Riavvia il server"
+
+msgid "Supprimer"
+msgstr "Rimuovi"
+
+msgid "Tableau de bord"
+msgstr "Pannello di controllo"
+
+msgid "Tâche arrêtée."
+msgstr "Attività fermata."
+
+msgid "Tâche lancée."
+msgstr "Attività avviata."
+
+msgid "Tâches planifiées"
+msgstr "Attività pianificate"
+
+msgid "Un redémarrage est nécessaire pour appliquer des changements."
+msgstr "Serve un riavvio per applicare le modifiche."
+
+msgid "Une mise à jour de Jellyfin est disponible."
+msgstr "È disponibile un aggiornamento di Jellyfin."
+
+msgid "active"
+msgstr "attiva"
+
+msgid "activée au prochain redémarrage"
+msgstr "attivata al prossimo riavvio"
+
+msgid "annulée"
+msgstr "annullata"
+
+msgid "ce compte"
+msgstr "questo account"
+
+msgid "cet appareil"
+msgstr "questo dispositivo"
+
+msgid "désactivée"
+msgstr "disattivata"
+
+msgid "désactivée au prochain redémarrage"
+msgstr "disattivata al prossimo riavvio"
+
+msgid "en panne"
+msgstr "guasta"
+
+msgid "flux direct"
+msgstr "flusso diretto"
+
+msgid "incompatible avec cette version"
+msgstr "incompatibile con questa versione"
+
+msgid "interrompue"
+msgstr "interrotta"
+
+msgid "intégrée à Jellyfin"
+msgstr "integrata in Jellyfin"
+
+msgid "lecture directe"
+msgstr "riproduzione diretta"
+
+msgid "redémarrage du serveur nécessaire"
+msgstr "serve il riavvio del server"
+
+msgid "remplacée par une version plus récente"
+msgstr "sostituita da una versione più recente"
+
+msgid "supprimée au prochain redémarrage"
+msgstr "rimossa al prossimo riavvio"
+
+msgid "terminée"
+msgstr "completata"
+
+msgid "transcodage"
+msgstr "transcodifica"
+
+msgid "vu le {}"
+msgstr "visto il {}"
+
+msgid "{} · en cours ({} %)"
+msgstr "{} · in corso ({} %)"
+
+msgid "{} · {} le {}"
+msgstr "{} · {} il {}"
+
+msgid "échouée"
+msgstr "non riuscita"

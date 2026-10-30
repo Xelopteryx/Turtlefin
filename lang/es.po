@@ -2159,3 +2159,252 @@ msgstr "Servidor accesible de nuevo (vuelta en línea al terminar la reproducci�
 
 msgid "Serveur injoignable : la lecture continue tant que possible."
 msgstr "Servidor inaccesible: la reproducción sigue mientras sea posible."
+
+msgid "Titres commençant par"
+msgstr "Títulos que empiezan por"
+
+msgid "Échap : effacer"
+msgstr "Esc: borrar"
+
+msgid "Aucun titre ne commence ainsi."
+msgstr "Ningún título empieza así."
+
+msgid "Ouvrir la fiche"
+msgstr "Abrir la ficha"
+
+msgid "Marquer comme non vu (recommencer)"
+msgstr "Marcar como no visto (empezar de nuevo)"
+
+msgid "Marquer comme vu"
+msgstr "Marcar como visto"
+
+msgid "Marqué comme vu."
+msgstr "Marcado como visto."
+
+msgid "Marqué comme non vu."
+msgstr "Marcado como no visto."
+
+msgid "Distribution des bibliothèques"
+msgstr "Reparto de las bibliotecas"
+
+msgid "À la première ouverture d'une bibliothèque, ses affiches sont distribuées comme des cartes ; ensuite, simple arrivée."
+msgstr "La primera vez que se abre una biblioteca, sus carteles se reparten como cartas; después, simplemente aparece."
+
+msgid "Identifier… (corriger le titre reconnu)"
+msgstr "Identificar… (corregir el título reconocido)"
+
+msgid "Actualiser les informations"
+msgstr "Actualizar la información"
+
+msgid "Identifier"
+msgstr "Identificar"
+
+msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
+msgstr "Elige el título correcto: el servidor tomará su información y sus imágenes."
+
+msgid "Titre"
+msgstr "Título"
+
+msgid "Année"
+msgstr "Año"
+
+msgid "Rechercher"
+msgstr "Buscar"
+
+msgid "Aucun résultat : modifie le titre ou l'année."
+msgstr "Sin resultados: cambia el título o el año."
+
+msgid "Actualisation demandée : le serveur relit les informations."
+msgstr "Actualización solicitada: el servidor vuelve a leer la información."
+
+msgid "Seuls les films et les séries s'identifient."
+msgstr "Solo se pueden identificar películas y series."
+
+msgid "Identifié comme « {} » : le serveur met à jour les informations."
+msgstr "Identificado como «{}»: el servidor actualiza la información."
+
+msgid " · en pause"
+msgstr " · en pausa"
+
+msgid "Activité"
+msgstr "Actividad"
+
+msgid "Administrateur"
+msgstr "Administrador"
+
+msgid "Analyse de la bibliothèque lancée."
+msgstr "Análisis de la biblioteca iniciado."
+
+msgid "Analyse des bibliothèques lancée."
+msgstr "Análisis de las bibliotecas iniciado."
+
+msgid "Analyser"
+msgstr "Analizar"
+
+msgid "Analyser toutes les bibliothèques"
+msgstr "Analizar todas las bibliotecas"
+
+msgid "Appareil supprimé."
+msgstr "Dispositivo eliminado."
+
+msgid "Appareils"
+msgstr "Dispositivos"
+
+msgid "Arrêter"
+msgstr "Detener"
+
+msgid "Arrêter le serveur"
+msgstr "Apagar el servidor"
+
+msgid "Aucune activité enregistrée."
+msgstr "No hay actividad registrada."
+
+msgid "Aucune extension installée."
+msgstr "No hay extensiones instaladas."
+
+msgid "Aucune lecture en cours."
+msgstr "No hay reproducciones en curso."
+
+msgid "Cherche les nouveaux fichiers et ceux qui ont disparu."
+msgstr "Busca archivos nuevos y los que han desaparecido."
+
+msgid "Compte activé."
+msgstr "Cuenta activada."
+
+msgid "Compte désactivé."
+msgstr "Cuenta desactivada."
+
+msgid "Comptes"
+msgstr "Cuentas"
+
+msgid "Confirmer ?"
+msgstr "¿Confirmar?"
+
+msgid "Connecté · {}"
+msgstr "Conectado · {}"
+
+msgid "Extension activée (au prochain redémarrage)."
+msgstr "Extensión activada (en el próximo reinicio)."
+
+msgid "Extension désactivée (au prochain redémarrage)."
+msgstr "Extensión desactivada (en el próximo reinicio)."
+
+msgid "Extensions"
+msgstr "Extensiones"
+
+msgid "Il faudra le rallumer sur la machine elle-même."
+msgstr "Habrá que volver a encenderlo en la propia máquina."
+
+msgid "Lancer"
+msgstr "Iniciar"
+
+msgid "Le serveur redémarre."
+msgstr "El servidor se reinicia."
+
+msgid "Le serveur s'arrête."
+msgstr "El servidor se apaga."
+
+msgid "Lecture arrêtée."
+msgstr "Reproducción detenida."
+
+msgid "Lectures en cours"
+msgstr "Reproducciones en curso"
+
+msgid "Les lectures en cours s'arrêtent le temps du redémarrage."
+msgstr "Las reproducciones en curso se detienen durante el reinicio."
+
+msgid "Personne n'est connecté en ce moment."
+msgstr "No hay nadie conectado ahora."
+
+msgid "Redémarrer"
+msgstr "Reiniciar"
+
+msgid "Redémarrer le serveur"
+msgstr "Reiniciar el servidor"
+
+msgid "Supprimer"
+msgstr "Eliminar"
+
+msgid "Tableau de bord"
+msgstr "Panel de control"
+
+msgid "Tâche arrêtée."
+msgstr "Tarea detenida."
+
+msgid "Tâche lancée."
+msgstr "Tarea iniciada."
+
+msgid "Tâches planifiées"
+msgstr "Tareas programadas"
+
+msgid "Un redémarrage est nécessaire pour appliquer des changements."
+msgstr "Hace falta reiniciar para aplicar los cambios."
+
+msgid "Une mise à jour de Jellyfin est disponible."
+msgstr "Hay una actualización de Jellyfin disponible."
+
+msgid "active"
+msgstr "activa"
+
+msgid "activée au prochain redémarrage"
+msgstr "activada en el próximo reinicio"
+
+msgid "annulée"
+msgstr "cancelada"
+
+msgid "ce compte"
+msgstr "esta cuenta"
+
+msgid "cet appareil"
+msgstr "este dispositivo"
+
+msgid "désactivée"
+msgstr "desactivada"
+
+msgid "désactivée au prochain redémarrage"
+msgstr "desactivada en el próximo reinicio"
+
+msgid "en panne"
+msgstr "averiada"
+
+msgid "flux direct"
+msgstr "flujo directo"
+
+msgid "incompatible avec cette version"
+msgstr "incompatible con esta versión"
+
+msgid "interrompue"
+msgstr "interrumpida"
+
+msgid "intégrée à Jellyfin"
+msgstr "integrada en Jellyfin"
+
+msgid "lecture directe"
+msgstr "lectura directa"
+
+msgid "redémarrage du serveur nécessaire"
+msgstr "hace falta reiniciar el servidor"
+
+msgid "remplacée par une version plus récente"
+msgstr "sustituida por una versión más reciente"
+
+msgid "supprimée au prochain redémarrage"
+msgstr "eliminada en el próximo reinicio"
+
+msgid "terminée"
+msgstr "terminada"
+
+msgid "transcodage"
+msgstr "transcodificación"
+
+msgid "vu le {}"
+msgstr "visto el {}"
+
+msgid "{} · en cours ({} %)"
+msgstr "{} · en curso ({} %)"
+
+msgid "{} · {} le {}"
+msgstr "{} · {} el {}"
+
+msgid "échouée"
+msgstr "fallida"

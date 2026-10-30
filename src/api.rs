@@ -1403,6 +1403,7 @@ impl Client {
         collection_type: Option<&str>,
         start: u32,
         limit: u32,
+        starts_with: &str,
     ) -> Result<(Vec<Item>, u32)> {
         let (start, limit) = (start.to_string(), limit.to_string());
         let mut q: Vec<(&str, &str)> = vec![
@@ -1413,14 +1414,37 @@ impl Client {
             ("StartIndex", &start),
             ("Limit", &limit),
         ];
+        Self::library_kind(collection_type, &mut q);
+        // Saisie au clavier dans la grille : titres dont le nom (de tri) commence par ces lettres.
+        if !starts_with.is_empty() {
+            q.push(("NameStartsWith", starts_with));
+        }
+        let r: ItemsResp = self.get("/Items", &q).await?;
+        let total = r.total_record_count.unwrap_or(r.items.len() as u32);
+        Ok((r.items, total))
+    }
+
+    /// Position, dans la grille triée par nom, du premier titre qui commence par `letter` (ou la
+    /// suivante) : le nombre de titres classés avant (index A–Z de la bibliothèque).
+    pub async fn library_index(&self, parent_id: &str, collection_type: Option<&str>, letter: &str) -> Result<u32> {
+        let mut q: Vec<(&str, &str)> = vec![
+            ("userId", &self.user_id),
+            ("parentId", parent_id),
+            ("Limit", "0"),
+            ("NameLessThan", letter),
+        ];
+        Self::library_kind(collection_type, &mut q);
+        let r: ItemsResp = self.get("/Items", &q).await?;
+        Ok(r.total_record_count.unwrap_or(0))
+    }
+
+    /// Films ou séries seulement (pas les dossiers, saisons, épisodes...) selon le type de bibliothèque.
+    fn library_kind(collection_type: Option<&str>, q: &mut Vec<(&str, &str)>) {
         match collection_type {
             Some("movies") => q.extend([("Recursive", "true"), ("IncludeItemTypes", "Movie")]),
             Some("tvshows") => q.extend([("Recursive", "true"), ("IncludeItemTypes", "Series")]),
             _ => {}
         }
-        let r: ItemsResp = self.get("/Items", &q).await?;
-        let total = r.total_record_count.unwrap_or(r.items.len() as u32);
-        Ok((r.items, total))
     }
 
     /// Segments du média : (début et fin de l'intro, début du générique de fin), en secondes.
@@ -1487,12 +1511,97 @@ impl Client {
     }
 
     /// Le compte a-t-il le droit de télécharger ?
-    pub async fn can_download(&self) -> bool {
+    /// Droits du compte : (peut télécharger, administrateur du serveur).
+    pub async fn rights(&self) -> (bool, bool) {
         let v: serde_json::Value = match self.get(&format!("/Users/{}", seg(&self.user_id)), &[]).await {
             Ok(v) => v,
-            Err(_) => return false,
+            Err(_) => return (false, false),
         };
-        v["Policy"]["EnableContentDownloading"].as_bool().unwrap_or(false)
+        let p = &v["Policy"];
+        (p["EnableContentDownloading"].as_bool().unwrap_or(false), p["IsAdministrator"].as_bool().unwrap_or(false))
+    }
+
+    /// Tableau de bord (administrateurs) : réponse JSON d'une adresse du serveur.
+    pub async fn admin_get(&self, path: &str, query: &[(&str, &str)]) -> Result<serde_json::Value> {
+        self.get(path, query).await
+    }
+
+    /// Tableau de bord (administrateurs) : envoie une commande au serveur (lancer une tâche, supprimer un
+    /// appareil, redémarrer...), avec un corps JSON si besoin.
+    pub async fn admin_send(&self, method: reqwest::Method, path: &str, query: &[(&str, &str)], body: Option<&serde_json::Value>) -> Result<()> {
+        let mut req = self
+            .http
+            .request(method, format!("{}{}", self.server, path))
+            .query(query)
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)));
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+        let resp = req.send().await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&resp.status(), &path])));
+        }
+        Ok(())
+    }
+
+    /// Administrateurs : relit les informations d'un élément sur Internet (et ses images manquantes),
+    /// sans écraser ce qui a été corrigé à la main.
+    pub async fn refresh_item(&self, id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{}/Items/{}/Refresh", self.server, seg(id)))
+            .query(&[
+                ("metadataRefreshMode", "FullRefresh"),
+                ("imageRefreshMode", "FullRefresh"),
+                ("replaceAllMetadata", "false"),
+                ("replaceAllImages", "false"),
+            ])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
+        }
+        Ok(())
+    }
+
+    /// Administrateurs : titres trouvés sur Internet (TMDB, TVDB...) pour identifier un film ou une série
+    /// mal reconnus. `kind` : « Movie » ou « Series ». Chaque résultat est rendu tel quel à `identify_apply`.
+    pub async fn identify_search(&self, id: &str, kind: &str, name: &str, year: Option<u32>) -> Result<Vec<serde_json::Value>> {
+        let mut info = serde_json::json!({ "Name": name });
+        if let Some(y) = year {
+            info["Year"] = y.into();
+        }
+        let body = serde_json::json!({ "SearchInfo": info, "ItemId": id, "IncludeDisabledProviders": false });
+        let resp = self
+            .http
+            .post(format!("{}/Items/RemoteSearch/{}", self.server, seg(kind)))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(&body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
+        }
+        let v: serde_json::Value = json_limited(resp).await?;
+        Ok(v.as_array().cloned().unwrap_or_default())
+    }
+
+    /// Administrateurs : applique le résultat choisi (identifiants TMDB, TVDB...) ; le serveur relit alors
+    /// les informations et remplace les images.
+    pub async fn identify_apply(&self, id: &str, result: &serde_json::Value) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{}/Items/RemoteSearch/Apply/{}", self.server, seg(id)))
+            .query(&[("replaceAllImages", "true")])
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .json(result)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
+        }
+        Ok(())
     }
 
     async fn send_flag(&self, method: reqwest::Method, path: &str) -> Result<()> {
