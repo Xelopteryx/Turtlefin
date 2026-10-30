@@ -2539,3 +2539,12 @@ msgstr "Brak kluczy API."
 
 msgid "Clé révoquée."
 msgstr "Klucz unieważniony."
+
+msgid "Toutes les extensions disponibles sont déjà installées."
+msgstr "Wszystkie dostępne rozszerzenia są już zainstalowane."
+
+msgid "Installation lancée : l'extension sera active au prochain redémarrage du serveur."
+msgstr "Rozpoczęto instalację: rozszerzenie będzie aktywne po następnym restarcie serwera."
+
+msgid "Catalogue"
+msgstr "Katalog"

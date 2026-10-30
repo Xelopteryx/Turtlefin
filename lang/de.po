@@ -2531,3 +2531,12 @@ msgstr "Keine API-Schlüssel."
 
 msgid "Clé révoquée."
 msgstr "Schlüssel widerrufen."
+
+msgid "Toutes les extensions disponibles sont déjà installées."
+msgstr "Alle verfügbaren Erweiterungen sind bereits installiert."
+
+msgid "Installation lancée : l'extension sera active au prochain redémarrage du serveur."
+msgstr "Installation gestartet: Die Erweiterung ist nach dem nächsten Serverneustart aktiv."
+
+msgid "Catalogue"
+msgstr "Katalog"

@@ -37,6 +37,11 @@ fn when(iso: &str) -> String {
     }
 }
 
+/// Nom pour un chemin d'adresse (espaces, accents...).
+fn urlenc(s: &str) -> String {
+    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+}
+
 /// Morceaux non vides, séparés par « · ».
 fn join(parts: &[String]) -> String {
     parts.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" · ")
@@ -332,6 +337,25 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                 v.push(info(tr("Aucune clé d'API.")));
             }
         }
+        // Catalogue : extensions des dépôts du serveur pas encore installées ; installation.
+        10 => {
+            let installed: Vec<String> = c.admin_get("/Plugins", &[]).await?
+                .as_array().into_iter().flatten().filter_map(|p| p["Id"].as_str().map(|i| i.replace('-', "").to_lowercase())).collect();
+            let list = c.admin_get("/Packages", &[]).await?;
+            let mut pkgs: Vec<&Value> = list.as_array().into_iter().flatten()
+                .filter(|p| !installed.contains(&s(p, "guid").replace('-', "").to_lowercase()))
+                .collect();
+            pkgs.sort_by_key(|p| (s(p, "category"), s(p, "name")));
+            for x in pkgs {
+                let version = x["versions"].as_array().and_then(|v| v.first()).map(|v| s(v, "version")).unwrap_or_default();
+                let hint = join(&[s(x, "category"), version.clone(), s(x, "overview").chars().take(90).collect::<String>()]);
+                let key = format!("dash:install:{}:{}:{}", s(x, "guid"), version, s(x, "name"));
+                v.push(row(&key, &s(x, "name"), &hint, &confirm(&key, tr("Installer")), "action", false));
+            }
+            if v.is_empty() {
+                v.push(info(tr("Toutes les extensions disponibles sont déjà installées.")));
+            }
+        }
         // Extensions : activées ou non (le serveur doit redémarrer pour en tenir compte).
         _ => {
             let list = c.admin_get("/Plugins", &[]).await?;
@@ -367,7 +391,7 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
 pub fn activate(app: &Arc<App>, key: &str) {
     let Some(client) = app.client() else { return };
     // Actions qui ne se rattrapent pas : un premier appui arme, le second exécute.
-    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:") || key.starts_with("dash:userdel:") || key.starts_with("dash:keydel:");
+    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:") || key.starts_with("dash:userdel:") || key.starts_with("dash:keydel:") || key.starts_with("dash:install:");
     // Ouvrir / fermer le détail d'un compte : rien à envoyer au serveur.
     if let Some(id) = key.strip_prefix("dash:useropen:") {
         *app.dash_user.lock().unwrap() = id.to_string();
@@ -418,6 +442,13 @@ pub fn activate(app: &Arc<App>, key: &str) {
             ["dash", "device", id] => client.admin_send(Method::DELETE, "/Devices", &[("id", id)], None).await.map(|_| tr("Appareil supprimé.")),
             ["dash", "policy", id, field] => toggle_policy(&client, id, field).await,
             ["dash", "conf", field] => toggle_conf(&client, field).await,
+            ["dash", "install", guid, version, name @ ..] => {
+                let name = name.join(":");
+                client
+                    .admin_send(Method::POST, &format!("/Packages/Installed/{}", urlenc(&name)), &[("assemblyGuid", guid), ("version", version)], None)
+                    .await
+                    .map(|_| tr("Installation lancée : l'extension sera active au prochain redémarrage du serveur."))
+            }
             ["dash", "keydel", token] => client.admin_send(Method::DELETE, &format!("/Auth/Keys/{token}"), &[], None).await.map(|_| tr("Clé révoquée.")),
             ["dash", "userdel", id] => {
                 let r = client.admin_send(Method::DELETE, &format!("/Users/{id}"), &[], None).await;

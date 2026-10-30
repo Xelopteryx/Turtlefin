@@ -2531,3 +2531,12 @@ msgstr "No API keys."
 
 msgid "Clé révoquée."
 msgstr "Key revoked."
+
+msgid "Toutes les extensions disponibles sont déjà installées."
+msgstr "All available plugins are already installed."
+
+msgid "Installation lancée : l'extension sera active au prochain redémarrage du serveur."
+msgstr "Installation started: the plugin will be active after the next server restart."
+
+msgid "Catalogue"
+msgstr "Catalog"

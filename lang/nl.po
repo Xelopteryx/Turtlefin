@@ -2531,3 +2531,12 @@ msgstr "Geen API-sleutels."
 
 msgid "Clé révoquée."
 msgstr "Sleutel ingetrokken."
+
+msgid "Toutes les extensions disponibles sont déjà installées."
+msgstr "Alle beschikbare extensies zijn al geïnstalleerd."
+
+msgid "Installation lancée : l'extension sera active au prochain redémarrage du serveur."
+msgstr "Installatie gestart: de extensie is actief na de volgende herstart van de server."
+
+msgid "Catalogue"
+msgstr "Catalogus"
