@@ -258,6 +258,8 @@ struct App {
     /// Tableau de bord : extensions activées (vrai) ou désactivées (faux) pendant cette session ; le
     /// serveur n'en tient compte qu'à son redémarrage et annonce l'ancien état d'ici là.
     dash_plugins: Mutex<std::collections::HashMap<String, bool>>,
+    /// Tableau de bord : compte ouvert dans la catégorie Comptes (vide : la liste).
+    dash_user: Mutex<String>,
     /// File de téléchargement : (id, titre) en attente, et celui en cours (id, titre, avancement).
     dl_queue: Mutex<std::collections::VecDeque<(String, String)>>,
     dl_current: Mutex<Option<(String, String, f32)>>,
@@ -8473,6 +8475,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         dash_rows: Mutex::new(std::collections::HashMap::new()),
         dash_armed: Mutex::new(String::new()),
         dash_plugins: Mutex::new(std::collections::HashMap::new()),
+        dash_user: Mutex::new(String::new()),
         seerr_page: Mutex::new(None),
         search_gen: AtomicU64::new(0),
         user_cfg: Mutex::new(serde_json::Value::Null),
@@ -8733,6 +8736,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
             if let Some(u) = app.ui().upgrade().filter(|u| u.get_set_dash()) {
                 app.dash_armed.lock().unwrap().clear();
                 app.dash_rows.lock().unwrap().remove(&u.get_set_cat());
+                app.dash_user.lock().unwrap().clear();
             }
             refresh_settings(&app)
         }

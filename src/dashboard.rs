@@ -167,26 +167,61 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                 v.push(row(&format!("dash:scan:{}", s(x, "ItemId")), &s(x, "Name"), &hint, tr("Analyser"), "action", false));
             }
         }
-        // Comptes : activés ou non (le sien ne se désactive pas d'ici).
+        // Comptes : la liste, ou le détail d'un compte ouvert (ses droits, sa suppression).
         3 => {
             let me = c.user_id.clone();
-            let list = c.admin_get("/Users", &[]).await?;
-            for x in list.as_array().into_iter().flatten() {
-                let id = s(x, "Id");
+            let open = app.dash_user.lock().unwrap().clone();
+            if !open.is_empty() {
+                let x = c.admin_get(&format!("/Users/{open}"), &[]).await?;
                 let p = &x["Policy"];
-                let mut hint = Vec::new();
-                if p["IsAdministrator"].as_bool().unwrap_or(false) {
-                    hint.push(tr("Administrateur").to_string());
+                let b = |k: &str| p[k].as_bool().unwrap_or(false);
+                v.push(row("dash:userback", &format!("‹  {}", s(&x, "Name")), tr("Retour à la liste des comptes."), tr("Retour"), "action", false));
+                let mine = open == me;
+                // Ses propres droits d'administrateur et son activation ne se changent pas d'ici
+                // (on se fermerait la porte).
+                let rights: [(&str, &str, &str, bool); 7] = [
+                    ("IsDisabled", tr("Compte activé"), tr("Un compte désactivé ne peut plus se connecter."), true),
+                    ("IsAdministrator", tr("Administrateur"), tr("Gère le serveur (tableau de bord, comptes, bibliothèques)."), false),
+                    ("EnableRemoteAccess", tr("Accès depuis Internet"), tr("Peut se connecter hors du réseau de la maison."), false),
+                    ("EnableContentDownloading", tr("Téléchargements"), tr("Peut télécharger les médias pour les regarder hors ligne."), false),
+                    ("EnableVideoPlaybackTranscoding", tr("Transcodage vidéo"), tr("Le serveur peut convertir la vidéo quand l'appareil ne la lit pas telle quelle."), false),
+                    ("EnableAllFolders", tr("Toutes les bibliothèques"), tr("Voit toutes les bibliothèques du serveur."), false),
+                    ("EnableContentDeletion", tr("Suppression de médias"), tr("Peut supprimer des fichiers du serveur."), false),
+                ];
+                for (key, label, hint, inverted) in rights {
+                    let on = if inverted { !b(key) } else { b(key) };
+                    if mine && (key == "IsDisabled" || key == "IsAdministrator") {
+                        v.push(row("info", label, &format!("{hint} · {}", tr("ce compte")), if on { tr("Oui") } else { tr("Non") }, "info", false));
+                    } else {
+                        v.push(row(&format!("dash:policy:{open}:{key}"), label, hint, "", "toggle", on));
+                    }
                 }
                 if let Some(d) = x["LastActivityDate"].as_str() {
-                    hint.push(trf("vu le {}", &[&when(d)]));
+                    v.push(info(&trf("Dernière activité : {}", &[&when(d)])));
                 }
-                if id == me {
-                    hint.push(tr("ce compte").to_string());
-                    v.push(row("info", &s(x, "Name"), &hint.join(" · "), "", "info", false));
-                } else {
-                    let on = !p["IsDisabled"].as_bool().unwrap_or(false);
-                    v.push(row(&format!("dash:user:{id}"), &s(x, "Name"), &hint.join(" · "), "", "toggle", on));
+                if !mine {
+                    let key = format!("dash:userdel:{open}");
+                    v.push(row(&key, tr("Supprimer le compte"), tr("Ses favoris et son avancement sont perdus."), &confirm(&key, tr("Supprimer")), "action", false));
+                }
+            } else {
+                let list = c.admin_get("/Users", &[]).await?;
+                for x in list.as_array().into_iter().flatten() {
+                    let id = s(x, "Id");
+                    let p = &x["Policy"];
+                    let mut hint = Vec::new();
+                    if p["IsAdministrator"].as_bool().unwrap_or(false) {
+                        hint.push(tr("Administrateur").to_string());
+                    }
+                    if p["IsDisabled"].as_bool().unwrap_or(false) {
+                        hint.push(tr("désactivé").to_string());
+                    }
+                    if let Some(d) = x["LastActivityDate"].as_str() {
+                        hint.push(trf("vu le {}", &[&when(d)]));
+                    }
+                    if id == me {
+                        hint.push(tr("ce compte").to_string());
+                    }
+                    v.push(row(&format!("dash:useropen:{id}"), &s(x, "Name"), &hint.join(" · "), tr("Gérer"), "action", false));
                 }
             }
         }
@@ -277,7 +312,18 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
 pub fn activate(app: &Arc<App>, key: &str) {
     let Some(client) = app.client() else { return };
     // Actions qui ne se rattrapent pas : un premier appui arme, le second exécute.
-    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:");
+    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:") || key.starts_with("dash:userdel:");
+    // Ouvrir / fermer le détail d'un compte : rien à envoyer au serveur.
+    if let Some(id) = key.strip_prefix("dash:useropen:") {
+        *app.dash_user.lock().unwrap() = id.to_string();
+        reload_current(app);
+        return;
+    }
+    if key == "dash:userback" {
+        app.dash_user.lock().unwrap().clear();
+        reload_current(app);
+        return;
+    }
     if risky {
         let mut armed = app.dash_armed.lock().unwrap();
         if *armed != key {
@@ -305,7 +351,14 @@ pub fn activate(app: &Arc<App>, key: &str) {
             ["dash", "task", id] => client.admin_send(Method::POST, &format!("/ScheduledTasks/Running/{id}"), &[], None).await.map(|_| tr("Tâche lancée.")),
             ["dash", "taskstop", id] => client.admin_send(Method::DELETE, &format!("/ScheduledTasks/Running/{id}"), &[], None).await.map(|_| tr("Tâche arrêtée.")),
             ["dash", "device", id] => client.admin_send(Method::DELETE, "/Devices", &[("id", id)], None).await.map(|_| tr("Appareil supprimé.")),
-            ["dash", "user", id] => toggle_user(&client, id).await,
+            ["dash", "policy", id, field] => toggle_policy(&client, id, field).await,
+            ["dash", "userdel", id] => {
+                let r = client.admin_send(Method::DELETE, &format!("/Users/{id}"), &[], None).await;
+                if r.is_ok() {
+                    app2.dash_user.lock().unwrap().clear();
+                }
+                r.map(|_| tr("Compte supprimé."))
+            }
             ["dash", "plugin", id, version] => toggle_plugin(&app2, &client, id, version).await,
             _ => return,
         };
@@ -321,14 +374,18 @@ pub fn activate(app: &Arc<App>, key: &str) {
     });
 }
 
-/// Compte activé <-> désactivé : la politique entière est renvoyée, seul `IsDisabled` change.
-async fn toggle_user(c: &crate::api::Client, id: &str) -> anyhow::Result<&'static str> {
+/// Un droit d'un compte inversé : la politique entière est renvoyée, seul `field` change.
+async fn toggle_policy(c: &crate::api::Client, id: &str, field: &str) -> anyhow::Result<&'static str> {
     let user = c.admin_get(&format!("/Users/{id}"), &[]).await?;
     let mut policy = user["Policy"].clone();
-    let off = !policy["IsDisabled"].as_bool().unwrap_or(false);
-    policy["IsDisabled"] = off.into();
+    let now = !policy[field].as_bool().unwrap_or(false);
+    policy[field] = now.into();
     c.admin_send(Method::POST, &format!("/Users/{id}/Policy"), &[], Some(&policy)).await?;
-    Ok(if off { tr("Compte désactivé.") } else { tr("Compte activé.") })
+    Ok(match (field, now) {
+        ("IsDisabled", true) => tr("Compte désactivé."),
+        ("IsDisabled", false) => tr("Compte activé."),
+        _ => tr("Droit modifié."),
+    })
 }
 
 /// Extension activée <-> désactivée (prise en compte au prochain redémarrage du serveur) : l'état de
@@ -363,6 +420,7 @@ pub fn open(app: &Arc<App>) {
     }
     app.dash_rows.lock().unwrap().clear();
     app.dash_armed.lock().unwrap().clear();
+    app.dash_user.lock().unwrap().clear();
     if let Some(u) = app.ui().upgrade() {
         u.set_set_dash(true);
         u.set_set_cat(0);

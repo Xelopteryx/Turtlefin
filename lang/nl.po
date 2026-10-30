@@ -2408,3 +2408,69 @@ msgstr "{} · {} op {}"
 
 msgid "échouée"
 msgstr "mislukt"
+
+msgid "Retour à la liste des comptes."
+msgstr "Terug naar de accountlijst."
+
+msgid "Compte activé"
+msgstr "Account ingeschakeld"
+
+msgid "Un compte désactivé ne peut plus se connecter."
+msgstr "Een uitgeschakeld account kan niet meer inloggen."
+
+msgid "Gère le serveur (tableau de bord, comptes, bibliothèques)."
+msgstr "Beheert de server (dashboard, accounts, bibliotheken)."
+
+msgid "Accès depuis Internet"
+msgstr "Toegang via internet"
+
+msgid "Peut se connecter hors du réseau de la maison."
+msgstr "Kan inloggen buiten het thuisnetwerk."
+
+msgid "Peut télécharger les médias pour les regarder hors ligne."
+msgstr "Kan media downloaden om offline te kijken."
+
+msgid "Transcodage vidéo"
+msgstr "Videotranscodering"
+
+msgid "Le serveur peut convertir la vidéo quand l'appareil ne la lit pas telle quelle."
+msgstr "De server mag de video omzetten als het apparaat hem niet direct kan afspelen."
+
+msgid "Toutes les bibliothèques"
+msgstr "Alle bibliotheken"
+
+msgid "Voit toutes les bibliothèques du serveur."
+msgstr "Ziet alle bibliotheken van de server."
+
+msgid "Suppression de médias"
+msgstr "Media verwijderen"
+
+msgid "Peut supprimer des fichiers du serveur."
+msgstr "Kan bestanden van de server verwijderen."
+
+msgid "Oui"
+msgstr "Ja"
+
+msgid "Non"
+msgstr "Nee"
+
+msgid "Dernière activité : {}"
+msgstr "Laatste activiteit: {}"
+
+msgid "Supprimer le compte"
+msgstr "Account verwijderen"
+
+msgid "Ses favoris et son avancement sont perdus."
+msgstr "Favorieten en voortgang gaan verloren."
+
+msgid "désactivé"
+msgstr "uitgeschakeld"
+
+msgid "Gérer"
+msgstr "Beheren"
+
+msgid "Compte supprimé."
+msgstr "Account verwijderd."
+
+msgid "Droit modifié."
+msgstr "Recht gewijzigd."

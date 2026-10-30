@@ -2408,3 +2408,69 @@ msgstr "{} · {} on {}"
 
 msgid "échouée"
 msgstr "failed"
+
+msgid "Retour à la liste des comptes."
+msgstr "Back to the account list."
+
+msgid "Compte activé"
+msgstr "Account enabled"
+
+msgid "Un compte désactivé ne peut plus se connecter."
+msgstr "A disabled account can no longer sign in."
+
+msgid "Gère le serveur (tableau de bord, comptes, bibliothèques)."
+msgstr "Manages the server (dashboard, accounts, libraries)."
+
+msgid "Accès depuis Internet"
+msgstr "Access from the Internet"
+
+msgid "Peut se connecter hors du réseau de la maison."
+msgstr "Can sign in from outside the home network."
+
+msgid "Peut télécharger les médias pour les regarder hors ligne."
+msgstr "Can download media to watch offline."
+
+msgid "Transcodage vidéo"
+msgstr "Video transcoding"
+
+msgid "Le serveur peut convertir la vidéo quand l'appareil ne la lit pas telle quelle."
+msgstr "The server may convert the video when the device cannot play it as is."
+
+msgid "Toutes les bibliothèques"
+msgstr "All libraries"
+
+msgid "Voit toutes les bibliothèques du serveur."
+msgstr "Sees every library on the server."
+
+msgid "Suppression de médias"
+msgstr "Media deletion"
+
+msgid "Peut supprimer des fichiers du serveur."
+msgstr "Can delete files from the server."
+
+msgid "Oui"
+msgstr "Yes"
+
+msgid "Non"
+msgstr "No"
+
+msgid "Dernière activité : {}"
+msgstr "Last activity: {}"
+
+msgid "Supprimer le compte"
+msgstr "Delete the account"
+
+msgid "Ses favoris et son avancement sont perdus."
+msgstr "Its favorites and progress are lost."
+
+msgid "désactivé"
+msgstr "disabled"
+
+msgid "Gérer"
+msgstr "Manage"
+
+msgid "Compte supprimé."
+msgstr "Account deleted."
+
+msgid "Droit modifié."
+msgstr "Permission changed."

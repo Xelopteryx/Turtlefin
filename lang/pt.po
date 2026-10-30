@@ -2408,3 +2408,69 @@ msgstr "{} · {} a {}"
 
 msgid "échouée"
 msgstr "falhada"
+
+msgid "Retour à la liste des comptes."
+msgstr "Voltar à lista de contas."
+
+msgid "Compte activé"
+msgstr "Conta ativada"
+
+msgid "Un compte désactivé ne peut plus se connecter."
+msgstr "Uma conta desativada já não pode iniciar sessão."
+
+msgid "Gère le serveur (tableau de bord, comptes, bibliothèques)."
+msgstr "Gere o servidor (painel, contas, bibliotecas)."
+
+msgid "Accès depuis Internet"
+msgstr "Acesso pela Internet"
+
+msgid "Peut se connecter hors du réseau de la maison."
+msgstr "Pode ligar-se fora da rede de casa."
+
+msgid "Peut télécharger les médias pour les regarder hors ligne."
+msgstr "Pode transferir os conteúdos para ver offline."
+
+msgid "Transcodage vidéo"
+msgstr "Transcodificação de vídeo"
+
+msgid "Le serveur peut convertir la vidéo quand l'appareil ne la lit pas telle quelle."
+msgstr "O servidor pode converter o vídeo quando o dispositivo não o lê tal como está."
+
+msgid "Toutes les bibliothèques"
+msgstr "Todas as bibliotecas"
+
+msgid "Voit toutes les bibliothèques du serveur."
+msgstr "Vê todas as bibliotecas do servidor."
+
+msgid "Suppression de médias"
+msgstr "Eliminação de conteúdos"
+
+msgid "Peut supprimer des fichiers du serveur."
+msgstr "Pode eliminar ficheiros do servidor."
+
+msgid "Oui"
+msgstr "Sim"
+
+msgid "Non"
+msgstr "Não"
+
+msgid "Dernière activité : {}"
+msgstr "Última atividade: {}"
+
+msgid "Supprimer le compte"
+msgstr "Eliminar a conta"
+
+msgid "Ses favoris et son avancement sont perdus."
+msgstr "Os favoritos e o progresso perdem-se."
+
+msgid "désactivé"
+msgstr "desativada"
+
+msgid "Gérer"
+msgstr "Gerir"
+
+msgid "Compte supprimé."
+msgstr "Conta eliminada."
+
+msgid "Droit modifié."
+msgstr "Permissão alterada."

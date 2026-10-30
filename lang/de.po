@@ -2408,3 +2408,69 @@ msgstr "{} · {} am {}"
 
 msgid "échouée"
 msgstr "fehlgeschlagen"
+
+msgid "Retour à la liste des comptes."
+msgstr "Zurück zur Kontenliste."
+
+msgid "Compte activé"
+msgstr "Konto aktiviert"
+
+msgid "Un compte désactivé ne peut plus se connecter."
+msgstr "Ein deaktiviertes Konto kann sich nicht mehr anmelden."
+
+msgid "Gère le serveur (tableau de bord, comptes, bibliothèques)."
+msgstr "Verwaltet den Server (Dashboard, Konten, Bibliotheken)."
+
+msgid "Accès depuis Internet"
+msgstr "Zugriff aus dem Internet"
+
+msgid "Peut se connecter hors du réseau de la maison."
+msgstr "Kann sich außerhalb des Heimnetzes anmelden."
+
+msgid "Peut télécharger les médias pour les regarder hors ligne."
+msgstr "Kann Medien herunterladen, um sie offline anzusehen."
+
+msgid "Transcodage vidéo"
+msgstr "Video-Transkodierung"
+
+msgid "Le serveur peut convertir la vidéo quand l'appareil ne la lit pas telle quelle."
+msgstr "Der Server darf das Video umwandeln, wenn das Gerät es nicht direkt abspielen kann."
+
+msgid "Toutes les bibliothèques"
+msgstr "Alle Bibliotheken"
+
+msgid "Voit toutes les bibliothèques du serveur."
+msgstr "Sieht alle Bibliotheken des Servers."
+
+msgid "Suppression de médias"
+msgstr "Medien löschen"
+
+msgid "Peut supprimer des fichiers du serveur."
+msgstr "Kann Dateien vom Server löschen."
+
+msgid "Oui"
+msgstr "Ja"
+
+msgid "Non"
+msgstr "Nein"
+
+msgid "Dernière activité : {}"
+msgstr "Letzte Aktivität: {}"
+
+msgid "Supprimer le compte"
+msgstr "Konto löschen"
+
+msgid "Ses favoris et son avancement sont perdus."
+msgstr "Favoriten und Fortschritt gehen verloren."
+
+msgid "désactivé"
+msgstr "deaktiviert"
+
+msgid "Gérer"
+msgstr "Verwalten"
+
+msgid "Compte supprimé."
+msgstr "Konto gelöscht."
+
+msgid "Droit modifié."
+msgstr "Recht geändert."
