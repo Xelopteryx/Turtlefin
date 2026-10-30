@@ -2474,3 +2474,33 @@ msgstr "Konto gelöscht."
 
 msgid "Droit modifié."
 msgstr "Recht geändert."
+
+msgid "Langue des informations"
+msgstr "Sprache der Informationen"
+
+msgid "Connexion rapide"
+msgstr "Schnellverbindung"
+
+msgid "Se connecter sur un nouvel appareil avec un code à six chiffres."
+msgstr "Auf einem neuen Gerät mit einem sechsstelligen Code anmelden."
+
+msgid "Regrouper en collections"
+msgstr "In Sammlungen gruppieren"
+
+msgid "Les films d'une même collection n'apparaissent qu'une fois dans Films."
+msgstr "Filme derselben Sammlung erscheinen nur einmal unter Filme."
+
+msgid "Épisodes spéciaux dans les saisons"
+msgstr "Specials in den Staffeln"
+
+msgid "Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés."
+msgstr "Specials werden in die Staffel einsortiert, in der sie liefen."
+
+msgid "Vue par dossiers"
+msgstr "Ordneransicht"
+
+msgid "Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque."
+msgstr "Fügt eine Bibliothek hinzu, die die Ordner wie auf der Festplatte zeigt."
+
+msgid "Réglage du serveur enregistré."
+msgstr "Servereinstellung gespeichert."

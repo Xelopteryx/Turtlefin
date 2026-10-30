@@ -112,7 +112,7 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
         // Serveur : identité, état, commandes générales.
         0 => {
             let i = c.admin_get("/System/Info", &[]).await?;
-            let what = join(&[format!("Jellyfin {}", s(&i, "Version")), s(&i, "OperatingSystemDisplayName"), s(&i, "LocalAddress")]);
+            let what = join(&[format!("Jellyfin {}", s(&i, "Version")), s(&i, "OperatingSystemDisplayName")]);
             v.push(row("info", &s(&i, "ServerName"), &what, "", "info", false));
             if i["HasPendingRestart"].as_bool().unwrap_or(false) {
                 v.push(info(tr("Un redémarrage est nécessaire pour appliquer des changements.")));
@@ -121,6 +121,22 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                 v.push(info(tr("Une mise à jour de Jellyfin est disponible.")));
             }
             v.push(row("dash:scanall", tr("Analyser toutes les bibliothèques"), tr("Cherche les nouveaux fichiers et ceux qui ont disparu."), tr("Lancer"), "action", false));
+            // Réglages du serveur (ceux qui se résument à oui / non) ; langue des informations en clair.
+            let cfg = c.admin_get("/System/Configuration", &[]).await?;
+            let lang = join(&[s(&cfg, "PreferredMetadataLanguage"), s(&cfg, "MetadataCountryCode")]);
+            if !lang.is_empty() {
+                v.push(row("info", tr("Langue des informations"), &lang, "", "info", false));
+            }
+            for (key, label, hint) in [
+                ("QuickConnectAvailable", tr("Connexion rapide"), tr("Se connecter sur un nouvel appareil avec un code à six chiffres.")),
+                ("EnableGroupingIntoCollections", tr("Regrouper en collections"), tr("Les films d'une même collection n'apparaissent qu'une fois dans Films.")),
+                ("DisplaySpecialsWithinSeasons", tr("Épisodes spéciaux dans les saisons"), tr("Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés.")),
+                ("EnableFolderView", tr("Vue par dossiers"), tr("Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque.")),
+            ] {
+                if let Some(on) = cfg[key].as_bool() {
+                    v.push(row(&format!("dash:conf:{key}"), label, hint, "", "toggle", on));
+                }
+            }
             v.push(row("dash:restart", tr("Redémarrer le serveur"), tr("Les lectures en cours s'arrêtent le temps du redémarrage."), &confirm("dash:restart", tr("Redémarrer")), "action", false));
             v.push(row("dash:shutdown", tr("Arrêter le serveur"), tr("Il faudra le rallumer sur la machine elle-même."), &confirm("dash:shutdown", tr("Arrêter")), "action", false));
         }
@@ -352,6 +368,7 @@ pub fn activate(app: &Arc<App>, key: &str) {
             ["dash", "taskstop", id] => client.admin_send(Method::DELETE, &format!("/ScheduledTasks/Running/{id}"), &[], None).await.map(|_| tr("Tâche arrêtée.")),
             ["dash", "device", id] => client.admin_send(Method::DELETE, "/Devices", &[("id", id)], None).await.map(|_| tr("Appareil supprimé.")),
             ["dash", "policy", id, field] => toggle_policy(&client, id, field).await,
+            ["dash", "conf", field] => toggle_conf(&client, field).await,
             ["dash", "userdel", id] => {
                 let r = client.admin_send(Method::DELETE, &format!("/Users/{id}"), &[], None).await;
                 if r.is_ok() {
@@ -372,6 +389,15 @@ pub fn activate(app: &Arc<App>, key: &str) {
         load(&app2, cat);
         let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
     });
+}
+
+/// Réglage oui / non du serveur inversé : la configuration entière est renvoyée, seul `field` change.
+async fn toggle_conf(c: &crate::api::Client, field: &str) -> anyhow::Result<&'static str> {
+    let mut cfg = c.admin_get("/System/Configuration", &[]).await?;
+    let now = !cfg[field].as_bool().unwrap_or(false);
+    cfg[field] = now.into();
+    c.admin_send(Method::POST, "/System/Configuration", &[], Some(&cfg)).await?;
+    Ok(tr("Réglage du serveur enregistré."))
 }
 
 /// Un droit d'un compte inversé : la politique entière est renvoyée, seul `field` change.

@@ -2474,3 +2474,33 @@ msgstr "Account verwijderd."
 
 msgid "Droit modifié."
 msgstr "Recht gewijzigd."
+
+msgid "Langue des informations"
+msgstr "Taal van de informatie"
+
+msgid "Connexion rapide"
+msgstr "Snel verbinden"
+
+msgid "Se connecter sur un nouvel appareil avec un code à six chiffres."
+msgstr "Inloggen op een nieuw apparaat met een code van zes cijfers."
+
+msgid "Regrouper en collections"
+msgstr "Groeperen in collecties"
+
+msgid "Les films d'une même collection n'apparaissent qu'une fois dans Films."
+msgstr "Films uit dezelfde collectie verschijnen maar één keer in Films."
+
+msgid "Épisodes spéciaux dans les saisons"
+msgstr "Specials in de seizoenen"
+
+msgid "Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés."
+msgstr "Specials worden in het seizoen gezet waarin ze werden uitgezonden."
+
+msgid "Vue par dossiers"
+msgstr "Mappenweergave"
+
+msgid "Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque."
+msgstr "Voegt een bibliotheek toe die de mappen toont zoals ze op de schijf staan."
+
+msgid "Réglage du serveur enregistré."
+msgstr "Serverinstelling opgeslagen."

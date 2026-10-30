@@ -2482,3 +2482,33 @@ msgstr "Konto usunięte."
 
 msgid "Droit modifié."
 msgstr "Uprawnienie zmienione."
+
+msgid "Langue des informations"
+msgstr "Język informacji"
+
+msgid "Connexion rapide"
+msgstr "Szybkie łączenie"
+
+msgid "Se connecter sur un nouvel appareil avec un code à six chiffres."
+msgstr "Logowanie na nowym urządzeniu sześciocyfrowym kodem."
+
+msgid "Regrouper en collections"
+msgstr "Grupuj w kolekcje"
+
+msgid "Les films d'une même collection n'apparaissent qu'une fois dans Films."
+msgstr "Filmy z tej samej kolekcji pojawiają się w Filmach tylko raz."
+
+msgid "Épisodes spéciaux dans les saisons"
+msgstr "Odcinki specjalne w sezonach"
+
+msgid "Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés."
+msgstr "Odcinki specjalne trafiają do sezonu, w którym je wyemitowano."
+
+msgid "Vue par dossiers"
+msgstr "Widok folderów"
+
+msgid "Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque."
+msgstr "Dodaje bibliotekę pokazującą foldery tak, jak są na dysku."
+
+msgid "Réglage du serveur enregistré."
+msgstr "Zapisano ustawienie serwera."

@@ -2474,3 +2474,33 @@ msgstr "Account eliminato."
 
 msgid "Droit modifié."
 msgstr "Permesso modificato."
+
+msgid "Langue des informations"
+msgstr "Lingua delle informazioni"
+
+msgid "Connexion rapide"
+msgstr "Connessione rapida"
+
+msgid "Se connecter sur un nouvel appareil avec un code à six chiffres."
+msgstr "Accedi su un nuovo dispositivo con un codice di sei cifre."
+
+msgid "Regrouper en collections"
+msgstr "Raggruppa in raccolte"
+
+msgid "Les films d'une même collection n'apparaissent qu'une fois dans Films."
+msgstr "I film della stessa raccolta compaiono una sola volta in Film."
+
+msgid "Épisodes spéciaux dans les saisons"
+msgstr "Episodi speciali nelle stagioni"
+
+msgid "Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés."
+msgstr "Gli episodi speciali sono messi nella stagione in cui sono andati in onda."
+
+msgid "Vue par dossiers"
+msgstr "Vista per cartelle"
+
+msgid "Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque."
+msgstr "Aggiunge una libreria che mostra le cartelle come sono sul disco."
+
+msgid "Réglage du serveur enregistré."
+msgstr "Impostazione del server salvata."

@@ -2474,3 +2474,33 @@ msgstr "Account deleted."
 
 msgid "Droit modifié."
 msgstr "Permission changed."
+
+msgid "Langue des informations"
+msgstr "Metadata language"
+
+msgid "Connexion rapide"
+msgstr "Quick Connect"
+
+msgid "Se connecter sur un nouvel appareil avec un code à six chiffres."
+msgstr "Sign in on a new device with a six-digit code."
+
+msgid "Regrouper en collections"
+msgstr "Group into collections"
+
+msgid "Les films d'une même collection n'apparaissent qu'une fois dans Films."
+msgstr "Movies from the same collection appear only once in Movies."
+
+msgid "Épisodes spéciaux dans les saisons"
+msgstr "Specials within seasons"
+
+msgid "Les épisodes spéciaux sont rangés dans la saison où ils ont été diffusés."
+msgstr "Special episodes are placed in the season they aired in."
+
+msgid "Vue par dossiers"
+msgstr "Folder view"
+
+msgid "Ajoute une bibliothèque qui montre les dossiers tels qu'ils sont sur le disque."
+msgstr "Adds a library that shows folders as they are on disk."
+
+msgid "Réglage du serveur enregistré."
+msgstr "Server setting saved."
