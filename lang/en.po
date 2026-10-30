@@ -2540,3 +2540,36 @@ msgstr "Installation started: the plugin will be active after the next server re
 
 msgid "Catalogue"
 msgstr "Catalog"
+
+msgid "Modifier le titre…"
+msgstr "Edit title…"
+
+msgid "Nouveau compte"
+msgstr "New account"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Creates an account (no password: set one afterwards)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Sets a new password for this account."
+
+msgid "Nom du compte"
+msgstr "Account name"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Password (empty: none)"
+
+msgid "Nom"
+msgstr "Name"
+
+msgid "Modifier le titre"
+msgstr "Edit title"
+
+msgid "Compte créé."
+msgstr "Account created."
+
+msgid "Serveur renommé."
+msgstr "Server renamed."
+
+msgid "Titre modifié."
+msgstr "Title changed."

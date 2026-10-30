@@ -13,6 +13,8 @@ use reqwest::Method;
 use serde_json::Value;
 
 use crate::i18n::{tr, trf};
+use slint::ComponentHandle;
+
 use crate::{App, SettingRow};
 
 fn row(key: &str, label: &str, hint: &str, value: &str, kind: &str, on: bool) -> SettingRow {
@@ -27,8 +29,12 @@ fn s(v: &Value, k: &str) -> String {
     v[k].as_str().unwrap_or("").to_string()
 }
 
-/// « 2026-10-30T09:12:00.000Z » -> « 30/10 09:12 » (heure du serveur, UTC).
+/// « 2026-10-30T09:12:00.000Z » (heure universelle du serveur) -> « 30/10 10:12 », à l'heure locale.
 fn when(iso: &str) -> String {
+    if let Ok(t) = chrono::DateTime::parse_from_rfc3339(iso) {
+        return t.with_timezone(&chrono::Local).format("%d/%m %H:%M").to_string();
+    }
+    // Sans fuseau (« 2026-10-30T09:12:00.0000000 ») : tel quel.
     let (d, t) = iso.split_once('T').unwrap_or((iso, ""));
     let p: Vec<&str> = d.split('-').collect();
     match p.as_slice() {
@@ -118,7 +124,7 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
         0 => {
             let i = c.admin_get("/System/Info", &[]).await?;
             let what = join(&[format!("Jellyfin {}", s(&i, "Version")), s(&i, "OperatingSystemDisplayName")]);
-            v.push(row("info", &s(&i, "ServerName"), &what, "", "info", false));
+            v.push(row("dash:ask:servername", &s(&i, "ServerName"), &what, tr("Renommer"), "action", false));
             if i["HasPendingRestart"].as_bool().unwrap_or(false) {
                 v.push(info(tr("Un redémarrage est nécessaire pour appliquer des changements.")));
             }
@@ -217,6 +223,7 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                         v.push(row(&format!("dash:policy:{open}:{key}"), label, hint, "", "toggle", on));
                     }
                 }
+                v.push(row(&format!("dash:ask:userpw:{open}"), tr("Mot de passe"), tr("Définit un nouveau mot de passe pour ce compte."), tr("Changer"), "action", false));
                 if let Some(d) = x["LastActivityDate"].as_str() {
                     v.push(info(&trf("Dernière activité : {}", &[&when(d)])));
                 }
@@ -225,6 +232,7 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                     v.push(row(&key, tr("Supprimer le compte"), tr("Ses favoris et son avancement sont perdus."), &confirm(&key, tr("Supprimer")), "action", false));
                 }
             } else {
+                v.push(row("dash:ask:newuser", tr("Nouveau compte"), tr("Crée un compte (sans mot de passe : à définir ensuite)."), tr("Créer"), "action", false));
                 let list = c.admin_get("/Users", &[]).await?;
                 for x in list.as_array().into_iter().flatten() {
                     let id = s(x, "Id");
@@ -398,6 +406,10 @@ pub fn activate(app: &Arc<App>, key: &str) {
         reload_current(app);
         return;
     }
+    if let Some(what) = key.strip_prefix("dash:ask:") {
+        ask(app, what);
+        return;
+    }
     if let Some(name) = key.strip_prefix("dash:logopen:") {
         *app.dash_log.lock().unwrap() = name.to_string();
         reload_current(app);
@@ -540,3 +552,93 @@ pub fn open(app: &Arc<App>) {
     }
     crate::refresh_settings(app);
 }
+
+/// Ouvre la saisie d'un texte pour `what` (« newuser », « userpw:<id> », « servername », « title:<id> »).
+pub fn ask(app: &Arc<App>, what: &str) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let (title, label, password) = match what.split(':').next().unwrap_or("") {
+        "newuser" => (tr("Nouveau compte"), tr("Nom du compte"), false),
+        "userpw" => (tr("Nouveau mot de passe"), tr("Mot de passe (vide : aucun)"), true),
+        "servername" => (tr("Nom du serveur"), tr("Nom"), false),
+        "title" => (tr("Modifier le titre"), tr("Titre"), false),
+        _ => return,
+    };
+    u.set_prompt_title(title.into());
+    u.set_prompt_label(label.into());
+    u.set_prompt_password(password);
+    u.set_prompt_text("".into());
+    u.set_prompt_key(what.into());
+    u.set_prompt_open(true);
+    // Valeur de départ : le nom actuel (serveur, média).
+    let Some(client) = app.client() else { return };
+    let (what, weak) = (what.to_string(), u.as_weak());
+    app.rt.spawn(async move {
+        let cur = match what.split_once(':') {
+            Some(("title", id)) => client.admin_get(&format!("/Items/{id}"), &[("userId", &client.user_id)]).await.ok().map(|v| s(&v, "Name")),
+            _ if what == "servername" => client.admin_get("/System/Configuration", &[]).await.ok().map(|v| s(&v, "ServerName")),
+            _ => None,
+        };
+        if let Some(cur) = cur {
+            let _ = weak.upgrade_in_event_loop(move |u| {
+                if u.get_prompt_open() && u.get_prompt_text().is_empty() {
+                    u.set_prompt_text(cur.into());
+                    u.set_prompt_seed(u.get_prompt_seed() + 1);
+                }
+            });
+        }
+    });
+}
+
+/// Saisie validée : `what` comme pour `ask`, `text` le texte tapé.
+pub fn answer(app: &Arc<App>, what: String, text: String) {
+    let Some(client) = app.client() else { return };
+    let text = text.trim().to_string();
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        let r: anyhow::Result<&'static str> = match what.split_once(':').unwrap_or((what.as_str(), "")) {
+            ("newuser", _) if !text.is_empty() => client
+                .admin_send(Method::POST, "/Users/New", &[], Some(&serde_json::json!({ "Name": text })))
+                .await
+                .map(|_| tr("Compte créé.")),
+            ("userpw", id) => client
+                .admin_send(Method::POST, &format!("/Users/{id}/Password"), &[], Some(&serde_json::json!({ "NewPw": text, "ResetPassword": false })))
+                .await
+                .map(|_| tr("Mot de passe changé.")),
+            ("servername", _) if !text.is_empty() => async {
+                let mut cfg = client.admin_get("/System/Configuration", &[]).await?;
+                cfg["ServerName"] = text.clone().into();
+                client.admin_send(Method::POST, "/System/Configuration", &[], Some(&cfg)).await?;
+                Ok(tr("Serveur renommé."))
+            }
+            .await,
+            ("title", id) if !text.is_empty() => async {
+                // Fiche complète renvoyée, seul le titre change ; il est verrouillé pour qu'une
+                // actualisation ne le remplace pas.
+                let mut item = client.admin_get(&format!("/Items/{id}"), &[("userId", &client.user_id)]).await?;
+                item["Name"] = text.clone().into();
+                let mut locked: Vec<Value> = item["LockedFields"].as_array().cloned().unwrap_or_default();
+                if !locked.iter().any(|f| f == "Name") {
+                    locked.push("Name".into());
+                }
+                item["LockedFields"] = locked.into();
+                client.admin_send(Method::POST, &format!("/Items/{id}"), &[], Some(&item)).await?;
+                Ok(tr("Titre modifié."))
+            }
+            .await,
+            _ => return,
+        };
+        let msg = match r {
+            Ok(m) => m.to_string(),
+            Err(e) => trf("Action impossible : {}", &[&crate::human_err(&e)]),
+        };
+        app2.home_stale.store(true, Ordering::SeqCst);
+        let a3 = app2.clone();
+        let _ = app2.ui().upgrade_in_event_loop(move |u| {
+            u.set_toast(msg.into());
+            if u.get_set_dash() {
+                reload_current(&a3);
+            }
+        });
+    });
+}
+

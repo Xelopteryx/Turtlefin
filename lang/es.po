@@ -2540,3 +2540,36 @@ msgstr "Instalación iniciada: la extensión estará activa tras el próximo rei
 
 msgid "Catalogue"
 msgstr "Catálogo"
+
+msgid "Modifier le titre…"
+msgstr "Modificar el título…"
+
+msgid "Nouveau compte"
+msgstr "Nueva cuenta"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Crea una cuenta (sin contraseña: defínela después)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Define una nueva contraseña para esta cuenta."
+
+msgid "Nom du compte"
+msgstr "Nombre de la cuenta"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Contraseña (vacía: ninguna)"
+
+msgid "Nom"
+msgstr "Nombre"
+
+msgid "Modifier le titre"
+msgstr "Modificar el título"
+
+msgid "Compte créé."
+msgstr "Cuenta creada."
+
+msgid "Serveur renommé."
+msgstr "Servidor renombrado."
+
+msgid "Titre modifié."
+msgstr "Título modificado."

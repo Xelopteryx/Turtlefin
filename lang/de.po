@@ -2540,3 +2540,36 @@ msgstr "Installation gestartet: Die Erweiterung ist nach dem nächsten Serverneu
 
 msgid "Catalogue"
 msgstr "Katalog"
+
+msgid "Modifier le titre…"
+msgstr "Titel bearbeiten…"
+
+msgid "Nouveau compte"
+msgstr "Neues Konto"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Erstellt ein Konto (ohne Passwort: danach festlegen)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Legt ein neues Passwort für dieses Konto fest."
+
+msgid "Nom du compte"
+msgstr "Kontoname"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Passwort (leer: keines)"
+
+msgid "Nom"
+msgstr "Name"
+
+msgid "Modifier le titre"
+msgstr "Titel bearbeiten"
+
+msgid "Compte créé."
+msgstr "Konto erstellt."
+
+msgid "Serveur renommé."
+msgstr "Server umbenannt."
+
+msgid "Titre modifié."
+msgstr "Titel geändert."

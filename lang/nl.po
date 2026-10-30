@@ -2540,3 +2540,36 @@ msgstr "Installatie gestart: de extensie is actief na de volgende herstart van d
 
 msgid "Catalogue"
 msgstr "Catalogus"
+
+msgid "Modifier le titre…"
+msgstr "Titel wijzigen…"
+
+msgid "Nouveau compte"
+msgstr "Nieuw account"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Maakt een account aan (zonder wachtwoord: stel het daarna in)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Stelt een nieuw wachtwoord in voor dit account."
+
+msgid "Nom du compte"
+msgstr "Accountnaam"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Wachtwoord (leeg: geen)"
+
+msgid "Nom"
+msgstr "Naam"
+
+msgid "Modifier le titre"
+msgstr "Titel wijzigen"
+
+msgid "Compte créé."
+msgstr "Account aangemaakt."
+
+msgid "Serveur renommé."
+msgstr "Server hernoemd."
+
+msgid "Titre modifié."
+msgstr "Titel gewijzigd."

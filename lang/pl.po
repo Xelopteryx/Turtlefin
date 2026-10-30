@@ -2548,3 +2548,36 @@ msgstr "Rozpoczęto instalację: rozszerzenie będzie aktywne po następnym rest
 
 msgid "Catalogue"
 msgstr "Katalog"
+
+msgid "Modifier le titre…"
+msgstr "Zmień tytuł…"
+
+msgid "Nouveau compte"
+msgstr "Nowe konto"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Tworzy konto (bez hasła: ustaw je potem)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Ustawia nowe hasło dla tego konta."
+
+msgid "Nom du compte"
+msgstr "Nazwa konta"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Hasło (puste: brak)"
+
+msgid "Nom"
+msgstr "Nazwa"
+
+msgid "Modifier le titre"
+msgstr "Zmień tytuł"
+
+msgid "Compte créé."
+msgstr "Konto utworzone."
+
+msgid "Serveur renommé."
+msgstr "Zmieniono nazwę serwera."
+
+msgid "Titre modifié."
+msgstr "Tytuł zmieniony."

@@ -4119,6 +4119,10 @@ fn card_played(app: &Arc<App>, id: String, on: bool) {
 /// Menu d'une carte, actions des administrateurs : « refresh » relit les informations sur Internet,
 /// « identify » ouvre la fenêtre Identifier (films et séries).
 fn card_admin(app: &Arc<App>, action: String, id: String) {
+    if action == "rename" {
+        dashboard::ask(app, &format!("title:{id}"));
+        return;
+    }
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -8925,6 +8929,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_card_admin({
         let app = app.clone();
         move |action, id| card_admin(&app, action.to_string(), id.to_string())
+    });
+
+    ui.on_prompt_ok({
+        let app = app.clone();
+        move |what, text| dashboard::answer(&app, what.to_string(), text.to_string())
     });
 
     ui.on_ident_search({

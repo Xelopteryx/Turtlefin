@@ -4526,6 +4526,18 @@ export component AppWindow inherits Window {
     in-out property <int> ident-sel;
     callback ident-search(string, string);
     callback ident-apply(int);
+
+    // Saisie d'un texte (tableau de bord, titre d'un média...) : titre, libellé, valeur de départ ;
+    // `prompt-ok` rend le texte avec la clé de l'action (voir dashboard.rs).
+    in-out property <bool> prompt-open;
+    in property <string> prompt-title;
+    in property <string> prompt-label;
+    in property <bool> prompt-password;
+    in-out property <string> prompt-text;
+    in property <string> prompt-key;
+    // Valeur de départ arrivée après l'ouverture : le curseur repasse au bout du texte.
+    in property <int> prompt-seed;
+    callback prompt-ok(string, string);
     // Bibliothèque ou collection pas encore distribuée pendant cette session (réglage compris).
     pure callback deal-allowed(string) -> bool;
     public function open-card-menu(card: CardData, x: length, y: length) {
@@ -13682,6 +13694,89 @@ export component AppWindow inherits Window {
         }
     }
 
+
+    // Saisie d'un texte : une ligne, Entrée valide, Échap ou Annuler ferme.
+    if root.prompt-open: Rectangle {
+        background: #000000a0;
+        TouchArea { }
+        pr-box := Rectangle {
+            width: min(parent.width - 32px, 560px * root.k);
+            height: pr-col.preferred-height;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 16px * root.k;
+            background: Theme.bg-mid;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 30px;
+            drop-shadow-color: #000000a0;
+            function done(ok: bool) {
+                root.prompt-open = false;
+                root.refocus += 1;
+                if (ok) {
+                    root.prompt-ok(root.prompt-key, root.prompt-text);
+                }
+            }
+            FocusScope {
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) {
+                        pr-box.done(false);
+                        return EventResult.accept;
+                    }
+                    return EventResult.reject;
+                }
+                pr-col := VerticalLayout {
+                    padding: 24px * root.k;
+                    spacing: 14px * root.k;
+                    Text {
+                        text: root.prompt-title;
+                        color: Theme.text;
+                        font-size: 22px * root.k;
+                        font-weight: 700;
+                        wrap: word-wrap;
+                    }
+                    pr-field := Field {
+                        k: root.k;
+                        property <int> seed: root.prompt-seed;
+                        changed seed => {
+                            self.focus-input();
+                        }
+                        label: root.prompt-label;
+                        password: root.prompt-password;
+                        shown: root.prompt-password ? "••••••••" : root.prompt-text;
+                        text <=> root.prompt-text;
+                        init => {
+                            self.focus-input();
+                        }
+                        accepted => {
+                            pr-box.done(true);
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 12px * root.k;
+                        ActionButton {
+                            height: 48px * root.k;
+                            text: Tr.t(Tr.k, "Annuler");
+                            font: 16px * root.k;
+                            clicked => {
+                                pr-box.done(false);
+                            }
+                        }
+                        ActionButton {
+                            height: 48px * root.k;
+                            text: Tr.t(Tr.k, "Valider");
+                            font: 16px * root.k;
+                            clicked => {
+                                pr-box.done(true);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Menu d'une carte de la grille : ouvrir, marquer comme vu ou non vu (remise à zéro).
     if root.cm-open: cm-layer := Rectangle {
         // Clic à côté : fermé.
@@ -13693,12 +13788,13 @@ export component AppWindow inherits Window {
         }
         // Actions, dans l'ordre du menu.
         property <string> pl: root.cm-card.played ? "unplayed" : "played";
-        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh"] : ["open", self.pl];
+        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh", "rename"] : ["open", self.pl];
         property <[string]> labels: root.is-admin ? [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
             Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
             Tr.t(Tr.k, "Actualiser les informations"),
+            Tr.t(Tr.k, "Modifier le titre…"),
         ] : [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
@@ -13710,7 +13806,7 @@ export component AppWindow inherits Window {
                 root.refocus += 1;
                 if (cm-layer.acts[i] == "open") {
                     root.open-hero(root.cm-card.id);
-                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh") {
+                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh" || cm-layer.acts[i] == "rename") {
                     root.card-admin(cm-layer.acts[i], root.cm-card.id);
                 } else {
                     root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");

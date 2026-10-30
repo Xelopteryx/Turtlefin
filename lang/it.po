@@ -2540,3 +2540,36 @@ msgstr "Installazione avviata: l'estensione sarà attiva al prossimo riavvio del
 
 msgid "Catalogue"
 msgstr "Catalogo"
+
+msgid "Modifier le titre…"
+msgstr "Modifica il titolo…"
+
+msgid "Nouveau compte"
+msgstr "Nuovo account"
+
+msgid "Crée un compte (sans mot de passe : à définir ensuite)."
+msgstr "Crea un account (senza password: da impostare dopo)."
+
+msgid "Définit un nouveau mot de passe pour ce compte."
+msgstr "Imposta una nuova password per questo account."
+
+msgid "Nom du compte"
+msgstr "Nome dell'account"
+
+msgid "Mot de passe (vide : aucun)"
+msgstr "Password (vuota: nessuna)"
+
+msgid "Nom"
+msgstr "Nome"
+
+msgid "Modifier le titre"
+msgstr "Modifica il titolo"
+
+msgid "Compte créé."
+msgstr "Account creato."
+
+msgid "Serveur renommé."
+msgstr "Server rinominato."
+
+msgid "Titre modifié."
+msgstr "Titolo modificato."
