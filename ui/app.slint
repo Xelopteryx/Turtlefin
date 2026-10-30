@@ -1098,6 +1098,19 @@ component NavIcon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 4 4 L 20 4 L 20 10 L 4 10 Z M 4 14 L 20 14 L 20 20 L 4 20 Z M 7.5 7 L 9 7 M 7.5 17 L 9 17";
     }
+    if root.name == "dashboard": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        // Compteur : arc, graduations, aiguille (tableau de bord des administrateurs).
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.height / 11;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 3.5 17 A 9 9 0 1 1 20.5 17 M 12 15 L 16 9 M 6.5 12 L 5 12 M 12 6.5 L 12 5 M 17.5 12 L 19 12 M 8.2 8.2 L 7.1 7.1 M 9 19 L 15 19";
+    }
     if root.name == "logout": Path {
         width: parent.width;
         height: parent.height;
@@ -4841,7 +4854,7 @@ export component AppWindow inherits Window {
         return action == "home" ? "home" : action == "requests" ? "requests" : action == "downloads" ? "downloads"
             : action == "party" ? "party" : action == "switch" ? "profile" : action == "server" ? "server"
             : action == "logout" ? "logout" : action == "settings" ? "settings" : action == "quit" ? "quit"
-            : action == "password" ? "profile" : action == "remote" ? "remote" : "library";
+            : action == "password" ? "profile" : action == "remote" ? "remote" : action == "dashboard" ? "dashboard" : "library";
     }
 
     function open-menu() {
@@ -9304,7 +9317,7 @@ export component AppWindow inherits Window {
                     font-weight: i == root.set-cat ? 700 : 500;
                     vertical-alignment: center;
                 }
-                if i == 0: AlertBadge {
+                if i == 0 && !root.set-dash: AlertBadge {
                     k: root.k;
                     x: parent.width - self.width - 12px * root.k;
                     y: (parent.height - self.height) / 2;
