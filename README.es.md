@@ -12,7 +12,7 @@ de bien con un mando a distancia que con teclado y ratón — y en Android (tel�
 > **Proyecto totalmente «vibecodeado»**: todo el código, los textos y las traducciones los escribió una IA
 > (Claude, de Anthropic), guiada y probada por un humano que no lo programó él mismo.
 
-Versión actual: **1.9.8 «Cast Update»** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
+Versión actual: **1.9.9 «Cast Update»** · Idiomas de la interfaz: Español, English, Français, Deutsch, Italiano, Português,
 Polski, Nederlands — y cualquier idioma que añadas tú mismo (ver [Traducir Turtlefin](#traducir-turtlefin)).
 
 > **Sobre esta versión.** La 1.9.7 «Cast Update» se ha probado en Windows, Linux (Raspberry Pi 5 conectada a
@@ -100,6 +100,7 @@ pide tu contraseña); en las demás, el AppImage va a `~/.local/bin` con una ent
 | Windows 64 bits, sin instalar | `Turtlefin-<version>-windows-x64-portable.zip` | Descomprimir donde se quiera (memoria USB…) y abrir `turtlefin.exe` |
 | Windows 32 bits | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | Para PC antiguos |
 | Linux, cualquier distribución (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Hacerlo ejecutable (`chmod +x`) y abrirlo |
+| Linux con Flatpak (x86_64) | `Turtlefin-<version>-linux-x86_64.flatpak` | `flatpak install --user ./Turtlefin-….flatpak` (el runtime viene de Flathub) |
 | Linux, ARM 64 bits | `Turtlefin-<version>-linux-aarch64.AppImage` | Igual |
 | Debian, Ubuntu, Mint… | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Doble clic, o `sudo apt install ./turtlefin_….deb` |
 | Android (teléfono, tableta, televisor) | `Turtlefin-<version>-android-arm64.apk` | Permitir instalar desde esta fuente y abrir el archivo (Android 8 o posterior) |
@@ -121,6 +122,7 @@ caché y las descargas se guarden en la carpeta `data` junto al programa; no se 
 | Windows, instalado | se descarga el nuevo instalador y se ejecuta en silencio en la misma carpeta |
 | Windows, portátil | se descarga el nuevo archivo comprimido y sus archivos sustituyen a los antiguos |
 | AppImage | el nuevo archivo sustituye al antiguo |
+| Flatpak | no automática: descargar el nuevo archivo `.flatpak` e instalarlo de la misma forma |
 | Paquete .deb | el paquete se instala con `pkexec` (se pide la contraseña de administrador) |
 
 **Reiniciar Turtlefin** abre después la nueva versión.

@@ -12,7 +12,7 @@ keyboard and mouse — and on Android phones, tablets and TVs, with the finger.
 > **Fully vibecoded project**: all the code, texts and translations were written by an AI (Claude, by
 > Anthropic), guided and tested by a human who did not write any of the code.
 
-Current version: **1.9.8 “Cast Update”** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
+Current version: **1.9.9 “Cast Update”** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
 > **About this version.** 1.9.7 “Cast Update” has been tested on Windows, Linux (Raspberry Pi 5 plugged into a TV)
@@ -97,6 +97,7 @@ asked); elsewhere, the AppImage goes to `~/.local/bin` with an entry in the appl
 | Windows 64-bit, no install | `Turtlefin-<version>-windows-x64-portable.zip` | Unzip anywhere (USB stick…) and run `turtlefin.exe` |
 | Windows 32-bit | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | For old PCs |
 | Linux, any distribution (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Make it executable (`chmod +x`), then run it |
+| Linux with Flatpak (x86_64) | `Turtlefin-<version>-linux-x86_64.flatpak` | `flatpak install --user ./Turtlefin-….flatpak` (the runtime comes from Flathub) |
 | Linux, 64-bit ARM | `Turtlefin-<version>-linux-aarch64.AppImage` | Same |
 | Debian, Ubuntu, Mint… | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Double-click, or `sudo apt install ./turtlefin_….deb` |
 | Android (phone, tablet, TV) | `Turtlefin-<version>-android-arm64.apk` | Allow installing from this source, then open the file (Android 8 or newer) |
@@ -118,6 +119,7 @@ downloads in the `data` folder next to the program; nothing is written anywhere 
 | Windows, installed | the new installer is downloaded and run silently in the same folder |
 | Windows, portable | the new archive is downloaded and its files replace the old ones |
 | AppImage | the new file replaces the old one |
+| Flatpak | not automatic: download the new `.flatpak` file and install it the same way |
 | .deb package | the package is installed with `pkexec` (the administrator password is asked) |
 
 **Restart Turtlefin** then starts the new version.

@@ -1,12 +1,13 @@
-# Turtlefin : passation de projet (état au 29 octobre 2026, version 1.9.8, correctif de la 1.9.7 « Cast Update »)
+# Turtlefin : passation de projet (état au 30 octobre 2026, version 1.9.9, correctif de la 1.9.8)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.8 (correctif de la 1.9.7 « Cast Update »,
-publiées toutes deux le 29 octobre 2026 ; versions publiées avant : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0). Détail
-de la 1.9.8 : section 6 quater, « Lignes sur NVIDIA » et « Journal de mpv sans jeton ».
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.9 (correctifs de la 1.9.7 « Cast Update » :
+1.9.8 et 1.9.7 le 29 octobre 2026, 1.9.9 le 30 ; versions publiées avant : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
+Détail : 1.9.8 en section 6 quater (« Lignes sur NVIDIA », « Journal de mpv sans jeton »), 1.9.9 en 6 septies.
+L'APK Android reste en 1.9.7 (les correctifs ne concernent pas Android).
 
 ## 1. Objectif
 
@@ -27,7 +28,7 @@ stable en mémoire et ne jamais réintroduire de flou temps réel ni d'animation
 | Fonction Slint `unstable-winit-030` | Filtre d'événements winit pour **F11** (`install_f11`) | Seul moyen d'avoir une touche globale ; d'où `~1.18` (API instable d'une version mineure à l'autre) |
 | Réseau | `reqwest` 0.13 (rustls, magasin de certificats du système), `tokio` | `query` est une feature à activer en 0.13 |
 | Lecture | **libmpv chargée à l'exécution** (`libloading`, `src/mpv.rs`), rendu OpenGL dans une texture affichée par Slint (`src/video.rs`), commandes Slint par-dessus (`ui/player.slint`) | Lecteur intégré, pas d'IPC, marche sous Wayland. Le lecteur est recréé à chaque lecture (mémoire bornée) |
-| Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini ; Windows : OpenGL classique exigé (`require_opengl`, `TURTLEFIN_GLES=1` pour revenir à GLES) | La vidéo passe par une texture OpenGL. Slint demande d'abord GLES 2.0 : sous Windows seules les cartes NVIDIA l'acceptent, et ce pilote barrait de lignes les images `nv12` / `p010` du décodage matériel (ticket n° 1) |
+| Rendu Slint | femtovg (OpenGL / GLES) imposé, sauf si `SLINT_BACKEND` est défini ; Windows et Linux PC (x86) : OpenGL classique exigé (`require_opengl`, `TURTLEFIN_GLES=1` pour revenir à GLES) ; le Pi et Android restent en GLES | La vidéo passe par une texture OpenGL. Slint demande d'abord GLES 2.0, que les pilotes NVIDIA acceptent (Windows et Linux), et ce pilote barrait de lignes les images `nv12` / `p010` du décodage matériel (ticket n° 1) |
 | Texture vidéo | Pixels physiques, origine `TopLeft`, état GL sauvegardé / rétabli autour de mpv ; `loadfile` attend le contexte de rendu | Sinon image à l'envers ou « No render context set » |
 | Décodage | `hwdec=drm-copy` sous Linux ARM 64 bits, `auto-safe` ailleurs (Windows : `d3d11va-copy`) | Sur le Pi (pilote v3d), le décodeur matériel sort un format (« SAND ») que le rendu ne sait pas importer ; la copie le remet au format habituel. Pi 5, 4K HEVC 10 bits : 0 image perdue au lieu de 17 %, ~1 cœur au lieu de 4 |
 | Audio Linux | `ao=pipewire,pulse,alsa`, `config=no` | Un `mpv.conf` utilisateur imposant ALSA échouait quand PipeWire tient la sortie HDMI |
@@ -521,6 +522,26 @@ Les cinq derniers problèmes avant la sortie (vidéos du 29 octobre et retours) 
   `mouse-cursor: none` qu'au mouvement suivant, qui réaffiche les commandes). Le lecteur envoie maintenant
   `cursor:hide` / `cursor:show` avec les commandes, et `cursor_visible` cache le pointeur au niveau de la
   fenêtre (winit) ; il est réaffiché à la fin de la lecture. Vérifié avec `GetCursorInfo`.
+
+## 6 septies. Version 1.9.9, correctif de la 1.9.8 (30 octobre 2026)
+
+- **Lignes sur NVIDIA sous Linux aussi** : reproduit sur Chulak (Ubuntu 26.04, GTX 960, pilote 580) dans le
+  Flatpak, contexte `OpenGL ES 3.2 NVIDIA`. OpenGL classique exigé aussi sous Linux x86 / x86_64 (main.rs, `pc`) ;
+  vérifié : `3.3.0 NVIDIA`, image propre, version compilée sur le PC puis Flatpak de la CI. Le Pi reste en GLES.
+- **Windows 32 bits** : ne démarrait plus depuis le 8 octobre (`SetWindowLongPtrW` n'existe pas dans le user32
+  32 bits ; message « point d'entrée introuvable »). `winfull.rs` : `link_name = "SetWindowLongW"` en 32 bits.
+  Vérifié sur le PC : démarrage, lecture, déplacement de la fenêtre.
+- **Flatpak** : premier `.flatpak` publié (job `flatpak`, voir section 7). Le manifeste remplace les options C du
+  SDK pour Turtlefin (aws-lc-sys refuse un jitterentropy optimisé). Installé depuis un fichier, Flatpak prend
+  seul le runtime, les pilotes GL (NVIDIA compris) et `codecs-extra` (HEVC 10 bits lu) ; `ffmpeg-full` n'est
+  pas nécessaire. Fiche AppStream : versions 1.9.7 à 1.9.9.
+- **Numérotation** : quatre nombres (1.9.8.1) impossibles : Cargo n'accepte que x.y.z et `update::newer` ne compare
+  que trois nombres (une 1.9.8.1 ne serait pas proposée aux 1.9.8).
+- **Compilation Linux x86_64 sur le PC** (comme pour le Pi) : `%LOCALAPPDATA%/turtlefin-x64-sys` (libfontconfig de
+  Chulak + faux pkg-config), `CARGO_TARGET_DIR=target/linux-x64 PKG_CONFIG=…/turtlefin-x64-sys/pkg-config.bat
+  PKG_CONFIG_ALLOW_CROSS=1 RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zthreads=16 -C link-arg=-Wl,--allow-shlib-undefined"
+  cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.35` (`-Zthreads` : analyse parallèle de rustc,
+  essais locaux seulement).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
