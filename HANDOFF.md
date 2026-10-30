@@ -543,6 +543,30 @@ Les cinq derniers problèmes avant la sortie (vidéos du 29 octobre et retours) 
   cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.35` (`-Zthreads` : analyse parallèle de rustc,
   essais locaux seulement).
 
+## 6 octies. Après la 1.9.9 : bibliothèques, menu des cartes, tableau de bord (30 octobre 2026, pas publié)
+
+Demandes du ticket n° 2 (LainX84) et du mainteneur. Commits locaux 8ba7ef1 … 506893e.
+- **Bibliothèque** : index A–Z à droite (`az`, `lib-jump` → `api::library_index`, `NameLessThan`) avec barre
+  de défilement ; la bande de l'index est exclue du geste « glisser pour défiler » (`az-band`, `Swipe`).
+  Lettres tapées = filtre (`lib-key`, `NameStartsWith`, `lib_filter`, `lib_gen` contre les réponses dans le
+  désordre). Distribution des cartes une fois par session (`lib_dealt`, `deal-allowed`, réglage
+  `AnimFlags::deal`).
+- **Menu des cartes** (`cm-open`) : clic droit, appui long au doigt (`Card.menu-requested`), Entrée / OK
+  maintenu (la fiche s'ouvre au relâchement d'un appui court, `enter-down`). Vu / non vu (`card_played`,
+  état relu sur le serveur). Administrateurs (`is-admin`, `Client::rights`) : Identifier
+  (`identify_search` / `identify_apply`, `RemoteSearch`), Actualiser (`refresh_item`), Modifier le titre
+  (champ `Name` verrouillé dans `LockedFields`).
+- **Tableau de bord** (`src/dashboard.rs`) : même page que les Paramètres (`set-dash`), 11 catégories ;
+  lignes lues à l'ouverture d'une catégorie (`dash_rows`), clés « dash:… ». Actions irréversibles : second
+  appui (`dash_armed`, « Confirmer ? »). Extensions : le serveur annonce l'ancien état jusqu'à son
+  redémarrage, d'où `dash_plugins`. « Cet appareil » : Id, clé d'accès, ou nom + appli + compte (le serveur
+  range parfois l'appareil sous un autre identifiant). Saisie de texte commune : `prompt-*`,
+  `dashboard::ask` / `answer`. Dates à l'heure locale (`when`).
+- Compilation sur le PC : `RUSTC_BOOTSTRAP=1 RUSTFLAGS=-Zthreads=16`, `CARGO_TARGET_DIR=target/fast`
+  (analyse parallèle de rustc ; ~3 min 30 à 6 min après un changement).
+- Reste : transcodage (choix), bibliothèques par compte, ajout/suppression de bibliothèques, fiche
+  complète d'un média, création de clé d'API, désinstallation d'extension ; APK à refaire.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
