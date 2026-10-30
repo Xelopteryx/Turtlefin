@@ -110,6 +110,9 @@ type WndProc = unsafe extern "system" fn(Hwnd, u32, usize, isize) -> isize;
 
 #[link(name = "user32")]
 extern "system" {
+    // Windows 32 bits : pas de SetWindowLongPtrW dans user32 (simple macro du SDK), c'est
+    // SetWindowLongW, de même signature (isize = LONG). Sinon la version x86 ne démarre pas.
+    #[cfg_attr(target_pointer_width = "32", link_name = "SetWindowLongW")]
     fn SetWindowLongPtrW(h: Hwnd, index: i32, value: isize) -> isize;
     fn CallWindowProcW(prev: WndProc, h: Hwnd, msg: u32, wp: usize, lp: isize) -> isize;
     fn SetTimer(h: Hwnd, id: usize, ms: u32, f: *const c_void) -> usize;
