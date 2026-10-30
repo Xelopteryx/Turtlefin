@@ -1526,6 +1526,21 @@ impl Client {
         self.get(path, query).await
     }
 
+    /// Tableau de bord (administrateurs) : texte brut d'une adresse du serveur (journaux), 4 Mio au plus.
+    pub async fn admin_text(&self, path: &str, query: &[(&str, &str)]) -> Result<String> {
+        let resp = self
+            .http
+            .get(format!("{}{}", self.server, path))
+            .query(query)
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&resp.status(), &path])));
+        }
+        Ok(String::from_utf8_lossy(&body_limited(resp, 4 << 20).await?).into_owned())
+    }
+
     /// Tableau de bord (administrateurs) : envoie une commande au serveur (lancer une tâche, supprimer un
     /// appareil, redémarrer...), avec un corps JSON si besoin.
     pub async fn admin_send(&self, method: reqwest::Method, path: &str, query: &[(&str, &str)], body: Option<&serde_json::Value>) -> Result<()> {

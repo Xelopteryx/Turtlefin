@@ -2512,3 +2512,30 @@ msgstr "Dodaje bibliotekę pokazującą foldery tak, jak są na dysku."
 
 msgid "Réglage du serveur enregistré."
 msgstr "Zapisano ustawienie serwera."
+
+msgid "Journaux"
+msgstr "Dzienniki"
+
+msgid "Clés d'API"
+msgstr "Klucze API"
+
+msgid "Retour à la liste des journaux."
+msgstr "Powrót do listy dzienników."
+
+msgid "Lire"
+msgstr "Czytaj"
+
+msgid "Aucun journal."
+msgstr "Brak dzienników."
+
+msgid "créée le {}"
+msgstr "utworzony {}"
+
+msgid "Révoquer"
+msgstr "Unieważnij"
+
+msgid "Aucune clé d'API."
+msgstr "Brak kluczy API."
+
+msgid "Clé révoquée."
+msgstr "Klucz unieważniony."

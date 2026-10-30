@@ -2504,3 +2504,30 @@ msgstr "Voegt een bibliotheek toe die de mappen toont zoals ze op de schijf staa
 
 msgid "Réglage du serveur enregistré."
 msgstr "Serverinstelling opgeslagen."
+
+msgid "Journaux"
+msgstr "Logboeken"
+
+msgid "Clés d'API"
+msgstr "API-sleutels"
+
+msgid "Retour à la liste des journaux."
+msgstr "Terug naar de lijst met logboeken."
+
+msgid "Lire"
+msgstr "Lezen"
+
+msgid "Aucun journal."
+msgstr "Geen logboeken."
+
+msgid "créée le {}"
+msgstr "aangemaakt op {}"
+
+msgid "Révoquer"
+msgstr "Intrekken"
+
+msgid "Aucune clé d'API."
+msgstr "Geen API-sleutels."
+
+msgid "Clé révoquée."
+msgstr "Sleutel ingetrokken."

@@ -2504,3 +2504,30 @@ msgstr "Fügt eine Bibliothek hinzu, die die Ordner wie auf der Festplatte zeigt
 
 msgid "Réglage du serveur enregistré."
 msgstr "Servereinstellung gespeichert."
+
+msgid "Journaux"
+msgstr "Protokolle"
+
+msgid "Clés d'API"
+msgstr "API-Schlüssel"
+
+msgid "Retour à la liste des journaux."
+msgstr "Zurück zur Protokollliste."
+
+msgid "Lire"
+msgstr "Lesen"
+
+msgid "Aucun journal."
+msgstr "Keine Protokolle."
+
+msgid "créée le {}"
+msgstr "erstellt am {}"
+
+msgid "Révoquer"
+msgstr "Widerrufen"
+
+msgid "Aucune clé d'API."
+msgstr "Keine API-Schlüssel."
+
+msgid "Clé révoquée."
+msgstr "Schlüssel widerrufen."

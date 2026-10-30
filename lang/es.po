@@ -2504,3 +2504,30 @@ msgstr "Añade una biblioteca que muestra las carpetas tal como están en el dis
 
 msgid "Réglage du serveur enregistré."
 msgstr "Ajuste del servidor guardado."
+
+msgid "Journaux"
+msgstr "Registros"
+
+msgid "Clés d'API"
+msgstr "Claves de API"
+
+msgid "Retour à la liste des journaux."
+msgstr "Volver a la lista de registros."
+
+msgid "Lire"
+msgstr "Leer"
+
+msgid "Aucun journal."
+msgstr "Ningún registro."
+
+msgid "créée le {}"
+msgstr "creada el {}"
+
+msgid "Révoquer"
+msgstr "Revocar"
+
+msgid "Aucune clé d'API."
+msgstr "Ninguna clave de API."
+
+msgid "Clé révoquée."
+msgstr "Clave revocada."

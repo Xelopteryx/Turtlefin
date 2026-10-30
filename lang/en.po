@@ -2504,3 +2504,30 @@ msgstr "Adds a library that shows folders as they are on disk."
 
 msgid "Réglage du serveur enregistré."
 msgstr "Server setting saved."
+
+msgid "Journaux"
+msgstr "Logs"
+
+msgid "Clés d'API"
+msgstr "API keys"
+
+msgid "Retour à la liste des journaux."
+msgstr "Back to the log list."
+
+msgid "Lire"
+msgstr "Read"
+
+msgid "Aucun journal."
+msgstr "No logs."
+
+msgid "créée le {}"
+msgstr "created {}"
+
+msgid "Révoquer"
+msgstr "Revoke"
+
+msgid "Aucune clé d'API."
+msgstr "No API keys."
+
+msgid "Clé révoquée."
+msgstr "Key revoked."

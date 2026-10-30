@@ -293,6 +293,45 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
                 v.push(info(tr("Aucune activité enregistrée.")));
             }
         }
+        // Journaux du serveur : la liste, ou les dernières lignes d'un journal ouvert.
+        8 => {
+            let open = app.dash_log.lock().unwrap().clone();
+            if !open.is_empty() {
+                v.push(row("dash:logback", &format!("‹  {open}"), tr("Retour à la liste des journaux."), tr("Retour"), "action", false));
+                let text = c.admin_text("/System/Logs/Log", &[("name", &open)]).await?;
+                let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+                // Les plus récentes en premier (80 au plus).
+                for l in lines.iter().rev().take(80) {
+                    let l = l.trim();
+                    let (when_, rest) = l.split_once(']').map(|(a, b)| (a.trim_start_matches('['), b.trim())).unwrap_or(("", l));
+                    v.push(row("info", &rest.chars().take(140).collect::<String>(), when_, "", "info", false));
+                }
+            } else {
+                let list = c.admin_get("/System/Logs", &[]).await?;
+                for x in list.as_array().into_iter().flatten() {
+                    let size = x["Size"].as_u64().unwrap_or(0);
+                    let hint = join(&[when(&s(x, "DateModified")), format!("{} Ko", size / 1024)]);
+                    v.push(row(&format!("dash:logopen:{}", s(x, "Name")), &s(x, "Name"), &hint, tr("Lire"), "action", false));
+                }
+                if v.is_empty() {
+                    v.push(info(tr("Aucun journal.")));
+                }
+            }
+        }
+        // Clés d'API : applications autorisées à parler au serveur sans compte ; révocation.
+        9 => {
+            let list = c.admin_get("/Auth/Keys", &[]).await?;
+            for x in list["Items"].as_array().into_iter().flatten() {
+                let token = s(x, "AccessToken");
+                let shown: String = token.chars().take(6).collect();
+                let hint = join(&[format!("{shown}…"), trf("créée le {}", &[&when(&s(x, "DateCreated"))])]);
+                let key = format!("dash:keydel:{token}");
+                v.push(row(&key, &s(x, "AppName"), &hint, &confirm(&key, tr("Révoquer")), "action", false));
+            }
+            if v.is_empty() {
+                v.push(info(tr("Aucune clé d'API.")));
+            }
+        }
         // Extensions : activées ou non (le serveur doit redémarrer pour en tenir compte).
         _ => {
             let list = c.admin_get("/Plugins", &[]).await?;
@@ -328,10 +367,20 @@ async fn fetch(app: &Arc<App>, c: &crate::api::Client, cat: i32) -> anyhow::Resu
 pub fn activate(app: &Arc<App>, key: &str) {
     let Some(client) = app.client() else { return };
     // Actions qui ne se rattrapent pas : un premier appui arme, le second exécute.
-    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:") || key.starts_with("dash:userdel:");
+    let risky = matches!(key, "dash:restart" | "dash:shutdown") || key.starts_with("dash:device:") || key.starts_with("dash:userdel:") || key.starts_with("dash:keydel:");
     // Ouvrir / fermer le détail d'un compte : rien à envoyer au serveur.
     if let Some(id) = key.strip_prefix("dash:useropen:") {
         *app.dash_user.lock().unwrap() = id.to_string();
+        reload_current(app);
+        return;
+    }
+    if let Some(name) = key.strip_prefix("dash:logopen:") {
+        *app.dash_log.lock().unwrap() = name.to_string();
+        reload_current(app);
+        return;
+    }
+    if key == "dash:logback" {
+        app.dash_log.lock().unwrap().clear();
         reload_current(app);
         return;
     }
@@ -369,6 +418,7 @@ pub fn activate(app: &Arc<App>, key: &str) {
             ["dash", "device", id] => client.admin_send(Method::DELETE, "/Devices", &[("id", id)], None).await.map(|_| tr("Appareil supprimé.")),
             ["dash", "policy", id, field] => toggle_policy(&client, id, field).await,
             ["dash", "conf", field] => toggle_conf(&client, field).await,
+            ["dash", "keydel", token] => client.admin_send(Method::DELETE, &format!("/Auth/Keys/{token}"), &[], None).await.map(|_| tr("Clé révoquée.")),
             ["dash", "userdel", id] => {
                 let r = client.admin_send(Method::DELETE, &format!("/Users/{id}"), &[], None).await;
                 if r.is_ok() {
@@ -447,6 +497,7 @@ pub fn open(app: &Arc<App>) {
     app.dash_rows.lock().unwrap().clear();
     app.dash_armed.lock().unwrap().clear();
     app.dash_user.lock().unwrap().clear();
+    app.dash_log.lock().unwrap().clear();
     if let Some(u) = app.ui().upgrade() {
         u.set_set_dash(true);
         u.set_set_cat(0);

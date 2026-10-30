@@ -8885,10 +8885,10 @@ export component AppWindow inherits Window {
         y: root.header-h + (1 - root.page-e) * 28px * root.k;
         height: parent.height - root.header-h;
 
-        property <[string]> cat-icons: root.set-dash ? ["about", "play", "storage", "profile", "motion", "cast", "subs", "display"]
+        property <[string]> cat-icons: root.set-dash ? ["about", "play", "storage", "profile", "motion", "cast", "subs", "display", "subs", "network"]
             : ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about"];
         property <[string]> cats: root.set-dash
-            ? [Tr.t(Tr.k, "Serveur"), Tr.t(Tr.k, "Lectures en cours"), Tr.t(Tr.k, "Bibliothèques"), Tr.t(Tr.k, "Comptes"), Tr.t(Tr.k, "Tâches planifiées"), Tr.t(Tr.k, "Appareils"), Tr.t(Tr.k, "Activité"), Tr.t(Tr.k, "Extensions")]
+            ? [Tr.t(Tr.k, "Serveur"), Tr.t(Tr.k, "Lectures en cours"), Tr.t(Tr.k, "Bibliothèques"), Tr.t(Tr.k, "Comptes"), Tr.t(Tr.k, "Tâches planifiées"), Tr.t(Tr.k, "Appareils"), Tr.t(Tr.k, "Activité"), Tr.t(Tr.k, "Extensions"), Tr.t(Tr.k, "Journaux"), Tr.t(Tr.k, "Clés d'API")]
             : [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos")];
         // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).

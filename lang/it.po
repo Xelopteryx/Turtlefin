@@ -2504,3 +2504,30 @@ msgstr "Aggiunge una libreria che mostra le cartelle come sono sul disco."
 
 msgid "Réglage du serveur enregistré."
 msgstr "Impostazione del server salvata."
+
+msgid "Journaux"
+msgstr "Log"
+
+msgid "Clés d'API"
+msgstr "Chiavi API"
+
+msgid "Retour à la liste des journaux."
+msgstr "Torna all'elenco dei log."
+
+msgid "Lire"
+msgstr "Leggi"
+
+msgid "Aucun journal."
+msgstr "Nessun log."
+
+msgid "créée le {}"
+msgstr "creata il {}"
+
+msgid "Révoquer"
+msgstr "Revoca"
+
+msgid "Aucune clé d'API."
+msgstr "Nessuna chiave API."
+
+msgid "Clé révoquée."
+msgstr "Chiave revocata."

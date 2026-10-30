@@ -2504,3 +2504,30 @@ msgstr "Acrescenta uma biblioteca que mostra as pastas tal como estão no disco.
 
 msgid "Réglage du serveur enregistré."
 msgstr "Definição do servidor guardada."
+
+msgid "Journaux"
+msgstr "Registos"
+
+msgid "Clés d'API"
+msgstr "Chaves de API"
+
+msgid "Retour à la liste des journaux."
+msgstr "Voltar à lista de registos."
+
+msgid "Lire"
+msgstr "Ler"
+
+msgid "Aucun journal."
+msgstr "Nenhum registo."
+
+msgid "créée le {}"
+msgstr "criada a {}"
+
+msgid "Révoquer"
+msgstr "Revogar"
+
+msgid "Aucune clé d'API."
+msgstr "Nenhuma chave de API."
+
+msgid "Clé révoquée."
+msgstr "Chave revogada."
