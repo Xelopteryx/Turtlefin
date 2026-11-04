@@ -252,6 +252,21 @@ pub fn bind_to_lan(fd: std::os::raw::c_int) {
 /// Icône du lanceur aux couleurs du thème `key` : active son entrée (activity-alias « .Icon_<key> »
 /// du manifeste) et désactive les autres, sans fermer l'appli. Rien n'est fait si c'est déjà la bonne.
 pub fn set_launcher_icon(key: &str) {
+    // Désactiver l'entrée du lanceur par laquelle l'appli a démarré ferme son activité (même avec
+    // DONT_KILL_APP) : le changement attend que l'appli passe à l'arrière-plan (voir apply_pending_icon).
+    *PENDING_ICON.lock().unwrap() = Some(key.to_string());
+}
+
+static PENDING_ICON: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Appli passée à l'arrière-plan : applique l'icône du thème choisi, s'il a changé.
+fn apply_pending_icon() {
+    if let Some(key) = PENDING_ICON.lock().unwrap().take() {
+        change_launcher_icon(&key);
+    }
+}
+
+fn change_launcher_icon(key: &str) {
     const KEYS: [&str; 3] = ["turtlefin", "aero", "nerd"];
     let key = if KEYS.contains(&key) { key.to_string() } else { "turtlefin".to_string() };
     let act = ACTIVITY.load(std::sync::atomic::Ordering::Relaxed) as usize;
@@ -376,7 +391,12 @@ fn android_main(a: slint::android::AndroidApp) {
         let data = a.external_data_path().unwrap_or_else(|| files.clone());
         std::env::set_var("TURTLEFIN_DATA_DIR", data);
     }
-    if let Err(e) = slint::android::init(a) {
+    let listener = |e: &slint::android::android_activity::PollEvent<'_>| {
+        if let slint::android::android_activity::PollEvent::Main(slint::android::android_activity::MainEvent::Stop) = e {
+            apply_pending_icon();
+        }
+    };
+    if let Err(e) = slint::android::init_with_event_listener(a, listener) {
         eprintln!("turtlefin : moteur Android de Slint : {e}");
         return;
     }

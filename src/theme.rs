@@ -239,9 +239,75 @@ fn nerd() -> ThemeDef {
     }
 }
 
+/// Anime : crépuscule violet et rose, soleil rayé, montagnes et pétales.
+fn anime() -> ThemeDef {
+    ThemeDef {
+        name: s("Anime"),
+        dark: true,
+        bg: s("#1a0b33"),
+        bg_mid: s("#2a1040"),
+        bg_end: s("#170a2a"),
+        fg: s("#fff4f8"),
+        text: s("#fff4f8e6"),
+        muted: s("#f3c8dcA6"),
+        accent1: s("#ff5c8a"),
+        accent2: s("#ffb35c"),
+        on_accent: s("#2a0a22"),
+        glass: s("#2a103fd9"),
+        glass_border: s("#ff9ec440"),
+        panel: s("#1f0c33f5"),
+        card: s("#2a103fc7"),
+        card_focus: s("#4a1a5cc4"),
+        card_border: s("#ff9ec433"),
+        glow: s("#ff5c8a59"),
+        player_bar: s("#1f0c33e6"),
+        player_ink: s("#fff4f8"),
+        placeholder1: s("#4a1648"),
+        placeholder2: s("#2b1140"),
+        scrim: s("#0e0618"),
+        veil: 0.9,
+        radius: 12.0,
+        scenery: s("sakura"),
+        ..turtlefin()
+    }
+}
+
+/// Cartoon : bleu vif, jaune et rose, gros contours et grands arrondis, rayons de bande dessinée.
+fn cartoon() -> ThemeDef {
+    ThemeDef {
+        name: s("Cartoon"),
+        dark: true,
+        bg: s("#2f22c4"),
+        bg_mid: s("#2a1fb0"),
+        bg_end: s("#1a1480"),
+        fg: s("#ffffff"),
+        text: s("#ffffffeb"),
+        muted: s("#dcd8ffbf"),
+        accent1: s("#ff4fa0"),
+        accent2: s("#ffd21f"),
+        on_accent: s("#14104a"),
+        glass: s("#1a1480e0"),
+        glass_border: s("#14104a"),
+        panel: s("#231aa0f5"),
+        card: s("#14104ab8"),
+        card_focus: s("#14104acc"),
+        card_border: s("#14104a"),
+        glow: s("#ffd21f59"),
+        player_bar: s("#1a1480e6"),
+        player_ink: s("#ffffff"),
+        placeholder1: s("#4a3df0"),
+        placeholder2: s("#231aa0"),
+        scrim: s("#0e0a40"),
+        veil: 0.75,
+        radius: 20.0,
+        scenery: s("toon"),
+        ..turtlefin()
+    }
+}
+
 /// Thèmes intégrés : clé, thème.
 pub fn builtin() -> Vec<(&'static str, ThemeDef)> {
-    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd())]
+    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd()), ("anime", anime()), ("cartoon", cartoon())]
 }
 
 /// Thème choisi dans les réglages : clé intégrée, ou « custom:<nom> » (thème importé).
@@ -315,6 +381,17 @@ fn amber(c: Color) -> Color {
 }
 
 /// Applique un thème à l'interface.
+/// Aperçu d'un thème dans la liste de choix : ni l'icône de la fenêtre (longue à dessiner), ni rien
+/// d'enregistré.
+static PREVIEW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Aperçu : `key` appliqué sans être gardé ; vide : le thème enregistré revient.
+pub fn preview(u: &AppWindow, key: &str, saved: &str, custom: &[ThemeDef]) {
+    PREVIEW.store(true, std::sync::atomic::Ordering::Relaxed);
+    apply(u, &find(if key.is_empty() { saved } else { key }, custom));
+    PREVIEW.store(false, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn apply(u: &AppWindow, t: &ThemeDef) {
     let d = turtlefin();
     let off = OFFLINE.load(std::sync::atomic::Ordering::Relaxed);
@@ -360,6 +437,8 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
         "harmony" => 2,
         "circuit" => 3,
         "abyss" => 4,
+        "sakura" => 5,
+        "toon" => 6,
         _ if t.bubbles => 1,
         _ => 0,
     };
@@ -382,7 +461,9 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_win7(t.win7);
     th.set_mono_font(t.font == "mono");
     th.set_term(t.term);
-    window_icon(u, t);
+    if !PREVIEW.load(std::sync::atomic::Ordering::Relaxed) {
+        window_icon(u, t);
+    }
 }
 
 /// Turtlefin Theme Creator (tools/theme-creator.html), intégré au programme : déposé dans le

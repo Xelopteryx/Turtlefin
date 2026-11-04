@@ -1682,6 +1682,7 @@ async fn load_home(app: Arc<App>, client: api::Client) {
     resume_downloads(&app, &client);
     let (can_download, admin) = client.rights().await;
     app.can_download.store(can_download, Ordering::SeqCst);
+    cast_restore(&app, &client).await;
     // Administrateur : le menu de gauche gagne « Tableau de bord ».
     if app.admin.swap(admin, Ordering::SeqCst) != admin {
         let views = app.views.lock().unwrap().clone();
@@ -2665,8 +2666,6 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     } else {
         return;
     };
-    // Chromecast : l'écran lit lui-même la vidéo (la fiche ouverte y part tout de suite).
-    let direct = matches!(target, CastTarget::Gcast(_));
     u.set_cast_target(target.name().into());
     u.set_cast_on(true);
     u.set_cast_now("".into());
@@ -2674,15 +2673,6 @@ fn cast_pick(app: &Arc<App>, id: &str) {
     u.set_cast_pos(0.0);
     u.set_cast_ctl(2);
     *app.cast.lock().unwrap() = Some(target);
-    let detail_id = (u.get_screen().as_str() == "detail").then(|| u.get_detail().id.to_string()).filter(|i| !i.is_empty());
-    refresh_detail_buttons(app);
-    // Choisi depuis le lecteur : c'est la vidéo en cours qui part (plus bas), pas la fiche restée
-    // dessous (deux envois à la fois : la télé les refusait tous les deux).
-    if direct && !u.get_cast_handoff() {
-        if let Some(id) = detail_id {
-            cast_play_item(app, id, None);
-        }
-    }
     start_cast_poll(app);
     // Choisi depuis le lecteur : la vidéo en cours y passe tout de suite.
     if u.get_cast_handoff() {
@@ -2700,6 +2690,7 @@ fn cast_stop(app: &Arc<App>) {
     }
     *app.cast_now.lock().unwrap() = None;
     *app.cast.lock().unwrap() = None;
+    save_cast_last(None);
     if app.ui().upgrade().is_some_and(|u| u.get_p_remote()) {
         close_remote_player(app);
     }
@@ -2711,26 +2702,86 @@ fn cast_stop(app: &Arc<App>) {
         u.set_cast_target("".into());
         u.set_cast_sel(0);
     }
-    refresh_detail_buttons(app);
 }
 
-/// Fiche affichée : bouton « Lire sur … » ajouté ou retiré selon l'appareil piloté.
-fn refresh_detail_buttons(app: &Arc<App>) {
-    let Some(u) = app.ui().upgrade() else { return };
-    if u.get_screen().as_str() != "detail" {
+/// Retour depuis le lecteur-télécommande : la vidéo s'arrête sur l'écran, qui reste choisi (Lecture
+/// y enverra la suivante).
+fn cast_stop_video(app: &Arc<App>) {
+    if let Some(target) = app.cast.lock().unwrap().clone() {
+        send_cmd(app, target, "stop");
+    }
+    *app.cast_now.lock().unwrap() = None;
+    save_cast_last(None);
+    if let Some(u) = app.ui().upgrade() {
+        u.set_cast_now("".into());
+    }
+    close_remote_player(app);
+}
+
+/// Note la diffusion en cours (rien : terminée), pour s'y rebrancher si l'appli a été tuée.
+fn save_cast_last(last: Option<config::CastLast>) {
+    let mut s = config::load();
+    s.cast_last = last;
+    config::save(&s);
+}
+
+/// Au démarrage de la session : une diffusion notée et encore en cours sur l'écran (appli tuée sans
+/// passer par « fermer ») : on s'y rebranche, avec le lecteur-télécommande. Sinon, on l'oublie.
+async fn cast_restore(app: &Arc<App>, client: &api::Client) {
+    let Some(last) = config::load().cast_last else { return };
+    let target = match last.addr.parse() {
+        Ok(addr) if last.session.is_empty() => CastTarget::Gcast(chromecast::Device { name: last.name.clone(), id: last.id.clone(), addr }),
+        _ => CastTarget::Jf { session: last.session.clone(), name: last.name.clone() },
+    };
+    // Une vidéo tourne encore là-bas ? (Chromecast : durée connue ; appli Jellyfin : un titre en cours.)
+    let alive = match target_state(app, &target).await {
+        Some((now, _, _, dur)) => !now.is_empty() || dur > 0.0,
+        None => false,
+    };
+    let item = if alive { client.item(&last.item).await.ok() } else { None };
+    let Some(item) = item else {
+        save_cast_last(None);
+        return;
+    };
+    let (audio, sub) = cast_tracks(&item);
+    *app.cast_now.lock().unwrap() = Some(CastNow { item, audio, sub });
+    let name = target.name();
+    *app.cast.lock().unwrap() = Some(target);
+    let a = app.clone();
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        u.set_cast_target(name.clone().into());
+        u.set_cast_on(true);
+        u.set_cast_ctl(2);
+        start_cast_poll(&a);
+        push_cast_tracks(&a);
+        open_remote_player(&a);
+        u.set_toast(trf("Diffusion en cours sur {}", &[&name]).into());
+    });
+}
+
+/// Fermeture de l'appli : la vidéo diffusée s'arrête (3 s au plus : l'écran peut ne plus répondre).
+fn cast_stop_on_exit(app: &Arc<App>) {
+    if app.cast_now.lock().unwrap().is_none() {
         return;
     }
-    let mut d = u.get_detail();
-    let mut list: Vec<ButtonData> = (0..d.buttons.row_count()).filter_map(|i| d.buttons.row_data(i)).filter(|b| b.action.as_str() != "cast-play").collect();
-    let kind = app.detail_kind.lock().unwrap().clone();
-    if let Some(t) = app.cast.lock().unwrap().as_ref() {
-        if matches!(kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
-            let at = list.iter().take_while(|b| b.label.is_empty()).count();
-            list.insert(at, ButtonData { label: trf("Lire sur {}", &[&t.name()]).into(), action: "cast-play".into(), ..Default::default() });
-        }
-    }
-    d.buttons = ModelRc::new(VecModel::from(list));
-    u.set_detail(d);
+    let Some(target) = app.cast.lock().unwrap().clone() else { return };
+    let client = app.client();
+    app.rt.block_on(async move {
+        let stop = async {
+            match &target {
+                CastTarget::Gcast(d) => {
+                    let _ = chromecast::control(d, "stop", 0.0).await;
+                }
+                CastTarget::Jf { session, .. } => {
+                    if let Some(c) = client {
+                        let _ = c.remote_playstate(session, "Stop", None).await;
+                    }
+                }
+            }
+        };
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(3), stop).await;
+    });
+    save_cast_last(None);
 }
 
 /// Vidéo envoyée à un écran de diffusion, avec les pistes choisies (index Jellyfin ; sous-titres -1 :
@@ -2878,6 +2929,11 @@ fn cast_play_item(app: &Arc<App>, id: String, at: Option<f64>) {
             let now = CastNow { item, audio, sub };
             cast_resend(&client, &target, &now, start).await?;
             let title = now.item.titles().0;
+            let (session, did, addr) = match &target {
+                CastTarget::Jf { session, .. } => (session.clone(), String::new(), String::new()),
+                CastTarget::Gcast(d) => (String::new(), d.id.clone(), d.addr.to_string()),
+            };
+            save_cast_last(Some(config::CastLast { name: target.name(), id: did, addr, session, item: now.item.id.clone() }));
             *a.cast_now.lock().unwrap() = Some(now);
             Ok(title)
         }
@@ -3044,7 +3100,8 @@ fn remote_player_cmd(app: &Arc<App>, cmd: &str) {
         return;
     };
     match verb {
-        "stop" | "home" => close_remote_player(app),
+        // Revenir à la fiche ou au menu : la diffusion s'arrête.
+        "stop" | "home" => cast_stop_video(app),
         "pause" => send_cmd(app, target, "playpause"),
         // « Passer l'intro » : à la fin de l'intro (segment du serveur).
         "skip-intro" => {
@@ -3273,10 +3330,13 @@ fn start_cast_poll(app: &Arc<App>) {
             if let Some((now, paused, pos, dur)) = target_state(&a, &target).await {
                 cast_marks_tick(&a, pos, dur, paused);
                 // Volume de l'écran (Chromecast), relu avec le reste.
-                let vol = (!matches!(target, CastTarget::Jf { .. })).then(|| a.screen_state.lock().unwrap().3 as i32);
+                let is_jf = matches!(target, CastTarget::Jf { .. });
+                let vol = (!is_jf).then(|| a.screen_state.lock().unwrap().3 as i32);
                 let _ = a.ui().upgrade_in_event_loop(move |u| {
                     let (p, t) = clock_pair(pos, dur);
-                    if !now.is_empty() {
+                    // Rien sur l'écran (vidéo finie ou arrêtée là-bas) : le bandeau « En lecture » s'en va.
+                    // Chromecast : jamais de titre ici, seule la durée dit si une vidéo passe.
+                    if !now.is_empty() || (is_jf && dur <= 0.0) {
                         u.set_cast_now(now.into());
                     }
                     u.set_cast_paused(paused);
@@ -3592,9 +3652,11 @@ fn search_changed(app: &Arc<App>, text: String) {
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
-        let (found, from_seerr) = tokio::join!(client.search(&term), async {
-            if seerr { client.seerr_search(&term).await } else { Vec::new() }
-        });
+        let (found, from_seerr, by_people) = tokio::join!(
+            client.search(&term),
+            async { if seerr { client.seerr_search(&term).await } else { Vec::new() } },
+            client.search_people(&term),
+        );
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
@@ -3610,6 +3672,9 @@ fn search_changed(app: &Arc<App>, text: String) {
         ] {
             let of: Vec<api::Item> = items.iter().filter(|i| kinds.contains(&i.kind.as_str())).cloned().collect();
             push_section(&mut sections, title, landscape, Ok(of));
+        }
+        for (title, of) in by_people {
+            push_section(&mut sections, &title, false, Ok(of));
         }
         if !from_seerr.is_empty() {
             sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, cards: from_seerr });
@@ -7122,13 +7187,6 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let at = buttons.iter().position(|b| b.1 == "download").or_else(|| buttons.iter().position(|b| b.1 == "played")).map_or(0, |i| i + 1);
         buttons.insert(at, (String::new(), "trailer".into(), "trailer".into(), false));
     }
-    // Appareil piloté (Diffuser) : « Lire sur … », première pastille (après les boutons à icône).
-    if let Some(t) = app.cast.lock().unwrap().as_ref() {
-        if matches!(item.kind.as_str(), "Movie" | "Episode" | "Series" | "Season") {
-            let at = buttons.iter().take_while(|b| b.0.is_empty()).count();
-            buttons.insert(at, (trf("Lire sur {}", &[&t.name()]), "cast-play".into(), String::new(), false));
-        }
-    }
     *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
     *app.detail_kind.lock().unwrap() = item.kind.clone();
     if downloads::exists(&item.id) {
@@ -9123,6 +9181,18 @@ pub(crate) fn main() -> anyhow::Result<()> {
             }
         }
     });
+    // Liste des thèmes : la ligne choisie (flèches, survol) s'applique tout de suite, à l'essai.
+    ui.on_theme_preview({
+        let weak = ui.as_weak();
+        move |key| {
+            if let Some(u) = weak.upgrade() {
+                let p = config::ui_prefs();
+                theme::preview(&u, key.as_str(), &p.theme, &p.themes);
+                update_chrome(&u);
+            }
+        }
+    });
+
     ui.on_settings_choose({
         let app = app.clone();
         move |key, value| choose_setting(&app, &key, &value)
@@ -9150,6 +9220,13 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 let top = app.stack.lock().unwrap().last().cloned().unwrap_or_default();
                 delete_local_key(&app, &top);
             } else if a == "play" {
+                // Un écran est choisi (Diffuser) : la vidéo y part.
+                if app.cast.lock().unwrap().is_some() {
+                    if let Some(id) = app.stack.lock().unwrap().last().cloned() {
+                        cast_play_item(&app, id, None);
+                    }
+                    return;
+                }
                 let top = app.stack.lock().unwrap().last().cloned();
                 if let Some(id) = top {
                     if !video_ok {
@@ -9160,10 +9237,6 @@ pub(crate) fn main() -> anyhow::Result<()> {
                     }
                     let a2 = app.clone();
                     app.rt.spawn(async move { play_flow(a2, Some(id), None).await });
-                }
-            } else if a == "cast-play" {
-                if let Some(id) = app.stack.lock().unwrap().last().cloned() {
-                    cast_play_item(&app, id, None);
                 }
             } else if a == "pick-audio" || a == "pick-sub" {
                 open_track_picker(&app, if a == "pick-audio" { "audio" } else { "sub" });
@@ -9302,6 +9375,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         });
     }
     ui.run()?;
+    cast_stop_on_exit(&app);
     // Fermeture : on quitte la watch party (sinon le serveur garde une session fantôme dans le groupe).
     leave_party_blocking(&app, &rt);
     Ok(())

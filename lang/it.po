@@ -2573,3 +2573,24 @@ msgstr "Server rinominato."
 
 msgid "Titre modifié."
 msgstr "Titolo modificato."
+
+msgid "Titre, acteur, studio, tag…"
+msgstr "Titolo, attore, studio, tag…"
+
+msgid "Avec {}"
+msgstr "Con {}"
+
+msgid "Studio : {}"
+msgstr "Studio: {}"
+
+msgid "Tag : {}"
+msgstr "Tag: {}"
+
+msgid "Le bouton Lecture envoie les vidéos sur cet écran."
+msgstr "Il pulsante Riproduci invia i video a questo schermo."
+
+msgid "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
+msgstr "Scegli lo schermo a cui inviare i video: il pulsante Riproduci li invierà lì."
+
+msgid "Diffusion en cours sur {}"
+msgstr "Trasmissione in corso su {}"

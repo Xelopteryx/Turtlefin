@@ -2581,3 +2581,24 @@ msgstr "Zmieniono nazwę serwera."
 
 msgid "Titre modifié."
 msgstr "Tytuł zmieniony."
+
+msgid "Titre, acteur, studio, tag…"
+msgstr "Tytuł, aktor, studio, tag…"
+
+msgid "Avec {}"
+msgstr "Z udziałem: {}"
+
+msgid "Studio : {}"
+msgstr "Studio: {}"
+
+msgid "Tag : {}"
+msgstr "Tag: {}"
+
+msgid "Le bouton Lecture envoie les vidéos sur cet écran."
+msgstr "Przycisk Odtwórz wysyła filmy na ten ekran."
+
+msgid "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
+msgstr "Wybierz ekran dla filmów: przycisk Odtwórz wyśle je tam."
+
+msgid "Diffusion en cours sur {}"
+msgstr "Przesyłanie na {}"

@@ -4,9 +4,23 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Diffusion en cours : l'écran et la vidéo.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
+pub struct CastLast {
+    pub name: String,
+    /// Chromecast : identifiant et adresse (ip:port) ; appli Jellyfin : `session`.
+    pub id: String,
+    pub addr: String,
+    pub session: String,
+    pub item: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
 pub struct Saved {
+    /// Vidéo en cours de diffusion (pour s'y rebrancher si l'appli a été tuée), sinon rien.
+    pub cast_last: Option<CastLast>,
     /// Adresse utilisée pour la session en cours.
     pub server: String,
     /// Adresse principale du serveur (vide si inconnue).

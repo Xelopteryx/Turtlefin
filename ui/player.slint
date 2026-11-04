@@ -155,6 +155,18 @@ component Icon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 4.5 17.5 A 8.5 8.5 0 1 1 19.5 17.5 M 12 15 L 15.5 9.5";
     }
+    if root.name == "ep-close": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: Theme.player-ink;
+        stroke-width: root.height / 9;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: "M 6 9 L 12 15 L 18 9";
+    }
     if root.name == "back": Path {
         width: parent.width;
         height: parent.height;
@@ -515,7 +527,37 @@ export component PlayerView inherits Rectangle {
     property <int> unmute-vol: 30;
 
     property <bool> osd: true;   // commandes affichées
-    property <int> idle: 0;      // secondes sans activité
+    // Commandes qui apparaissent et disparaissent en fondu (le panneau glisse en même temps).
+    property <float> osd-p: root.osd ? 1 : 0;
+    animate osd-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
+    // Souris en route vers « Passer l'intro » ou « Épisode suivant », commandes cachées : le pointeur
+    // réapparaît, mais pas les commandes tout de suite (elles feraient bouger le bouton visé).
+    property <bool> aim;
+    property <duration> aim-t;
+    property <bool> up-btn: (root.skip-intro && root.up-mode == "") || (root.up-mode == "next" && root.menu == "");
+    changed up-btn => {
+        if (!self.up-btn && root.aim) {
+            root.aim = false;
+            if (!root.osd) {
+                root.command("cursor:hide");
+            }
+        }
+    }
+    function mouse-moved() {
+        if (Nav.touch) {
+            return;
+        }
+        if (!root.osd && root.up-btn) {
+            root.aim-t = animation-tick();
+            if (!root.aim) {
+                root.aim = true;
+                root.command("cursor:show");
+            }
+        } else {
+            root.show();
+        }
+    }
+    property <int> idle: 0;      // secondes sans activité (négatif : délai de plus après un réglage)
     property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes · 6 volume
     property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 volume · 6 audio · 7 sous-titres · 8 qualité
     // Volume de Turtlefin (mpv), 0 à 100 ; réglé par la barre du bouton volume.
@@ -559,6 +601,7 @@ export component PlayerView inherits Rectangle {
     property <float> vol-p: root.zone == 6 && root.osd ? 1 : 0;
     animate vol-p { duration: Motion.player ? 240ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
     function set-volume(v: int) {
+        root.idle = -5;
         root.volume = max(0, min(100, v));
         root.command("volume:" + root.volume);
     }
@@ -660,7 +703,8 @@ export component PlayerView inherits Rectangle {
 
     function show() {
         root.osd = true;
-        root.idle = 0;
+        root.aim = false;
+        root.idle = min(root.idle, 0);
     }
 
     function hide() {
@@ -692,6 +736,8 @@ export component PlayerView inherits Rectangle {
             root.command((root.menu == "audio" ? "aid:" : root.menu == "sub" ? "sid:" : "quality:") + root.menu-items[root.menu-sel].id);
         }
         root.menu = "";
+        // Réglage fait : les commandes restent un moment de plus.
+        root.idle = -5;
     }
 
     // Pause / lecture par une simple touche : commandes affichées, sélection sur le bouton Lecture/Pause.
@@ -827,19 +873,15 @@ export component PlayerView inherits Rectangle {
     }
 
     // Souris sur la vidéo : affiche les commandes ; clic = pause ; double-clic = plein écran.
-    TouchArea {
-        mouse-cursor: root.osd ? MouseCursor.default : MouseCursor.none;
+    vid-area := TouchArea {
+        mouse-cursor: root.osd || root.aim ? MouseCursor.default : MouseCursor.none;
         // Souris qui bouge : les commandes apparaissent. Pas au doigt : le doigt qui se pose compte aussi
         // comme un mouvement (avant l'appui), et le toucher suivant les aurait aussitôt cachées.
         changed mouse-x => {
-            if (!Nav.touch) {
-                root.show();
-            }
+            root.mouse-moved();
         }
         changed mouse-y => {
-            if (!Nav.touch) {
-                root.show();
-            }
+            root.mouse-moved();
         }
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {
@@ -849,6 +891,10 @@ export component PlayerView inherits Rectangle {
         clicked => {
             if (root.menu != "") {
                 root.menu = "";
+                root.show();
+            } else if (root.zone == 5) {
+                // Clic à côté du bandeau d'épisodes : il se referme, comme les menus.
+                root.zone = 2;
                 root.show();
             } else if (Nav.touch) {
                 if (root.seek-chain) {
@@ -992,8 +1038,21 @@ export component PlayerView inherits Rectangle {
         running: root.osd;
         triggered => {
             root.idle += 1;
-            if (root.idle >= (Nav.touch ? 5 : 3) && !root.paused && root.menu == "" && !root.dragging && root.zone != 5) {
+            // Pointeur sur les commandes (pas sur la vidéo) : elles restent. Plafond : pointeur sorti de la fenêtre.
+            let over = !Nav.touch && !Nav.kb && !vid-area.has-hover && root.idle < 30;
+            if (root.idle >= (Nav.touch ? 5 : 3) && !root.paused && root.menu == "" && !root.dragging && root.zone != 5 && !over) {
                 root.hide();
+            }
+        }
+    }
+    // Pointeur arrêté sur la vidéo : il n'allait pas vers le bouton, les commandes reviennent. Sur le
+    // bouton : on attend qu'il en sorte.
+    Timer {
+        interval: 200ms;
+        running: root.aim;
+        triggered => {
+            if (vid-area.has-hover && animation-tick() - root.aim-t > 900ms) {
+                root.show();
             }
         }
     }
@@ -1381,7 +1440,8 @@ export component PlayerView inherits Rectangle {
     }
 
     // ------------------------------------------------------------ Commandes
-    if root.osd: Rectangle {
+    if root.osd || root.osd-p > 0.001: Rectangle {
+        opacity: root.osd-p;
         // Voile du haut pour la lisibilité du titre : simple dégradé, sans flou.
         Rectangle {
             y: 0px;
@@ -1490,7 +1550,7 @@ export component PlayerView inherits Rectangle {
             x: root.m;
             width: parent.width - 2 * root.m;
             height: 160px * root.k;
-            y: parent.height - self.height - root.m - root.ep-p * root.ep-h;
+            y: parent.height - self.height - root.m - root.ep-p * root.ep-h + (1 - root.osd-p) * 28px * root.k;
             border-radius: 16px;
             background: Theme.player-bar;
             Gloss { r: parent.border-radius; strength: 0.4; }
@@ -1826,7 +1886,8 @@ export component PlayerView inherits Rectangle {
 
     // ------------------------------------------------------------ Indice : épisodes dessous
     // Commandes affichées et saison connue : petite languette sous le panneau (↓ pour l'ouvrir).
-    if root.osd && root.episodes.length > 0 && root.zone != 5 && root.ep-p < 0.01: Rectangle {
+    if root.osd-p > 0.001 && root.episodes.length > 0 && root.zone != 5 && root.ep-p < 0.01: Rectangle {
+        opacity: root.osd-p;
         x: (parent.width - self.width) / 2;
         y: parent.height - self.height - 2px * root.k;
         width: ep-hint.preferred-width + 54px * root.k;
@@ -1875,7 +1936,7 @@ export component PlayerView inherits Rectangle {
             root.command("volume-poll");
         }
     }
-    if root.osd && root.vol-p > 0.01: Rectangle {
+    if root.vol-p > 0.01: Rectangle {
         // Au doigt : plus large (dans la limite de l'écran), plus haute, la barre se prend partout.
         width: min(parent.width - 2 * root.m, (Nav.touch ? 520px : 420px) * root.k);
         height: (Nav.touch ? 96px : 76px) * root.k;
@@ -1968,7 +2029,7 @@ export component PlayerView inherits Rectangle {
 
     // ------------------------------------------------------------ Épisodes de la saison (↓)
     // Le bandeau monte du bas en même temps que le panneau (ep-p), sans le recouvrir.
-    if root.osd && root.ep-p > 0.001: Rectangle {
+    if root.ep-p > 0.001: Rectangle {
         x: root.m;
         y: parent.height - root.ep-p * (root.ep-h + root.m / 2);
         width: parent.width - 2 * root.m;
@@ -2019,15 +2080,31 @@ export component PlayerView inherits Rectangle {
                 }
             }
         }
+        // Refermer le bandeau à la souris ou au doigt.
+        PlayerButton {
+            x: parent.width - self.width - 6px * root.k;
+            y: 6px * root.k;
+            size: 40px * root.k;
+            icon: "ep-close";
+            background: Theme.player-bar;
+            border-radius: self.height / 2;
+            clicked => {
+                root.zone = 2;
+                root.show();
+            }
+        }
     }
 
     // ------------------------------------------------------------ Passer l'intro
     if root.skip-p > 0.01: Rectangle {
         x: parent.width - self.width - root.m + (1 - root.skip-p) * 30px * root.k;
-        y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
+        y: parent.height - self.height - root.m - root.osd-p * (160px * root.k + root.m);
         opacity: root.skip-p;
         width: 190px * root.k;
         height: 48px * root.k;
+        // Fond plein : le texte reste lisible sur une image claire.
+        border-radius: self.height / 2;
+        background: Theme.player-bar;
 
         PlayerButton {
             width: parent.width;
@@ -2046,12 +2123,13 @@ export component PlayerView inherits Rectangle {
     if root.next-p > 0.01: Rectangle {
         x: parent.width - self.width - root.m + (1 - root.next-p) * 40px * root.k;
         opacity: root.next-p;
-        y: parent.height - self.height - root.m - (root.osd ? 160px * root.k + root.m : 0px);
-        animate y { duration: Motion.player ? 160ms : 0ms; easing: ease-out; }
+        y: parent.height - self.height - root.m - root.osd-p * (160px * root.k + root.m);
         width: min(340px * root.k, parent.width - 32px * root.k);
         height: 340px * 0.5625 * root.k + 150px * root.k;
         border-radius: 14px;
         background: Theme.player-bar;
+        // Toute la carte compte comme le bouton visé (voir aim), pas seulement ses boutons.
+        TouchArea { }
             Gloss { r: parent.border-radius; strength: 0.4; }
         border-width: 1px;
         border-color: Theme.glass-border;

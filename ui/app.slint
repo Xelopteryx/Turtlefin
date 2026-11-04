@@ -27,7 +27,7 @@ import "fonts/TurtlefinBlankAero-SemiBold.ttf";
 import "fonts/TurtlefinBlankAero-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder, Perf, Win7Glass, TermGlass } from "theme.slint";
-import { AeroSky, HexDrift, AeroDrift, CircuitDrift } from "sky.slint";
+import { AeroSky, HexDrift, AeroDrift, CircuitDrift, SakuraDrift, ToonDrift } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
 import { LxItem, LangExplorer } from "langx.slint";
@@ -255,6 +255,8 @@ component Field inherits Rectangle {
             x: 18px * root.k;
             width: parent.width - 36px * root.k;
             height: parent.height;
+            // Texte sélectionné : c'est le champ classique qui dessine (lettres et barre de sélection).
+            opacity: input.anchor-position-byte-offset != input.cursor-position-byte-offset ? 0 : 1;
             text: root.tv ? root.shown : root.password ? root.shown : root.text;
             placeholder: root.hint;
             cursor: root.tv ? root.editing : input.has-focus;
@@ -270,12 +272,13 @@ component Field inherits Rectangle {
             enabled: !root.tv;
             text <=> root.text;
             input-type: root.password ? InputType.password : InputType.text;
-            color: transparent;
+            color: self.anchor-position-byte-offset != self.cursor-position-byte-offset ? Theme.fg : transparent;
             text-cursor-width: 0px;
             font-size: 18px * root.k;
             vertical-alignment: center;
             single-line: true;
-            selection-background-color: Theme.accent1.with-alpha(0.4);
+            selection-background-color: Theme.accent2;
+            selection-foreground-color: Theme.on-accent;
             cursor-position-changed(pos) => {
                 root.cur-x = pos.x;
             }
@@ -2864,6 +2867,16 @@ component Backdrop inherits Rectangle {
         no-server: root.no-server;
         opacity: root.a;
     }
+    if Theme.bubbles && Theme.scenery == 5 && !Perf.hide(4): SakuraDrift {
+        live: Motion.scenery;
+        ticking: root.ticking;
+        opacity: root.a;
+    }
+    if Theme.bubbles && Theme.scenery == 6 && !Perf.hide(4): ToonDrift {
+        live: Motion.scenery;
+        ticking: root.ticking;
+        opacity: root.a;
+    }
     if Theme.bubbles && Theme.scenery == 4 && !Perf.hide(4): HexDrift {
         live: Motion.scenery;
         ticking: root.ticking;
@@ -4218,6 +4231,13 @@ export component AppWindow inherits Window {
     in property <[TrackData]> ch-items;
     in-out property <int> ch-sel;
     callback settings-choose(string, string);
+    // Thème essayé dans la liste (vide : retour au thème enregistré).
+    callback theme-preview(string);
+    changed ch-sel => {
+        if (root.ch-key == "theme" && root.ch-sel < root.ch-items.length) {
+            root.theme-preview(root.ch-items[root.ch-sel].id);
+        }
+    }
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
     // Même page, autres catégories : le tableau de bord des administrateurs (voir dashboard.rs).
@@ -5511,7 +5531,9 @@ export component AppWindow inherits Window {
         }
 
         // ---- Qui regarde ?
-        if root.login-mode == "pick": Rectangle {
+        if root.login-mode == "pick" || lg.form-anim: Rectangle {
+            opacity: root.login-mode == "pick" ? 1 : 1 - lg.form-e;
+            transform-scale: root.login-mode == "pick" ? 1 : 1 + 0.05 * lg.form-e;
             // Rangée plus large que l'écran : elle défile pour garder la tuile choisie visible.
             property <length> step: lg.pk-step;
             // Comptes enregistrés (pour « Gérer les comptes »).
@@ -6410,7 +6432,9 @@ export component AppWindow inherits Window {
                 width: parent.width - 70px * root.k;
                 height: parent.height;
                 text: root.search-text;
-                placeholder: Tr.t(Tr.k, "Titre d'un film, d'une série, d'un épisode…");
+                placeholder: Tr.t(Tr.k, "Titre, acteur, studio, tag…");
+                // Texte sélectionné : c'est le champ classique qui dessine (lettres et barre de sélection).
+                opacity: s-input.anchor-position-byte-offset != s-input.cursor-position-byte-offset ? 0 : 1;
                 cursor: root.tv-mode ? root.s-osk : s-input.has-focus;
                 cursor-x: root.tv-mode ? -1px : root.s-cur-x;
                 font-size: 18px * root.k;
@@ -6423,7 +6447,9 @@ export component AppWindow inherits Window {
                 visible: !root.tv-mode;
                 enabled: !root.tv-mode;
                 text <=> root.search-text;
-                color: transparent;
+                color: self.anchor-position-byte-offset != self.cursor-position-byte-offset ? Theme.fg : transparent;
+                selection-background-color: Theme.accent2;
+                selection-foreground-color: Theme.on-accent;
                 text-cursor-width: 0px;
                 font-size: 18px * root.k;
                 vertical-alignment: center;
@@ -7340,10 +7366,28 @@ export component AppWindow inherits Window {
             opacity: (root.sw-ov ? root.sw-e : 1) * root.rev(2) * (1 - root.top-out-p);
             width: root.d-low-w;
             height: 80px * root.k;
-            border-radius: 14px;
-            background: !root.h-focus && root.d-zone == 1 ? Theme.fg.with-alpha(0.24) : Theme.fg.with-alpha(0.13);
-            border-width: !root.h-focus && root.d-zone == 1 ? 2px : 0px;
-            border-color: Theme.accent2;
+            // Comme les cartes du thème (fond, contour, arrondi, reflet) ; réagit au survol et à la sélection.
+            property <bool> lit: (!root.h-focus && root.d-zone == 1 && Nav.kb) || (ov-ta.has-hover && !Nav.touch);
+            border-radius: Theme.radius;
+            background: self.lit ? Theme.fg.with-alpha(0.12) : Theme.card;
+            animate background { duration: Motion.select ? 180ms : 0ms; }
+            border-width: 1px;
+            border-color: self.lit ? Theme.accent2 : Theme.card-border;
+            animate border-color { duration: Motion.select ? 180ms : 0ms; }
+            drop-shadow-blur: Nav.no-shadow || !self.lit ? 0px : 14px * root.k;
+            drop-shadow-color: Theme.glow;
+            Gloss { r: parent.border-radius; strength: 0.35; }
+            // Filet d'accent à gauche, qui s'allonge à la sélection.
+            Rectangle {
+                property <float> q: parent.lit ? 1 : 0.34;
+                animate q { duration: Motion.select ? 240ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+                x: 5px;
+                width: 3px;
+                height: (parent.height - 20px) * self.q;
+                y: (parent.height - self.height) / 2;
+                border-radius: 2px;
+                background: @linear-gradient(180deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
 
             if root.wiping(root.mt-ov, root.detail.overview): Wipe {
                 x: 14px;
@@ -7370,7 +7414,7 @@ export component AppWindow inherits Window {
                 font-size: 15px * root.k;
             }
 
-            TouchArea {
+            ov-ta := TouchArea {
                 clicked => {
                     root.d-zone = 1;
                     root.overview-open = true;
@@ -7379,12 +7423,17 @@ export component AppWindow inherits Window {
         }
 
         // Bloc « À suivre » (séries) : colonne resserrée à droite, comme .nextUpSection
-        if root.show-next: Rectangle {
+        if root.show-next: next-box := Rectangle {
             x: parent.width - 32px - root.next-w + root.po * (root.next-w + 64px);
             y: 24px;
             opacity: (root.sw-next ? root.sw-e : 1) * root.rev(2) * (1 - root.top-out-p);
             width: root.next-w;
             height: 228px * root.k;
+            // Choisi au clavier ou survolé : grossit un peu, comme les cartes des rangées.
+            property <bool> nlit: (!root.h-focus && root.d-zone == 3 && Nav.kb) || (next-ta.has-hover && !Nav.touch);
+            property <float> n-s: self.nlit ? 1.04 : 1.0;
+            animate n-s { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+            transform-scale: self.n-s;
 
             Text {
                 height: 20px * root.k;
@@ -7396,12 +7445,12 @@ export component AppWindow inherits Window {
             }
 
             // Corps de carte aux couleurs du thème (comme les cartes des rangées) : fond, contour, lueur.
-            property <bool> nsel: !root.h-focus && root.d-zone == 3;
             Rectangle {
                 y: 24px * root.k;
                 height: parent.height - self.y;
                 border-radius: Theme.radius;
-                background: parent.nsel ? Theme.card-focus : Theme.card;
+                background: parent.nlit ? Theme.card-focus : Theme.card;
+                animate background { duration: Motion.select ? 180ms : 0ms; }
                 border-width: 1px;
                 border-color: Theme.card-border;
                 // Pas de halo autour de la carte choisie (comme les cartes des rangées).
@@ -7426,13 +7475,13 @@ export component AppWindow inherits Window {
 
                 if Theme.sheen > 0: Sheen {
                     r: Theme.radius;
-                    on: !root.h-focus && root.d-zone == 3;
+                    on: next-box.nlit;
                 }
                 Rectangle {
                     width: parent.width;
                     height: parent.height;
                     border-radius: Theme.radius;
-                    border-width: !root.h-focus && root.d-zone == 3 ? 3px : 0px;
+                    border-width: next-box.nlit ? 3px : 0px;
                     border-color: Theme.accent2;
                 }
             }
@@ -7446,7 +7495,7 @@ export component AppWindow inherits Window {
                 text-color: Theme.text;
                 font-size: 14px * root.k;
                 font-weight: 600;
-                active: !root.h-focus && root.d-zone == 3;
+                active: parent.nlit;
                 horizontal-alignment: TextHorizontalAlignment.left;
             }
 
@@ -7458,11 +7507,11 @@ export component AppWindow inherits Window {
                 text: root.detail.next-subtitle;
                 text-color: Theme.muted;
                 font-size: 12px * root.k;
-                active: !root.h-focus && root.d-zone == 3;
+                active: parent.nlit;
                 horizontal-alignment: TextHorizontalAlignment.left;
             }
 
-            TouchArea {
+            next-ta := TouchArea {
                 clicked => {
                     root.d-zone = 3;
                     root.open-hero(root.detail.next-id);
@@ -9621,7 +9670,7 @@ export component AppWindow inherits Window {
         animate ch-p { duration: Motion.panels ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         if sets.ch-p > 0.01 && !root.dust-snap: ch-pane := Rectangle {
             // Langue : voile léger, les blocs blancs de l'effet restent blancs.
-            background: (root.ch-key == "language" || root.dust-on ? Theme.scrim.with-alpha(0.15) : Theme.scrim.with-alpha(0.5)).transparentize(1 - sets.ch-p);
+            background: (root.ch-key == "language" || root.ch-key == "theme" || root.dust-on ? Theme.scrim.with-alpha(0.15) : Theme.scrim.with-alpha(0.5)).transparentize(1 - sets.ch-p);
             TouchArea {
                 clicked => {
                     root.ch-key = "";
@@ -9748,6 +9797,12 @@ export component AppWindow inherits Window {
                             commands: "M 2.5 8.5 L 6.5 12.5 L 13.5 3.5";
                         }
                         ch-area := TouchArea {
+                            changed has-hover => {
+                                // Thèmes : survoler une ligne l'essaie (voir theme-preview).
+                                if (self.has-hover && root.ch-key == "theme" && !Nav.touch) {
+                                    root.ch-sel = i;
+                                }
+                            }
                             clicked => {
                                 root.settings-choose(root.ch-key, t.id);
                                 if (root.ch-key != "language") {
@@ -11908,8 +11963,8 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
                         : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
-                        : root.cast-on ? Tr.t(Tr.k, "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran.")
-                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches.");
+                        : root.cast-on ? Tr.t(Tr.k, "Le bouton Lecture envoie les vidéos sur cet écran.")
+                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra.");
                     color: Theme.muted;
                     font-size: 13px * root.k;
                     wrap: word-wrap;
@@ -13535,6 +13590,9 @@ export component AppWindow inherits Window {
         root.dust-t0 = animation-tick();
     }
     changed ch-key => {
+        if (root.ch-key == "") {
+            root.theme-preview("");
+        }
         if (root.dust-cloud && root.ch-key != "language") {
             root.dust-cancel();
         }

@@ -995,6 +995,8 @@ impl Client {
             user_id: self.user_id.clone(),
             token: self.token.clone(),
             device_id: self.device_id.clone(),
+            // La diffusion notée survit à la connexion : cast_restore la relit juste après.
+            cast_last: crate::config::load().cast_last,
             ..Default::default()
         }
     }
@@ -1316,6 +1318,62 @@ impl Client {
             )
             .await?;
         Ok(r.items)
+    }
+
+    /// Recherche par acteur, studio et tag : (intitulé de la rangée, films et séries), meilleures notes
+    /// d'abord. Les trois premiers noms qui correspondent de chaque sorte.
+    pub async fn search_people(&self, term: &str) -> Vec<(String, Vec<Item>)> {
+        let q: [(&str, &str); 3] = [("userId", &self.user_id), ("searchTerm", term), ("limit", "3")];
+        let f: [(&str, &str); 2] = [("userId", &self.user_id), ("includeItemTypes", "Movie,Series")];
+        let (persons, studios, filters) = tokio::join!(
+            self.get::<ItemsResp>("/Persons", &q),
+            self.get::<ItemsResp>("/Studios", &q),
+            self.get::<serde_json::Value>("/Items/Filters", &f),
+        );
+        let lower = term.to_lowercase();
+        let tags: Vec<String> = filters
+            .ok()
+            .and_then(|f| f["Tags"].as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|t| t.as_str())
+            .filter(|t| t.to_lowercase().contains(&lower))
+            .take(3)
+            .map(str::to_string)
+            .collect();
+        let mut asked: Vec<(String, &str, String)> = Vec::new();
+        for p in persons.map(|r| r.items).unwrap_or_default() {
+            asked.push((trf("Avec {}", &[&p.name]), "PersonIds", p.id));
+        }
+        for s in studios.map(|r| r.items).unwrap_or_default() {
+            asked.push((trf("Studio : {}", &[&s.name]), "StudioIds", s.id));
+        }
+        for t in tags {
+            asked.push((trf("Tag : {}", &[&t]), "Tags", t));
+        }
+        let mut out = Vec::new();
+        for (title, key, value) in asked {
+            let r: Result<ItemsResp> = self
+                .get(
+                    "/Items",
+                    &[
+                        ("userId", &self.user_id),
+                        ("Recursive", "true"),
+                        ("IncludeItemTypes", "Movie,Series"),
+                        ("SortBy", "CommunityRating"),
+                        ("SortOrder", "Descending"),
+                        ("Limit", "24"),
+                        (key, &value),
+                    ],
+                )
+                .await;
+            if let Ok(r) = r {
+                if !r.items.is_empty() {
+                    out.push((title, r.items));
+                }
+            }
+        }
+        out
     }
 
     /// Un film ou une série pas encore vu, au hasard.

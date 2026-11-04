@@ -567,6 +567,27 @@ Demandes du ticket n° 2 (LainX84) et du mainteneur. Commits locaux 8ba7ef1 … 
 - Reste : transcodage (choix), bibliothèques par compte, ajout/suppression de bibliothèques, fiche
   complète d'un média, création de clé d'API, désinstallation d'extension ; APK à refaire.
 
+## 6 nonies. Liste « problèmes vue.txt » : diffusion, thèmes, lecteur (4 novembre 2026, pas publié)
+
+- **Diffusion** : plus de bouton « Lire sur … » : un écran choisi, Lecture y envoie (`a == "play"` avec
+  `app.cast` → `cast_play_item`). Retour ou accueil depuis le lecteur-télécommande : la vidéo s'arrête et
+  l'écran reste choisi (`cast_stop_video`). Fermeture normale : `cast_stop_on_exit` (3 s au plus). Appli tuée :
+  `Saved.cast_last` noté à chaque envoi, `cast_restore` s'y rebranche à la connexion (`to_saved` le garde :
+  la connexion réécrit la session). Android tue souvent l'appli sans passer par la sortie : c'est ce chemin-là.
+- **Thèmes** : aperçu dans la liste de choix (`theme-preview`, `theme::preview`, sans recalculer l'icône de la
+  fenêtre ; Échap revient au thème enregistré). Nouveaux thèmes « Anime » (`sakura`, 5) et « Cartoon » (`toon`, 6) :
+  dessins originaux, sans personnage, dans `ui/sky.slint` (`SakuraScene`/`SakuraDrift`, `ToonScene`/`ToonDrift`).
+- **Android** : changer de thème ne change plus l'icône tout de suite (`PENDING_ICON`, appliqué sur
+  `MainEvent::Stop`) : c'est `setComponentEnabledSetting` qui fermait l'appli. PAS ENCORE ESSAYÉ sur téléphone.
+- **Lecteur** : commandes en fondu et glissement (`osd-p`) ; souris sur le panneau ou réglage en cours : elles
+  restent (`idle` négatif, `vid-area.has-hover`) ; souris qui va vers « Passer l'intro » / la carte « Épisode
+  suivant » commandes cachées : le pointeur revient sans les commandes (`aim`), qui ne reviennent que s'il
+  s'arrête 0,9 s sur la vidéo ; bandeau des épisodes navigable à la souris, bouton de fermeture.
+- **Divers** : fondu du formulaire de connexion ; sélection visible dans les champs (`TypedText` masqué pendant
+  une sélection) ; recherche par acteur, studio, tag (`api::search_people`) ; bloc résumé et carte « À suivre »
+  aux couleurs du thème avec survol et sélection.
+- Propositions graphiques (8 pistes, A à H, au choix du mainteneur) : https://claude.ai/artifact/F9MwLJaZWLZbXroqgDFKJs
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :

@@ -1373,6 +1373,145 @@ export component CircuitDrift inherits Rectangle {
     }
 }
 
+
+// ---- Décor « Anime » : soleil couchant rayé, montagnes en ombres, pétales.
+component SakuraScene inherits Rectangle {
+    background: @linear-gradient(180deg, #1a0b33 0%, #4a1648 55%, #7a2350 100%);
+    // Soleil.
+    Rectangle {
+        width: min(parent.width, parent.height) * 0.62;
+        height: self.width;
+        x: parent.width * 0.68 - self.width / 2;
+        y: parent.height * 0.40 - self.height / 2;
+        border-radius: self.width / 2;
+        background: @linear-gradient(180deg, #ffd27a 0%, #ff7a8a 55%, #e0407f 100%);
+        opacity: 0.55;
+    }
+    // Bandes horizontales sur le bas du soleil.
+    for i in 5: Rectangle {
+        y: parent.height * (0.46 + i * 0.038);
+        height: parent.height * (0.006 + i * 0.003);
+        background: #4a1648;
+    }
+    // Montagnes.
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 1600;
+        viewbox-height: 900;
+        fill: #2b1140;
+        commands: "M 0 900 L 0 690 L 180 610 L 330 680 L 560 500 L 690 590 L 760 560 L 980 700 L 1210 590 L 1400 690 L 1600 620 L 1600 900 Z";
+    }
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 1600;
+        viewbox-height: 900;
+        fill: #170a2a;
+        commands: "M 0 900 L 0 780 L 240 720 L 520 800 L 820 730 L 1100 810 L 1380 740 L 1600 790 L 1600 900 Z";
+    }
+}
+
+export component SakuraDrift inherits Rectangle {
+    in property <bool> live;
+    in property <bool> ticking;
+    in property <float> k: 1.0;
+    property <float> ph: Drift.ph;
+    Timer {
+        interval: 33ms;
+        running: root.live && root.ticking;
+        triggered => {
+            Drift.ph = mod(animation-tick() / 1ms, 3600000) / 1000;
+        }
+    }
+    clip: true;
+    // Pétales qui tombent en oscillant (fixes si le décor ne bouge pas).
+    for i in 18: Rectangle {
+        property <float> seed: mod(i * 0.618034, 1);
+        property <float> speed: 0.018 + self.seed * 0.022;
+        property <float> fall: mod(self.seed * 7 + root.ph * self.speed, 1);
+        width: (7px + self.seed * 7px) * root.k;
+        height: self.width * 1.5;
+        x: root.width * mod(self.seed * 13 + self.fall * 0.25, 1) + sin((root.ph * 14 + i * 40) * 1deg) * 26px * root.k;
+        y: root.height * (self.fall * 1.1 - 0.05);
+        border-radius: self.width / 2;
+        background: mod(i, 3) == 0 ? #ffd3e2 : #ff9ec4;
+        opacity: 0.35 + self.seed * 0.45;
+        transform-rotation: (root.ph * 25 + i * 37) * 1deg;
+    }
+}
+
+// ---- Décor « Cartoon » : rayons de bande dessinée, trame de points, nuages.
+component ToonScene inherits Rectangle {
+    background: @radial-gradient(circle, #5a4bff 0%, #2f22c4 55%, #1a1480 100%);
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 1600;
+        viewbox-height: 900;
+        fill: #ffffff14;
+        commands: "M 800 450 L 2193 313 L 2193 587 Z M 800 450 L 2140 857 L 2035 1109 Z M 800 450 L 1882 1339 L 1689 1532 Z M 800 450 L 1459 1685 L 1207 1790 Z M 800 450 L 937 1843 L 663 1843 Z M 800 450 L 393 1790 L 141 1685 Z M 800 450 L -89 1532 L -282 1339 Z M 800 450 L -435 1109 L -540 857 Z M 800 450 L -593 587 L -593 313 Z M 800 450 L -540 43 L -435 -209 Z M 800 450 L -282 -439 L -89 -632 Z M 800 450 L 141 -785 L 393 -890 Z M 800 450 L 663 -943 L 937 -943 Z M 800 450 L 1207 -890 L 1459 -785 Z M 800 450 L 1689 -632 L 1882 -439 Z M 800 450 L 2035 -209 L 2140 43 Z";
+    }
+    // Trame de points dans les coins.
+    for i in 60: Rectangle {
+        property <int> c: mod(i, 12);
+        property <int> r: floor(i / 12);
+        property <float> d: 1 - (self.c + self.r) / 15;
+        width: max(0px, 26px * self.d);
+        height: self.width;
+        x: 18px + self.c * 34px - self.width / 2;
+        y: parent.height - 18px - self.r * 34px - self.height / 2;
+        border-radius: self.width / 2;
+        background: #ffd21f;
+        opacity: 0.3;
+    }
+}
+
+export component ToonDrift inherits Rectangle {
+    in property <bool> live;
+    in property <bool> ticking;
+    in property <float> k: 1.0;
+    property <float> ph: Drift.ph;
+    Timer {
+        interval: 33ms;
+        running: root.live && root.ticking;
+        triggered => {
+            Drift.ph = mod(animation-tick() / 1ms, 3600000) / 1000;
+        }
+    }
+    clip: true;
+    // Nuages à gros contour qui passent.
+    for i in 3: Path {
+        property <float> pos: mod(i * 0.37 + root.ph * (0.006 + i * 0.002), 1);
+        property <length> w: (280px + i * 90px) * root.k;
+        width: self.w;
+        height: self.w * 0.45;
+        x: root.width * 1.3 * self.pos - self.w;
+        y: root.height * (0.08 + i * 0.13);
+        viewbox-width: 200;
+        viewbox-height: 90;
+        fill: #ffffff40;
+        stroke: #14104a80;
+        stroke-width: 3px * root.k;
+        commands: "M 30 80 C 8 80 4 54 26 50 C 22 26 56 18 68 36 C 78 8 124 8 132 38 C 150 24 178 38 170 56 C 192 58 192 80 170 80 Z";
+    }
+    // Étoiles qui clignotent.
+    for i in 6: Path {
+        property <float> seed: mod(i * 0.618034, 1);
+        property <float> tw: 0.5 + 0.5 * sin((root.ph * 80 + i * 60) * 1deg);
+        width: (22px + self.seed * 22px) * root.k * (0.7 + 0.3 * self.tw);
+        height: self.width;
+        x: root.width * mod(self.seed * 9, 1);
+        y: root.height * mod(self.seed * 5 + 0.1, 0.6);
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: #ffd21fa6;
+        stroke: #14104a80;
+        stroke-width: 1.5px * root.k;
+        commands: "M 12 1 L 15 9 L 23 12 L 15 15 L 12 23 L 9 15 L 1 12 L 9 9 Z";
+    }
+}
+
 // Décor du thème, sur l'image de fond du média et sous les pages.
 export component AeroSky inherits Rectangle {
     in property <float> k: 1.0;
@@ -1394,4 +1533,6 @@ export component AeroSky inherits Rectangle {
         lid: 1;
     }
     if Theme.scenery == 4: HexScene { }
+    if Theme.scenery == 5: SakuraScene { }
+    if Theme.scenery == 6: ToonScene { }
 }
