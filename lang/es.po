@@ -2594,3 +2594,24 @@ msgstr "Elige la pantalla a la que enviar los vídeos: el botón Reproducir los 
 
 msgid "Diffusion en cours sur {}"
 msgstr "Transmitiendo en {}"
+
+msgid "Reprendre à {}"
+msgstr "Reanudar en {}"
+
+msgid "Voir la fiche"
+msgstr "Ver ficha"
+
+msgid "Résumé sur les affiches"
+msgstr "Resumen en los pósteres"
+
+msgid "Sur l'affiche sélectionnée, après un instant."
+msgstr "En el póster seleccionado, tras un instante."
+
+msgid "Couleur du média"
+msgstr "Color del medio"
+
+msgid "La page d'un média prend la couleur de son affiche."
+msgstr "La página de un medio toma el color de su póster."
+
+msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
+msgstr "Toca una línea para probarla y otra vez para elegirla."

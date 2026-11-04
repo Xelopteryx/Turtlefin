@@ -200,6 +200,7 @@ export component TermGlass inherits Rectangle {
 // Réglages d'affichage de l'appareil (Paramètres > Affichage), posés par Rust.
 export global Prefs {
     in-out property <bool> ratings: true;  // notes sur les affiches
+    in-out property <bool> card-info: true;  // résumé sur la carte sélectionnée
     in-out property <bool> marquee: true;  // défilement des noms trop longs
     in-out property <bool> clock: true;    // heure en haut à droite
 }

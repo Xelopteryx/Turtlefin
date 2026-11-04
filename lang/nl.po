@@ -2594,3 +2594,24 @@ msgstr "Kies het scherm voor de video's: de afspeelknop stuurt ze daarheen."
 
 msgid "Diffusion en cours sur {}"
 msgstr "Bezig met casten naar {}"
+
+msgid "Reprendre à {}"
+msgstr "Hervatten bij {}"
+
+msgid "Voir la fiche"
+msgstr "Details bekijken"
+
+msgid "Résumé sur les affiches"
+msgstr "Samenvatting op posters"
+
+msgid "Sur l'affiche sélectionnée, après un instant."
+msgstr "Op de geselecteerde poster, na een moment."
+
+msgid "Couleur du média"
+msgstr "Mediakleur"
+
+msgid "La page d'un média prend la couleur de son affiche."
+msgstr "De pagina van een medium neemt de kleur van de poster aan."
+
+msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
+msgstr "Tik op een regel om te proberen, nogmaals om te kiezen."

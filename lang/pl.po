@@ -2602,3 +2602,24 @@ msgstr "Wybierz ekran dla filmów: przycisk Odtwórz wyśle je tam."
 
 msgid "Diffusion en cours sur {}"
 msgstr "Przesyłanie na {}"
+
+msgid "Reprendre à {}"
+msgstr "Wznów od {}"
+
+msgid "Voir la fiche"
+msgstr "Zobacz szczegóły"
+
+msgid "Résumé sur les affiches"
+msgstr "Opis na plakatach"
+
+msgid "Sur l'affiche sélectionnée, après un instant."
+msgstr "Na wybranym plakacie, po chwili."
+
+msgid "Couleur du média"
+msgstr "Kolor multimediów"
+
+msgid "La page d'un média prend la couleur de son affiche."
+msgstr "Strona multimediów przyjmuje kolor plakatu."
+
+msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
+msgstr "Dotknij wiersza, aby wypróbować, ponownie, aby wybrać."

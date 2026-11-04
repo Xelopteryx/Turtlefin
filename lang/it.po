@@ -2594,3 +2594,24 @@ msgstr "Scegli lo schermo a cui inviare i video: il pulsante Riproduci li invier
 
 msgid "Diffusion en cours sur {}"
 msgstr "Trasmissione in corso su {}"
+
+msgid "Reprendre à {}"
+msgstr "Riprendi da {}"
+
+msgid "Voir la fiche"
+msgstr "Vedi scheda"
+
+msgid "Résumé sur les affiches"
+msgstr "Trama sulle locandine"
+
+msgid "Sur l'affiche sélectionnée, après un instant."
+msgstr "Sulla locandina selezionata, dopo un istante."
+
+msgid "Couleur du média"
+msgstr "Colore del media"
+
+msgid "La page d'un média prend la couleur de son affiche."
+msgstr "La pagina di un media prende il colore della sua locandina."
+
+msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
+msgstr "Tocca una riga per provarla, di nuovo per sceglierla."

@@ -588,6 +588,23 @@ Demandes du ticket n° 2 (LainX84) et du mainteneur. Commits locaux 8ba7ef1 … 
   aux couleurs du thème avec survol et sélection.
 - Propositions graphiques (8 pistes, A à H, au choix du mainteneur) : https://claude.ai/artifact/F9MwLJaZWLZbXroqgDFKJs
 
+## 6 decies. Propositions graphiques A à H (4 novembre 2026, pas publié)
+
+- **A, bannière** de l'accueil (`Banner`, `present_banner`, `banner-h`, `banner-sel`) : à reprendre, sinon à suivre,
+  sinon dernier ajouté ; onglet Accueil seulement, jamais pendant la visite guidée. Les rangées gardent leurs `y-px` :
+  c'est `banner-h` qui les décale.
+- **B** : carte choisie à 1,08, voisines sous un voile (`dim`, un rectangle : moins coûteux qu'une opacité), résumé sur
+  l'image après 0,5 s (`info-a`, réglage `card_info`, pas au doigt).
+- **C** : `play_label` (« Reprendre à 7:13 »), bouton Lecture coloré avec texte (icône seule en portrait), boutons
+  alignés à gauche. **D** : tuiles « Mes médias » sans légende (`tiles`, `bare`).
+- **E** : `media_tint` (teinte vive dominante de l'affiche, réglage `media_color`) : haut de la fiche et bouton Lecture.
+- **F** : formes d'attente sur l'écran « loading » seulement. **H** existait déjà (liste d'épisodes avec résumé).
+- **G** : au survol de la barre de temps, temps et chapitre ; vignette si le serveur a des images trickplay
+  (`Client::trickplay`, `seek_hover`). LA VIGNETTE N'A PAS ÉTÉ VUE : pas d'images préparées sur le serveur d'essai.
+- Aperçu des thèmes au doigt : première touche = essai, seconde = choix.
+- Android : l'icône du thème change en quittant l'appli, sans la fermer (essayé sur le téléphone, appli gardée en
+  vie) ; ces propositions A à H n'ont pas été compilées ni essayées sur Android.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :

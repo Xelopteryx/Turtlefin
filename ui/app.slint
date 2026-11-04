@@ -47,9 +47,24 @@ export struct Section {
     title: string,
     items: [CardData],
     landscape: bool, // rangée de vignettes 16:9 (« Mes médias », « Reprendre »...)
+    tiles: bool,     // tuiles sans légende (« Mes médias » : le nom est sur l'image)
     y-px: float,     // position verticale de la rangée, en pixels logiques (calculée en Rust)
     h-px: float,     // hauteur de la rangée, en pixels logiques
     leaving: bool,   // rangée qui s'en va (fiche suivante qui en a moins) : elle part en glissant
+}
+
+// Grande bannière en haut de l'accueil : le média à reprendre (ou à suivre, ou récent).
+export struct Banner {
+    id: string,
+    title: string,
+    subtitle: string,
+    overview: string,
+    play-label: string,
+    progress: float,
+    has-image: bool,
+    image: image,
+    has-logo: bool,
+    logo: image,
 }
 
 export struct ServerData {
@@ -665,6 +680,19 @@ component Card inherits Rectangle {
     in property <float> k: 1.0;
     callback clicked();
     callback touched();
+    // Tuile sans légende : l'image occupe toute la carte (son nom n'apparaît qu'à la sélection).
+    in property <bool> bare;
+    // Une voisine est sélectionnée : celle-ci s'efface un peu.
+    in property <bool> dim;
+    callback lit-changed(bool);
+    changed lit => {
+        root.lit-changed(root.lit);
+    }
+    property <float> dim-a: root.dim ? 1 : 0;
+    animate dim-a { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
+    // Résumé sur l'image de la carte sélectionnée, après un instant (pas à chaque carte traversée).
+    property <float> info-a: root.lit ? 1 : 0;
+    animate info-a { duration: Motion.select ? 220ms : 0ms; delay: Motion.select ? 500ms : 0ms; easing: ease-out; }
 
     property <length> img-h: root.width * root.ratio;
 
@@ -700,7 +728,7 @@ component Card inherits Rectangle {
     in property <bool> moving;
     property <float> text-a: root.moving || root.flip-pend || root.flip-on ? 0 : 1;
     animate text-a { duration: Motion.select ? 220ms : 0ms; easing: ease-out; }
-    property <float> lit-s: root.lit ? 1.06 : 1.0;
+    property <float> lit-s: root.lit ? 1.08 : 1.0;
     animate lit-s { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
     transform-scale: root.lit-s * root.extra-scale;
     border-radius: Theme.radius;
@@ -713,7 +741,7 @@ component Card inherits Rectangle {
     // Contour au bord exact de la carte (Windows 7 : clair, bleu lumineux si choisie). Pas de halo
     // autour de la carte choisie : seulement une ombre discrète sous les cartes en verre.
     border-width: Theme.win7 || Theme.term ? 0px : 1px;
-    border-color: Theme.card-border;
+    border-color: root.bare && root.lit ? Theme.accent2 : Theme.card-border;
     drop-shadow-blur: Nav.no-shadow ? 0px : Theme.win7 ? 8px * root.k : 0px;
     drop-shadow-color: #00000070;
 
@@ -722,6 +750,9 @@ component Card inherits Rectangle {
     content := Rectangle {
     opacity: root.ap;
     y: (1 - root.ap) * 24px * root.k;
+    // Tuile : l'image, arrondie seulement en haut au décodage, suit tous les coins de la carte.
+    clip: root.bare;
+    border-radius: root.bare ? Theme.radius : 0px;
     // Retournement : la carte s'amincit jusqu'à la tranche, puis se rouvre sur l'autre média.
     transform-scale-x: (root.flip-on ? max(0.02, abs(cos(root.fq * 180deg))) : 1) * 100%;
     CardArt {
@@ -749,8 +780,44 @@ component Card inherits Rectangle {
         border-top-right-radius: Theme.radius;
         background: @linear-gradient(180deg, rgba(255, 255, 255, root.lit ? 0.30 : 0.20) 0%, rgba(255, 255, 255, 0.04) 100%);
     }
+    // Résumé de la carte sélectionnée, sur le bas de l'image.
+    if root.lit && root.shown.overview != "" && Prefs.card-info && !Nav.touch: Rectangle {
+        property <length> h: min(root.img-h, 92px * root.k);
+        y: root.img-h - self.h;
+        height: self.h;
+        opacity: root.info-a;
+        background: @linear-gradient(180deg, #00000000 0%, #000000d9 42%, #000000f0 100%);
+        Text {
+            x: 10px * root.k;
+            y: 26px * root.k;
+            width: parent.width - 20px * root.k;
+            height: parent.height - self.y - 6px * root.k;
+            text: root.shown.overview;
+            color: white;
+            font-size: 11px * root.k;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+    }
+    // Tuile : le nom, seulement s'il n'y a pas d'image pour le porter.
+    if root.bare && !root.shown.has-image: Rectangle {
+        y: parent.height - self.height;
+        height: 40px * root.k;
+        background: @linear-gradient(180deg, #00000000 0%, #000000b3 100%);
+        Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.shown.title;
+            color: white;
+            font-size: 15px * root.k;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
     // Titre et sous-titre : défilent sur la carte sélectionnée s'ils sont trop longs.
-    Marquee {
+    if !root.bare: Marquee {
         x: 8px * root.k;
         // Sans sous-titre (bibliothèques), le titre est centré dans l'encadré.
         y: root.img-h + (root.data.subtitle == "" ? (parent.height - root.img-h - self.height) / 2 : 8px * root.k);
@@ -764,7 +831,7 @@ component Card inherits Rectangle {
         font-weight: 500;
     }
 
-    Marquee {
+    if !root.bare: Marquee {
         x: 8px * root.k;
         y: root.img-h + 30px * root.k;
         width: parent.width - 16px * root.k;
@@ -808,6 +875,12 @@ component Card inherits Rectangle {
         border-radius: Theme.radius;
         border-width: root.lit ? 2px * root.k : 1px;
         border-color: root.lit ? #9ee0ff : rgba(255, 255, 255, 0.38);
+    }
+
+    // Voisine de la carte sélectionnée : un voile plutôt qu'une opacité (bien moins coûteux à dessiner).
+    if root.dim-a > 0.01: Rectangle {
+        border-radius: Theme.radius;
+        background: #000000.with-alpha(0.42 * root.dim-a);
     }
 
     // Menu de la carte (vu, non vu...) : clic droit, ou appui long au doigt (le clic qui suit est ignoré).
@@ -855,6 +928,9 @@ component SectionRow inherits Rectangle {
     // `leaving` : la rangée s'en va (titre vers la gauche, cartes en fondu).
     in property <bool> cascade;
     in property <bool> leaving;
+    in property <bool> tiles;
+    // Carte survolée (souris) : ses voisines s'effacent, comme celles de la carte choisie au clavier.
+    property <int> hover-i: -1;
     property <duration> t-t0;
     property <bool> t-live: root.cascade;
     init => {
@@ -877,7 +953,7 @@ component SectionRow inherits Rectangle {
     property <length> gap: 18px * root.k;
     property <length> pad: 32px * root.k;
     property <length> title-h: 48px * root.k;
-    property <length> text-h: 56px * root.k;
+    property <length> text-h: root.tiles ? 0px : 56px * root.k;
     // Chaque rangée garde son propre défilement quand elle n'est pas active.
     property <int> remembered: 0;
     property <int> idx: root.active ? root.focus-index : root.remembered;
@@ -965,6 +1041,15 @@ component SectionRow inherits Rectangle {
                 cascade: root.cascade;
                 in-delay: min(i, 10) * 60ms;
                 focused: root.active && i == root.focus-index;
+                bare: root.tiles;
+                dim: !Nav.touch && (Nav.kb ? root.active && i != root.focus-index : root.hover-i >= 0 && i != root.hover-i);
+                lit-changed(on) => {
+                    if (on) {
+                        root.hover-i = i;
+                    } else if (root.hover-i == i) {
+                        root.hover-i = -1;
+                    }
+                }
                 clicked => {
                     root.activated(i);
                 }
@@ -2127,7 +2212,14 @@ component DetailButton inherits Rectangle {
     callback clicked();
 
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
-    property <bool> is-icon: root.icon != "" && root.icon != "label";
+    // Lecture : le bouton principal, coloré et avec son texte (écran étroit : l'icône seule).
+    in property <bool> compact;
+    in property <bool> has-tint;
+    in property <color> tint;
+    in property <color> tint-ink;
+    property <bool> primary: root.icon == "play" && root.text != "";
+    property <bool> wide: root.primary && !root.compact;
+    property <bool> is-icon: root.icon != "" && root.icon != "label" && !root.wide;
 
     // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
     property <bool> act: root.active;
@@ -2160,7 +2252,7 @@ component DetailButton inherits Rectangle {
     animate lit-s { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     in property <bool> chip; // pastille compacte (saison, série, pistes)
-    preferred-width: root.is-icon ? self.height : label.preferred-width + (root.chip ? 24px : 40px) * root.k;
+    preferred-width: root.is-icon ? self.height : label.preferred-width + (root.wide ? 62px : root.chip ? 24px : 40px) * root.k;
     min-width: self.preferred-width;
     horizontal-stretch: 0;
     // Le zoom ne s'applique pas à la racine d'un composant : il porte sur ce rectangle intérieur.
@@ -2170,9 +2262,15 @@ component DetailButton inherits Rectangle {
         // Windows 7 (Aero) : même bouton de verre que les autres boutons du thème.
         border-radius: Theme.win7 ? 4px : Theme.term ? 2px : root.chip || root.icon == "label" ? self.height / 2 : 10px;
         transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
-        background: Theme.win7 || Theme.term ? transparent : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        background: Theme.win7 || Theme.term ? transparent
+            : root.primary && root.has-tint ? @linear-gradient(130deg, root.tint 0%, root.tint 100%)
+            : root.lit || root.primary ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
             : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
-        property <color> ink: root.lit ? Theme.on-accent : Theme.fg;
+        property <color> ink: Theme.win7 || Theme.term ? Theme.fg : root.primary && root.has-tint ? root.tint-ink
+            : root.lit || root.primary ? Theme.on-accent : Theme.fg;
+        // Le bouton principal est toujours coloré : sa sélection se voit à son contour.
+        border-width: root.primary && root.lit && !Theme.win7 && !Theme.term ? 2px * root.k : 0px;
+        border-color: Theme.fg;
         if Theme.win7: Win7Glass {
             lit: root.lit;
         }
@@ -2185,7 +2283,7 @@ component DetailButton inherits Rectangle {
         }
 
         if root.icon == "play": Path {
-            x: (parent.width - self.width) / 2;
+            x: root.wide ? 14px * root.k : (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             width: 22px * root.k;
             height: 22px * root.k;
@@ -2324,7 +2422,8 @@ component DetailButton inherits Rectangle {
         }
 
         label := Text {
-            width: parent.width;
+            x: root.wide ? 40px * root.k : 0px;
+            width: parent.width - self.x;
             height: parent.height;
             text: root.is-icon ? "" : root.text;
             color: face.ink;
@@ -4157,7 +4256,8 @@ export component AppWindow inherits Window {
     property <float> bg-vis: root.bg-show && root.screen != "login" ? 1 : 0;
     animate bg-vis { duration: Motion.pages ? 600ms : 0ms; easing: ease-in-out; }
     // Média sélectionné (accueil, bibliothèque, fiche) : Rust attend un instant puis charge son fond.
-    property <string> focus-id: root.screen == "home" && !root.h-focus && root.sel-section < root.sections.length
+    property <string> focus-id: root.screen == "home" && root.banner-now && !root.h-focus ? root.banner.id
+        : root.screen == "home" && !root.h-focus && root.sel-section < root.sections.length
             && root.sel-item < root.sections[root.sel-section].items.length
         ? root.sections[root.sel-section].items[root.sel-item].id
         : root.screen == "library" && root.l-sel < root.lib-items.length ? root.lib-items[root.l-sel].id
@@ -4231,6 +4331,31 @@ export component AppWindow inherits Window {
     in property <[TrackData]> ch-items;
     in-out property <int> ch-sel;
     callback settings-choose(string, string);
+    // Aperçu au survol de la barre de lecture : chapitre et image (trickplay du serveur).
+    in property <string> p-tip-chapter;
+    in property <bool> p-has-thumb;
+    in property <image> p-thumb;
+    in property <int> p-thumb-x;
+    in property <int> p-thumb-y;
+    in property <int> p-thumb-w;
+    in property <int> p-thumb-h;
+    callback p-seek-hover(float);
+    // Bannière de l'accueil (onglet Accueil seulement, pas pendant la visite guidée, qui montre les
+    // rangées à leur place habituelle) : les rangées descendent de sa hauteur.
+    in-out property <bool> banner-on;
+    in-out property <Banner> banner;
+    in-out property <bool> banner-sel;
+    property <int> banner-btn: 0;
+    callback banner-play(string);
+    property <length> banner-h: root.banner-on && root.tab == "home" && root.tour-step < 0
+        ? (root.height > root.width ? 300px * root.k : min(root.height * 0.46, 400px * root.k)) : 0px;
+    property <bool> banner-now: root.banner-sel && root.banner-h > 0px;
+    // Couleur dominante de l'affiche de la fiche (voir media_tint en Rust).
+    in property <bool> d-tint-on;
+    in property <color> d-tint;
+    in property <color> d-tint-ink;
+    property <color> d-tint-c: root.d-tint;
+    animate d-tint-c { duration: Motion.pages ? 500ms : 0ms; easing: ease-out; }
     // Thème essayé dans la liste (vide : retour au thème enregistré).
     callback theme-preview(string);
     changed ch-sel => {
@@ -5974,20 +6099,47 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Chargement
-    // Démarrage (ou juste après la connexion) : nom de l'appli et barre animée.
+    // Démarrage (ou juste après la connexion) : la forme de l'accueil à venir (bannière, puis rangées),
+    // qui respire doucement, et une barre animée.
     if root.screen == "loading" && !root.playing && root.fly-phase == 0: Rectangle {
-        Text {
-            y: parent.height / 2 - 60px * root.k;
-            width: parent.width;
-            text: "Turtlefin";
-            color: Theme.dark ? Theme.accent2 : Theme.accent1;
-            font-size: 48px * root.k;
-            font-weight: 800;
-            horizontal-alignment: center;
+        property <float> wait-a: 0.09 + 0.04 * sin(mod(animation-tick() / 1ms, 1600) / 1600 * 360deg);
+        property <length> wait-w: root.card-w * 1.5;
+        property <length> wait-h: self.wait-w * 0.5625;
+        property <length> wait-b: root.height > root.width ? 280px * root.k : min(root.height * 0.46, 400px * root.k) - 20px * root.k;
+        Rectangle {
+            x: 32px * root.k;
+            y: root.header-h + 8px * root.k;
+            width: parent.width - 64px * root.k;
+            height: parent.wait-b;
+            border-radius: Theme.radius;
+            background: Theme.fg.with-alpha(parent.wait-a);
+        }
+        for r in 2: Rectangle {
+            y: root.header-h + parent.wait-b + 28px * root.k + r * (parent.wait-h + 70px * root.k);
+            height: parent.wait-h + 50px * root.k;
+            property <float> a: parent.wait-a;
+            property <length> w: parent.wait-w;
+            property <length> h: parent.wait-h;
+            Rectangle {
+                x: 32px * root.k;
+                y: 4px * root.k;
+                width: 180px * root.k;
+                height: 18px * root.k;
+                border-radius: self.height / 2;
+                background: Theme.fg.with-alpha(parent.a);
+            }
+            for c in 8: Rectangle {
+                x: 32px * root.k + c * (parent.w + 18px * root.k);
+                y: 36px * root.k;
+                width: parent.w;
+                height: parent.h;
+                border-radius: Theme.radius;
+                background: Theme.fg.with-alpha(parent.a);
+            }
         }
         Rectangle {
             x: (parent.width - self.width) / 2;
-            y: parent.height / 2 + 20px * root.k;
+            y: parent.height - 24px * root.k;
             width: 220px * root.k;
             height: 4px * root.k;
             border-radius: self.height / 2;
@@ -6032,7 +6184,8 @@ export component AppWindow inherits Window {
             key-pressed(event) => {
                 // Après un défilement libre : la sélection repart de la rangée affichée en haut.
                 if (root.home-free && root.sections.length > 0) {
-                    root.sel-section = root.home-section-at(root.home-free-y / 1px);
+                    root.banner-sel = root.banner-h > 0px && root.home-free-y < root.banner-h / 2;
+                    root.sel-section = root.home-section-at((root.home-free-y - root.banner-h) / 1px);
                     root.sel-item = min(root.sel-item, root.sections[root.sel-section].items.length - 1);
                     root.home-free = false;
                 }
@@ -6094,6 +6247,34 @@ export component AppWindow inherits Window {
                     root.h-sel = root.nav-n + root.tab-index();
                     return EventResult.accept;
                 }
+                // Sélection sur la bannière : ses deux boutons ; en bas, la première rangée.
+                if (root.banner-now) {
+                    if (event.text == Key.RightArrow) {
+                        root.banner-btn = 1;
+                    } else if (event.text == Key.LeftArrow) {
+                        if (root.banner-btn > 0) {
+                            root.banner-btn = 0;
+                        } else {
+                            root.open-menu();
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        root.banner-sel = false;
+                    } else if (event.text == Key.UpArrow) {
+                        root.h-focus = true;
+                        root.h-sel = root.nav-n + root.tab-index();
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.open-menu();
+                    } else if (event.text == Key.Return) {
+                        if (root.banner-btn == 0) {
+                            root.banner-play(root.banner.id);
+                        } else {
+                            root.open-item(root.banner.id);
+                        }
+                    } else {
+                        return EventResult.reject;
+                    }
+                    return EventResult.accept;
+                }
                 if (event.text == Key.RightArrow) {
                     if (root.sel-item < root.sections[root.sel-section].items.length - 1) {
                         root.sel-item += 1;
@@ -6124,6 +6305,9 @@ export component AppWindow inherits Window {
                     if (root.sel-section > 0) {
                         root.sel-item = root.home-pick(root.sel-section, root.sel-section - 1);
                         root.sel-section -= 1;
+                    } else if (root.banner-h > 0px) {
+                        root.banner-sel = true;
+                        root.banner-btn = 0;
                     } else {
                         // Depuis la première rangée : on monte dans l'en-tête, sur l'onglet affiché.
                         root.h-focus = true;
@@ -6155,8 +6339,9 @@ export component AppWindow inherits Window {
                     } else if (e.delta-y != 0) {
                         // Défilement libre de la page (doigt, molette), sans changer la sélection.
                         let last = root.sections[root.sections.length - 1];
-                        let max-y = max(0px, (last.y-px + last.h-px) * 1px - self.height + 16px * root.k);
-                        let base = root.home-free ? root.home-free-y : max(0px, root.sections[root.sel-section].y-px * 1px - 4px * root.k);
+                        let max-y = max(0px, (last.y-px + last.h-px) * 1px + root.banner-h - self.height + 16px * root.k);
+                        let base = root.home-free ? root.home-free-y : root.banner-now ? 0px
+                            : max(0px, root.sections[root.sel-section].y-px * 1px + root.banner-h - 4px * root.k);
                         root.home-free-y = clamp(base - e.delta-y, 0px, max-y);
                         root.home-free = true;
                     }
@@ -6178,31 +6363,136 @@ export component AppWindow inherits Window {
                 home-view := Rectangle {
                     y: root.sections.length == 0 ? 0px
                         : root.home-free ? -root.home-free-y
-                        : min(0px, 4px * root.k - root.sections[root.sel-section].y-px * 1px);
+                        : root.banner-now ? 0px
+                        : min(0px, 4px * root.k - root.sections[root.sel-section].y-px * 1px - root.banner-h);
                     animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
+
+                    if root.banner-h > 0px: Rectangle {
+                        x: 32px * root.k;
+                        y: 8px * root.k;
+                        width: parent.width - 64px * root.k;
+                        height: root.banner-h - 20px * root.k;
+                        visible: home-view.y > -root.banner-h;
+                        clip: true;
+                        border-radius: Theme.radius;
+                        background: Theme.card;
+                        border-width: 1px;
+                        border-color: root.banner-now && Nav.kb && !root.h-focus ? Theme.accent2 : Theme.card-border;
+                        property <bool> tall: root.height > root.width;
+                        if root.banner.has-image: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: root.banner.image;
+                            image-fit: cover;
+                        }
+                        // Toute la bannière ouvre la fiche ; ses boutons, par-dessus, gardent leur action.
+                        TouchArea {
+                            clicked => {
+                                root.open-item(root.banner.id);
+                            }
+                        }
+                        // Le texte reste lisible quelle que soit l'image.
+                        Rectangle {
+                            background: parent.tall ? @linear-gradient(180deg, #00000030 0%, #000000e0 75%)
+                                : @linear-gradient(90deg, #000000e0 0%, #00000090 45%, #00000000 78%);
+                        }
+                        if root.banner.progress > 0: Rectangle {
+                            y: parent.height - self.height;
+                            height: 5px * root.k;
+                            background: #ffffff33;
+                            Rectangle {
+                                x: 0px;
+                                width: parent.width * root.banner.progress;
+                                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: end;
+                            spacing: 6px * root.k;
+                            padding-left: 26px * root.k;
+                            padding-right: parent.tall ? 26px * root.k : parent.width * 0.42;
+                            padding-bottom: 22px * root.k;
+                            if root.banner.has-logo: Image {
+                                height: 64px * root.k;
+                                source: root.banner.logo;
+                                image-fit: contain;
+                                horizontal-alignment: left;
+                            }
+                            if !root.banner.has-logo: Text {
+                                text: root.banner.title;
+                                color: white;
+                                font-size: 30px * root.k;
+                                font-weight: 700;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: root.banner.subtitle;
+                                color: Theme.accent2;
+                                font-size: 15px * root.k;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                            if root.banner.overview != "": Text {
+                                height: 56px * root.k;
+                                text: root.banner.overview;
+                                color: #ffffffd9;
+                                font-size: 14px * root.k;
+                                wrap: word-wrap;
+                                overflow: elide;
+                            }
+                            HorizontalLayout {
+                                height: 40px * root.k;
+                                spacing: 14px * root.k;
+                                alignment: start;
+                                DetailButton {
+                                    text: root.banner.play-label;
+                                    icon: "play";
+                                    k: root.k;
+                                    focused: root.banner-now && !root.h-focus && root.banner-btn == 0;
+                                    clicked => {
+                                        root.banner-sel = true;
+                                        root.banner-play(root.banner.id);
+                                    }
+                                }
+                                DetailButton {
+                                    text: Tr.t(Tr.k, "Voir la fiche");
+                                    icon: "label";
+                                    k: root.k;
+                                    focused: root.banner-now && !root.h-focus && root.banner-btn == 1;
+                                    clicked => {
+                                        root.banner-sel = true;
+                                        root.open-item(root.banner.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     for section[si] in root.sections: SectionRow {
                         // Rangée hors de l'écran : sautée au dessin (voir les cartes de SectionRow).
-                        visible: section.y-px * 1px + root.stagger(si) + home-view.y < home-clip.height + 60px
-                            && section.y-px * 1px + root.stagger(si) + section.h-px * 1px + home-view.y > -60px;
-                        y: section.y-px * 1px + root.stagger(si);
+                        visible: section.y-px * 1px + root.banner-h + root.stagger(si) + home-view.y < home-clip.height + 60px
+                            && section.y-px * 1px + root.banner-h + root.stagger(si) + section.h-px * 1px + home-view.y > -60px;
+                        y: section.y-px * 1px + root.banner-h + root.stagger(si);
                         width: parent.width;
                         height: section.h-px * 1px;
                         title: section.title;
                         items: section.items;
                         card-w: section.landscape ? root.card-w * 1.5 : root.card-w;
                         ratio: section.landscape ? 0.5625 : 1.5;
+                        tiles: section.tiles;
                         k: root.k;
-                        active: !root.h-focus && si == root.sel-section;
+                        active: !root.h-focus && !root.banner-now && si == root.sel-section;
                         focus-index: root.sel-item;
                         key: si;
                         touched(i) => {
                             root.h-focus = false;
+                            root.banner-sel = false;
                             root.sel-section = si;
                             root.sel-item = i;
                         }
                         activated(i) => {
                             root.h-focus = false;
+                            root.banner-sel = false;
                             root.sel-section = si;
                             root.sel-item = i;
                             root.open-hero(section.items[i].id);
@@ -6757,6 +7047,10 @@ export component AppWindow inherits Window {
         // Vignette 16:9 qui devient le fond : la fiche apparaît en fondu pendant la fin de
         // l'agrandissement, au lieu de surgir d'un coup par-dessus l'image encore en vol.
         opacity: root.hero-page-a;
+        // Couleur du média : le haut de la page en prend la teinte.
+        if root.d-tint-on: Rectangle {
+            background: @linear-gradient(180deg, root.d-tint-c.with-alpha(0.42) 0%, root.d-tint-c.with-alpha(0) 70%);
+        }
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
         property <length> icons-w: max(0px, icons-row.preferred-width - (root.detail.buttons.length - root.detail.icon-count) * self.btn-gap);
@@ -7266,7 +7560,7 @@ export component AppWindow inherits Window {
 
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
-            x: root.d-low-x + (root.narrow ? 0px : (dt.btns-w - dt.icons-w) / 2) + root.po-right;
+            x: root.d-low-x + root.po-right;
             opacity: (root.sw-icons ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
             y: 24px + 118px * root.k + root.d-low;
             width: root.d-low-w;
@@ -7276,10 +7570,14 @@ export component AppWindow inherits Window {
 
             for b[i] in root.detail.buttons: DetailButton {
                 visible: i < root.detail.icon-count;
-                width: i < root.detail.icon-count ? (b.icon == "label" ? self.preferred-width : self.height) : 0px;
+                width: i < root.detail.icon-count ? (b.icon == "label" || b.icon == "play" ? self.preferred-width : self.height) : 0px;
                 text: b.label;
                 icon: b.icon;
                 active: b.active;
+                compact: root.narrow;
+                has-tint: root.d-tint-on;
+                tint: root.d-tint-c;
+                tint-ink: root.d-tint-ink;
                 k: root.k;
                 press: root.d-press;
                 focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
@@ -7309,7 +7607,7 @@ export component AppWindow inherits Window {
         chips-row := HorizontalLayout {
             opacity: (root.sw-chips ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
-            x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : (dt.btns-w - dt.chips-w) / 2) + root.po-right;
+            x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : 0px) + root.po-right;
             y: 24px + 166px * root.k + root.d-low;
             width: root.d-low-w;
             height: 30px * root.k;
@@ -9695,7 +9993,8 @@ export component AppWindow inherits Window {
                 width: min(380px * root.k, parent.width - 32px * root.k);
                 height: 70px * root.k + parent.rows * parent.row-h + 12px * root.k;
                 border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 18px) * root.k;
-                background: Theme.win7 || Theme.term ? transparent : Theme.glass;
+                // Thèmes : la page reste visible autour, le panneau doit rester lisible par-dessus.
+                background: Theme.win7 || Theme.term ? transparent : root.ch-key == "theme" ? Theme.panel : Theme.glass;
                 border-width: Theme.win7 ? 0px : 1px;
                 border-color: Theme.glass-border;
                 Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
@@ -9727,6 +10026,13 @@ export component AppWindow inherits Window {
                     property <length> pad: 4px * root.k;
                     property <length> th: 22px * root.k;
                     // Mesures seulement (invisibles).
+                    if root.ch-key == "theme" && Nav.touch: Text {
+                        x: ch-head.bx;
+                        y: parent.height - self.height - 2px * root.k;
+                        text: Tr.t(Tr.k, "Touche une ligne pour l'essayer, encore une fois pour la choisir.");
+                        color: Theme.muted;
+                        font-size: 11px * root.k;
+                    }
                     old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
                     new-t := Text { visible: false; text: root.ch-title; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
                     Text {
@@ -9770,15 +10076,16 @@ export component AppWindow inherits Window {
                         width: parent.width - 20px * root.k;
                         height: ch-pane.row-h - 4px * root.k;
                         border-radius: 10px * root.k;
-                        background: (Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
-                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch)); }
+                        property <bool> on: Nav.kb || (Nav.touch && root.ch-key == "theme") ? i == root.ch-sel : ch-area.has-hover && !Nav.touch;
+                        background: self.on ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                        Gloss { r: parent.border-radius; strength: 0.8; visible: Theme.gloss > 0 && parent.on; }
                         Text {
                             x: 16px * root.k;
                             width: parent.width - 60px * root.k;
                             height: parent.height;
                             text: t.label;
                             font-family: Theme.font-name;
-                            color: ((Nav.kb ? (i == root.ch-sel) : ch-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
+                            color: parent.on ? Theme.on-accent : Theme.fg;
                             font-size: 16px * root.k;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
@@ -9804,6 +10111,11 @@ export component AppWindow inherits Window {
                                 }
                             }
                             clicked => {
+                                // Au doigt, pas de survol : la première touche essaie le thème.
+                                if (root.ch-key == "theme" && Nav.touch && root.ch-sel != i) {
+                                    root.ch-sel = i;
+                                    return;
+                                }
                                 root.settings-choose(root.ch-key, t.id);
                                 if (root.ch-key != "language") {
                                     root.ch-key = "";
@@ -11744,6 +12056,16 @@ export component AppWindow inherits Window {
         subtitle: root.p-subtitle;
         paused: root.p-paused;
         progress: root.p-progress;
+        tip-chapter: root.p-tip-chapter;
+        has-thumb: root.p-has-thumb;
+        thumb: root.p-thumb;
+        thumb-x: root.p-thumb-x;
+        thumb-y: root.p-thumb-y;
+        thumb-w: root.p-thumb-w;
+        thumb-h: root.p-thumb-h;
+        seek-hover(f) => {
+            root.p-seek-hover(f);
+        }
         pos-secs: root.p-pos-secs;
         dur-secs: root.p-dur-secs;
         pos-text: root.p-pos-text;

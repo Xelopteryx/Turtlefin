@@ -179,7 +179,22 @@ fn parse_cli() -> Cli {
 // ---------------------------------------------------------------------------
 // État partagé entre l'interface et les tâches réseau
 // ---------------------------------------------------------------------------
+/// Aperçu de la barre de temps : images préparées par le serveur pour la vidéo en cours.
+#[derive(Default)]
+struct TrickState {
+    id: String,
+    info: Option<api::Trickplay>,
+    /// Planches déjà chargées.
+    tiles: std::collections::HashMap<i32, SharedPixelBuffer<Rgba8Pixel>>,
+    /// Planche voulue en ce moment.
+    want: i32,
+    /// Planche affichée.
+    shown: i32,
+}
+
 struct App {
+    banner_pick: Mutex<Option<api::Item>>,
+    trick: Mutex<TrickState>,
     rt: tokio::runtime::Handle,
     // Dans un Mutex pour que App reste Send + Sync.
     ui: Mutex<slint::Weak<AppWindow>>,
@@ -348,6 +363,14 @@ struct App {
 }
 
 impl App {
+    /// Vidéo montrée par le lecteur : diffusée sur un écran, sinon lue ici.
+    fn stack_play_id(&self) -> String {
+        match &*self.cast_now.lock().unwrap() {
+            Some(n) => n.item.id.clone(),
+            None => player::NOW_ID.lock().unwrap().clone(),
+        }
+    }
+
     fn tv(&self) -> bool {
         self.tv_flag.load(Ordering::Relaxed)
     }
@@ -633,6 +656,44 @@ fn load_image(bytes: &[u8]) -> Option<image::DynamicImage> {
     let mut r = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
     r.limits(image_limits());
     r.decode().ok()
+}
+
+/// Couleur d'une affiche (pixels RGBA) : la teinte vive la plus présente, ramenée à une clarté où le
+/// texte reste lisible, avec la couleur du texte à poser dessus. Rien pour une image sans couleur.
+fn media_tint(rgba: &[u8]) -> Option<(slint::Color, slint::Color)> {
+    // 24 tranches de teinte : poids = saturation, un pixel sur 16 suffit.
+    let mut bins = [(0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32); 24];
+    for p in rgba.chunks_exact(4).step_by(16).filter(|p| p[3] > 200) {
+        let (r, g, b) = (p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0);
+        let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+        let d = max - min;
+        if d < 0.15 || max < 0.2 || min > 0.9 {
+            continue;
+        }
+        let h = if max == r { ((g - b) / d).rem_euclid(6.0) } else if max == g { (b - r) / d + 2.0 } else { (r - g) / d + 4.0 };
+        let bin = &mut bins[((h / 6.0 * 24.0) as usize).min(23)];
+        let w = d / max;
+        bin.0 += w;
+        bin.1 += r * w;
+        bin.2 += g * w;
+        bin.3 += b * w;
+    }
+    let total = rgba.len() as f32 / 64.0;
+    let best = bins.iter().copied().max_by(|a, b| a.0.total_cmp(&b.0))?;
+    // Moins de 3 % de l'image : affiche en noir et blanc, ou presque.
+    if best.0 < total * 0.03 {
+        return None;
+    }
+    let (mut r, mut g, mut b) = (best.1 / best.0, best.2 / best.0, best.3 / best.0);
+    // Assez vive, ni trop claire ni trop sombre : on la met à l'échelle sur sa composante la plus forte.
+    let max = r.max(g).max(b).max(0.01);
+    let f = 0.78 / max;
+    r = (r * f).min(1.0);
+    g = (g * f).min(1.0);
+    b = (b * f).min(1.0);
+    let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    let ink = if lum > 0.5 { slint::Color::from_rgb_u8(0x14, 0x10, 0x10) } else { slint::Color::from_rgb_u8(0xff, 0xff, 0xff) };
+    Some((slint::Color::from_rgb_u8((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8), ink))
 }
 
 /// Fond d'écran : image réduite, floutée et assombrie une seule fois au décodage.
@@ -1151,6 +1212,8 @@ fn set_child_image(ui: &AppWindow, ci: usize, expected_id: &str, buf: SharedPixe
 struct SectionData {
     title: String,
     landscape: bool,
+    /// Tuiles sans légende (« Mes médias »).
+    tiles: bool,
     cards: Vec<api::CardInfo>,
 }
 
@@ -1160,6 +1223,7 @@ fn push_section(out: &mut Vec<SectionData>, title: &str, landscape: bool, items:
             out.push(SectionData {
                 title: title.to_string(),
                 landscape,
+                tiles: false,
                 cards: items.iter().map(|i| i.card()).collect(),
             });
         }
@@ -1708,7 +1772,7 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
         ("favorites", _) => favorite_sections(&client).await,
         ("watchlist", _) => watch_sections(&app, &client).await,
         ("requests", Some(id)) => request_sections(&client, id).await,
-        _ => home_sections(&client).await,
+        _ => home_sections(&app, &client).await,
     };
     match sections {
         Ok(s) => {
@@ -1717,6 +1781,7 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
                 sync_offline_plays(&app, &client);
             }
             let _ = app.ui().upgrade_in_event_loop(|u| u.set_offline(false));
+            present_banner(&app, &client);
             present_sections(&app, &client, s)
         }
         // Serveur injoignable (pas un refus d'accès) : on bascule sur les téléchargements.
@@ -1725,9 +1790,11 @@ async fn load_tab(app: Arc<App>, client: api::Client) {
     }
 }
 
-async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
+async fn home_sections(app: &Arc<App>, client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
     let (views, resume, next) = tokio::join!(client.views(), client.resume(), client.next_up());
     let views = views?;
+    // Bannière : le média à reprendre, sinon à suivre ; à défaut, le dernier ajouté (plus bas).
+    let mut pick = resume.as_ref().ok().and_then(|r| r.first().cloned()).or_else(|| next.as_ref().ok().and_then(|n| n.first().cloned()));
 
     let mut sections: Vec<SectionData> = Vec::new();
     // « Mes médias » en haut, en vignettes 16:9 (équivalent de l'addon horizontalMyMedia).
@@ -1737,6 +1804,9 @@ async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>>
         .cloned()
         .collect();
     push_section(&mut sections, tr("Mes médias"), true, Ok(my_media));
+    if let Some(s) = sections.first_mut() {
+        s.tiles = true;
+    }
     // « Reprendre » et « À suivre » en vignettes 16:9 avec avancement, comme JellySkin.
     let resume_ids: Vec<String> = resume.as_ref().map(|r| r.iter().map(|i| i.id.clone()).collect()).unwrap_or_default();
     let next = next.map(|n| n.into_iter().filter(|i| !resume_ids.contains(&i.id)).collect());
@@ -1747,9 +1817,160 @@ async fn home_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>>
         !matches!(v.collection_type.as_deref(), Some("playlists" | "livetv" | "boxsets"))
     }) {
         let latest = client.latest(&v.id).await;
+        if pick.is_none() {
+            pick = latest.as_ref().ok().and_then(|l| l.first().cloned());
+        }
         push_section(&mut sections, &trf("Récemment ajouté · {}", &[&v.name]), false, latest);
     }
+    *app.banner_pick.lock().unwrap() = pick;
     Ok(sections)
+}
+
+/// Bannière de l'accueil : textes tout de suite (les rangées prennent leur place), images ensuite.
+fn present_banner(app: &Arc<App>, client: &api::Client) {
+    let pick = app.banner_pick.lock().unwrap().take();
+    let Some(item) = pick else {
+        let _ = app.ui().upgrade_in_event_loop(|u| u.set_banner_on(false));
+        return;
+    };
+    let card = item.card();
+    let id = item.id.clone();
+    let play_label = item.play_label();
+    let id2 = id.clone();
+    let ui = app.ui();
+    let _ = ui.upgrade_in_event_loop(move |u| {
+        let old = u.get_banner();
+        let same = old.id.as_str() == id2;
+        // Même média qu'avant : ses images restent ; la sélection n'est mise sur la bannière qu'à son arrivée.
+        if !u.get_banner_on() {
+            u.set_banner_sel(true);
+        }
+        u.set_banner(Banner {
+            id: id2.into(),
+            title: card.title.into(),
+            subtitle: card.subtitle.into(),
+            overview: card.overview.into(),
+            play_label: play_label.into(),
+            progress: card.progress,
+            has_image: same && old.has_image,
+            image: if same { old.image } else { Default::default() },
+            has_logo: same && old.has_logo,
+            logo: if same { old.logo } else { Default::default() },
+        });
+        u.set_banner_on(true);
+    });
+    let client = client.clone();
+    let tv = app.tv();
+    let ui = app.ui();
+    app.rt.spawn(async move {
+        let logo = item.logo_candidate();
+        let (bytes, logo_buf) = tokio::join!(client.backdrop(&item), async {
+            match logo {
+                Some(l) => fetch_decoded(&client, vec![l], "Logo", api::Size::MaxWidth(500), None).await,
+                None => None,
+            }
+        });
+        let image = match bytes {
+            Some(b) => {
+                let (w, h) = if tv { (1280, 720) } else { (960, 540) };
+                tokio::task::spawn_blocking(move || {
+                    let img = load_image(&b)?.resize_to_fill(w, h, image::imageops::FilterType::Triangle).to_rgba8();
+                    let (w, h) = img.dimensions();
+                    Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
+                })
+                .await
+                .ok()
+                .flatten()
+            }
+            None => None,
+        };
+        let _ = ui.upgrade_in_event_loop(move |u| {
+            let mut b = u.get_banner();
+            if b.id.as_str() != id {
+                return;
+            }
+            if let Some(i) = image {
+                b.image = slint::Image::from_rgba8(i);
+                b.has_image = true;
+            }
+            if let Some(l) = logo_buf {
+                b.logo = slint::Image::from_rgba8(l);
+                b.has_logo = true;
+            }
+            u.set_banner(b);
+        });
+    });
+}
+
+/// Survol de la barre de temps, à `f` (0..1) de la durée : chapitre visé et image d'aperçu.
+fn seek_hover(app: &Arc<App>, u: &AppWindow, f: f32) {
+    let secs = f as f64 * u.get_p_dur_secs() as f64;
+    let chapter = player::CHAPTERS.lock().unwrap().iter().rev().find(|(t, _)| *t <= secs).map(|(_, n)| n.clone()).unwrap_or_default();
+    u.set_p_tip_chapter(chapter.into());
+    let id = app.stack_play_id();
+    if id.is_empty() {
+        return;
+    }
+    let Some(client) = app.client() else { return };
+    let mut st = app.trick.lock().unwrap();
+    if st.id != id {
+        // Autre vidéo : on demande une fois au serveur s'il a des images.
+        *st = TrickState { id: id.clone(), info: None, tiles: Default::default(), want: -1, shown: -1 };
+        u.set_p_has_thumb(false);
+        let a = app.clone();
+        app.rt.spawn(async move {
+            let info = client.trickplay(&id).await;
+            if std::env::var_os("TURTLEFIN_DEBUG_UP").is_some() {
+                eprintln!("turtlefin : aperçus {}", if info.is_some() { "présents" } else { "absents" });
+            }
+            let mut st = a.trick.lock().unwrap();
+            if st.id == id {
+                st.info = info;
+            }
+        });
+        return;
+    }
+    let Some(t) = st.info.clone() else { return };
+    let n = ((secs * 1000.0) as i64 / t.interval_ms).clamp(0, t.count as i64 - 1) as i32;
+    let per = t.cols * t.rows;
+    let tile = n / per;
+    let at = n % per;
+    u.set_p_thumb_x(at % t.cols * t.w);
+    u.set_p_thumb_y(at / t.cols * t.h);
+    u.set_p_thumb_w(t.w);
+    u.set_p_thumb_h(t.h);
+    st.want = tile;
+    if st.shown == tile {
+        return;
+    }
+    if let Some(b) = st.tiles.get(&tile) {
+        u.set_p_thumb(slint::Image::from_rgba8(b.clone()));
+        u.set_p_has_thumb(true);
+        st.shown = tile;
+        return;
+    }
+    // Planche à charger : l'ancienne reste cachée pour ne pas montrer une mauvaise image.
+    u.set_p_has_thumb(false);
+    let a = app.clone();
+    app.rt.spawn(async move {
+        let Ok(bytes) = client.trickplay_tile(&id, &t.key, tile).await else { return };
+        let Some(buf) = tokio::task::spawn_blocking(move || decode(&bytes, None)).await.ok().flatten() else { return };
+        {
+            let mut st = a.trick.lock().unwrap();
+            if st.id != id {
+                return;
+            }
+            st.tiles.insert(tile, buf.clone());
+            if st.want != tile {
+                return;
+            }
+            st.shown = tile;
+        }
+        let _ = a.ui().upgrade_in_event_loop(move |u| {
+            u.set_p_thumb(slint::Image::from_rgba8(buf));
+            u.set_p_has_thumb(true);
+        });
+    });
 }
 
 async fn favorite_sections(client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
@@ -1906,7 +2127,7 @@ async fn request_sections(client: &api::Client, seerr_user: i64) -> anyhow::Resu
     for (title, states) in groups {
         let cards: Vec<api::CardInfo> = reqs.iter().map(|r| r.card()).filter(|c| states.contains(&c.status)).collect();
         if !cards.is_empty() {
-            sections.push(SectionData { title: title.to_string(), landscape: false, cards });
+            sections.push(SectionData { title: title.to_string(), landscape: false, tiles: false, cards });
         }
     }
     Ok(sections)
@@ -1961,9 +2182,11 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
         let rows: Vec<Section> = sections
             .iter()
             .map(|s| {
-                let h = row_h(s.landscape);
+                // Tuiles : pas de légende (les 56 px de texte de la rangée, voir text-h).
+                let h = row_h(s.landscape) - if s.tiles { 56.0 * k } else { 0.0 };
                 let row = Section {
                     leaving: false,
+                    tiles: s.tiles,
                     title: s.title.clone().into(),
                     landscape: s.landscape,
                     y_px: y,
@@ -1983,6 +2206,7 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
                                 played: c.played,
                                 deck: c.deck,
                                 group: c.group.clone().into(),
+                                overview: c.overview.clone().into(),
                                 ..Default::default()
                             })
                             .collect::<Vec<_>>(),
@@ -2075,7 +2299,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             for (title, kind) in [(tr("Similaires"), "similar"), (tr("Recommandés"), "recommendations")] {
                 let cards = client2.seerr_related(tv, tmdb, kind).await;
                 if !cards.is_empty() {
-                    rows.push(SectionData { title: title.into(), landscape: false, cards });
+                    rows.push(SectionData { title: title.into(), landscape: false, tiles: false, cards });
                 }
             }
         }
@@ -2109,6 +2333,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                 .enumerate()
                 .map(|(i, s)| Section {
                     leaving: false,
+                    tiles: false,
                     title: s.title.clone().into(),
                     landscape: false,
                     y_px: i as f32 * row_h,
@@ -3677,7 +3902,7 @@ fn search_changed(app: &Arc<App>, text: String) {
             push_section(&mut sections, &title, false, Ok(of));
         }
         if !from_seerr.is_empty() {
-            sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, cards: from_seerr });
+            sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, tiles: false, cards: from_seerr });
         }
         present_rows(&app2, &client, sections, true);
     });
@@ -4628,6 +4853,7 @@ fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     }
     let g = u.global::<Prefs>();
     g.set_ratings(p.show_ratings);
+    g.set_card_info(p.card_info);
     g.set_marquee(p.marquee);
     g.set_clock(p.show_clock);
     apply_motion(u, &p.anim);
@@ -4838,6 +5064,8 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
+            row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
+            row("media_color", tr("Couleur du média"), tr("La page d'un média prend la couleur de son affiche."), String::new(), "toggle", prefs.media_color),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
@@ -5717,6 +5945,8 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             }
         }
         "ratings" => toggle_ui_pref(app, |p| p.show_ratings = !p.show_ratings),
+        "card_info" => toggle_ui_pref(app, |p| p.card_info = !p.card_info),
+        "media_color" => toggle_ui_pref(app, |p| p.media_color = !p.media_color),
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
         "tvmode" => {
@@ -7312,6 +7542,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let shape = Shape::card(400, 600, if app.tv() { 280.0 } else { 200.0 });
         app.rt.spawn(async move {
             if let Some(buf) = fetch_decoded(&client, cands, "Primary", api::Size::Fill(400, 600), Some(shape)).await {
+                let tint = media_tint(buf.as_bytes());
                 let _ = ui.upgrade_in_event_loop(move |u| {
                     let mut d = u.get_detail();
                     if d.id.as_str() != id {
@@ -7320,6 +7551,12 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                     d.poster = slint::Image::from_rgba8(buf);
                     d.has_poster = true;
                     u.set_detail(d);
+                    let on = tint.is_some() && config::ui_prefs().media_color;
+                    u.set_d_tint_on(on);
+                    if let Some((c, ink)) = tint {
+                        u.set_d_tint(c);
+                        u.set_d_tint_ink(ink);
+                    }
                 });
             }
         });
@@ -8568,6 +8805,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
         bg_hash: AtomicU64::new(0),
         stack_base: Mutex::new(String::new()),
         bg_gen: AtomicU64::new(0),
+        banner_pick: Mutex::new(None),
+        trick: Mutex::new(TrickState::default()),
         pending_server: Mutex::new(None),
         manual: Mutex::new((None, None, Vec::new())),
         playing: AtomicBool::new(false),
@@ -9181,6 +9420,30 @@ pub(crate) fn main() -> anyhow::Result<()> {
             }
         }
     });
+    // Bannière de l'accueil : Lecture (sur l'écran de diffusion choisi, s'il y en a un).
+    ui.on_banner_play({
+        let app = app.clone();
+        move |id| {
+            if app.cast.lock().unwrap().is_some() {
+                cast_play_item(&app, id.to_string(), None);
+                return;
+            }
+            let a2 = app.clone();
+            app.rt.spawn(async move { play_flow(a2, Some(id.to_string()), None).await });
+        }
+    });
+
+    // Barre de temps du lecteur survolée : temps, chapitre, image d'aperçu.
+    ui.on_p_seek_hover({
+        let app = app.clone();
+        let weak = ui.as_weak();
+        move |f| {
+            if let Some(u) = weak.upgrade() {
+                seek_hover(&app, &u, f);
+            }
+        }
+    });
+
     // Liste des thèmes : la ligne choisie (flèches, survol) s'applique tout de suite, à l'essai.
     ui.on_theme_preview({
         let weak = ui.as_weak();
@@ -9880,6 +10143,7 @@ fn refresh_downloads(app: &Arc<App>) {
                 let h = row_h(*landscape);
                 let s = Section {
                     leaving: false,
+                    tiles: false,
                     title: title.clone().into(),
                     landscape: *landscape,
                     y_px: y,
@@ -10327,6 +10591,7 @@ fn check_offline_empty(app: &Arc<App>) {
 
 /// Mode hors ligne : écran Téléchargements, avec un message.
 fn go_offline(app: &Arc<App>) {
+    let _ = app.ui().upgrade_in_event_loop(|u| u.set_banner_on(false));
     set_core(app, 2);
     let was = app.offline.swap(true, Ordering::SeqCst);
     // Menu sans les bibliothèques ni la watch party (rien à ouvrir sans serveur).

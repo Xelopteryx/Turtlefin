@@ -348,6 +348,19 @@ pub struct SeerrRequest {
     pub seasons: Vec<i64>,
 }
 
+/// Images d'aperçu d'une vidéo : des planches de `cols` x `rows` images de `w` x `h`, une toutes les
+/// `interval_ms`.
+#[derive(Clone)]
+pub struct Trickplay {
+    pub key: String,
+    pub w: i32,
+    pub h: i32,
+    pub cols: i32,
+    pub rows: i32,
+    pub count: i32,
+    pub interval_ms: i64,
+}
+
 impl SeerrRequest {
     pub fn card(&self) -> CardInfo {
         let mut parts: Vec<String> = vec![if self.tv { tr("Série") } else { tr("Film") }.to_string()];
@@ -495,7 +508,7 @@ impl Item {
             played: self.user_data.as_ref().is_some_and(|u| u.played),
             // Collection, ou bibliothèque (« Mes médias ») : ouverte en distribuant son contenu.
             deck: matches!(self.kind.as_str(), "BoxSet" | "CollectionFolder" | "UserView"),
-            overview: String::new(),
+            overview: self.overview.clone().unwrap_or_default(),
         }
     }
 
@@ -607,12 +620,23 @@ impl Item {
 
     /// Boutons de la fiche : (libellé, action, icône, actif). Les boutons à icône n'ont pas de
     /// libellé. Actions : "play", "fav", "watch", "played", "download", "open:<id>".
+    /// Texte du bouton Lecture : « Reprendre à 12:03 » si la lecture est commencée.
+    pub fn play_label(&self) -> String {
+        let secs = self.user_data.as_ref().map_or(0, |u| u.playback_position_ticks) / 10_000_000;
+        if secs < 5 || !matches!(self.kind.as_str(), "Movie" | "Episode" | "Video" | "MusicVideo") {
+            return tr("Lecture").to_string();
+        }
+        let (h, m, s) = (secs / 3600, secs / 60 % 60, secs % 60);
+        let at = if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m}:{s:02}") };
+        trf("Reprendre à {}", &[&at])
+    }
+
     pub fn buttons(&self, can_download: bool) -> Vec<(String, String, String, bool)> {
         let mut b: Vec<(String, String, String, bool)> = Vec::new();
         let ud = self.user_data.clone().unwrap_or_default();
         let playable = matches!(self.kind.as_str(), "Movie" | "Episode" | "Series" | "Season" | "Video" | "MusicVideo");
         if playable {
-            b.push((String::new(), "play".into(), "play".into(), false));
+            b.push((self.play_label(), "play".into(), "play".into(), false));
             b.push((String::new(), "fav".into(), "heart".into(), ud.is_favorite));
             // « À regarder » : état réel posé par la fiche (liste du compte, voir main::watch_has).
             b.push((String::new(), "watch".into(), "bookmark".into(), false));
@@ -1107,12 +1131,42 @@ impl Client {
         r.items.into_iter().find(|i| i.backdrop_image_tags.as_ref().is_some_and(|t| !t.is_empty()))
     }
 
+    /// Images d'aperçu préparées par le serveur (trickplay) : la plus proche de 320 px de large.
+    pub async fn trickplay(&self, id: &str) -> Option<Trickplay> {
+        let v: serde_json::Value = self.get(&format!("/Items/{}", seg(id)), &[("userId", &self.user_id), ("Fields", "Trickplay")]).await.ok()?;
+        let by_source = v.get("Trickplay")?.as_object()?;
+        let widths = by_source.values().next()?.as_object()?;
+        let (key, t) = widths.iter().min_by_key(|(k, _)| (k.parse::<i64>().unwrap_or(0) - 320).abs())?;
+        let n = |f: &str| t.get(f).and_then(|x| x.as_i64()).filter(|x| *x > 0);
+        Some(Trickplay {
+            key: key.clone(),
+            w: n("Width")? as i32,
+            h: n("Height")? as i32,
+            cols: n("TileWidth")? as i32,
+            rows: n("TileHeight")? as i32,
+            count: n("ThumbnailCount")? as i32,
+            interval_ms: n("Interval")?,
+        })
+    }
+
+    /// Planche d'images d'aperçu n° `tile`.
+    pub async fn trickplay_tile(&self, id: &str, key: &str, tile: i32) -> Result<Vec<u8>> {
+        let resp = self
+            .http
+            .get(format!("{}/Videos/{}/Trickplay/{}/{}.jpg", self.server, seg(id), seg(key), tile))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(resp.bytes().await?.to_vec())
+    }
+
     /// « Reprendre la lecture ».
     pub async fn resume(&self) -> Result<Vec<Item>> {
         let r: ItemsResp = self
             .get(
                 "/UserItems/Resume",
-                &[("userId", &self.user_id), ("Limit", "16"), ("MediaTypes", "Video")],
+                &[("userId", &self.user_id), ("Limit", "16"), ("MediaTypes", "Video"), ("Fields", "Overview")],
             )
             .await?;
         Ok(r.items)
@@ -1121,7 +1175,7 @@ impl Client {
     /// « À suivre ».
     pub async fn next_up(&self) -> Result<Vec<Item>> {
         let r: ItemsResp = self
-            .get("/Shows/NextUp", &[("userId", &self.user_id), ("Limit", "16"), ("enableResumable", "false")])
+            .get("/Shows/NextUp", &[("userId", &self.user_id), ("Limit", "16"), ("enableResumable", "false"), ("Fields", "Overview")])
             .await?;
         Ok(r.items)
     }
@@ -1130,7 +1184,7 @@ impl Client {
     pub async fn latest(&self, parent_id: &str) -> Result<Vec<Item>> {
         self.get(
             "/Items/Latest",
-            &[("userId", &self.user_id), ("parentId", parent_id), ("Limit", "16")],
+            &[("userId", &self.user_id), ("parentId", parent_id), ("Limit", "16"), ("Fields", "Overview")],
         )
         .await
     }

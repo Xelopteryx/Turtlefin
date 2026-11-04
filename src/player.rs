@@ -206,6 +206,10 @@ fn tracks(list: &Value, kind: &str) -> (Vec<TrackData>, i32) {
 /// Un fichier en cours de lecture et son rapport au serveur.
 /// Vidéo passée à un écran de diffusion depuis le lecteur : (élément, position en secondes).
 pub static HANDOFF: std::sync::Mutex<Option<(String, f64)>> = std::sync::Mutex::new(None);
+/// Chapitres de la vidéo en cours (début en secondes, titre), pour l'aperçu de la barre de temps.
+pub static CHAPTERS: std::sync::Mutex<Vec<(f64, String)>> = std::sync::Mutex::new(Vec::new());
+/// Élément en cours de lecture.
+pub static NOW_ID: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 struct Current {
     item: Option<Item>,
@@ -462,6 +466,7 @@ pub async fn play(
                                 eprintln!("turtlefin : chapitres {list:?}");
                             }
                             cur.chapters = list.iter().map(|(t, _)| *t).collect();
+                            *CHAPTERS.lock().unwrap() = list.clone();
                             cur.chapter_titles = list;
                             push_chapters(&ui, &cur);
                         }
@@ -1212,6 +1217,8 @@ async fn load(
     });
 
     let transcode = tc.is_some();
+    CHAPTERS.lock().unwrap().clear();
+    *NOW_ID.lock().unwrap() = item.as_ref().map(|i| i.id.clone()).unwrap_or_default();
     Ok(Current {
         item,
         ms_id,

@@ -2594,3 +2594,24 @@ msgstr "Wähle den Bildschirm für die Videos: Die Wiedergabetaste schickt sie d
 
 msgid "Diffusion en cours sur {}"
 msgstr "Wird übertragen auf {}"
+
+msgid "Reprendre à {}"
+msgstr "Fortsetzen bei {}"
+
+msgid "Voir la fiche"
+msgstr "Details ansehen"
+
+msgid "Résumé sur les affiches"
+msgstr "Zusammenfassung auf Postern"
+
+msgid "Sur l'affiche sélectionnée, après un instant."
+msgstr "Auf dem ausgewählten Poster, nach einem Moment."
+
+msgid "Couleur du média"
+msgstr "Medienfarbe"
+
+msgid "La page d'un média prend la couleur de son affiche."
+msgstr "Die Seite eines Mediums übernimmt die Farbe seines Posters."
+
+msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
+msgstr "Tippe auf eine Zeile zum Ausprobieren, erneut zum Auswählen."

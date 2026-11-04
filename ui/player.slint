@@ -433,6 +433,22 @@ export component PlayerView inherits Rectangle {
     in property <string> dur-text;
     in property <string> end-text;
     in property <[float]> chapters;
+    // Aperçu au survol de la barre de temps : chapitre, et image si le serveur en a préparé (trickplay).
+    in property <string> tip-chapter;
+    in property <bool> has-thumb;
+    in property <image> thumb;
+    in property <int> thumb-x;
+    in property <int> thumb-y;
+    in property <int> thumb-w;
+    in property <int> thumb-h;
+    callback seek-hover(float);
+    pure function clock(s: float) -> string {
+        let t = floor(max(s, 0));
+        let h = floor(t / 3600);
+        let m = floor(mod(t, 3600) / 60);
+        let c = mod(t, 60);
+        return (h > 0 ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (c < 10 ? "0" : "") + c;
+    }
     in property <int> chapter-count;
     in property <bool> has-prev;
     in property <bool> has-next;
@@ -1596,6 +1612,18 @@ export component PlayerView inherits Rectangle {
 
                 property <length> th: (root.zone == 1 ? 10px : 6px) * root.k;
                 property <float> shown: root.dragging ? root.drag-frac : root.progress;
+                property <bool> tip-on: root.dur-secs > 0 && (root.dragging || (bar-ta.has-hover && !Nav.touch));
+                property <float> tip-f: root.dragging ? root.drag-frac : clamp(bar-ta.mouse-x / bar-ta.width, 0, 1);
+                changed tip-f => {
+                    if (self.tip-on) {
+                        root.seek-hover(self.tip-f);
+                    }
+                }
+                changed tip-on => {
+                    if (self.tip-on) {
+                        root.seek-hover(self.tip-f);
+                    }
+                }
 
                 track := Rectangle {
                     y: (parent.height - self.height) / 2;
@@ -1633,7 +1661,56 @@ export component PlayerView inherits Rectangle {
                     border-color: Theme.accent2;
                 }
 
-                TouchArea {
+                // Aperçu : temps visé, chapitre, image.
+                if bar.tip-on: Rectangle {
+                    property <length> iw: 256px * root.k;
+                    width: root.has-thumb ? self.iw : max(110px * root.k, tip-c.preferred-width + 24px * root.k);
+                    height: (root.has-thumb ? self.iw * 0.5625 : 0px) + (root.tip-chapter != "" ? 50px : 30px) * root.k;
+                    x: clamp(parent.width * bar.tip-f - self.width / 2, 0px, parent.width - self.width);
+                    y: -self.height - 6px * root.k;
+                    border-radius: 10px * root.k;
+                    background: Theme.player-bar;
+                    border-width: 1px;
+                    border-color: Theme.player-ink.with-alpha(0.3);
+                    if root.has-thumb: Image {
+                        x: 3px;
+                        y: 3px;
+                        width: parent.iw - 6px;
+                        height: parent.iw * 0.5625 - 6px;
+                        source: root.thumb;
+                        source-clip-x: root.thumb-x;
+                        source-clip-y: root.thumb-y;
+                        source-clip-width: root.thumb-w;
+                        source-clip-height: root.thumb-h;
+                        image-fit: fill;
+                    }
+                    Text {
+                        y: parent.height - (root.tip-chapter != "" ? 48px : 28px) * root.k;
+                        width: parent.width;
+                        height: 24px * root.k;
+                        text: root.clock(bar.tip-f * root.dur-secs);
+                        color: Theme.player-ink;
+                        font-size: 15px * root.k;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    tip-c := Text {
+                        visible: root.tip-chapter != "";
+                        x: 8px * root.k;
+                        y: parent.height - 26px * root.k;
+                        width: parent.width - 16px * root.k;
+                        height: 22px * root.k;
+                        text: root.tip-chapter;
+                        color: Theme.player-ink.with-alpha(0.75);
+                        font-size: 12px * root.k;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                bar-ta := TouchArea {
                     pointer-event(e) => {
                         if (e.kind == PointerEventKind.down) {
                             root.dragging = true;
