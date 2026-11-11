@@ -89,6 +89,24 @@ pub struct ThemeDef {
     pub win7: bool,
     /// Boutons et panneaux façon composants de carte électronique (coins coupés, pattes, angles vifs).
     pub term: bool,
+    /// Fond personnel : fichier image, GIF ou vidéo (chemin absolu, ou relatif au dossier du thème,
+    /// `dir`) ; vide : le décor (`scenery`). `background_dim` : voile aux couleurs du thème posé
+    /// par-dessus (0 à 1).
+    pub background: String,
+    pub background_dim: f32,
+    /// Logo personnel (image PNG, JPEG, WebP ; vide : le logo dessiné, `logo`) et son animation à
+    /// l'apparition : « » aucune, « pulse » battement, « spin » tour complet, « bounce » rebond, « fade » fondu.
+    pub logo_file: String,
+    pub logo_anim: String,
+    /// Dossier du thème (ses fichiers : fond, logo, sons), posé à l'import ; pas dans le fichier partagé.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub dir: String,
+    /// Jeu d'effets sonores : « » selon le style (verre pour `win7`, bips pour `term`, gouttes sinon),
+    /// « abyss », « aero », « nerd ».
+    pub sounds: String,
+    /// Sons remplacés par des fichiers : événement (`move`, `ok`, `back`, `tap`, `type`, `toggle`,
+    /// `error`, `start`) -> chemin d'un fichier audio.
+    pub sound_files: std::collections::HashMap<String, String>,
 }
 
 impl Default for ThemeDef {
@@ -148,6 +166,13 @@ pub fn turtlefin() -> ThemeDef {
         font: String::new(),
         win7: false,
         term: false,
+        background: String::new(),
+        background_dim: 0.35,
+        logo_file: String::new(),
+        logo_anim: String::new(),
+        dir: String::new(),
+        sounds: String::new(),
+        sound_files: Default::default(),
     }
 }
 
@@ -280,9 +305,140 @@ pub fn parse(c: &str) -> Option<Color> {
 /// Lit un fichier de thème (`None` : pas un thème de Turtlefin).
 pub fn load(path: &std::path::Path) -> Option<ThemeDef> {
     let text = crate::paths::read_text_limited(path, 1 << 20).ok()?;
-    let t: ThemeDef = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let mut t: ThemeDef = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    // Les fichiers du thème (fond, logo, sons) sont cherchés à côté de son .tftheme.
+    t.dir = path.parent().map(|d| d.display().to_string()).unwrap_or_default();
     (t.turtlefin_theme >= 1 && !t.name.trim().is_empty()).then_some(t)
 }
+
+/// Fichier d'un thème (fond, logo, son) : chemin absolu, ou relatif à son dossier ; `None` s'il manque.
+pub fn asset(t: &ThemeDef, file: &str) -> Option<std::path::PathBuf> {
+    if file.trim().is_empty() {
+        return None;
+    }
+    let p = std::path::Path::new(file);
+    let p = if p.is_absolute() { p.to_path_buf() } else { std::path::Path::new(&t.dir).join(p) };
+    p.is_file().then_some(p)
+}
+
+/// Genre d'un fond personnel d'après son extension : 0 aucun · 1 image ou GIF · 2 vidéo.
+pub fn background_kind(t: &ThemeDef) -> i32 {
+    let Some(p) = asset(t, &t.background) else { return 0 };
+    match p.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" => 1,
+        "mp4" | "mkv" | "webm" | "mov" | "m4v" | "avi" => 2,
+        _ => 0,
+    }
+}
+
+/// Sons du thème remplacés par des fichiers : chemins complets des fichiers présents.
+pub fn sound_paths(t: &ThemeDef) -> std::collections::HashMap<String, String> {
+    t.sound_files.iter().filter_map(|(k, f)| asset(t, f).map(|p| (k.clone(), p.display().to_string()))).collect()
+}
+
+/// Jeu de sons d'un thème (« abyss », « aero », « nerd »).
+pub fn sound_set(t: &ThemeDef) -> &str {
+    match t.sounds.as_str() {
+        "" if t.win7 => "aero",
+        "" if t.term => "nerd",
+        "" => "abyss",
+        s => s,
+    }
+}
+
+static ASSET_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+thread_local! {
+    /// Minuterie du fond en GIF (une seule : celle du thème en cours).
+    static BG_TIMER: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Images d'un GIF (ou l'image seule), réduites pour tenir en mémoire (96 Mo au plus pour toutes les
+/// images, 1920 px de large au plus), avec la durée moyenne d'une image.
+fn decode_background(path: &std::path::Path) -> Option<(Vec<slint::SharedPixelBuffer<slint::Rgba8Pixel>>, u64)> {
+    use image::AnimationDecoder;
+    let to_buf = |img: image::RgbaImage| {
+        let (w, h) = img.dimensions();
+        slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h)
+    };
+    let is_gif = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("gif"));
+    if is_gif {
+        let file = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+        let frames = image::codecs::gif::GifDecoder::new(file).ok()?.into_frames().take(240).collect::<Result<Vec<_>, _>>().ok()?;
+        let n = frames.len().max(1) as f64;
+        let (w, h) = frames.first()?.buffer().dimensions();
+        // Échelle : au plus 96 Mo en tout.
+        let scale = ((96.0 * 1024.0 * 1024.0) / (w as f64 * h as f64 * 4.0 * n)).sqrt().min(1.0).min(1920.0 / w as f64);
+        let (nw, nh) = (((w as f64 * scale) as u32).max(1), ((h as f64 * scale) as u32).max(1));
+        let mut total = 0u64;
+        let bufs = frames
+            .into_iter()
+            .map(|f| {
+                let (num, den) = f.delay().numer_denom_ms();
+                total += (num / den.max(1)) as u64;
+                let img = f.into_buffer();
+                to_buf(if scale < 0.999 { image::imageops::resize(&img, nw, nh, image::imageops::FilterType::Triangle) } else { img })
+            })
+            .collect::<Vec<_>>();
+        let delay = (total / bufs.len().max(1) as u64).clamp(40, 250);
+        return Some((bufs, delay));
+    }
+    let bytes = std::fs::read(path).ok()?;
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    reader.limits(image::Limits::default());
+    let img = reader.decode().ok()?;
+    let img = if img.width() > 1920 { img.resize(1920, 1920 * img.height() / img.width().max(1), image::imageops::FilterType::Triangle) } else { img };
+    Some((vec![to_buf(img.to_rgba8())], 0))
+}
+
+/// Charge les images du thème (fond en image ou GIF, logo) hors du fil de l'interface, puis les pose
+/// sur la fenêtre `weak` (Turtlefin, ou le créateur de thèmes). `animate` : le GIF bouge.
+pub fn load_assets<T>(weak: slint::Weak<T>, t: &ThemeDef, animate: bool)
+where
+    T: ComponentHandle + 'static,
+    for<'a> crate::Theme<'a>: slint::Global<'a, T>,
+{
+    let my = ASSET_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    BG_TIMER.with(|b| *b.borrow_mut() = None);
+    let bg = if background_kind(t) == 1 { asset(t, &t.background) } else { None };
+    let logo = asset(t, &t.logo_file);
+    if bg.is_none() && logo.is_none() {
+        return;
+    }
+    std::thread::spawn(move || {
+        let frames = bg.as_deref().and_then(decode_background);
+        let logo = logo.and_then(|p| {
+            let img = image::ImageReader::open(p).ok()?.with_guessed_format().ok()?.decode().ok()?;
+            let img = img.thumbnail(512, 512).to_rgba8();
+            let (w, h) = img.dimensions();
+            Some(slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h))
+        });
+        let _ = weak.clone().upgrade_in_event_loop(move |u| {
+            if ASSET_GEN.load(std::sync::atomic::Ordering::SeqCst) != my {
+                return;
+            }
+            let th = u.global::<crate::Theme>();
+            if let Some(l) = logo {
+                th.set_logo_image(slint::Image::from_rgba8(l));
+                th.set_has_logo_image(true);
+            }
+            let Some((bufs, delay)) = frames else { return };
+            let images: Vec<slint::Image> = bufs.into_iter().map(slint::Image::from_rgba8).collect();
+            let Some(first) = images.first().cloned() else { return };
+            th.set_bg_image(first);
+            if images.len() > 1 && animate {
+                let timer = slint::Timer::default();
+                let mut i = 0usize;
+                timer.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(delay.max(40)), move || {
+                    let Some(u) = weak.upgrade() else { return };
+                    i = (i + 1) % images.len();
+                    u.global::<crate::Theme>().set_bg_image(images[i].clone());
+                });
+                BG_TIMER.with(|b| *b.borrow_mut() = Some(timer));
+            }
+        });
+    });
+}
+
 
 /// Hors ligne (Srv.core 2) : le thème passe à l'ambre (mêmes clartés et saturations, teinte ambrée),
 /// pour que toute l'interface dise qu'on regarde les téléchargements, pas le serveur.
@@ -334,12 +490,27 @@ pub fn preview(u: &AppWindow, key: &str, saved: &str, custom: &[ThemeDef]) {
 }
 
 pub fn apply(u: &AppWindow, t: &ThemeDef) {
+    apply_tokens(&u.global::<crate::Theme>(), t);
+    crate::sfx::set_theme(sound_set(t), sound_paths(t));
+    // Fond animé (GIF, vidéo) : seulement si le décor a le droit de bouger (Paramètres → Animations ;
+    // coupé par défaut sur les petites machines). Sinon le GIF reste sur sa première image, et la
+    // vidéo n'est pas lancée.
+    let moving = crate::config::ui_prefs().anim.scenery;
+    load_assets(u.as_weak(), t, moving);
+    let video = if background_kind(t) == 2 && moving { asset(t, &t.background) } else { None };
+    crate::video::set_background(&u.as_weak(), video.as_deref());
+    if !PREVIEW.load(std::sync::atomic::Ordering::Relaxed) {
+        window_icon(u, t);
+    }
+}
+
+/// Pose les réglages d'un thème sur le global `Theme` d'une fenêtre (Turtlefin ou le créateur).
+pub fn apply_tokens(th: &crate::Theme<'_>, t: &ThemeDef) {
     let d = turtlefin();
     let off = OFFLINE.load(std::sync::atomic::Ordering::Relaxed);
     // Couleurs du thème ; `w` : celles qui passent à l'ambre hors ligne (fonds, accents, verre, cartes).
     let c = |x: &str, fallback: &str| parse(x).or_else(|| parse(fallback)).unwrap_or_default();
     let w = |x: Color| if off { amber(x) } else { x };
-    let th = u.global::<crate::Theme>();
     let fg = c(&t.fg, if t.dark { "#ffffff" } else { "#0f1a2a" });
     let alpha = |a: f32| Color::from_argb_u8((a * 255.0) as u8, fg.red(), fg.green(), fg.blue());
     th.set_dark(t.dark);
@@ -381,6 +552,8 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
         _ if t.bubbles => 1,
         _ => 0,
     };
+    // Un fond personnel remplace le décor.
+    let scenery = if background_kind(t) != 0 { 0 } else { scenery };
     th.set_bubbles(scenery > 0);
     th.set_scenery(scenery);
     th.set_header_style(match t.header.as_str() {
@@ -406,21 +579,18 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     th.set_win7(t.win7);
     th.set_mono_font(t.font == "mono");
     th.set_term(t.term);
-    if !PREVIEW.load(std::sync::atomic::Ordering::Relaxed) {
-        window_icon(u, t);
+    th.set_bg_kind(background_kind(t));
+    th.set_bg_dim(t.background_dim.clamp(0.0, 1.0));
+    if asset(t, &t.logo_file).is_none() {
+        th.set_has_logo_image(false);
     }
-}
-
-/// Turtlefin Theme Creator (tools/theme-creator.html), intégré au programme : déposé dans le
-/// dossier des thèmes et ouvert dans le navigateur (aperçu en direct, export en .tftheme).
-pub const CREATOR: &str = include_str!("../tools/theme-creator.html");
-pub const CREATOR_FILE: &str = "Turtlefin Theme Creator.html";
-
-pub fn write_creator() -> std::io::Result<std::path::PathBuf> {
-    let d = dir().ok_or_else(|| std::io::Error::other("dossier des thèmes introuvable"))?;
-    let path = d.join(CREATOR_FILE);
-    std::fs::write(&path, CREATOR)?;
-    Ok(path)
+    th.set_logo_anim(match t.logo_anim.as_str() {
+        "pulse" => 1,
+        "spin" => 2,
+        "bounce" => 3,
+        "fade" => 4,
+        _ => 0,
+    });
 }
 
 /// Logo de Turtlefin aux couleurs d'un thème (même dessin que packaging/turtlefin.svg) : carré
@@ -924,7 +1094,17 @@ pub fn dir() -> Option<std::path::PathBuf> {
 /// de modèle.
 pub fn export(t: &ThemeDef) -> std::io::Result<std::path::PathBuf> {
     let d = dir().ok_or_else(|| std::io::Error::other("dossier des thèmes introuvable"))?;
-    let safe: String = t.name.chars().take(80).map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }).collect();
+    let safe = safe_name(&t.name);
+    let path = d.join(format!("{safe}.{EXT}"));
+    let mut t = t.clone();
+    t.turtlefin_theme = 1;
+    std::fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())?;
+    Ok(path)
+}
+
+/// Nom de fichier tiré du nom d'un thème.
+fn safe_name(name: &str) -> String {
+    let safe: String = name.chars().take(80).map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }).collect();
     let mut safe = safe.trim().to_string();
     // Thème venu d'ailleurs nommé « CON », « NUL », « COM1 »… : sous Windows, ce nom désigne un
     // périphérique, pas un fichier.
@@ -934,11 +1114,38 @@ pub fn export(t: &ThemeDef) -> std::io::Result<std::path::PathBuf> {
     if safe.is_empty() || reserved {
         safe.insert(0, '_');
     }
+    safe
+}
+
+/// Écrit un thème complet dans son dossier (`Turtlefin Themes/<nom>/`) : le fichier `.tftheme` et,
+/// copiés à côté, ses fichiers (fond, logo, sons), que le .tftheme désigne alors par leur seul nom :
+/// le dossier se partage tel quel. Rend le chemin du .tftheme et le thème tel qu'installé (ses
+/// fichiers pris dans ce dossier).
+pub fn export_package(t: &ThemeDef) -> std::io::Result<(std::path::PathBuf, ThemeDef)> {
+    let root = dir().ok_or_else(|| std::io::Error::other("dossier des thèmes introuvable"))?;
+    let safe = safe_name(&t.name);
+    let d = root.join(&safe);
+    std::fs::create_dir_all(&d)?;
+    let copy = |file: &str| -> std::io::Result<String> {
+        let Some(src) = asset(t, file) else { return Ok(String::new()) };
+        let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let dest = d.join(&name);
+        if src != dest {
+            std::fs::copy(&src, &dest)?;
+        }
+        Ok(name)
+    };
+    let mut out = t.clone();
+    out.turtlefin_theme = 1;
+    out.background = copy(&t.background)?;
+    out.logo_file = copy(&t.logo_file)?;
+    out.sound_files = t.sound_files.iter().map(|(k, f)| copy(f).map(|n| (k.clone(), n))).collect::<std::io::Result<_>>()?;
+    out.sound_files.retain(|_, f| !f.is_empty());
+    out.dir = String::new();
     let path = d.join(format!("{safe}.{EXT}"));
-    let mut t = t.clone();
-    t.turtlefin_theme = 1;
-    std::fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())?;
-    Ok(path)
+    std::fs::write(&path, serde_json::to_string_pretty(&out).unwrap_or_default())?;
+    out.dir = d.display().to_string();
+    Ok((path, out))
 }
 
 #[cfg(test)]

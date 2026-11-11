@@ -12,6 +12,8 @@ mod winfull;
 #[path = "../android/src/entry.rs"]
 mod android_entry;
 mod config;
+#[cfg(not(target_os = "android"))]
+mod creator;
 mod dashboard;
 mod discovery;
 mod downloads;
@@ -25,6 +27,8 @@ mod paths;
 mod player;
 mod relay;
 mod syncplay;
+mod mods;
+mod sfx;
 mod theme;
 mod update;
 mod video;
@@ -324,6 +328,10 @@ struct App {
     stack_base: Mutex<String>,
     /// Mise à jour (À propos) : "" · checking · uptodate · available:N|titres · installing:étape · ready · error:message.
     update_state: Mutex<String>,
+    /// Paramètres → Mods : liste en cours de modification (pas encore sauvegardée), et « un
+    /// redémarrage est nécessaire » une fois sauvegardée.
+    mods_edit: Mutex<Option<Vec<mods::ModPref>>>,
+    mods_restart: AtomicBool,
     /// Élément dont les rangées du bas de la fiche sont affichées (série d'un épisode...).
     rows_base: Mutex<String>,
     /// Empreinte de l'image de fond affichée : la même image ne refait pas de fondu.
@@ -450,6 +458,11 @@ fn begin_loading(u: &AppWindow) {
 /// Affiche une page avec son animation d'arrivée, même si c'est le même écran (fiche -> fiche).
 fn show_screen(u: &AppWindow, name: &str) {
     u.set_loading(false);
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if name == "home" && !STARTED.swap(true, Ordering::Relaxed) {
+        sfx::play("start");
+    }
+    mods::emit("screen", name);
     if u.get_screen().as_str() == name && name == "detail" {
         u.invoke_detail_swap();
     } else if u.get_screen().as_str() == name {
@@ -5548,6 +5561,7 @@ pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    sfx::configure(p.sfx, p.sfx_volume);
     update_chrome(u);
     // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
     thread_local! { static SHORTCUTS: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
@@ -5794,7 +5808,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
             row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
-            row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator dans le navigateur : couleurs, aperçu, export."), String::new(), "action", false),
+            row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, sons, aperçu en direct."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
@@ -5802,6 +5816,8 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
+            row("sfx", tr("Effets sonores"), tr("Sons de navigation (déplacement, validation, retour), propres à chaque thème."), String::new(), "toggle", prefs.sfx),
+            row("sfx_volume", tr("Volume des effets sonores"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.sfx_volume), "action", false),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
         ]
         .into_iter()
@@ -5922,6 +5938,43 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 row("quit", tr("Fermer Turtlefin"), tr("Quitte l'application."), String::new(), "action", false),
             ])
             .collect()
+        }
+        9 => {
+            let saved = mods::merged(&prefs.mods);
+            let edit = app.mods_edit.lock().unwrap().clone().unwrap_or_else(|| saved.clone());
+            let found = mods::installed();
+            let mut v = vec![
+                row(
+                    "info",
+                    "",
+                    tr("Les mods sont écrits par d'autres personnes. Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Un mod peut tout faire sur cet appareil : lire et écrire des fichiers, lancer des programmes, agir avec le compte ouvert. N'installe que des mods venant d'une source de confiance."),
+                    String::new(),
+                    "info",
+                    false,
+                ),
+                row("modsdir", tr("Dossier des mods"), &trf("Dépose un mod dans « {} », puis reviens sur cette page.", &[&mods::DIR_NAME]), tr("Ouvrir").to_string(), "action", false),
+            ];
+            if edit.is_empty() {
+                v.push(row("info", "", tr("Aucun mod installé."), String::new(), "info", false));
+            }
+            for (i, p) in edit.iter().enumerate() {
+                let info = found.iter().find(|m| m.id == p.id).cloned().unwrap_or_default();
+                let label = format!("{}. {} {}", i + 1, if info.name.is_empty() { &p.id } else { &info.name }, info.version);
+                let hint = [info.description.clone(), info.author.clone()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · ");
+                v.push(row(&format!("mod:{}", p.id), label.trim(), &hint, String::new(), "toggle", p.on));
+                if i > 0 {
+                    v.push(row(&format!("modup:{}", p.id), tr("Charger plus tôt"), &trf("« {} » passe avant le mod précédent (ordre de chargement).", &[&info.name]), String::new(), "action", false));
+                }
+            }
+            if edit != saved {
+                v.push(row("modsave", tr("Sauvegarder"), tr("Les changements prennent effet au prochain démarrage de Turtlefin."), String::new(), "action", false));
+            } else if app.mods_restart.load(Ordering::Relaxed) {
+                v.push(row("modrestart", tr("Redémarrer Turtlefin"), tr("Changements enregistrés : ils s'appliquent au redémarrage."), tr("Redémarrer").to_string(), "action", false));
+            }
+            if mods::running() {
+                v.push(row("modslog", tr("Journal des mods"), tr("Messages et erreurs des mods chargés (mods.log)."), tr("Ouvrir").to_string(), "action", false));
+            }
+            v
         }
         _ => Vec::new(),
     }
@@ -6695,16 +6748,8 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
                 return;
             }
-            // Thème intégré en cours : le créateur part de lui (?preset=…).
-            let key = config::ui_prefs().theme;
-            let res = theme::write_creator().and_then(|path| {
-                let url = if key.starts_with("custom:") {
-                    path.display().to_string()
-                } else {
-                    format!("file:///{}?preset={key}", path.display().to_string().replace('\\', "/").replace(' ', "%20").trim_start_matches('/'))
-                };
-                open_url(&url)
-            });
+            // Le créateur est une fenêtre à part de ce même programme ; il part du thème en cours.
+            let res = std::env::current_exe().and_then(|exe| paths::quiet_command(exe).arg("--theme-creator").spawn());
             if let Err(e) = res {
                 if let Some(u) = app.ui().upgrade() {
                     u.set_toast(trf("Impossible d'ouvrir le créateur de thèmes : {}", &[&e]).into());
@@ -6832,6 +6877,22 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "card_info" => toggle_ui_pref(app, |p| p.card_info = !p.card_info),
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
+        "sfx" => {
+            toggle_ui_pref(app, |p| p.sfx = !p.sfx);
+            sfx::play("toggle");
+        }
+        "sfx_volume" => {
+            toggle_ui_pref(app, |p| {
+                p.sfx_volume = match p.sfx_volume {
+                    0..=24 => 25,
+                    25..=49 => 50,
+                    50..=74 => 75,
+                    75..=99 => 100,
+                    _ => 25,
+                }
+            });
+            sfx::play("ok");
+        }
         "tvmode" => {
             let on = !app.tv();
             toggle_ui_pref(app, |p| p.tv = on);
@@ -6975,6 +7036,40 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         }
         "quit" => {
             let _ = slint::quit_event_loop();
+        }
+        "modsdir" | "modslog" => {
+            if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
+                return;
+            }
+            let target = if key == "modsdir" { mods::ensure_dir() } else { paths::config_dir().map(|d| d.join("mods.log")) };
+            if let Some(t) = target {
+                let prog = if cfg!(windows) { "explorer" } else if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+                let _ = paths::quiet_command(prog).arg(&t).spawn();
+            }
+        }
+        "modsave" => {
+            let edit = app.mods_edit.lock().unwrap().take();
+            if let Some(edit) = edit {
+                let mut p = config::ui_prefs();
+                p.mods = edit;
+                config::save_ui_prefs(&p);
+                app.mods_restart.store(true, Ordering::Relaxed);
+            }
+            refresh_settings(app);
+        }
+        "modrestart" => update::restart(),
+        k if k.starts_with("mod:") || k.starts_with("modup:") => {
+            let mut edit = app.mods_edit.lock().unwrap().clone().unwrap_or_else(|| mods::merged(&config::ui_prefs().mods));
+            if let Some(id) = k.strip_prefix("mod:") {
+                for p in edit.iter_mut().filter(|p| p.id == id) {
+                    p.on = !p.on;
+                }
+                sfx::play("toggle");
+            } else if let Some(i) = k.strip_prefix("modup:").and_then(|id| edit.iter().position(|p| p.id == id)).filter(|i| *i > 0) {
+                edit.swap(i - 1, i);
+            }
+            *app.mods_edit.lock().unwrap() = Some(edit);
+            refresh_settings(app);
         }
         _ => {}
     }
@@ -7693,26 +7788,6 @@ fn browse_themes(dir: &std::path::Path) -> Vec<i18n::Entry> {
     }
     dirs.extend(files);
     dirs
-}
-
-/// Ouvre une adresse (ou un fichier) avec le programme par défaut du système (navigateur…).
-fn open_url(url: &str) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        // `start` (cmd) garde le « ?preset=… » d'une adresse file:///, contrairement à explorer.
-        // Adresse entre guillemets : un « & » (dossier « Tom & Jerry ») n'est pas pris pour une
-        // seconde commande (en ligne de commande, cmd laisse tel quel un %…% inconnu).
-        use std::os::windows::process::CommandExt;
-        if url.contains(['"', '\n', '\r']) {
-            return Err(std::io::Error::other("adresse refusée"));
-        }
-        paths::quiet_command("cmd").raw_arg(format!("/C start \"\" \"{url}\"")).spawn().map(|_| ())
-    }
-    #[cfg(not(windows))]
-    {
-        let prog = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-        paths::quiet_command(prog).arg(url).spawn().map(|_| ())
-    }
 }
 
 /// Nom affiché d'un thème intégré (traduit) ; les thèmes importés gardent le leur.
@@ -9128,6 +9203,18 @@ fn install_f11(app: &Arc<App>) {
             }
         }
         if let winit::event::WindowEvent::KeyboardInput { event, .. } = ev {
+            if event.state == winit::event::ElementState::Pressed {
+                use winit::keyboard::{Key, NamedKey};
+                match &event.logical_key {
+                    Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::Tab) => sfx::play("move"),
+                    Key::Named(NamedKey::Enter) if !event.repeat => sfx::play("ok"),
+                    Key::Named(NamedKey::Escape | NamedKey::BrowserBack) if !event.repeat => sfx::play("back"),
+                    // Interface TV : Retour arrière sert de Retour ; au bureau, il efface du texte.
+                    Key::Named(NamedKey::Backspace) => sfx::play(if app.tv() { "back" } else { "type" }),
+                    Key::Named(NamedKey::Space) | Key::Character(_) => sfx::play("type"),
+                    _ => {}
+                }
+            }
             if event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::F11) {
                 if event.state == winit::event::ElementState::Pressed && !event.repeat {
                     // Hors de l'événement en cours : la fenêtre change de taille.
@@ -9264,6 +9351,9 @@ impl Swipe {
     fn touch(&mut self, u: &AppWindow, phase: TouchPh, id: u64, p: (f64, f64), finger: bool) -> bool {
         use TouchPh as TouchPhase;
         let s = u.window().scale_factor() as f64;
+        if phase == TouchPhase::Ended && !self.active {
+            sfx::play("tap");
+        }
         if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() && phase != TouchPhase::Moved {
             eprintln!("turtlefin : toucher {phase:?} {id} ({:.0}, {:.0})", p.0, p.1);
         }
@@ -9606,6 +9696,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
     if std::env::args().any(|a| a == "--console") {
         open_console();
     }
+    // Turtlefin Theme Creator : une fenêtre à part, sans serveur ni lecteur.
+    #[cfg(not(target_os = "android"))]
+    if std::env::args().any(|a| a == "--theme-creator") {
+        return creator::run();
+    }
     let cli = parse_cli();
     // Vérification « Configuration » du démarrage : avant toute lecture des fichiers (voir boot.rs).
     let config_issues = config::unreadable_files();
@@ -9797,6 +9892,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
         item_lib: Mutex::new(std::collections::HashMap::new()),
         rows_base: Mutex::new(String::new()),
         update_state: Mutex::new(String::new()),
+        mods_edit: Mutex::new(None),
+        mods_restart: AtomicBool::new(false),
         bg_hash: AtomicU64::new(0),
         stack_base: Mutex::new(String::new()),
         bg_gen: AtomicU64::new(0),
@@ -10692,6 +10789,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
             #[cfg(not(target_os = "android"))]
             install_f11(&app);
+            mods::start(&app);
             #[cfg(not(target_os = "android"))]
             if let Some(u) = app.ui().upgrade() {
                 install_chrome(&u);

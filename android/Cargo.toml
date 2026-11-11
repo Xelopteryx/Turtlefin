@@ -39,6 +39,8 @@ anyhow = "1"
 directories = "6"
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
+# Mods : scripts Lua (Lua 5.4 compilé avec l'appli, rien à installer).
+mlua = { version = "0.10", features = ["lua54", "vendored"] }
 if-addrs = "0.15.0"
 socket2 = "0.6"
 rustls = { version = "0.23", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }

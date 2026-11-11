@@ -1,0 +1,746 @@
+// Turtlefin Theme Creator : fenêtre à part (lancée par `turtlefin --theme-creator`). À gauche, les
+// réglages du thème par onglets ; à droite, un aperçu fait des mêmes briques que Turtlefin (global
+// Theme, décors, logo, verre de Windows 7, composants du thème Nerd). Tous les textes viennent de
+// Rust (creator.rs), déjà traduits.
+import { LineEdit, Button, ScrollView, Slider, Switch } from "std-widgets.slint";
+import { Theme, Gloss, Win7Glass, TermGlass, Sheen } from "theme.slint";
+import { AeroSky } from "sky.slint";
+import { ThemeLogo } from "logo.slint";
+import "fonts/Montserrat-Regular.ttf";
+import "fonts/Montserrat-Medium.ttf";
+import "fonts/Montserrat-SemiBold.ttf";
+import "fonts/Montserrat-Bold.ttf";
+import "fonts/JetBrainsMonoNL-Regular.ttf";
+import "fonts/JetBrainsMonoNL-Medium.ttf";
+import "fonts/JetBrainsMonoNL-SemiBold.ttf";
+import "fonts/JetBrainsMonoNL-Bold.ttf";
+import "fonts/Selawik-Regular.ttf";
+import "fonts/Selawik-SemiBold.ttf";
+import "fonts/Selawik-Bold.ttf";
+
+// Ligne de réglage. kind : head (titre de groupe) · info · text · color · bool · num · choice · file · sound.
+export struct CField {
+    key: string,
+    label: string,
+    hint: string,
+    kind: string,
+    text: string,
+    col: color,
+    on: bool,
+    num: float,
+    min: float,
+    max: float,
+}
+
+// Bouton de l'aperçu, au style du thème (comme les boutons des fiches).
+component PvButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> lit;
+    in property <bool> primary;
+    height: 36px;
+    width: label.preferred-width + 36px;
+    border-radius: Theme.win7 ? 4px : Theme.term ? 2px : 10px;
+    background: Theme.skinned ? transparent
+        : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+        : root.primary ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.6) 0%, Theme.accent2.with-alpha(0.6) 100%)
+        : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
+    if Theme.win7: Win7Glass {
+        lit: root.lit;
+    }
+    if Theme.term: TermGlass {
+        lit: root.lit;
+    }
+    Gloss {
+        r: parent.border-radius;
+        visible: Theme.gloss > 0 && !Theme.win7;
+    }
+    label := Text {
+        text: root.text;
+        color: Theme.skinned ? Theme.fg : root.lit || root.primary ? Theme.on-accent : Theme.fg;
+        font-family: Theme.font-name;
+        font-size: 14px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// Affiche de l'aperçu.
+component PvCard inherits Rectangle {
+    in property <string> title;
+    in property <string> sub;
+    in property <bool> lit;
+    width: 118px;
+    height: 118px * 1.5 + 44px;
+    Rectangle {
+        transform-scale: root.lit ? 1.08 : 1;
+        drop-shadow-blur: root.lit ? 18px : 0px;
+        drop-shadow-color: Theme.glow;
+        border-radius: Theme.radius;
+        background: root.lit ? Theme.card-focus : Theme.card;
+        border-width: 1px;
+        border-color: Theme.card-border;
+        Rectangle {
+            y: 0px;
+            height: parent.width * 1.5;
+            border-radius: Theme.radius;
+            background: @linear-gradient(140deg, Theme.ph1 0%, Theme.ph2 100%);
+            clip: true;
+            Rectangle {
+                background: @radial-gradient(circle, Theme.accent2.with-alpha(0.16) 0%, Theme.accent2.with-alpha(0) 70%);
+                width: parent.width * 1.4;
+                height: self.width;
+                x: -parent.width * 0.5;
+                y: -self.height * 0.55;
+            }
+            if Theme.sheen > 0: Sheen {
+                r: Theme.radius;
+                on: root.lit;
+            }
+        }
+        Text {
+            x: 8px;
+            y: parent.width * 1.5 + 5px;
+            width: parent.width - 16px;
+            text: root.title;
+            color: Theme.text;
+            font-family: Theme.font-name;
+            font-size: 12px;
+            font-weight: 600;
+            overflow: elide;
+        }
+        Text {
+            x: 8px;
+            y: parent.width * 1.5 + 22px;
+            width: parent.width - 16px;
+            text: root.sub;
+            color: Theme.muted;
+            font-family: Theme.font-name;
+            font-size: 11px;
+            overflow: elide;
+        }
+    }
+}
+
+export component ThemeCreator inherits Window {
+    title: "Turtlefin Theme Creator";
+    preferred-width: 1240px;
+    preferred-height: 680px;
+    min-width: 960px;
+    min-height: 620px;
+    background: #14161a;
+    default-font-family: "Montserrat";
+    default-font-size: 13px;
+
+    in property <[string]> tabs;
+    in-out property <int> tab;
+    in property <[CField]> fields;
+    in property <string> status;
+    // Textes de l'interface, dans l'ordre : Partir de · Turtlefin · Frutiger Aero · Nerd · Ouvrir… ·
+    // Enregistrer · Installer dans Turtlefin · Parcourir… · Retirer · Aucun fichier · Aperçu ·
+    // Accueil · Favoris · Collections · Reprendre · Lecture · Favori · Vu · Réglages · Sous-titres ·
+    // La vidéo de fond se voit dans Turtlefin.
+    in property <[string]> ui: ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+    callback tab-changed(int);
+    callback edit-text(string, string);
+    callback edit-color(string, color);
+    callback edit-bool(string, bool);
+    callback edit-num(string, float);
+    callback cycle(string, int);
+    callback browse(string);
+    callback clear-file(string);
+    callback play-sound(string);
+    callback action(string);
+
+    // Couleur en cours de choix (clé de la ligne ouverte) et ses composantes.
+    property <string> pick-key;
+    property <float> pick-h;
+    property <float> pick-s;
+    property <float> pick-v;
+    property <float> pick-a: 1;
+    function pick-send() {
+        root.edit-color(root.pick-key, hsv(root.pick-h, root.pick-s, root.pick-v, root.pick-a));
+    }
+
+    HorizontalLayout {
+        // ------------------------------------------------------------------ Réglages
+        Rectangle {
+            width: 440px;
+            background: #1b1e24;
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+                // Onglets
+                HorizontalLayout {
+                    spacing: 4px;
+                    for t[i] in root.tabs: Rectangle {
+                        height: 32px;
+                        horizontal-stretch: 1;
+                        border-radius: 6px;
+                        background: i == root.tab ? #3b82f6 : tab-ta.has-hover ? #2c313a : #23272e;
+                        Text {
+                            text: t;
+                            color: white;
+                            font-size: 12px;
+                            font-weight: i == root.tab ? 700 : 500;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        tab-ta := TouchArea {
+                            clicked => {
+                                root.pick-key = "";
+                                root.tab = i;
+                                root.tab-changed(i);
+                            }
+                        }
+                    }
+                }
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 6px;
+                        padding-right: 14px;
+                        for f in root.fields: VerticalLayout {
+                            spacing: 4px;
+                            if f.kind == "head": Text {
+                                height: 30px;
+                                text: f.label;
+                                color: #8ab4ff;
+                                font-size: 13px;
+                                font-weight: 700;
+                                vertical-alignment: bottom;
+                            }
+                            if f.kind == "info": Text {
+                                text: f.label;
+                                color: #c9ced6;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                            if f.kind != "head" && f.kind != "info": HorizontalLayout {
+                                height: 34px;
+                                spacing: 8px;
+                                Text {
+                                    width: 150px;
+                                    text: f.label;
+                                    color: #e6e9ee;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if f.kind == "text": LineEdit {
+                                    text: f.text;
+                                    accepted(t) => {
+                                        root.edit-text(f.key, t);
+                                    }
+                                    edited(t) => {
+                                        root.edit-text(f.key, t);
+                                    }
+                                }
+                                if f.kind == "color": Rectangle {
+                                    width: 44px;
+                                    border-radius: 6px;
+                                    border-width: root.pick-key == f.key ? 2px : 1px;
+                                    border-color: root.pick-key == f.key ? #3b82f6 : #4a505b;
+                                    // Damier : la transparence se voit.
+                                    background: @linear-gradient(135deg, #888 0%, #888 50%, #bbb 50%, #bbb 100%);
+                                    Rectangle {
+                                        x: 2px;
+                                        y: 2px;
+                                        width: parent.width - 4px;
+                                        height: parent.height - 4px;
+                                        border-radius: 4px;
+                                        background: f.col;
+                                    }
+                                    TouchArea {
+                                        clicked => {
+                                            if (root.pick-key == f.key) {
+                                                root.pick-key = "";
+                                            } else {
+                                                root.pick-h = f.col.to-hsv().hue;
+                                                root.pick-s = f.col.to-hsv().saturation;
+                                                root.pick-v = f.col.to-hsv().value;
+                                                root.pick-a = f.col.to-hsv().alpha;
+                                                root.pick-key = f.key;
+                                            }
+                                        }
+                                    }
+                                }
+                                if f.kind == "color": LineEdit {
+                                    text: f.text;
+                                    accepted(t) => {
+                                        root.pick-key = "";
+                                        root.edit-text(f.key, t);
+                                    }
+                                }
+                                if f.kind == "bool": Switch {
+                                    checked: f.on;
+                                    toggled => {
+                                        root.edit-bool(f.key, self.checked);
+                                    }
+                                }
+                                if f.kind == "num": Slider {
+                                    minimum: f.min;
+                                    maximum: f.max;
+                                    value: f.num;
+                                    changed(v) => {
+                                        root.edit-num(f.key, v);
+                                    }
+                                }
+                                if f.kind == "num": Text {
+                                    width: 44px;
+                                    text: f.text;
+                                    color: #c9ced6;
+                                    vertical-alignment: center;
+                                    horizontal-alignment: right;
+                                }
+                                if f.kind == "choice": Button {
+                                    width: 34px;
+                                    text: "‹";
+                                    clicked => {
+                                        root.cycle(f.key, -1);
+                                    }
+                                }
+                                if f.kind == "choice": Text {
+                                    horizontal-stretch: 1;
+                                    text: f.text;
+                                    color: white;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if f.kind == "choice": Button {
+                                    width: 34px;
+                                    text: "›";
+                                    clicked => {
+                                        root.cycle(f.key, 1);
+                                    }
+                                }
+                                if f.kind == "file" || f.kind == "sound": Text {
+                                    horizontal-stretch: 1;
+                                    text: f.text == "" ? root.ui[9] : f.text;
+                                    color: f.text == "" ? #8b929e : #e6e9ee;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                if f.kind == "sound": Button {
+                                    width: 34px;
+                                    text: "▶";
+                                    clicked => {
+                                        root.play-sound(f.key);
+                                    }
+                                }
+                                if f.kind == "file" || f.kind == "sound": Button {
+                                    text: root.ui[7];
+                                    clicked => {
+                                        root.browse(f.key);
+                                    }
+                                }
+                                if (f.kind == "file" || f.kind == "sound") && f.text != "": Button {
+                                    width: 34px;
+                                    text: "✕";
+                                    clicked => {
+                                        root.clear-file(f.key);
+                                    }
+                                }
+                            }
+                            if f.hint != "" && f.kind != "head" && f.kind != "info": Text {
+                                text: f.hint;
+                                color: #8b929e;
+                                font-size: 11px;
+                                wrap: word-wrap;
+                            }
+                            // Choix de la couleur : teinte, saturation et clarté, transparence.
+                            if f.kind == "color" && root.pick-key == f.key: Rectangle {
+                                height: 178px;
+                                border-radius: 8px;
+                                background: #23272e;
+                                sv := Rectangle {
+                                    x: 10px;
+                                    y: 10px;
+                                    width: parent.width - 20px;
+                                    height: 110px;
+                                    border-radius: 4px;
+                                    clip: true;
+                                    background: hsv(root.pick-h, 1, 1);
+                                    Rectangle {
+                                        background: @linear-gradient(90deg, #ffffffff 0%, #ffffff00 100%);
+                                    }
+                                    Rectangle {
+                                        background: @linear-gradient(180deg, #00000000 0%, #000000ff 100%);
+                                    }
+                                    Rectangle {
+                                        x: root.pick-s * parent.width - 6px;
+                                        y: (1 - root.pick-v) * parent.height - 6px;
+                                        width: 12px;
+                                        height: 12px;
+                                        border-radius: 6px;
+                                        border-width: 2px;
+                                        border-color: white;
+                                        drop-shadow-blur: 3px;
+                                        drop-shadow-color: black;
+                                    }
+                                    sv-ta := TouchArea {
+                                        function set() {
+                                            root.pick-s = clamp(self.mouse-x / self.width, 0, 1);
+                                            root.pick-v = 1 - clamp(self.mouse-y / self.height, 0, 1);
+                                            root.pick-send();
+                                        }
+                                        pointer-event(e) => {
+                                            if (e.kind == PointerEventKind.down) {
+                                                self.set();
+                                            }
+                                        }
+                                        moved => {
+                                            if (self.pressed) {
+                                                self.set();
+                                            }
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    x: 10px;
+                                    y: 128px;
+                                    width: parent.width - 20px;
+                                    height: 14px;
+                                    border-radius: 7px;
+                                    background: @linear-gradient(90deg, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+                                    Rectangle {
+                                        x: root.pick-h / 360 * parent.width - 3px;
+                                        width: 6px;
+                                        height: parent.height + 4px;
+                                        y: -2px;
+                                        border-radius: 3px;
+                                        background: white;
+                                        border-width: 1px;
+                                        border-color: black;
+                                    }
+                                    hue-ta := TouchArea {
+                                        function set() {
+                                            root.pick-h = clamp(self.mouse-x / self.width, 0, 0.999) * 360;
+                                            root.pick-send();
+                                        }
+                                        pointer-event(e) => {
+                                            if (e.kind == PointerEventKind.down) {
+                                                self.set();
+                                            }
+                                        }
+                                        moved => {
+                                            if (self.pressed) {
+                                                self.set();
+                                            }
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    x: 10px;
+                                    y: 152px;
+                                    width: parent.width - 20px;
+                                    height: 14px;
+                                    border-radius: 7px;
+                                    background: @linear-gradient(135deg, #888 0%, #888 50%, #bbb 50%, #bbb 100%);
+                                    Rectangle {
+                                        border-radius: 7px;
+                                        background: @linear-gradient(90deg, hsv(root.pick-h, root.pick-s, root.pick-v, 0) 0%, hsv(root.pick-h, root.pick-s, root.pick-v, 1) 100%);
+                                    }
+                                    Rectangle {
+                                        x: root.pick-a * parent.width - 3px;
+                                        width: 6px;
+                                        height: parent.height + 4px;
+                                        y: -2px;
+                                        border-radius: 3px;
+                                        background: white;
+                                        border-width: 1px;
+                                        border-color: black;
+                                    }
+                                    a-ta := TouchArea {
+                                        function set() {
+                                            root.pick-a = clamp(self.mouse-x / self.width, 0, 1);
+                                            root.pick-send();
+                                        }
+                                        pointer-event(e) => {
+                                            if (e.kind == PointerEventKind.down) {
+                                                self.set();
+                                            }
+                                        }
+                                        moved => {
+                                            if (self.pressed) {
+                                                self.set();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Départ, ouverture, enregistrement.
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: root.ui[0];
+                        color: #8b929e;
+                        vertical-alignment: center;
+                    }
+                    Button {
+                        text: root.ui[1];
+                        clicked => {
+                            root.pick-key = "";
+                            root.action("new:turtlefin");
+                        }
+                    }
+                    Button {
+                        text: root.ui[2];
+                        clicked => {
+                            root.pick-key = "";
+                            root.action("new:aero");
+                        }
+                    }
+                    Button {
+                        text: root.ui[3];
+                        clicked => {
+                            root.pick-key = "";
+                            root.action("new:nerd");
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    Button {
+                        text: root.ui[4];
+                        clicked => {
+                            root.pick-key = "";
+                            root.action("open");
+                        }
+                    }
+                    Button {
+                        text: root.ui[5];
+                        clicked => {
+                            root.action("save");
+                        }
+                    }
+                    Button {
+                        primary: true;
+                        text: root.ui[6];
+                        clicked => {
+                            root.action("install");
+                        }
+                    }
+                }
+                Text {
+                    text: root.status;
+                    color: #9fe3b0;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ Aperçu
+        pv := Rectangle {
+            horizontal-stretch: 1;
+            clip: true;
+            background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
+            property <length> hh: 64px;
+            // Fond personnel, sinon le décor du thème.
+            if Theme.bg-kind == 1: Image {
+                width: parent.width;
+                height: parent.height;
+                source: Theme.bg-image;
+                image-fit: cover;
+            }
+            if Theme.bg-kind != 0 && Theme.bg-dim > 0.001: Rectangle {
+                background: Theme.bg.with-alpha(min(1, Theme.bg-dim));
+            }
+            if Theme.bg-kind == 0 && Theme.bubbles: AeroSky { }
+            if Theme.bg-kind == 2: Text {
+                y: parent.height - 40px;
+                height: 30px;
+                text: root.ui[20];
+                color: Theme.muted;
+                font-family: Theme.font-name;
+                horizontal-alignment: center;
+            }
+            // Barre du haut, selon le thème.
+            if Theme.header-style == 1: Rectangle {
+                y: 0px;
+                height: pv.hh;
+                background: Theme.win7 ? @linear-gradient(180deg, rgba(150, 190, 230, 0.34) 0%, rgba(60, 100, 150, 0.36) 49%, rgba(4, 16, 36, 0.62) 50%, rgba(2, 10, 26, 0.72) 100%)
+                    : @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%, rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
+                Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
+                Rectangle { y: parent.height - 1px; height: 1px; background: rgba(255, 255, 255, 0.28); }
+            }
+            if Theme.header-style == 2: Rectangle {
+                y: 0px;
+                height: pv.hh;
+                background: @linear-gradient(180deg, Theme.bg.with-alpha(0.86) 0%, Theme.bg.with-alpha(0.62) 100%);
+                Rectangle {
+                    y: parent.height - 2px;
+                    height: 2px;
+                    background: @linear-gradient(90deg, Theme.accent1.with-alpha(0) 0%, Theme.accent1.with-alpha(0.85) 22%, Theme.accent2.with-alpha(0.85) 78%, Theme.accent2.with-alpha(0) 100%);
+                }
+            }
+            if Theme.header-style == 3: Rectangle {
+                y: 0px;
+                height: pv.hh;
+                background: #020d08eb;
+                Rectangle { y: parent.height - 1px; height: 1px; background: Theme.accent2.with-alpha(0.6); }
+            }
+            ThemeLogo {
+                x: 24px;
+                y: (pv.hh - self.height) / 2;
+                width: 36px;
+                height: 36px;
+            }
+            Text {
+                x: 70px;
+                y: 0px;
+                height: pv.hh;
+                text: "Turtlefin";
+                color: Theme.text;
+                font-family: Theme.font-name;
+                font-size: 22px;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+            for t[i] in [root.ui[11], root.ui[12], root.ui[13]]: Text {
+                x: 230px + i * 120px;
+                y: 0px;
+                height: pv.hh;
+                text: t;
+                color: i == 0 ? Theme.text : Theme.muted;
+                font-family: Theme.font-name;
+                font-size: 15px;
+                font-weight: i == 0 ? 700 : 500;
+                vertical-alignment: center;
+            }
+            // Rangée d'affiches.
+            Text {
+                x: 28px;
+                y: pv.hh + 22px;
+                text: "— " + root.ui[14];
+                color: Theme.fg;
+                font-family: Theme.font-name;
+                font-size: 18px;
+                font-weight: 500;
+            }
+            for c[i] in ["Big Buck Bunny", "Sintel", "Tears of Steel", "Spring", "Cosmos Laundromat", "Charge"]: PvCard {
+                x: 28px + i * 136px;
+                y: pv.hh + 62px;
+                title: c;
+                sub: i == 0 ? "2008" : i == 1 ? "2010" : i == 2 ? "2012" : i == 3 ? "2019" : i == 4 ? "2015" : "2022";
+                lit: i == 1;
+            }
+            // Boutons.
+            HorizontalLayout {
+                x: 28px;
+                y: pv.hh + 310px;
+                width: self.preferred-width;
+                height: 36px;
+                spacing: 12px;
+                PvButton { text: "▶  " + root.ui[15]; primary: true; lit: true; }
+                PvButton { text: root.ui[16]; }
+                PvButton { text: root.ui[17]; }
+            }
+            // Panneau de verre (réglages) et couleurs d'état.
+            Rectangle {
+                x: 28px;
+                y: pv.hh + 370px;
+                width: 360px;
+                height: 150px;
+                border-radius: Theme.win7 ? 8px : Theme.term ? 3px : 16px;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; }
+                Text {
+                    x: 18px;
+                    y: 14px;
+                    text: root.ui[18];
+                    color: Theme.text;
+                    font-family: Theme.font-name;
+                    font-size: 17px;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 18px;
+                    y: 52px;
+                    text: root.ui[19];
+                    color: Theme.muted;
+                    font-family: Theme.font-name;
+                    font-size: 13px;
+                }
+                Rectangle {
+                    x: parent.width - 66px;
+                    y: 48px;
+                    width: 46px;
+                    height: 24px;
+                    border-radius: Theme.term ? 2px : 12px;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    Rectangle {
+                        x: parent.width - 22px;
+                        y: 2px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: Theme.term ? 1px : 10px;
+                        background: Theme.on-accent;
+                    }
+                }
+                for col[i] in [Theme.ok, Theme.warn, Theme.danger]: Rectangle {
+                    x: 18px + i * 30px;
+                    y: 100px;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 10px;
+                    background: col;
+                }
+            }
+            // Barre du lecteur.
+            Rectangle {
+                x: 420px;
+                y: pv.hh + 370px;
+                width: min(460px, parent.width - 448px);
+                height: 84px;
+                border-radius: Theme.win7 ? 8px : Theme.term ? 3px : 16px;
+                background: Theme.player-bar;
+                Rectangle {
+                    x: 18px;
+                    y: 20px;
+                    width: parent.width - 36px;
+                    height: 5px;
+                    border-radius: Theme.term ? 0px : 2.5px;
+                    background: Theme.player-ink.with-alpha(0.25);
+                    Rectangle {
+                        x: 0px;
+                        width: parent.width * 0.42;
+                        border-radius: parent.border-radius;
+                        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                    }
+                }
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: 36px;
+                    width: 38px;
+                    height: 38px;
+                    border-radius: Theme.term ? 2px : 19px;
+                    background: Theme.player-orb ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.player-ink.with-alpha(0.12);
+                    Text {
+                        text: "▶";
+                        color: Theme.player-orb ? Theme.on-accent : Theme.player-ink;
+                        font-size: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    x: 18px;
+                    y: 46px;
+                    text: "12:34";
+                    color: Theme.player-ink;
+                    font-family: Theme.font-name;
+                    font-size: 13px;
+                }
+            }
+        }
+    }
+}

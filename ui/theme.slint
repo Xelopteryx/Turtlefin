@@ -72,6 +72,16 @@ export global Theme {
     in-out property <int> boot-style: 0;
     // Logo : 0 carapace en dégradé · 1 orbe de verre (bouton Démarrer de Windows 7).
     in-out property <int> logo-style: 0;
+    // Fond personnel du thème : 0 aucun · 1 image ou GIF (`bg-image`, posée par Rust) · 2 vidéo (image du
+    // lecteur vidéo, voir video.rs). `bg-dim` : part du fond du thème posée par-dessus (lisibilité).
+    in-out property <int> bg-kind: 0;
+    in-out property <image> bg-image;
+    in-out property <float> bg-dim: 0.35;
+    // Logo personnel (image) à la place du logo dessiné, et son animation à l'apparition : 0 aucune ·
+    // 1 battement · 2 tour complet · 3 rebond · 4 fondu.
+    in-out property <bool> has-logo-image: false;
+    in-out property <image> logo-image;
+    in-out property <int> logo-anim: 0;
     // Thème sombre (sinon clair).
     in-out property <bool> dark: true;
     // Police Selawik (proche de Segoe UI, Windows 7) au lieu de Montserrat.

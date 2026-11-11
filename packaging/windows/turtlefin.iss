@@ -138,6 +138,7 @@ Type: files; Name: "{app}\language"
 
 [Icons]
 Name: "{group}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Check: not IsPortable
+Name: "{group}\Turtlefin Theme Creator"; Filename: "{app}\turtlefin.exe"; Parameters: "--theme-creator"; Check: not IsPortable
 Name: "{group}\{cm:UninstallProgram,Turtlefin}"; Filename: "{uninstallexe}"; Check: not IsPortable
 Name: "{autodesktop}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Tasks: desktopicon
 

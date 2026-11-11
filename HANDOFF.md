@@ -757,6 +757,44 @@ en portrait.
   corrects. Pas plus loin sans mot de passe. Remarque : sous Linux, l'effet de changement de langue est sauté
   (« take_snapshot is not supported by this FemtoVG backend »).
 
+## 6 quindecies. Seconde liste « problèmes vue.txt » (11 novembre 2026, pas publié)
+
+- **Couleur du média retirée** partout (`media_tint`, réglage `media_color`) ; bouton Lecture aux couleurs du thème, en
+  retrait au repos, plein une fois choisi, sans contour ; plus de contour sur la carte « À suivre ».
+- **Défilement** (molette, doigt, souris glissée) : recherche et téléchargements défilent au pixel comme l'accueil
+  (`s-free`, `dl-free`, `rows-section-at`) ; choix du compte et listes de choix : une ligne par cran, plus une par événement.
+- **Page Seerr** : la barre du haut dessinée par le thème reste visible (`Theme.header-glass`) ; « au hasard », recherche et
+  paramètres referment la page (`seerr-drop`). « Passer l'intro » : fond de la même forme que le bouton du thème.
+- **Barre du haut** : `Theme.header-style` (1 verre d'Aero · 2 trait d'accent de Turtlefin · 3 bandeau de terminal de Nerd),
+  champ `header` d'un thème (« glass », « abyss », « term »). **Logo Aero** : quatre volets aux couleurs de Windows 7
+  (`Win7Panes` dans logo.slint, `WIN7_PANES` dans theme.rs pour l'icône, mêmes tracés).
+- **Recherche avancée** : ligne de filtres sous le champ (`s-adv`, `s-bar`, `sf-*`, `SearchFilter`) : type (tout, films,
+  séries, collections), genres, tags, studios, tags à exclure (retirés ici, le serveur n'a pas ce filtre). Listes par
+  `/Items/Filters2` (`/Items/Filters` ne rend plus rien sans dossier parent). Collections de Seerr : carte `seerrcol:<id>`,
+  ses films remplacent les résultats (`seerr_collection`, route `/JellyfinEnhanced/jellyseerr/collection/{id}` PAS ESSAYÉE).
+- **Fiche** : bloc d'informations à droite du titre (`detail_facts`, `DetailData.facts` : genres, studio, réalisation, tags)
+  et rangée « Distribution » (cartes `jfperson:<nom>` : la recherche s'ouvre sur ce nom ; `is-plain` : pas d'image partagée).
+- **Effets sonores** (`src/sfx.rs`, Paramètres → Affichage, coupés par défaut) : sons synthétisés par jeu (« abyss » gouttes,
+  « aero » verre, « nerd » bips), écrits en WAV dans le cache, joués par un mpv audio à part créé au premier son. Événements :
+  move, ok, back, tap, type, toggle, error, start (touches et clics pris dans le filtre d'événements winit : PAS sur Android).
+  Un thème choisit son jeu (`sounds`) et peut remplacer chaque son par un fichier (`sound_files`).
+- **Thèmes complets** : `background` (image, GIF ou vidéo ; `background_dim`), `logo_file` et `logo_anim`, `dir` (dossier du
+  thème, posé à l'import). GIF : images décodées hors du fil de l'interface, 96 Mo au plus (`theme::load_assets`). Vidéo :
+  un mpv muet en boucle qui prend la texture vidéo quand rien n'est lu (`video::set_background`). GIF et vidéo ne bougent
+  que si « Décor du thème qui bouge » est activé. `theme::apply_tokens` pose un thème sur n'importe quelle fenêtre.
+- **Turtlefin Theme Creator** : fenêtre à part du même programme (`turtlefin --theme-creator`, `src/creator.rs`,
+  `ui/creator.slint`, raccourci du menu Démarrer) ; l'ancien `tools/theme-creator.html` est supprimé. « Enregistrer » écrit
+  `Turtlefin Themes/<nom>/<nom>.tftheme` et copie les fichiers du thème à côté (`theme::export_package`) ; « Installer »
+  l'ajoute à prefs.json et le choisit. « Parcourir… » : crate `rfd` (portail XDG sous Linux).
+- **Mods** (`src/mods.rs`, Paramètres → Mods) : scripts Lua (crate `mlua`, Lua 5.4 compilé avec l'appli) du dossier
+  « Turtlefin Mods », à côté de « Turtlefin Themes ». Non isolés (Lua complet) : l'avertissement est en tête de la page.
+  Activation et ordre : `UiPrefs::mods` ; un changement demande « Sauvegarder » puis propose de redémarrer. Journal
+  `mods.log` (dossier de configuration), créé seulement si un mod est activé. Fonctions offertes : voir l'en-tête de mods.rs.
+- **Abydos** : bibliothèque Animes retirée (fichiers gardés) ; bibliothèques Films et Séries sur
+  `D:\Fjolvar\Documents\Abydos Media` (films ouverts de Blender, CC BY, pris sur la chaîne YouTube de Blender par yt-dlp).
+- **À refaire après ce lot** : `python tools/flatpak-cargo-sources.py` (Cargo.lock a changé : mlua, rfd) ; traductions (les
+  nouveaux textes s'affichent en français) ; APK Android (pas compilée avec ce lot).
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :

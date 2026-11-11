@@ -31,9 +31,89 @@ static CURRENT: Mutex<Option<(Arc<mpv::Mpv>, Option<tokio::sync::oneshot::Sender
 /// d'ouvrir un fichier, sinon il désactive la vidéo.
 pub fn attach(ui: &slint::Weak<AppWindow>, player: Option<Arc<mpv::Mpv>>) -> tokio::sync::oneshot::Receiver<()> {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    *CURRENT.lock().unwrap() = player.map(|p| (p, Some(tx)));
+    // Vidéo de fond d'un thème : en pause pendant une lecture, elle reprend la place à la fin.
+    let bg = BACKGROUND.lock().unwrap().clone();
+    if let Some(b) = &bg {
+        let _ = b.set_property("pause", if player.is_some() { "yes" } else { "no" });
+    }
+    *CURRENT.lock().unwrap() = match player {
+        Some(p) => Some((p, Some(tx))),
+        None => bg.map(|b| (b, None)),
+    };
     let _ = ui.upgrade_in_event_loop(|u| u.window().request_redraw());
     rx
+}
+
+/// Vidéo de fond du thème en cours (une seule image vidéo existe : la même texture que la lecture,
+/// qui a toujours la priorité).
+static BACKGROUND: Mutex<Option<Arc<mpv::Mpv>>> = Mutex::new(None);
+
+fn is_background(id: usize) -> bool {
+    BACKGROUND.lock().unwrap().as_ref().is_some_and(|b| Arc::as_ptr(b) as usize == id)
+}
+
+/// Lance (ou arrête, `None`) la vidéo de fond : en boucle, sans le son, cadrée pour remplir la fenêtre.
+pub fn set_background(ui: &slint::Weak<AppWindow>, file: Option<&std::path::Path>) {
+    let old = BACKGROUND.lock().unwrap().take();
+    if let Some(o) = &old {
+        let mut cur = CURRENT.lock().unwrap();
+        if cur.as_ref().is_some_and(|(c, _)| Arc::ptr_eq(c, o)) {
+            *cur = None;
+        }
+    }
+    drop(old);
+    let Some(file) = file else {
+        let _ = ui.upgrade_in_event_loop(|u| u.window().request_redraw());
+        return;
+    };
+    let Ok(m) = mpv::Mpv::new() else { return };
+    for (k, v) in [
+        ("config", "no"),
+        ("terminal", "no"),
+        ("vo", "libmpv"),
+        ("hwdec", "auto-safe"),
+        ("aid", "no"),
+        ("sid", "no"),
+        ("loop-file", "inf"),
+        ("panscan", "1.0"),
+        ("input-default-bindings", "no"),
+        ("osc", "no"),
+        ("ytdl", "no"),
+        ("load-scripts", "no"),
+        ("load-stats-overlay", "no"),
+        ("load-console", "no"),
+        ("load-auto-profiles", "no"),
+    ] {
+        m.set_option(k, v);
+    }
+    #[cfg(target_os = "android")]
+    m.set_option("gpu-dumb-mode", "yes");
+    if let Err(e) = m.initialize() {
+        eprintln!("turtlefin : vidéo de fond : {e}");
+        return;
+    }
+    let m = Arc::new(m);
+    *BACKGROUND.lock().unwrap() = Some(m.clone());
+    let path = file.display().to_string();
+    // Une lecture en cours garde l'image : la vidéo de fond attend (elle prendra la place à la fin).
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    {
+        let mut cur = CURRENT.lock().unwrap();
+        if cur.is_some() {
+            let _ = m.set_property("pause", "yes");
+            drop(tx);
+        } else {
+            *cur = Some((m.clone(), Some(tx)));
+        }
+    }
+    let _ = ui.upgrade_in_event_loop(|u| u.window().request_redraw());
+    std::thread::spawn(move || {
+        // mpv doit avoir son rendu avant d'ouvrir le fichier (sinon il coupe la vidéo).
+        let _ = rx.blocking_recv();
+        if let Err(e) = m.command(&["loadfile", &path]) {
+            eprintln!("turtlefin : vidéo de fond : {e}");
+        }
+    });
 }
 
 struct Target {
@@ -180,7 +260,8 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
             match mpv::Render::new(m, gpa, on_frame) {
                 Ok(r) => {
                     st.render = Some((id, r));
-                    if again {
+                    // (La vidéo de fond retrouve aussi un rendu neuf après chaque lecture.)
+                    if again || is_background(id) {
                         let _ = player.set_property("vid", "no");
                         let _ = player.set_property("vid", "auto");
                     }

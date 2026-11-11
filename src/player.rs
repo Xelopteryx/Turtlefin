@@ -275,6 +275,14 @@ impl Current {
 }
 
 async fn report(client: Option<&Client>, endpoint: &str, body: Option<Value>) {
+    // Mods : début et fin de lecture.
+    if let Some(id) = body.as_ref().and_then(|b| b["ItemId"].as_str()) {
+        match endpoint {
+            "/Sessions/Playing" => crate::mods::emit("play", id),
+            "/Sessions/Playing/Stopped" => crate::mods::emit("stop", id),
+            _ => {}
+        }
+    }
     if let (Some(c), Some(b)) = (client, body) {
         let _ = c.report(endpoint, &b).await;
     }

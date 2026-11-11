@@ -1,4 +1,6 @@
 import { LineEdit, Button } from "std-widgets.slint";
+import { ThemeCreator } from "creator.slint";
+export { ThemeCreator }
 // Montserrat, la police de JellySkin (licence OFL : ui/fonts/OFL.txt), intégrée au programme.
 import "fonts/Montserrat-Regular.ttf";
 import "fonts/Montserrat-Medium.ttf";
@@ -3170,6 +3172,26 @@ component Backdrop inherits Rectangle {
     if root.opaque: Rectangle {
         background: @linear-gradient(180deg, Theme.bg.with-alpha(root.a) 0%, Theme.bg-mid.with-alpha(root.a) 55%, Theme.bg-end.with-alpha(root.a) 100%);
     }
+    // Fond personnel du thème (image, GIF, vidéo), sous l'image du média choisi ; un voile aux couleurs
+    // du thème par-dessus garde les textes lisibles.
+    in property <image> bg-video;
+    if Theme.bg-kind == 1 && !Perf.hide(4): Image {
+        width: parent.width;
+        height: parent.height;
+        source: Theme.bg-image;
+        image-fit: cover;
+        opacity: root.a;
+    }
+    if Theme.bg-kind == 2 && !Perf.hide(4): Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.bg-video;
+        image-fit: cover;
+        opacity: root.a;
+    }
+    if Theme.bg-kind != 0 && Theme.bg-dim > 0.001: Rectangle {
+        background: Theme.bg.with-alpha(min(1, Theme.bg-dim) * root.a);
+    }
     if root.bg-vis > 0.001 && !Perf.hide(1): bgr := Rectangle {
         transform-scale: 1 + 0.12 * root.po;
         Image {
@@ -5993,6 +6015,7 @@ export component AppWindow inherits Window {
         no-server: root.server == "";
         ticking: true;
         a: 1;
+        bg-video: root.video-frame;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
         bg-mix: root.bg-mix;
@@ -10428,7 +10451,7 @@ export component AppWindow inherits Window {
         }
 
         property <[string]> cat-icons: root.set-dash ? ["about", "settings", "display", "profile", "library", "display", "about", "subs", "motion", "play", "network", "motion", "remote", "dashboard", "network", "profile", "storage", "subs", "settings", "storage", "downloads", "server"]
-            : ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about"];
+            : ["profile", "play", "subs", "display", "network", "cast", "motion", "storage", "about", "settings"];
         property <[string]> cats: root.set-dash
             ? [Tr.t(Tr.k, "Vue d'ensemble"), Tr.t(Tr.k, "Général"), Tr.t(Tr.k, "Apparence"), Tr.t(Tr.k, "Comptes"),
                Tr.t(Tr.k, "Bibliothèques"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Métadonnées"), Tr.t(Tr.k, "Fichiers NFO"),
@@ -10436,7 +10459,7 @@ export component AppWindow inherits Window {
                Tr.t(Tr.k, "Appareils"), Tr.t(Tr.k, "Activité"),
                Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Clés d'API"), Tr.t(Tr.k, "Sauvegardes"), Tr.t(Tr.k, "Journaux"), Tr.t(Tr.k, "Tâches planifiées"),
                Tr.t(Tr.k, "Extensions"), Tr.t(Tr.k, "Catalogue"), Tr.t(Tr.k, "Dépôts")]
-            : [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos")];
+            : [Tr.t(Tr.k, "Compte"), Tr.t(Tr.k, "Lecture"), Tr.t(Tr.k, "Sous-titres"), Tr.t(Tr.k, "Affichage"), Tr.t(Tr.k, "Réseau"), Tr.t(Tr.k, "Diffusion"), Tr.t(Tr.k, "Animations"), Tr.t(Tr.k, "Stockage"), Tr.t(Tr.k, "À propos"), Tr.t(Tr.k, "Mods")];
         // Écran étroit (téléphone tenu droit) : une colonne à la fois, comme les réglages d'un téléphone :
         // la liste des catégories, puis la catégorie touchée en plein écran (Retour : la liste).
         // set-in (sélection dans les lignes) dit laquelle est affichée.
@@ -11701,7 +11724,8 @@ export component AppWindow inherits Window {
                     no-server: root.server == "";
                     opaque: true;
                     a: 1;
-                    bg-a: root.bg-a;
+                    bg-video: root.video-frame;
+        bg-a: root.bg-a;
                     bg-b: root.bg-b;
                     bg-mix: root.bg-mix;
                     bg-vis: root.bg-vis;
@@ -14321,6 +14345,7 @@ export component AppWindow inherits Window {
         no-server: root.server == "";
         opaque: true;
         a: root.veil;
+        bg-video: root.video-frame;
         bg-a: root.bg-a;
         bg-b: root.bg-b;
         bg-mix: root.bg-mix;

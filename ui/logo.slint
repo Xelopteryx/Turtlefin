@@ -65,7 +65,7 @@ export component Win7Panes inherits Rectangle {
 //   Un changement de Srv.core se joue en direct (le cœur se fend, se ressoude, est éjecté) ; un logo
 //   qui apparaît avec un cœur fendu ou une maison le joue aussi, une fois (le logo du démarrage pose
 //   ainsi la nouvelle sur le titre de la page).
-export component ThemeLogo inherits Rectangle {
+component DrawnLogo inherits Rectangle {
     in property <bool> hollow;
     in property <bool> seek;
     // État d'où part l'animation jouée à l'apparition (cœur fendu avant le passage hors ligne…).
@@ -503,5 +503,44 @@ export component ThemeLogo inherits Rectangle {
         height: self.width;
         border-radius: self.width / 2;
         background: @radial-gradient(circle, #ffffff.with-alpha(0.9 * root.plug) 0%, Theme.accent2.with-alpha(0.45 * root.plug) 35%, Theme.accent2.with-alpha(0) 70%);
+    }
+}
+
+// Logo du thème : celui dessiné (DrawnLogo), ou l'image d'un thème personnel, animée à son apparition.
+export component ThemeLogo inherits Rectangle {
+    in property <bool> hollow;
+    in property <bool> seek;
+    in property <int> start-from: 0;
+    if !Theme.has-logo-image: DrawnLogo {
+        hollow: root.hollow;
+        seek: root.seek;
+        start-from: root.start-from;
+    }
+    if Theme.has-logo-image: li := Rectangle {
+        property <duration> t0;
+        property <bool> live;
+        init => {
+            self.t0 = animation-tick();
+            self.live = Theme.logo-anim != 0 && Motion.pages;
+        }
+        Timer {
+            interval: 1300ms;
+            running: li.live;
+            triggered => {
+                li.live = false;
+            }
+        }
+        property <float> q: self.live ? clamp((animation-tick() - self.t0) / 1200ms, 0, 1) : 1;
+        property <float> e: 1 - (1 - self.q) * (1 - self.q) * (1 - self.q);
+        Image {
+            width: parent.width;
+            height: parent.height;
+            y: Theme.logo-anim == 3 ? -(1 - li.q) * abs(cos(li.q * 540deg)) * parent.height * 0.5 : 0px;
+            source: Theme.logo-image;
+            image-fit: contain;
+            transform-scale: Theme.logo-anim == 1 ? 1 + 0.18 * sin(li.q * 540deg) * (1 - li.q) : 1;
+            transform-rotation: Theme.logo-anim == 2 ? (li.e - 1) * 360deg : 0deg;
+            opacity: Theme.logo-anim == 4 ? li.e : 1;
+        }
     }
 }
