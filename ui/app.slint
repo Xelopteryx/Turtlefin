@@ -4443,6 +4443,18 @@ export component AppWindow inherits Window {
     // le fond (voile), l'action a lieu, puis la nouvelle page arrive (page-enter, rangées en cascade).
     property <string> nav-kind;
     property <string> nav-arg;
+    // Une fiche arrive (Rust) alors qu'une page Seerr est ouverte : elle disparaît d'un coup, sans son
+    // animation de fermeture (la fiche prend sa place).
+    public function seerr-gone() {
+        if (root.sr-open) {
+            if (root.hero-id != "" && root.hero-seerr) {
+                root.hero-on = false;
+                root.hero-id = "";
+            }
+            root.sr-open = false;
+            root.refocus += 1;
+        }
+    }
     function seerr-drop() {
         if (root.sr-open) {
             if (root.hero-id != "" && root.hero-seerr) {
@@ -5894,8 +5906,9 @@ export component AppWindow inherits Window {
         } else {
             root.h-focus = false;
         }
-        // Au hasard, recherche, paramètres : une page Seerr ouverte se referme (elle restait par-dessus).
-        if (i >= 2) {
+        // Recherche, paramètres : une page Seerr ouverte se referme (elle restait par-dessus). Au hasard :
+        // elle reste jusqu'à l'arrivée de la fiche tirée (voir seerr-gone), sans repasser par la page dessous.
+        if (i >= 3) {
             root.seerr-drop();
         }
         if (i == 0) {
@@ -9235,7 +9248,10 @@ export component AppWindow inherits Window {
         property <length> top-pad: 20px * root.k;
         property <length> cw: root.card-w;
         property <length> ch: root.card-w * 1.5 + 56px * root.k;
-        property <int> cols: max(1, floor((self.width - 2 * self.pad + self.gap) / (self.cw + self.gap)));
+        // Largeur laissée aux affiches : la bande de l'index A–Z, à droite, n'en fait pas partie (la
+        // dernière colonne passait dessous).
+        property <length> usable: self.width - root.az-band;
+        property <int> cols: max(1, floor((self.usable - 2 * self.pad + self.gap) / (self.cw + self.gap)));
         property <int> rows: ceil(root.lib-items.length / self.cols);
         property <int> sel-row: floor(root.l-sel / self.cols);
         // Première ligne affichée (départ de la vague d'arrivée).
@@ -9255,7 +9271,7 @@ export component AppWindow inherits Window {
             root.lib-cols = self.cols;
         }
         // Grille centrée horizontalement.
-        property <length> left: (self.width - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
+        property <length> left: (self.usable - (self.cols * (self.cw + self.gap) - self.gap)) / 2;
         property <[string]> az-list: ["#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
         property <bool> az-ok: root.lib-filter == "" && !root.lib-list && root.lib-total > self.cols * 3;
 

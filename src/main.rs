@@ -456,6 +456,9 @@ fn begin_loading(u: &AppWindow) {
 }
 
 /// Affiche une page avec son animation d'arrivée, même si c'est le même écran (fiche -> fiche).
+/// Voir `show_screen` : la page Seerr ouverte doit disparaître quand la prochaine fiche s'affiche.
+static SEERR_GONE: AtomicBool = AtomicBool::new(false);
+
 fn show_screen(u: &AppWindow, name: &str) {
     u.set_loading(false);
     static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -463,6 +466,10 @@ fn show_screen(u: &AppWindow, name: &str) {
         sfx::play("start");
     }
     mods::emit("screen", name);
+    // Fiche tirée au hasard depuis une page Seerr : celle-ci s'en va à l'arrivée de la fiche.
+    if name == "detail" && SEERR_GONE.swap(false, Ordering::Relaxed) {
+        u.invoke_seerr_gone();
+    }
     if u.get_screen().as_str() == name && name == "detail" {
         u.invoke_detail_swap();
     } else if u.get_screen().as_str() == name {
@@ -4567,7 +4574,10 @@ fn random_pick(app: &Arc<App>) {
         match client.random_unwatched().await {
             Ok(Some(it)) => {
                 let a = app2.clone();
-                let _ = app2.ui().upgrade_in_event_loop(move |_| push_detail(&a, it.id));
+                let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                    SEERR_GONE.store(u.get_sr_open(), Ordering::Relaxed);
+                    push_detail(&a, it.id)
+                });
             }
             _ => {
                 let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Plus rien à découvrir : tout a été vu !").into()));
