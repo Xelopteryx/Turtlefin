@@ -2265,8 +2265,9 @@ export component PlayerView inherits Rectangle {
         opacity: root.skip-p;
         width: 190px * root.k;
         height: 48px * root.k;
-        // Fond plein : le texte reste lisible sur une image claire.
-        border-radius: self.height / 2;
+        // Fond plein : le texte reste lisible sur une image claire. Même forme que le bouton du thème
+        // (sinon un fond en pilule dépasse d'un bouton carré).
+        border-radius: Theme.term ? 2px : Theme.win7 ? 4px : self.height / 2;
         background: Theme.player-bar;
 
         PlayerButton {

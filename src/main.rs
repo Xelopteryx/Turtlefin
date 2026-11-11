@@ -278,6 +278,11 @@ struct App {
     av_focus_gen: AtomicU64,
     /// Dernière recherche lancée (les réponses plus anciennes sont ignorées).
     search_gen: AtomicU64,
+    /// Recherche avancée : filtres choisis, listes du serveur (chargées à la première ouverture), filtre
+    /// dont la liste est ouverte (1 genres · 2 tags · 3 studios · 4 tags à exclure).
+    search_filter: Mutex<SearchFilter>,
+    filter_lists: Mutex<Option<api::FilterLists>>,
+    filter_pick: AtomicU64,
     /// Page Seerr affichée.
     seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
@@ -693,44 +698,6 @@ fn load_image(bytes: &[u8]) -> Option<image::DynamicImage> {
     let mut r = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
     r.limits(image_limits());
     r.decode().ok()
-}
-
-/// Couleur d'une affiche (pixels RGBA) : la teinte vive la plus présente, ramenée à une clarté où le
-/// texte reste lisible, avec la couleur du texte à poser dessus. Rien pour une image sans couleur.
-fn media_tint(rgba: &[u8]) -> Option<(slint::Color, slint::Color)> {
-    // 24 tranches de teinte : poids = saturation, un pixel sur 16 suffit.
-    let mut bins = [(0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32); 24];
-    for p in rgba.chunks_exact(4).step_by(16).filter(|p| p[3] > 200) {
-        let (r, g, b) = (p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0);
-        let (max, min) = (r.max(g).max(b), r.min(g).min(b));
-        let d = max - min;
-        if d < 0.15 || max < 0.2 || min > 0.9 {
-            continue;
-        }
-        let h = if max == r { ((g - b) / d).rem_euclid(6.0) } else if max == g { (b - r) / d + 2.0 } else { (r - g) / d + 4.0 };
-        let bin = &mut bins[((h / 6.0 * 24.0) as usize).min(23)];
-        let w = d / max;
-        bin.0 += w;
-        bin.1 += r * w;
-        bin.2 += g * w;
-        bin.3 += b * w;
-    }
-    let total = rgba.len() as f32 / 64.0;
-    let best = bins.iter().copied().max_by(|a, b| a.0.total_cmp(&b.0))?;
-    // Moins de 3 % de l'image : affiche en noir et blanc, ou presque.
-    if best.0 < total * 0.03 {
-        return None;
-    }
-    let (mut r, mut g, mut b) = (best.1 / best.0, best.2 / best.0, best.3 / best.0);
-    // Assez vive, ni trop claire ni trop sombre : on la met à l'échelle sur sa composante la plus forte.
-    let max = r.max(g).max(b).max(0.01);
-    let f = 0.78 / max;
-    r = (r * f).min(1.0);
-    g = (g * f).min(1.0);
-    b = (b * f).min(1.0);
-    let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    let ink = if lum > 0.5 { slint::Color::from_rgb_u8(0x14, 0x10, 0x10) } else { slint::Color::from_rgb_u8(0xff, 0xff, 0xff) };
-    Some((slint::Color::from_rgb_u8((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8), ink))
 }
 
 /// Fond d'écran : image réduite, floutée et assombrie une seule fois au décodage.
@@ -2726,6 +2693,37 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
 // ---------------------------------------------------------------------------
 // Fiche : rangées du bas (casting, plus de ce genre, Seerr) et boutons à bascule
 // ---------------------------------------------------------------------------
+/// Bloc d'informations de la fiche, à droite du titre : genres, studio, réalisation, tags (ceux que le
+/// serveur connaît ; rien pour un épisode ou une saison, qui n'en portent pas).
+fn detail_facts(item: &api::Item) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut add = |label: &str, names: Vec<&str>, max: usize| {
+        if !names.is_empty() {
+            let more = if names.len() > max { " …" } else { "" };
+            out.push((label.to_string(), format!("{}{more}", names.into_iter().take(max).collect::<Vec<_>>().join(", "))));
+        }
+    };
+    add(tr("Genres"), item.genres.iter().map(String::as_str).collect(), 5);
+    add(tr("Studio"), item.studios.iter().map(|s| s.name.as_str()).collect(), 2);
+    let people = item.people.as_deref().unwrap_or_default();
+    let of = |kind: &str| people.iter().filter(|p| p.kind.as_deref() == Some(kind)).map(|p| p.name.as_str()).collect::<Vec<_>>();
+    add(tr("Réalisation"), of("Director"), 2);
+    if of("Director").is_empty() {
+        add(tr("Scénario"), of("Writer"), 2);
+    }
+    add(tr("Tags"), item.tags.iter().map(String::as_str).collect(), 8);
+    out
+}
+
+/// Personne de la distribution touchée : la recherche s'ouvre sur son nom (rangée « Avec … »).
+fn search_person(app: &Arc<App>, name: &str) {
+    let Some(u) = app.ui().upgrade() else { return };
+    u.set_search_text(name.into());
+    open_search(app);
+    u.set_s_field(false);
+    search_changed(app, name.to_string());
+}
+
 fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
     let (app2, client2, item) = (app.clone(), client.clone(), item.clone());
     let seerr = *app.seerr_user.lock().unwrap();
@@ -2740,6 +2738,34 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             },
             _ => item.clone(),
         };
+        // Distribution : les personnes du média, photo et rôle ; une carte ouvre la recherche sur ce nom.
+        let cast: Vec<api::CardInfo> = base
+            .people
+            .iter()
+            .flatten()
+            .filter(|p| matches!(p.kind.as_deref(), Some("Actor") | Some("GuestStar") | None))
+            .take(24)
+            .map(|p| api::CardInfo {
+                group: String::new(),
+                id: format!("jfperson:{}", p.name),
+                title: p.name.clone(),
+                subtitle: p.role.clone().unwrap_or_default(),
+                img_id: p.primary_image_tag.as_ref().map(|_| p.id.clone()),
+                img_tag: p.primary_image_tag.clone(),
+                thumbs: Vec::new(),
+                progress: 0.0,
+                rating: String::new(),
+                seerr: false,
+                status: 0,
+                count: 0,
+                deck: false,
+                played: false,
+                overview: String::new(),
+            })
+            .collect();
+        if !cast.is_empty() {
+            rows.push(SectionData { title: tr("Distribution").into(), landscape: false, tiles: false, cards: cast });
+        }
         if let Ok(sim) = client2.similar(&base.id).await {
             push_section(&mut rows, tr("Plus de ce genre"), false, Ok(sim));
         }
@@ -4305,11 +4331,148 @@ fn open_search(app: &Arc<App>) {
 }
 
 /// Texte de recherche modifié : recherche après une courte pause de frappe.
+/// Filtres de la recherche avancée (Recherche → « Options avancées »). Pour chaque liste : « l'un de ».
+#[derive(Default, Clone)]
+struct SearchFilter {
+    /// Options affichées : fermées, les filtres ne s'appliquent pas.
+    on: bool,
+    /// 0 tout · 1 films · 2 séries · 3 collections.
+    kind: u8,
+    genres: Vec<String>,
+    tags: Vec<String>,
+    studios: Vec<String>,
+    exclude: Vec<String>,
+}
+
+impl SearchFilter {
+    fn lists(&self) -> bool {
+        self.on && !(self.genres.is_empty() && self.tags.is_empty() && self.studios.is_empty() && self.exclude.is_empty())
+    }
+    fn kind(&self) -> u8 {
+        if self.on { self.kind } else { 0 }
+    }
+    fn list(&mut self, which: u64) -> &mut Vec<String> {
+        match which {
+            1 => &mut self.genres,
+            2 => &mut self.tags,
+            3 => &mut self.studios,
+            _ => &mut self.exclude,
+        }
+    }
+}
+
+/// Intitulés des filtres, avec le nombre de choix faits.
+fn filter_chips(app: &Arc<App>, u: &AppWindow) {
+    let f = app.search_filter.lock().unwrap().clone();
+    let n = |label: &str, v: &Vec<String>| if v.is_empty() { label.to_string() } else { format!("{label} ({})", v.len()) };
+    let kind = [tr("Tout"), tr("Films"), tr("Séries"), tr("Collections")][f.kind.min(3) as usize];
+    let chips: Vec<slint::SharedString> = vec![
+        trf("Type : {}", &[&kind]).into(),
+        n(tr("Genres"), &f.genres).into(),
+        n(tr("Tags"), &f.tags).into(),
+        n(tr("Studios"), &f.studios).into(),
+        n(tr("Sans les tags"), &f.exclude).into(),
+    ];
+    u.set_sf_chips(ModelRc::new(VecModel::from(chips)));
+}
+
+/// Liste d'un filtre (genres, tags, studios, tags à exclure), cases cochées selon les choix faits.
+fn open_filter_list(app: &Arc<App>, u: &AppWindow, which: u64) {
+    let lists = app.filter_lists.lock().unwrap().clone().unwrap_or_default();
+    let names = match which {
+        1 => lists.genres,
+        3 => lists.studios,
+        _ => lists.tags,
+    };
+    if names.is_empty() {
+        u.set_toast(tr("Le serveur n'en propose aucun.").into());
+        return;
+    }
+    let chosen = app.search_filter.lock().unwrap().list(which).clone();
+    let items: Vec<FilterOpt> = names.into_iter().map(|n| FilterOpt { on: chosen.contains(&n), name: n.into() }).collect();
+    app.filter_pick.store(which, Ordering::SeqCst);
+    u.set_sf_title(
+        match which {
+            1 => tr("Genres"),
+            2 => tr("Tags"),
+            3 => tr("Studios"),
+            _ => tr("Tags à exclure"),
+        }
+        .into(),
+    );
+    u.set_sf_items(ModelRc::new(VecModel::from(items)));
+    u.set_sf_sel(0);
+    u.set_sf_open(true);
+}
+
+/// Filtre touché : 0 type (tout, films, séries, collections, à tour de rôle) · 1 à 4 ouvre sa liste ·
+/// 5 efface tous les filtres.
+fn search_filter(app: &Arc<App>, i: i32) {
+    let Some(u) = app.ui().upgrade() else { return };
+    match i {
+        0 => {
+            let mut f = app.search_filter.lock().unwrap();
+            f.kind = (f.kind + 1) % 4;
+        }
+        1..=4 => {
+            let which = i as u64;
+            if app.filter_lists.lock().unwrap().is_some() {
+                open_filter_list(app, &u, which);
+            } else if let Some(client) = app.client() {
+                // Listes pas encore reçues : on les demande, la liste s'ouvre à leur arrivée.
+                let app2 = app.clone();
+                app.rt.spawn(async move {
+                    let lists = client.filter_lists().await;
+                    *app2.filter_lists.lock().unwrap() = Some(lists);
+                    let a = app2.clone();
+                    let _ = app2.ui().upgrade_in_event_loop(move |u| open_filter_list(&a, &u, which));
+                });
+            }
+            return;
+        }
+        _ => {
+            let mut f = app.search_filter.lock().unwrap();
+            *f = SearchFilter { on: f.on, ..Default::default() };
+        }
+    }
+    filter_chips(app, &u);
+    search_changed(app, u.get_search_text().to_string());
+}
+
+/// Collection de Seerr (saga) : ses films prennent la place des résultats.
+fn open_seerr_collection(app: &Arc<App>, id: i64) {
+    let Some(client) = app.client() else { return };
+    let my = app.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    let app2 = app.clone();
+    app.rt.spawn(async move {
+        match client.seerr_collection(id).await {
+            Ok((name, cards)) if !cards.is_empty() => {
+                if app2.search_gen.load(Ordering::SeqCst) != my {
+                    return;
+                }
+                let sections = vec![SectionData { title: trf("Collection : {}", &[&name]), landscape: false, tiles: false, cards }];
+                present_rows(&app2, &client, sections, true, None);
+            }
+            Ok(_) => {
+                let _ = app2.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Cette collection est vide.").into()));
+            }
+            Err(e) => {
+                let msg = trf("Seerr : {}", &[&human_err(&e)]);
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            }
+        }
+    });
+}
+
 fn search_changed(app: &Arc<App>, text: String) {
     let my = app.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
     let Some(client) = app.client() else { return };
     let term = text.trim().to_string();
-    if term.chars().count() < 2 {
+    let filter = app.search_filter.lock().unwrap().clone();
+    let (lists, kind) = (filter.lists(), filter.kind());
+    // Des filtres suffisent : sans texte, tout ce qui leur correspond.
+    let term = if term.chars().count() < 2 && lists { String::new() } else { term };
+    if term.chars().count() < 2 && !lists {
         if let Some(u) = app.ui().upgrade() {
             u.set_search_sections(ModelRc::default());
             u.set_search_busy(false);
@@ -4327,7 +4490,17 @@ fn search_changed(app: &Arc<App>, text: String) {
             return;
         }
         // Les médias du serveur d'abord ; les personnes et Seerr, plus lents, s'ajoutent ensuite dessous.
-        let found = client.search(&term).await;
+        let found = if lists || kind != 0 {
+            let kinds = match kind {
+                1 => "Movie",
+                2 => "Series",
+                3 => "BoxSet",
+                _ => "Movie,Series,BoxSet",
+            };
+            client.search_filtered(&term, kinds, &filter.genres, &filter.tags, &filter.studios, &filter.exclude).await
+        } else {
+            client.search(&term).await
+        };
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
@@ -4337,7 +4510,8 @@ fn search_changed(app: &Arc<App>, text: String) {
         });
         let mut sections: Vec<SectionData> = Vec::new();
         for (title, kinds, landscape) in [
-            (tr("Films"), &["Movie", "BoxSet"][..], false),
+            (tr("Films"), &["Movie"][..], false),
+            (tr("Collections"), &["BoxSet"][..], false),
             (tr("Séries"), &["Series"][..], false),
             (tr("Épisodes"), &["Episode"][..], true),
         ] {
@@ -4348,9 +4522,11 @@ fn search_changed(app: &Arc<App>, text: String) {
         if first {
             present_rows(&app2, &client, sections.clone(), true, None);
         }
+        // Genres, tags et studios choisis ne valent que pour la bibliothèque : Seerr et les rangées par
+        // personne ne sont pas interrogés. Un type choisi seul filtre aussi Seerr.
         let (from_seerr, by_people) = tokio::join!(
-            async { if seerr { client.seerr_search(&term).await } else { Vec::new() } },
-            client.search_people(&term),
+            async { if seerr && !lists && !term.is_empty() { client.seerr_search(&term, kind).await } else { Vec::new() } },
+            async { if !lists && kind == 0 { client.search_people(&term).await } else { Vec::new() } },
         );
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
@@ -5624,7 +5800,6 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
-            row("media_color", tr("Couleur du média"), tr("La page d'un média prend la couleur de son affiche."), String::new(), "toggle", prefs.media_color),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
@@ -6655,7 +6830,6 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         }
         "ratings" => toggle_ui_pref(app, |p| p.show_ratings = !p.show_ratings),
         "card_info" => toggle_ui_pref(app, |p| p.card_info = !p.card_info),
-        "media_color" => toggle_ui_pref(app, |p| p.media_color = !p.media_color),
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
         "tvmode" => {
@@ -7673,6 +7847,14 @@ fn push_detail(app: &Arc<App>, id: String) {
     if id.starts_with("person:") || id.starts_with("empty:") {
         return;
     }
+    if let Some(name) = id.strip_prefix("jfperson:") {
+        search_person(app, name);
+        return;
+    }
+    if let Some(rest) = id.strip_prefix("seerrcol:") {
+        open_seerr_collection(app, rest.parse().unwrap_or(0));
+        return;
+    }
     if let Some(rest) = id.strip_prefix("seerr:") {
         let (kind, tmdb) = rest.split_once(':').unwrap_or(("movie", "0"));
         open_seerr(app, kind == "tv", tmdb.parse().unwrap_or(0));
@@ -8220,6 +8402,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         b.3 = watched;
     }
     let misc = item.misc_line();
+    let facts = detail_facts(&item);
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
     let item_id = item.id.clone();
@@ -8259,6 +8442,9 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             title: title.into(),
             subtitle: subtitle.into(),
             misc: misc.into(),
+            facts: ModelRc::new(VecModel::from(
+                facts.into_iter().map(|(label, value)| FactData { label: label.into(), value: value.into() }).collect::<Vec<_>>(),
+            )),
             overview: overview.into(),
             expect_logo,
             logo_key: logo_key.into(),
@@ -8336,7 +8522,6 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let shape = Shape::card(400, 600, if app.tv() { 280.0 } else { 200.0 });
         app.rt.spawn(async move {
             if let Some(buf) = fetch_decoded(&client, cands, "Primary", api::Size::Fill(400, 600), Some(shape)).await {
-                let tint = media_tint(buf.as_bytes());
                 let _ = ui.upgrade_in_event_loop(move |u| {
                     let mut d = u.get_detail();
                     if d.id.as_str() != id {
@@ -8345,12 +8530,6 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                     d.poster = slint::Image::from_rgba8(buf);
                     d.has_poster = true;
                     u.set_detail(d);
-                    let on = tint.is_some() && config::ui_prefs().media_color;
-                    u.set_d_tint_on(on);
-                    if let Some((c, ink)) = tint {
-                        u.set_d_tint(c);
-                        u.set_d_tint_ink(ink);
-                    }
                 });
             }
         });
@@ -9602,6 +9781,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
         av_gen: AtomicU64::new(0),
         av_shown: Mutex::new((Vec::new(), 0, Arc::new(tokio::sync::Semaphore::new(4)))),
         av_focus_gen: AtomicU64::new(0),
+        search_filter: Mutex::new(SearchFilter::default()),
+        filter_lists: Mutex::new(None),
+        filter_pick: AtomicU64::new(0),
         detail_streams: Mutex::new(Default::default()),
         missing_seasons: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
@@ -9781,6 +9963,62 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_toggle_full({
         let app = app.clone();
         move || toggle_full(&app)
+    });
+
+    // Recherche avancée.
+    ui.on_search_adv({
+        let app = app.clone();
+        move |on| {
+            app.search_filter.lock().unwrap().on = on;
+            let Some(u) = app.ui().upgrade() else { return };
+            filter_chips(&app, &u);
+            if on && app.filter_lists.lock().unwrap().is_none() {
+                if let Some(client) = app.client() {
+                    let app2 = app.clone();
+                    app.rt.spawn(async move {
+                        let lists = client.filter_lists().await;
+                        *app2.filter_lists.lock().unwrap() = Some(lists);
+                    });
+                }
+            }
+            search_changed(&app, u.get_search_text().to_string());
+        }
+    });
+    ui.on_search_filter({
+        let app = app.clone();
+        move |i| search_filter(&app, i)
+    });
+    ui.on_search_filter_pick({
+        let app = app.clone();
+        move |i| {
+            let Some(u) = app.ui().upgrade() else { return };
+            let model = u.get_sf_items();
+            let Some(mut row) = model.row_data(i as usize) else { return };
+            row.on = !row.on;
+            let name = row.name.to_string();
+            {
+                let mut f = app.search_filter.lock().unwrap();
+                let list = f.list(app.filter_pick.load(Ordering::SeqCst));
+                list.retain(|n| *n != name);
+                if row.on {
+                    list.push(name);
+                }
+            }
+            model.set_row_data(i as usize, row);
+            filter_chips(&app, &u);
+            search_changed(&app, u.get_search_text().to_string());
+        }
+    });
+    // Lettre tapée dans une liste de filtre : premier nom qui commence ainsi (-1 : aucun).
+    ui.on_search_filter_jump({
+        let weak = ui.as_weak();
+        move |text| {
+            let Some(u) = weak.upgrade() else { return -1 };
+            let Some(c) = text.chars().next().filter(|c| c.is_alphanumeric()) else { return -1 };
+            let c = c.to_lowercase().to_string();
+            let model = u.get_sf_items();
+            (0..model.row_count()).find(|i| model.row_data(*i).is_some_and(|r| r.name.to_lowercase().starts_with(&c))).map(|i| i as i32).unwrap_or(-1)
+        }
     });
 
     ui.on_random_pick({
@@ -10084,7 +10322,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
     });
 
     // Le menu (vu, non vu…) ne vaut que pour un média du serveur.
-    ui.on_card_menu_ok(|id| !(id.starts_with("person:") || id.starts_with("seerr:") || id.starts_with("group:") || id.starts_with("empty:")));
+    ui.on_card_menu_ok(|id| !(id.starts_with("person:") || id.starts_with("jfperson:") || id.starts_with("seerrcol:") || id.starts_with("seerr:") || id.starts_with("group:") || id.starts_with("empty:")));
     ui.on_is_empty_card(|id| id.starts_with("empty:"));
 
     ui.on_card_played({
@@ -10185,6 +10423,8 @@ pub(crate) fn main() -> anyhow::Result<()> {
 
     ui.on_is_seerr(|id| id.starts_with("seerr:"));
     ui.on_is_group(|id| id.starts_with("group:"));
+    // Cartes qui n'ouvrent pas une fiche (personne, collection de Seerr) : pas d'image partagée.
+    ui.on_is_plain(|id| id.starts_with("jfperson:") || id.starts_with("seerrcol:"));
     // Lettre de l'index A–Z pour un titre (0 : « # »).
     ui.on_az_index(|t| {
         let c = t.chars().next().unwrap_or('#').to_uppercase().next().unwrap_or('#');
@@ -10210,6 +10450,20 @@ pub(crate) fn main() -> anyhow::Result<()> {
         move |y| {
             let Some(u) = weak.upgrade() else { return 0 };
             let rows = u.get_sections();
+            (0..rows.row_count())
+                .filter_map(|i| rows.row_data(i).map(|r| (i, r)))
+                .take_while(|(i, r)| *i == 0 || r.y_px <= y + r.h_px / 2.0)
+                .last()
+                .map(|(i, _)| i as i32)
+                .unwrap_or(0)
+        }
+    });
+
+    ui.on_rows_section_at({
+        let weak = ui.as_weak();
+        move |which, y| {
+            let Some(u) = weak.upgrade() else { return 0 };
+            let rows = if which == 1 { u.get_search_sections() } else { u.get_dl_sections() };
             (0..rows.row_count())
                 .filter_map(|i| rows.row_data(i).map(|r| (i, r)))
                 .take_while(|(i, r)| *i == 0 || r.y_px <= y + r.h_px / 2.0)

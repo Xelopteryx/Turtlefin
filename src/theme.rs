@@ -68,6 +68,9 @@ pub struct ThemeDef {
     pub scenery: String,
     /// Barre de verre derrière l'en-tête.
     pub header_glass: bool,
+    /// Barre derrière l'en-tête : « » aucune (ou le verre, si `header_glass`), « glass » verre,
+    /// « abyss » nuit soulignée d'un trait d'accent, « term » bandeau de terminal.
+    pub header: String,
     /// Liseré intérieur des éléments brillants (« #rrggbbaa », transparent : aucun).
     pub edge: String,
     /// Reflets en biais sur les grands panneaux.
@@ -137,6 +140,7 @@ pub fn turtlefin() -> ThemeDef {
         bubbles: false,
         scenery: s("abyss"),
         header_glass: false,
+        header: s("abyss"),
         edge: s("#00000000"),
         streaks: false,
         boot: String::new(),
@@ -186,6 +190,7 @@ fn aero() -> ThemeDef {
         gloss: 1.0,
         scenery: s("harmony"),
         header_glass: true,
+        header: s("glass"),
         edge: s("#ffffff73"),
         streaks: true,
         boot: s("aero"),
@@ -234,6 +239,7 @@ fn nerd() -> ThemeDef {
         boot: s("nerd"),
         logo: s("chip"),
         font: s("mono"),
+        header: s("term"),
         term: true,
         ..turtlefin()
     }
@@ -377,7 +383,13 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
     };
     th.set_bubbles(scenery > 0);
     th.set_scenery(scenery);
-    th.set_header_glass(t.header_glass);
+    th.set_header_style(match t.header.as_str() {
+        "glass" => 1,
+        "abyss" => 2,
+        "term" => 3,
+        _ if t.header_glass => 1,
+        _ => 0,
+    });
     th.set_edge(w(c(&t.edge, &d.edge)));
     th.set_streaks(t.streaks);
     th.set_boot_style(match t.boot.as_str() {
@@ -659,9 +671,24 @@ pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rg
     (out, hex(&bg), hex(&end))
 }
 
+/// Volets du logo en orbe (repère 256) : haut gauche, haut droite, bas gauche, bas droite.
+const WIN7_PANES: [[(f32, f32); 6]; 4] = [
+    [(124.0, 55.3), (62.5, 90.5), (62.5, 124.0), (96.3, 124.0), (96.3, 109.7), (124.0, 93.7)],
+    [(132.0, 55.3), (193.5, 90.5), (193.5, 124.0), (159.7, 124.0), (159.7, 109.7), (132.0, 93.7)],
+    [(124.0, 200.7), (62.5, 165.5), (62.5, 132.0), (96.3, 132.0), (96.3, 146.3), (124.0, 162.3)],
+    [(132.0, 200.7), (193.5, 165.5), (193.5, 132.0), (159.7, 132.0), (159.7, 146.3), (132.0, 162.3)],
+];
+/// Leurs couleurs (haut clair, bas soutenu) : rouge, vert, bleu, jaune.
+const WIN7_COLORS: [([f32; 3], [f32; 3]); 4] = [
+    ([255.0, 154.0, 110.0], [222.0, 58.0, 28.0]),
+    ([196.0, 236.0, 120.0], [88.0, 168.0, 28.0]),
+    ([127.0, 208.0, 255.0], [20.0, 112.0, 207.0]),
+    ([255.0, 236.0, 138.0], [243.0, 164.0, 0.0]),
+];
+
 /// Logo en orbe de verre (thèmes à `logo: "orb"`, comme le bouton Démarrer de Windows 7) : sphère
 /// d'accent qui s'assombrit vers le bord, grand reflet blanc en haut, lueur sur le bord bas, liseré ;
-/// carapace blanc nacré vers l'accent clair, avec un halo.
+/// carapace aux quatre couleurs du drapeau de Windows 7 autour d'un cœur blanc nacré.
 fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32); 6], inner: &[(f32, f32); 6]) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
     fn seg(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
         let (dx, dy) = (b.0 - a.0, b.1 - a.1);
@@ -700,25 +727,39 @@ fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32
         // Liseré sombre puis fin trait clair au bord.
         c = mix(c, deep, 0.6 * ((r - 112.0) / 8.0).clamp(0.0, 1.0));
         c = mix(c, white, 0.35 * (1.0 - ((r - 120.5).abs() / 1.5).clamp(0.0, 1.0)));
-        // Carapace (plus petite que sur l'icône carrée), halo puis trait.
+        // Carapace (plus petite que sur l'icône carrée) : les quatre volets du drapeau de Windows 7
+        // (rouge, vert, bleu, jaune) taillés dans l'hexagone, autour du cœur blanc nacré. Mêmes tracés
+        // que `Win7Panes` (ui/logo.slint).
         let l = (128.0 + (sx - 128.0) / 1.12, 128.0 + (sy - 128.0) / 1.12);
-        let mut dist = f32::MAX;
-        for k in 0..6 {
-            dist = dist.min(seg(l, outer[k], outer[(k + 1) % 6]) - 7.0);
-            dist = dist.min(seg(l, outer[k], inner[k]) - 4.0);
-        }
-        if inside(l, inner) {
-            dist = dist.min(-1.0);
-        } else {
-            for k in 0..6 {
-                dist = dist.min(seg(l, inner[k], inner[(k + 1) % 6]));
+        let mut halo_d = f32::MAX;
+        for (k, pane) in WIN7_PANES.iter().enumerate() {
+            let mut dist = f32::MAX;
+            for j in 0..pane.len() {
+                dist = dist.min(seg(l, pane[j], pane[(j + 1) % pane.len()]));
+            }
+            if inside(l, pane) {
+                dist = -dist;
+            }
+            halo_d = halo_d.min(dist);
+            let la = cov(dist * 1.12);
+            if la > 0.0 {
+                let (hi, lo) = WIN7_COLORS[k];
+                let f = if k < 2 { (l.1 - 55.0) / 69.0 } else { (l.1 - 132.0) / 69.0 };
+                c = mix(c, mix(hi, lo, f.clamp(0.0, 1.0)), la);
             }
         }
-        let halo = (1.0 - (dist * 1.12 / 9.0).clamp(0.0, 1.0)) * 0.5;
-        c = mix(c, light, halo);
-        let la = cov(dist * 1.12);
+        let _ = outer;
+        let mut dist = f32::MAX;
+        for k in 0..6 {
+            dist = dist.min(seg(l, inner[k], inner[(k + 1) % 6]));
+        }
+        if inside(l, inner) {
+            dist = -dist;
+        }
+        let halo = (1.0 - (halo_d.min(dist) * 1.12 / 9.0).clamp(0.0, 1.0)) * 0.35;
+        c = mix(c, light, if halo_d.min(dist) > 0.0 { halo } else { 0.0 });
         let g = mix(white, mix(white, light, 0.75), (((l.0 - 53.0) + (l.1 - 53.0)) / 300.0).clamp(0.0, 1.0));
-        c = mix(c, g, la);
+        c = mix(c, g, cov(dist * 1.12));
         // Grand reflet blanc en haut (ellipse), par-dessus tout.
         let (ex, ey) = ((sx - 128.0) / 96.0, (sy - 66.0) / 54.0);
         let e = ex * ex + ey * ey;

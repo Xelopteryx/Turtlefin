@@ -14,7 +14,7 @@ import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
 import { AeroSky, CircuitScene } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
-import { ThemeLogo, Srv } from "logo.slint";
+import { ThemeLogo, Srv, Win7Panes } from "logo.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
@@ -271,8 +271,13 @@ export component BootLogo inherits Rectangle {
         }
 
         // Contour : chaque arête part de son sommet vers le suivant, toutes en même temps.
+        // Aero : les volets de Windows 7 à la place du contour et des rayons.
+        if root.orb && root.reveal > 0 && !root.handoff: Win7Panes {
+            u: root.u;
+            show: root.reveal;
+        }
         for i in 6: Path {
-            visible: root.edge-p > 0 && !root.nerd && !root.handoff;
+            visible: root.edge-p > 0 && !root.nerd && !root.handoff && !root.orb;
             // Slint réduit le dessin d'un chemin de l'épaisseur de son trait : on agrandit d'autant.
             x: (53 - 7) * root.u;
             y: (53 - 7) * root.u;
@@ -292,7 +297,7 @@ export component BootLogo inherits Rectangle {
         }
         // Rayons, des sommets vers l'hexagone central.
         for i in 6: Path {
-            visible: root.spoke-p > 0 && !root.nerd && !root.handoff;
+            visible: root.spoke-p > 0 && !root.nerd && !root.handoff && !root.orb;
             x: (53 - 4) * root.u;
             y: (53 - 4) * root.u;
             width: (150 + 8) * root.u;

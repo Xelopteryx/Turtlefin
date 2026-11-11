@@ -683,8 +683,6 @@ pub struct UiPrefs {
     pub show_ratings: bool,
     /// Résumé sur l'affiche sélectionnée.
     pub card_info: bool,
-    /// La page d'un média prend la couleur de son affiche.
-    pub media_color: bool,
     pub marquee: bool,
     pub show_clock: bool,
     /// Langue de l'interface (« fr », « en ») ; vide : pas encore choisie (demandée au démarrage).
@@ -876,7 +874,6 @@ impl Default for UiPrefs {
             fullscreen: false,
             show_ratings: true,
             card_info: true,
-            media_color: true,
             marquee: true,
             show_clock: true,
             language: String::new(),

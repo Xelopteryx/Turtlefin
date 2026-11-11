@@ -15,6 +15,51 @@ export global Srv {
     in-out property <int> core;
 }
 
+// Aero : la carapace aux couleurs et aux codes du drapeau de Windows 7. Quatre volets (rouge, vert,
+// bleu, jaune) taillés dans l'hexagone, séparés par la croix du drapeau, autour du cœur ; les rayons
+// en biais restent visibles (la carapace). Mêmes tracés que WIN7_PANES (src/theme.rs).
+export component Win7Panes inherits Rectangle {
+    in property <length> u;
+    in property <float> show: 1;
+    in property <float> amber;
+    property <[color]> hi: [#ff9a6e, #c4ec78, #7fd0ff, #ffec8a];
+    property <[color]> lo: [#de3a1c, #58a81c, #1470cf, #f3a400];
+    property <[string]> shapes: [
+        "M 124 55.3 L 62.5 90.5 L 62.5 124 L 96.3 124 L 96.3 109.7 L 124 93.7 Z",
+        "M 132 55.3 L 193.5 90.5 L 193.5 124 L 159.7 124 L 159.7 109.7 L 132 93.7 Z",
+        "M 124 200.7 L 62.5 165.5 L 62.5 132 L 96.3 132 L 96.3 146.3 L 124 162.3 Z",
+        "M 132 200.7 L 193.5 165.5 L 193.5 132 L 159.7 132 L 159.7 146.3 L 132 162.3 Z",
+    ];
+    for s[i] in root.shapes: Path {
+        x: 0px;
+        y: 0px;
+        width: 256 * root.u;
+        height: 256 * root.u;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        // Hors ligne : les volets passent à l'ambre, comme le reste du logo.
+        property <color> c1: root.hi[i].mix(#ffd27a, 1 - root.amber).with-alpha(root.show);
+        property <color> c2: root.lo[i].mix(#f59e0b, 1 - root.amber).with-alpha(root.show);
+        fill: @linear-gradient(180deg, self.c1 0%, self.c2 100%);
+        commands: s;
+    }
+    // Rayons en biais de la carapace : fins sillons sombres dans les volets.
+    Path {
+        x: (53 - 1.5) * root.u;
+        y: (53 - 1.5) * root.u;
+        width: (150 + 3) * root.u;
+        height: (150 + 3) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: rgba(0, 20, 60, 0.38 * root.show);
+        stroke-width: 3 * root.u;
+        commands: "M 193.5 90.5 L 159.7 109.7 M 193.5 165.5 L 159.7 146.3 M 62.5 165.5 L 96.3 146.3 M 62.5 90.5 L 96.3 109.7";
+    }
+}
+
 //   hollow : sans cœur (aucun serveur choisi) : emplacement vide (Nerd : support de processeur et ses
 //   broches), qu'un balayage de radar parcourt pendant une recherche (seek).
 //   Un changement de Srv.core se joue en direct (le cœur se fend, se ressoude, est éjecté) ; un logo
@@ -142,8 +187,13 @@ export component ThemeLogo inherits Rectangle {
         opacity: root.amber * 0.45;
         background: @radial-gradient(circle, #f59e0b.with-alpha(0) 30%, #f59e0b.with-alpha(0.55) 75%, #f59e0b.with-alpha(0) 100%);
     }
-    // Carapace (thèmes 0 et 1) : contour épais, rayons, centre plein.
-    if !root.chip: Path {
+    // Aero : les quatre volets du drapeau de Windows 7.
+    if root.orb: Win7Panes {
+        u: root.u;
+        amber: root.amber;
+    }
+    // Carapace (thème 0) : contour épais, rayons, centre plein.
+    if !root.chip && !root.orb: Path {
         x: (53 - 7) * root.u;
         y: (53 - 7) * root.u;
         width: (150 + 14) * root.u;
@@ -159,7 +209,7 @@ export component ThemeLogo inherits Rectangle {
         stroke-line-join: round;
         commands: root.hex;
     }
-    if !root.chip: Path {
+    if !root.chip && !root.orb: Path {
         x: (53 - 4) * root.u;
         y: (53 - 4) * root.u;
         width: (150 + 8) * root.u;
@@ -175,7 +225,7 @@ export component ThemeLogo inherits Rectangle {
         commands: root.spokes;
     }
     // Carapace teintée d'ambre hors ligne (par-dessus, en fondu).
-    if !root.chip && root.amber > 0.01: Path {
+    if !root.chip && !root.orb && root.amber > 0.01: Path {
         x: (53 - 7) * root.u;
         y: (53 - 7) * root.u;
         width: (150 + 14) * root.u;

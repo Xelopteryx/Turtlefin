@@ -43,6 +43,12 @@ export { CardData, Prefs, Tr, Motion, Theme, Nav, Alert, Perf, Srv }
 export { TrackData, DustLine, Str, LxItem }
 
 
+// Choix d'un filtre de la recherche avancée (genre, tag, studio).
+export struct FilterOpt {
+    name: string,
+    on: bool,
+}
+
 export struct Section {
     title: string,
     items: [CardData],
@@ -152,6 +158,7 @@ export struct DetailData {
     title: string,
     subtitle: string,
     misc: string,
+    facts: [FactData],
     overview: string,
     expect-logo: bool,
     has-logo: bool,
@@ -2443,9 +2450,6 @@ component DetailButton inherits Rectangle {
     property <bool> lit: (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch);
     // Lecture : le bouton principal, coloré et avec son texte (écran étroit : l'icône seule).
     in property <bool> compact;
-    in property <bool> has-tint;
-    in property <color> tint;
-    in property <color> tint-ink;
     property <bool> primary: root.icon == "play" && root.text != "";
     property <bool> wide: root.primary && !root.compact;
     property <bool> is-icon: root.icon != "" && root.icon != "label" && !root.wide;
@@ -2491,15 +2495,13 @@ component DetailButton inherits Rectangle {
         // Windows 7 (Aero) : même bouton de verre que les autres boutons du thème.
         border-radius: Theme.win7 ? 4px : Theme.term ? 2px : root.chip || root.icon == "label" ? self.height / 2 : 10px;
         transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
+        // Le bouton principal est toujours aux couleurs du thème : en retrait au repos, plein une fois choisi
+        // (pas de contour : la sélection se voit à la couleur et à la taille, comme les autres boutons).
         background: Theme.skinned ? transparent
-            : root.primary && root.has-tint ? @linear-gradient(130deg, root.tint 0%, root.tint 100%)
-            : root.lit || root.primary ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+            : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+            : root.primary ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.6) 0%, Theme.accent2.with-alpha(0.6) 100%)
             : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
-        property <color> ink: Theme.skinned ? Theme.fg : root.primary && root.has-tint ? root.tint-ink
-            : root.lit || root.primary ? Theme.on-accent : Theme.fg;
-        // Le bouton principal est toujours coloré : sa sélection se voit à son contour.
-        border-width: root.primary && root.lit && !Theme.skinned ? 2px * root.k : 0px;
-        border-color: Theme.fg;
+        property <color> ink: Theme.skinned ? Theme.fg : root.lit || root.primary ? Theme.on-accent : Theme.fg;
         if Theme.win7: Win7Glass {
             lit: root.lit;
         }
@@ -3250,9 +3252,48 @@ component Backdrop inherits Rectangle {
                 rgba(4, 16, 36, 0.62) 50%, rgba(2, 10, 26, 0.72) 100%)
             : @linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 49%,
             rgba(0, 12, 34, 0.30) 50%, rgba(0, 12, 34, 0.42) 100%);
+        visible: Theme.header-style == 1;
         Rectangle { y: 0px; height: 1px; background: rgba(255, 255, 255, 0.30); }
         Rectangle { y: parent.height - 2px; height: 1px; background: rgba(0, 0, 0, 0.35); }
         Rectangle { y: parent.height - 1px; height: 1px; background: rgba(255, 255, 255, 0.28); }
+    }
+    // Turtlefin : la nuit du fond, plus dense en haut, soulignée d'un trait aux couleurs d'accent qui
+    // s'efface vers les bords (aucune animation : rien à redessiner).
+    if Theme.header-style == 2 && root.glass && !Perf.hide(8): Rectangle {
+        y: 0px;
+        height: root.header-h;
+        opacity: root.a;
+        background: @linear-gradient(180deg, Theme.bg.with-alpha(0.86) 0%, Theme.bg.with-alpha(0.62) 100%);
+        Rectangle {
+            y: parent.height - 2px;
+            height: 2px;
+            background: @linear-gradient(90deg, Theme.accent1.with-alpha(0) 0%, Theme.accent1.with-alpha(0.85) 22%,
+                Theme.accent2.with-alpha(0.85) 78%, Theme.accent2.with-alpha(0) 100%);
+        }
+        // Lueur douce sous le trait.
+        Rectangle {
+            y: parent.height;
+            height: 10px * root.k;
+            background: @linear-gradient(180deg, Theme.accent2.with-alpha(0.10) 0%, Theme.accent2.with-alpha(0) 100%);
+        }
+    }
+    // Nerd : bandeau de terminal. Fond noir du boîtier, trait phosphore en bas terminé par deux équerres,
+    // ligne de balayage en haut.
+    if Theme.header-style == 3 && root.glass && !Perf.hide(8): Rectangle {
+        y: 0px;
+        height: root.header-h;
+        opacity: root.a;
+        background: #020d08eb;
+        Rectangle { y: 0px; height: 1px; background: Theme.accent2.with-alpha(0.18); }
+        Rectangle { y: parent.height - 1px; height: 1px; background: Theme.accent2.with-alpha(0.6); }
+        Rectangle { y: parent.height - 4px; height: 1px; background: Theme.accent2.with-alpha(0.16); }
+        for side in 2: Rectangle {
+            x: side == 0 ? 0px : parent.width - self.width;
+            y: parent.height - 9px * root.k;
+            width: 3px;
+            height: 9px * root.k;
+            background: Theme.accent2;
+        }
     }
 }
 
@@ -4075,6 +4116,7 @@ export component AppWindow inherits Window {
     pure callback is-folder(string) -> bool;  // bibliothèque (pas un film, une série…)
     pure callback is-group(string) -> bool;   // tuile de groupe (« group:… » : Demandes, À regarder)
     pure callback is-empty-card(string) -> bool;
+    pure callback is-plain(string) -> bool;    // personne, collection de Seerr : s'ouvre sans image partagée
     function open-hero(id: string) {
         // Carte d'un groupe vide : rien à ouvrir.
         if (root.is-empty-card(id)) {
@@ -4082,6 +4124,16 @@ export component AppWindow inherits Window {
         }
         // Changement de page déjà lancé (onglet, menu) : la carte de la page quittée ne s'ouvre plus.
         if (root.veil-hold || (root.lib-wave && root.loading)) {
+            return;
+        }
+        // Personne (la recherche s'ouvre sur son nom), collection de Seerr (ses films remplacent les
+        // résultats) : pas de fiche à l'arrivée, donc pas d'image qui vole.
+        if (root.is-plain(id)) {
+            root.hero-id = "";
+            root.hero-pending = "";
+            root.hero-on = false;
+            root.sr-card-on = false;
+            root.open-item(id);
             return;
         }
         // Tuile de groupe (Demandes, À regarder) : une liste, pas un média. Son image n'a pas de place sur
@@ -4369,10 +4421,7 @@ export component AppWindow inherits Window {
     // le fond (voile), l'action a lieu, puis la nouvelle page arrive (page-enter, rangées en cascade).
     property <string> nav-kind;
     property <string> nav-arg;
-    function nav-out(kind: string, arg: string) {
-        // Onglet, menu… choisis pendant qu'une page Seerr est ouverte : elle se referme d'abord, et son
-        // affiche s'efface avec elle (pas de vol vers une carte : la page change, la carte n'y est plus ;
-        // l'affiche restait plantée sur la nouvelle page le temps de la chercher).
+    function seerr-drop() {
         if (root.sr-open) {
             if (root.hero-id != "" && root.hero-seerr) {
                 root.hero-on = false;
@@ -4380,6 +4429,12 @@ export component AppWindow inherits Window {
             }
             root.seerr-close();
         }
+    }
+    function nav-out(kind: string, arg: string) {
+        // Onglet, menu… choisis pendant qu'une page Seerr est ouverte : elle se referme d'abord, et son
+        // affiche s'efface avec elle (pas de vol vers une carte : la page change, la carte n'y est plus ;
+        // l'affiche restait plantée sur la nouvelle page le temps de la chercher).
+        root.seerr-drop();
         if (root.veil-hold) {
             return; // une transition est déjà en cours
         }
@@ -4872,12 +4927,6 @@ export component AppWindow inherits Window {
         return min(0px, 4px * root.k - top);
     }
     property <bool> banner-now: root.banner-sel && root.banner-h > 0px;
-    // Couleur dominante de l'affiche de la fiche (voir media_tint en Rust).
-    in property <bool> d-tint-on;
-    in property <color> d-tint;
-    in property <color> d-tint-ink;
-    property <color> d-tint-c: root.d-tint;
-    animate d-tint-c { duration: Motion.pages ? 500ms : 0ms; easing: ease-out; }
     in-out property <int> set-sel;
     in-out property <bool> set-in;           // sélection dans le panneau de droite
     // Même page, autres catégories : le tableau de bord des administrateurs (voir dashboard.rs).
@@ -5823,6 +5872,10 @@ export component AppWindow inherits Window {
         } else {
             root.h-focus = false;
         }
+        // Au hasard, recherche, paramètres : une page Seerr ouverte se referme (elle restait par-dessus).
+        if (i >= 2) {
+            root.seerr-drop();
+        }
         if (i == 0) {
             root.cast-toggle();
         } else if (i == 1) {
@@ -6106,6 +6159,7 @@ export component AppWindow inherits Window {
         property <int> pk-rows: max(1, ceil(lg.n / self.pk-cols));
         property <length> pk-row-h: lg.tile + 78 * lg.u;
         property <int> pk-focus: min(root.login-sel, lg.n - 1);
+        property <length> pk-acc;
         // Lignes plus hautes que l'écran : la grille défile pour garder la ligne choisie visible.
         property <length> pk-scroll: self.pk-rows * self.pk-row-h <= self.pk-avail ? 0px
             : min(self.pk-rows * self.pk-row-h - self.pk-avail, max(0px, floor(self.pk-focus / self.pk-cols) * self.pk-row-h - self.pk-avail / 2 + self.pk-row-h / 2));
@@ -6409,7 +6463,13 @@ export component AppWindow inherits Window {
                     if (e.delta-y == 0px || lg.pk-rows <= 1) {
                         return EventResult.reject;
                     }
-                    root.login-sel = clamp(lg.pk-focus + (e.delta-y < 0px ? lg.pk-cols : -lg.pk-cols), 0, lg.n - 1);
+                    // Un glissement envoie des dizaines d'événements : on avance d'une ligne par hauteur de
+                    // ligne parcourue (doigt) ou par cran (molette), pas d'une ligne par événement.
+                    lg.pk-acc += e.delta-y;
+                    if (abs(lg.pk-acc) >= (Nav.drag ? lg.pk-row-h : 50px)) {
+                        root.login-sel = clamp(lg.pk-focus + (lg.pk-acc < 0px ? lg.pk-cols : -lg.pk-cols), 0, lg.n - 1);
+                        lg.pk-acc = 0px;
+                    }
                     return EventResult.accept;
                 }
                 Rectangle {
@@ -7256,7 +7316,23 @@ export component AppWindow inherits Window {
         // Clavier à l'écran : apparaît en descendant et en fondu, les résultats glissent dessous.
         property <float> osk-p: root.tv-mode && root.s-osk ? 1 : 0;
         animate osk-p { duration: Motion.search ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-        property <length> res-y: 16px * root.k + self.box-h + 16px * root.k + self.osk-p * self.osk-h;
+        // Ligne des filtres, entre le champ (ou le clavier à l'écran) et les résultats.
+        property <length> bar-y: 16px * root.k + self.box-h + 12px * root.k + self.osk-p * self.osk-h;
+        property <length> res-y: self.bar-y + 36px * root.k + 12px * root.k;
+        property <int> chip-n: root.s-adv ? root.sf-chips.length + 2 : 1;
+        function chip-act(i: int) {
+            if (i == 0) {
+                root.s-adv = !root.s-adv;
+                root.s-chip = 0;
+                root.search-adv(root.s-adv);
+            } else {
+                root.search-filter(i > root.sf-chips.length ? 5 : i - 1);
+            }
+        }
+        function sf-close() {
+            root.sf-open = false;
+            root.refocus += 1;
+        }
 
         // Bureau : le champ reprend le clavier, curseur à la fin du texte.
         function s-type() {
@@ -7268,7 +7344,7 @@ export component AppWindow inherits Window {
             focus-on-click: root.tv-mode;
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.sf-open) {
                     // Bureau : le clavier retourne au champ s'il l'avait (menu refermé, retour d'une fiche...).
                     if (!root.tv-mode && root.s-field && !root.h-focus) {
                         s-input.focus();
@@ -7295,6 +7371,14 @@ export component AppWindow inherits Window {
                 if (root.loading && event.text == Key.Escape) {
                     root.cancel-open();
                     return EventResult.accept;
+                }
+                // Après un défilement libre : la sélection repart de la rangée affichée en haut.
+                if (root.s-free) {
+                    if (root.search-sections.length > 0 && !root.s-field) {
+                        root.s-section = root.rows-section-at(1, root.s-free-y / 1px);
+                        root.s-item = min(root.s-item, root.search-sections[root.s-section].items.length - 1);
+                    }
+                    root.s-free = false;
                 }
                 // Vrai clavier : une lettre (ou un effacement) tapée hors du champ y va, au bout du texte ;
                 // en mode TV, sans ouvrir le clavier à l'écran (celui-ci, ouvert, la reçoit lui-même).
@@ -7340,13 +7424,38 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.reject;
                 }
-                // Mode TV, sélection sur le champ : OK ouvre le clavier, ↓ va aux résultats, ↑ à la barre.
+                // Ligne des filtres : ← → d'un bouton à l'autre, OK l'active, ↑ le champ, ↓ les résultats.
+                if (root.s-bar) {
+                    if (event.text == Key.LeftArrow) {
+                        root.s-chip = max(0, root.s-chip - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.s-chip = min(srch.chip-n - 1, root.s-chip + 1);
+                    } else if (event.text == Key.UpArrow) {
+                        root.s-bar = false;
+                        root.s-field = true;
+                        if (!root.tv-mode) {
+                            srch.s-type();
+                        }
+                    } else if (event.text == Key.DownArrow) {
+                        if (root.search-sections.length > 0) {
+                            root.s-bar = false;
+                        }
+                    } else if (event.text == Key.Return) {
+                        srch.chip-act(min(root.s-chip, srch.chip-n - 1));
+                    } else if (event.text == Key.Backspace) {
+                        root.nav-out("go-home", "");
+                    }
+                    return EventResult.accept;
+                }
+                // Mode TV, sélection sur le champ : OK ouvre le clavier, ↓ va aux filtres, ↑ à la barre.
                 if (root.tv-mode && (root.s-field || root.search-sections.length == 0)) {
                     if (event.text == Key.Return) {
                         root.s-field = false;
                         root.s-osk = true;
-                    } else if (event.text == Key.DownArrow && root.search-sections.length > 0) {
+                    } else if (event.text == Key.DownArrow) {
                         root.s-field = false;
+                        root.s-chip = 0;
+                        root.s-bar = true;
                     } else if (event.text == Key.UpArrow) {
                         root.nav-enter();
                     } else if (event.text == Key.Backspace) {
@@ -7381,11 +7490,9 @@ export component AppWindow inherits Window {
                             1999 + root.s-section, root.search-sections[root.s-section - 1].items.length,
                             root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w);
                         root.s-section -= 1;
-                    } else if (root.tv-mode) {
-                        // Retour au champ, sans rouvrir le clavier.
-                        root.s-field = true;
                     } else {
-                        s-input.focus();
+                        // Au-dessus des résultats : la ligne des filtres (puis le champ).
+                        root.s-bar = true;
                     }
                 } else if (event.text == Key.Return) {
                     root.open-hero(root.search-sections[root.s-section].items[root.s-item].id);
@@ -7396,19 +7503,21 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Molette : un cran = une rangée de résultats (comme ↑ ↓, du champ aux résultats et retour) ;
-        // Maj + molette ou molette horizontale : dans la rangée (comme ← →).
+        // Molette, doigt : la page défile librement, au pixel (un cran sautait une rangée entière : trop
+        // rapide) ; Maj + molette ou molette horizontale : dans la rangée (comme ← →).
         TouchArea {
             scroll-event(e) => {
                 if (root.search-sections.length == 0 || root.h-focus || root.s-osk) {
                     return EventResult.reject;
                 }
                 let side = e.modifiers.shift ? e.delta-y : e.delta-x;
-                if (root.s-field) {
-                    if (side == 0 && e.delta-y < 0) {
-                        root.s-field = false;
-                        root.refocus += 1;
-                    }
+                if (side == 0 && e.delta-y != 0) {
+                    let last = root.search-sections[root.search-sections.length - 1];
+                    let max-y = max(0px, (last.y-px + last.h-px) * 1px - (self.height - srch.res-y) + 16px * root.k);
+                    let base = root.s-free ? root.s-free-y : max(0px, root.search-sections[root.s-section].y-px * 1px - 4px * root.k);
+                    root.s-free-y = clamp(base - e.delta-y, 0px, max-y);
+                    root.s-free = true;
+                } else if (root.s-field) {
                 } else if (side != 0) {
                     if (side < 0) {
                         root.s-item = min(root.search-sections[root.s-section].items.length - 1, root.s-item + 1);
@@ -7514,8 +7623,15 @@ export component AppWindow inherits Window {
                         root.cancel-open();
                         return EventResult.accept;
                     }
-                    // ↓ / Entrée : vers les résultats (s'il y en a : sinon le champ garde le clavier).
-                    if (event.text == Key.DownArrow || event.text == Key.Return) {
+                    // ↓ : la ligne des filtres. Entrée : les résultats (s'il y en a : sinon le champ garde le clavier).
+                    if (event.text == Key.DownArrow) {
+                        root.s-field = false;
+                        root.s-chip = 0;
+                        root.s-bar = true;
+                        root.refocus += 1;
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Return) {
                         if (root.search-sections.length > 0) {
                             root.s-field = false;
                             root.refocus += 1;
@@ -7539,7 +7655,50 @@ export component AppWindow inherits Window {
                 clicked => {
                     root.h-focus = false;
                     root.s-field = false;
+                    root.s-bar = false;
                     root.s-osk = true;
+                }
+            }
+        }
+
+        // Options avancées : type, genres, tags, studios, tags à exclure (listes du serveur).
+        Rectangle {
+            x: 32px * root.k;
+            y: srch.bar-y;
+            width: parent.width - 64px * root.k;
+            height: 36px * root.k;
+            HorizontalLayout {
+                alignment: start;
+                spacing: 10px * root.k;
+                ActionButton {
+                    height: 36px * root.k;
+                    font: 14px * root.k;
+                    text: Tr.t(Tr.k, "Options avancées");
+                    focused: root.s-bar && !root.h-focus && root.s-chip == 0;
+                    clicked => {
+                        srch.chip-act(0);
+                    }
+                }
+                for c[i] in root.sf-chips: ActionButton {
+                    visible: root.s-adv;
+                    height: 36px * root.k;
+                    font: 14px * root.k;
+                    text: c;
+                    focused: root.s-bar && !root.h-focus && root.s-chip == i + 1;
+                    clicked => {
+                        root.s-chip = i + 1;
+                        srch.chip-act(i + 1);
+                    }
+                }
+                if root.s-adv: ActionButton {
+                    height: 36px * root.k;
+                    font: 14px * root.k;
+                    text: Tr.t(Tr.k, "Effacer");
+                    focused: root.s-bar && !root.h-focus && root.s-chip == root.sf-chips.length + 1;
+                    clicked => {
+                        root.s-chip = root.sf-chips.length + 1;
+                        srch.chip-act(root.sf-chips.length + 1);
+                    }
                 }
             }
         }
@@ -7590,8 +7749,9 @@ export component AppWindow inherits Window {
 
             Rectangle {
                 y: root.search-sections.length == 0 ? 0px
+                    : root.s-free ? -root.s-free-y
                     : min(0px, 4px * root.k - root.search-sections[root.s-section].y-px * 1px);
-                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                 for section[si] in root.search-sections: SectionRow {
                     y: section.y-px * 1px;
@@ -7603,11 +7763,12 @@ export component AppWindow inherits Window {
                     ratio: section.landscape ? 0.5625 : 1.5;
                     k: root.k;
                     // Sélection sur le champ (bureau compris) : aucun résultat n'est sélectionné en même temps.
-                    active: !root.h-focus && !root.s-osk && !root.s-field && si == root.s-section;
+                    active: !root.h-focus && !root.s-osk && !root.s-field && !root.s-bar && si == root.s-section;
                     focus-index: root.s-item;
                     key: 2000 + si;
                     touched(i) => {
                         root.s-field = false;
+                        root.s-bar = false;
                         root.refocus += 1;
                         root.s-section = si;
                         root.s-item = i;
@@ -7615,6 +7776,7 @@ export component AppWindow inherits Window {
                     activated(i) => {
                         // La sélection quitte le champ : la carte choisie doit donner son image (voir Hero).
                         root.s-field = false;
+                        root.s-bar = false;
                         root.refocus += 1;
                         root.s-section = si;
                         root.s-item = i;
@@ -7623,6 +7785,141 @@ export component AppWindow inherits Window {
                     card-menu(c, x, y) => {
                         root.row-card-menu(c, x, y);
                     }
+                }
+            }
+        }
+
+        // Liste d'un filtre : cases à cocher (plusieurs choix), ↑ ↓, OK coche, une lettre saute au premier
+        // nom qui commence ainsi, Échap referme. Les résultats se mettent à jour derrière.
+        if root.sf-open: sfl := Rectangle {
+            background: Theme.scrim.with-alpha(0.6);
+            property <length> row-h: 42px * root.k;
+            property <int> rows: max(1, min(root.sf-items.length, floor((self.height - 130px * root.k) / self.row-h)));
+            property <int> top: max(0, min(root.sf-sel - floor(self.rows / 2), root.sf-items.length - self.rows));
+            property <length> acc;
+            TouchArea {
+                clicked => {
+                    srch.sf-close();
+                }
+                // Une ligne par cran, ou par hauteur de ligne au doigt ; la page dessous ne bouge pas.
+                scroll-event(e) => {
+                    sfl.acc += e.delta-y;
+                    if (abs(sfl.acc) >= (Nav.drag ? sfl.row-h : 50px)) {
+                        root.sf-sel = clamp(root.sf-sel + (sfl.acc > 0 ? -1 : 1), 0, root.sf-items.length - 1);
+                        sfl.acc = 0px;
+                    }
+                    return EventResult.accept;
+                }
+            }
+            Rectangle {
+                width: min(440px * root.k, parent.width - 32px * root.k);
+                height: 66px * root.k + sfl.rows * sfl.row-h + 14px * root.k;
+                border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 16px);
+                background: Theme.win7 ? transparent : Theme.panel;
+                border-width: Theme.win7 ? 0px : 1px;
+                border-color: Theme.glass-border;
+                Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7; }
+                WinFrame { r: parent.border-radius; k: root.k; }
+                Text {
+                    x: 24px * root.k;
+                    y: 14px * root.k;
+                    text: root.sf-title;
+                    color: Theme.text;
+                    font-size: 20px * root.k;
+                    font-weight: 700;
+                }
+                Text {
+                    x: 24px * root.k;
+                    y: 40px * root.k;
+                    width: parent.width - 48px * root.k;
+                    overflow: elide;
+                    text: Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.") : Tr.t(Tr.k, "Plusieurs choix possibles · une lettre : aller à ce nom");
+                    color: Theme.muted;
+                    font-size: 12px * root.k;
+                }
+                Rectangle {
+                    x: 12px * root.k;
+                    y: 64px * root.k;
+                    width: parent.width - 24px * root.k;
+                    height: sfl.rows * sfl.row-h;
+                    clip: true;
+                    for o[i] in root.sf-items: sf-row := Rectangle {
+                        visible: i >= sfl.top && i < sfl.top + sfl.rows;
+                        y: (i - sfl.top) * sfl.row-h;
+                        height: sfl.row-h - 4px * root.k;
+                        border-radius: Theme.term ? 2px : Theme.win7 ? 4px : 10px * root.k;
+                        property <bool> lit: Nav.kb ? i == root.sf-sel : sf-ta.has-hover && !Nav.touch;
+                        background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                            : @linear-gradient(130deg, transparent 0%, transparent 100%);
+                        // Case à cocher.
+                        Rectangle {
+                            x: 12px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: 20px * root.k;
+                            height: 20px * root.k;
+                            border-radius: Theme.term ? 1px : 5px * root.k;
+                            border-width: 2px;
+                            border-color: sf-row.lit ? Theme.on-accent : o.on ? Theme.accent2 : Theme.fg.with-alpha(0.45);
+                            background: o.on ? (sf-row.lit ? Theme.on-accent : Theme.accent2) : transparent;
+                            if o.on: Path {
+                                width: parent.width;
+                                height: parent.height;
+                                viewbox-width: 20;
+                                viewbox-height: 20;
+                                fill: transparent;
+                                stroke: sf-row.lit ? Theme.accent2 : Theme.on-accent;
+                                stroke-width: 2.6px * root.k;
+                                commands: "M 4.5 10.5 L 8.5 14.5 L 15.5 6";
+                            }
+                        }
+                        Text {
+                            x: 44px * root.k;
+                            width: parent.width - 56px * root.k;
+                            height: parent.height;
+                            text: o.name;
+                            color: sf-row.lit ? Theme.on-accent : Theme.text;
+                            font-size: 15px * root.k;
+                            font-weight: o.on ? 700 : 500;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        sf-ta := TouchArea {
+                            clicked => {
+                                root.sf-sel = i;
+                                root.search-filter-pick(i);
+                            }
+                        }
+                    }
+                }
+            }
+            FocusScope {
+                property <int> tick: root.refocus;
+                changed tick => {
+                    self.focus();
+                }
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.DownArrow) {
+                        root.sf-sel = min(root.sf-items.length - 1, root.sf-sel + 1);
+                    } else if (event.text == Key.UpArrow) {
+                        root.sf-sel = max(0, root.sf-sel - 1);
+                    } else if (event.text == Key.Return) {
+                        if (!event.repeat) {
+                            root.search-filter-pick(root.sf-sel);
+                        }
+                    } else if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        if (!event.repeat) {
+                            srch.sf-close();
+                        }
+                    } else {
+                        let j = root.search-filter-jump(event.text);
+                        if (j >= 0) {
+                            root.sf-sel = j;
+                        }
+                    }
+                    return EventResult.accept;
                 }
             }
         }
@@ -7803,10 +8100,9 @@ export component AppWindow inherits Window {
         // Vignette 16:9 qui devient le fond : la fiche apparaît en fondu pendant la fin de
         // l'agrandissement, au lieu de surgir d'un coup par-dessus l'image encore en vol.
         opacity: root.hero-page-a;
-        // Couleur du média : le haut de la page en prend la teinte.
-        if root.d-tint-on: Rectangle {
-            background: @linear-gradient(180deg, root.d-tint-c.with-alpha(0.42) 0%, root.d-tint-c.with-alpha(0) 70%);
-        }
+        // Bloc d'informations à droite du titre : seulement s'il reste de la place au titre (420 px x k).
+        property <length> facts-w: min(440px * root.k, root.info-w - 444px * root.k);
+        property <bool> facts-on: !root.narrow && root.detail.facts.length > 0 && self.facts-w >= 250px * root.k;
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
         property <length> icons-w: max(0px, icons-row.preferred-width - (root.detail.buttons.length - root.detail.icon-count) * self.btn-gap);
@@ -8248,11 +8544,58 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Informations (genres, studio, réalisation, tags) à droite du titre, là où la ligne de l'affiche
+        // restait vide. Fenêtre trop étroite : rien (le titre garde toute la largeur).
+        if dt.facts-on: Rectangle {
+            x: root.col-x + root.info-w - dt.facts-w + root.po-right;
+            y: 24px + 2px * root.k;
+            width: dt.facts-w;
+            height: 104px * root.k;
+            opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
+            // Filet d'accent à gauche, comme le bloc du résumé.
+            Rectangle {
+                x: 0px;
+                width: 3px;
+                height: min(parent.height, root.detail.facts.length * 26px * root.k) - 6px * root.k;
+                y: 3px * root.k;
+                border-radius: 2px;
+                background: @linear-gradient(180deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
+            for f[i] in root.detail.facts: Rectangle {
+                visible: i < 4;
+                x: 14px * root.k;
+                y: i * 26px * root.k;
+                width: parent.width - 14px * root.k;
+                height: 26px * root.k;
+                Text {
+                    x: 0px;
+                    width: 96px * root.k;
+                    height: parent.height;
+                    text: f.label;
+                    color: Theme.muted;
+                    font-size: 12px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    x: 100px * root.k;
+                    width: parent.width - 100px * root.k;
+                    height: parent.height;
+                    text: f.value;
+                    color: Theme.text;
+                    font-size: 14px * root.k;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
+
         // Logo, ou titre en texte à défaut
         Rectangle {
             x: root.col-x + root.po-right;
             y: 24px;
-            width: root.info-w;
+            width: dt.facts-on ? root.info-w - dt.facts-w - 24px * root.k : root.info-w;
             height: 84px * root.k;
             opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
 
@@ -8331,9 +8674,6 @@ export component AppWindow inherits Window {
                 icon: b.icon;
                 active: b.active;
                 compact: root.narrow;
-                has-tint: root.d-tint-on;
-                tint: root.d-tint-c;
-                tint-ink: root.d-tint-ink;
                 k: root.k;
                 press: root.d-press;
                 focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
@@ -8530,13 +8870,6 @@ export component AppWindow inherits Window {
                 if Theme.sheen > 0: Sheen {
                     r: Theme.radius;
                     on: next-box.nlit;
-                }
-                Rectangle {
-                    width: parent.width;
-                    height: parent.height;
-                    border-radius: Theme.radius;
-                    border-width: next-box.nlit ? 3px : 0px;
-                    border-color: Theme.accent2;
                 }
             }
 
@@ -9957,6 +10290,13 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.accept;
                 }
+                if (root.dl-free) {
+                    if (root.dl-sections.length > 0) {
+                        root.dl-sec = root.rows-section-at(2, root.dl-free-y / 1px);
+                        root.dl-item = min(root.dl-item, root.dl-sections[root.dl-sec].items.length - 1);
+                    }
+                    root.dl-free = false;
+                }
                 if (event.text == Key.RightArrow) {
                     root.dl-item = min(root.dl-sections[root.dl-sec].items.length - 1, root.dl-item + 1);
                 } else if (event.text == Key.LeftArrow) {
@@ -9986,8 +10326,8 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Molette : un cran = une rangée (comme ↑ ↓) ; Maj + molette ou molette horizontale : dans
-        // la rangée (comme ← →).
+        // Molette, doigt : la page défile librement ; Maj + molette ou molette horizontale : dans la
+        // rangée (comme ← →).
         TouchArea {
             scroll-event(e) => {
                 if (root.dl-sections.length == 0 || root.h-focus) {
@@ -9998,14 +10338,13 @@ export component AppWindow inherits Window {
                     root.dl-item = min(root.dl-sections[root.dl-sec].items.length - 1, root.dl-item + 1);
                 } else if (side > 0) {
                     root.dl-item = max(0, root.dl-item - 1);
-                } else if (e.delta-y < 0 && root.dl-sec < root.dl-sections.length - 1) {
-                    root.dl-item = root.row-to(3000 + root.dl-sec, root.dl-item, dls.w(root.dl-sec),
-                        3001 + root.dl-sec, root.dl-sections[root.dl-sec + 1].items.length, dls.w(root.dl-sec + 1));
-                    root.dl-sec += 1;
-                } else if (e.delta-y > 0 && root.dl-sec > 0) {
-                    root.dl-item = root.row-to(3000 + root.dl-sec, root.dl-item, dls.w(root.dl-sec),
-                        2999 + root.dl-sec, root.dl-sections[root.dl-sec - 1].items.length, dls.w(root.dl-sec - 1));
-                    root.dl-sec -= 1;
+                } else if (e.delta-y != 0) {
+                    // Défilement libre, au pixel (voir s-free).
+                    let last = root.dl-sections[root.dl-sections.length - 1];
+                    let max-y = max(0px, (last.y-px + last.h-px) * 1px - (self.height - dls.top) + 16px * root.k);
+                    let base = root.dl-free ? root.dl-free-y : max(0px, root.dl-sections[root.dl-sec].y-px * 1px - 4px * root.k);
+                    root.dl-free-y = clamp(base - e.delta-y, 0px, max-y);
+                    root.dl-free = true;
                 }
                 return EventResult.accept;
             }
@@ -10039,8 +10378,9 @@ export component AppWindow inherits Window {
 
             Rectangle {
                 y: root.dl-sections.length == 0 ? 0px
+                    : root.dl-free ? -root.dl-free-y
                     : min(0px, 4px * root.k - root.dl-sections[root.dl-sec].y-px * 1px);
-                animate y { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                animate y { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
 
                 for section[si] in root.dl-sections: SectionRow {
                     y: section.y-px * 1px + root.stagger(si);
@@ -11199,14 +11539,20 @@ export component AppWindow inherits Window {
                 }
                 // Liste ouverte : la molette choisit dans la liste, la page dessous ne bouge pas.
                 scroll-event(e) => {
-                    if (e.delta-y > 0) {
-                        root.ch-sel = max(0, root.ch-sel - 1);
-                    } else if (e.delta-y < 0) {
-                        root.ch-sel = min(root.ch-items.length - 1, root.ch-sel + 1);
+                    // Une ligne par cran, ou par hauteur de ligne au doigt (pas une par événement).
+                    parent.acc += e.delta-y;
+                    if (abs(parent.acc) >= (Nav.drag ? parent.row-h : 50px)) {
+                        if (parent.acc > 0) {
+                            root.ch-sel = max(0, root.ch-sel - 1);
+                        } else {
+                            root.ch-sel = min(root.ch-items.length - 1, root.ch-sel + 1);
+                        }
+                        parent.acc = 0px;
                     }
                     return EventResult.accept;
                 }
             }
+            property <length> acc;
             property <length> row-h: 46px * root.k;
             // Autant de lignes que l'écran en permet (la liste défile avec la sélection).
             property <int> rows: min(root.ch-items.length, max(3, floor((self.height - 120px * root.k) / self.row-h)));
@@ -12062,9 +12408,10 @@ export component AppWindow inherits Window {
         property <float> out-e: 1 - (1 - srp.out-b) * (1 - srp.out-b);
         opacity: srp.open-e * (1 - srp.out-e);
         transform-scale: 0.97 + 0.03 * srp.open-e - 0.04 * srp.out-e;
+        // Thème à barre du haut dessinée (verre d'Aero…) : le fond s'arrête sous elle, elle reste visible.
         Rectangle {
-            y: -root.header-h;
-            height: parent.height + root.header-h;
+            y: Theme.header-glass ? 0px : -root.header-h;
+            height: parent.height - self.y;
             background: Theme.bg-end;
         }
 
@@ -13096,6 +13443,39 @@ export component AppWindow inherits Window {
     property <length> menu-free-y;
     // Rangée de l'accueil dont le haut est le plus près de ce décalage (Rust).
     pure callback home-section-at(float) -> int;
+    // Même chose pour les rangées de la recherche (1) et des téléchargements (2).
+    pure callback rows-section-at(int, float) -> int;
+    // Défilement libre (molette, doigt) de la recherche et des téléchargements, comme l'accueil : la page
+    // suit au pixel, la sélection ne bouge pas ; une touche la reprend à la rangée affichée en haut.
+    property <bool> s-free;
+    property <length> s-free-y;
+    // Recherche avancée : ligne de filtres sous le champ. `s-bar` : la sélection (clavier, télécommande)
+    // est sur cette ligne, sur le bouton `s-chip` (0 « Options avancées », puis les filtres, puis « Effacer »).
+    in-out property <bool> s-adv;
+    in property <[string]> sf-chips;
+    in property <string> sf-title;
+    in property <[FilterOpt]> sf-items;
+    in-out property <bool> sf-open;
+    in-out property <int> sf-sel;
+    property <bool> s-bar;
+    property <int> s-chip;
+    callback search-adv(bool);
+    callback search-filter(int);
+    callback search-filter-pick(int);
+    pure callback search-filter-jump(string) -> int;
+    changed s-field => {
+        if (root.s-field) {
+            root.s-bar = false;
+        }
+    }
+    property <bool> dl-free;
+    property <length> dl-free-y;
+    changed search-sections => {
+        root.s-free = false;
+    }
+    changed dl-sections => {
+        root.dl-free = false;
+    }
     property <float> menu-p: root.menu-open ? 1 : 0;
     // Entrée du menu survolée par la souris (-1 : aucune) : au bureau, c'est elle qui est choisie.
     property <int> menu-hov: -1;

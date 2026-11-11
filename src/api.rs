@@ -76,6 +76,13 @@ pub struct UserData {
     pub unplayed_item_count: Option<i64>,
 }
 
+/// Élément dont seul le nom sert (studio).
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct Named {
+    pub name: String,
+}
+
 #[derive(Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct Person {
@@ -169,6 +176,11 @@ impl MediaSource {
 pub struct Item {
     pub id: String,
     pub name: String,
+    /// Tags, genres et studios : rendus pour une fiche (`/Items/{id}`) ; dans une liste, les tags
+    /// seulement s'ils sont demandés (`Fields=Tags`, recherche avancée).
+    pub tags: Vec<String>,
+    pub genres: Vec<String>,
+    pub studios: Vec<Named>,
     /// Fichier sur le serveur (bandes-annonces locales : leur langue est dans le nom du fichier).
     pub path: Option<String>,
     #[serde(rename = "Type")]
@@ -297,6 +309,49 @@ pub type ImgCand = (String, &'static str, Option<String>);
 /// Identifiant de carte d'un média Seerr absent du serveur : « seerr:movie:603 », « seerr:tv:1399 ».
 pub fn seerr_id(tv: bool, tmdb: i64) -> String {
     format!("seerr:{}:{tmdb}", if tv { "tv" } else { "movie" })
+}
+
+/// Noms d'une liste de `/Items/Filters2` : des textes (tags) ou des objets `{Name, Id}` (genres).
+fn filter_names(v: &serde_json::Value) -> Vec<String> {
+    v.as_array().into_iter().flatten().filter_map(|t| t.as_str().or(t["Name"].as_str()).map(str::to_string)).collect()
+}
+
+/// Carte d'un résultat de Seerr (film, série ou collection ; un film d'une collection n'a pas de `mediaType`).
+fn seerr_card(r: &serde_json::Value) -> Option<CardInfo> {
+    let id = r["id"].as_i64()?;
+    let kind = r["mediaType"].as_str().unwrap_or("movie");
+    let title = r["title"].as_str().or(r["name"].as_str()).unwrap_or("").to_string();
+    let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
+    let label = match kind {
+        "tv" => tr("Série"),
+        "collection" => tr("Collection"),
+        _ => tr("Film"),
+    };
+    Some(CardInfo {
+        group: String::new(),
+        id: if kind == "collection" { format!("seerrcol:{id}") } else { seerr_id(kind == "tv", id) },
+        title,
+        subtitle: [label.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
+        img_id: tmdb_img(r["posterPath"].as_str(), "w342"),
+        img_tag: None,
+        thumbs: Vec::new(),
+        progress: 0.0,
+        rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
+        seerr: true,
+        status: 0,
+        count: 0,
+        played: false,
+        deck: false,
+        overview: String::new(),
+    })
+}
+
+/// Listes proposées par les filtres de la recherche avancée.
+#[derive(Clone, Debug, Default)]
+pub struct FilterLists {
+    pub genres: Vec<String>,
+    pub tags: Vec<String>,
+    pub studios: Vec<String>,
 }
 
 fn tmdb_img(path: Option<&str>, size: &str) -> Option<String> {
@@ -1543,27 +1598,62 @@ impl Client {
         Ok(r.items)
     }
 
+    /// Recherche avancée : genres, tags et studios connus du serveur (triés), proposés dans les filtres.
+    pub async fn filter_lists(&self) -> FilterLists {
+        // `/Items/Filters2` : l'ancienne route `/Items/Filters` ne rend rien sans dossier parent.
+        let f: [(&str, &str); 3] = [("userId", &self.user_id), ("includeItemTypes", "Movie,Series,BoxSet"), ("recursive", "true")];
+        let s: [(&str, &str); 3] = [("userId", &self.user_id), ("SortBy", "SortName"), ("Limit", "1000")];
+        let (filters, studios) = tokio::join!(self.get::<serde_json::Value>("/Items/Filters2", &f), self.get::<ItemsResp>("/Studios", &s));
+        let filters = filters.unwrap_or_default();
+        let list = |k: &str| {
+            let mut l = filter_names(&filters[k]);
+            l.sort_by_key(|a| a.to_lowercase());
+            l
+        };
+        FilterLists {
+            genres: list("Genres"),
+            tags: list("Tags"),
+            studios: studios.map(|r| r.items.into_iter().map(|i| i.name).collect()).unwrap_or_default(),
+        }
+    }
+
+    /// Recherche avancée dans la bibliothèque : texte (facultatif), types, et pour chaque filtre « l'un
+    /// de ceux choisis ». Les tags à exclure sont retirés ici (le serveur n'a pas ce filtre).
+    pub async fn search_filtered(&self, term: &str, kinds: &str, genres: &[String], tags: &[String], studios: &[String], exclude: &[String]) -> Result<Vec<Item>> {
+        let (g, t, s) = (genres.join("|"), tags.join("|"), studios.join("|"));
+        let mut q: Vec<(&str, &str)> =
+            vec![("userId", &self.user_id), ("Recursive", "true"), ("IncludeItemTypes", kinds), ("Fields", "Tags"), ("Limit", "200")];
+        if term.is_empty() {
+            q.push(("SortBy", "SortName"));
+        } else {
+            q.push(("searchTerm", term));
+        }
+        if !g.is_empty() {
+            q.push(("Genres", &g));
+        }
+        if !t.is_empty() {
+            q.push(("Tags", &t));
+        }
+        if !s.is_empty() {
+            q.push(("Studios", &s));
+        }
+        let r: ItemsResp = self.get("/Items", &q).await?;
+        Ok(r.items.into_iter().filter(|i| !i.tags.iter().any(|t| exclude.iter().any(|e| e.to_lowercase() == t.to_lowercase()))).collect())
+    }
+
     /// Recherche par acteur, studio et tag : (intitulé de la rangée, films et séries), meilleures notes
     /// d'abord. Les trois premiers noms qui correspondent de chaque sorte.
     pub async fn search_people(&self, term: &str) -> Vec<(String, Vec<Item>)> {
         let q: [(&str, &str); 3] = [("userId", &self.user_id), ("searchTerm", term), ("limit", "3")];
-        let f: [(&str, &str); 2] = [("userId", &self.user_id), ("includeItemTypes", "Movie,Series")];
+        let f: [(&str, &str); 3] = [("userId", &self.user_id), ("includeItemTypes", "Movie,Series"), ("recursive", "true")];
         let (persons, studios, filters) = tokio::join!(
             self.get::<ItemsResp>("/Persons", &q),
             self.get::<ItemsResp>("/Studios", &q),
-            self.get::<serde_json::Value>("/Items/Filters", &f),
+            self.get::<serde_json::Value>("/Items/Filters2", &f),
         );
         let lower = term.to_lowercase();
-        let tags: Vec<String> = filters
-            .ok()
-            .and_then(|f| f["Tags"].as_array().cloned())
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|t| t.as_str())
-            .filter(|t| t.to_lowercase().contains(&lower))
-            .take(3)
-            .map(str::to_string)
-            .collect();
+        let tags: Vec<String> =
+            filter_names(&filters.unwrap_or_default()["Tags"]).into_iter().filter(|t| t.to_lowercase().contains(&lower)).take(3).collect();
         let mut asked: Vec<(String, &str, String)> = Vec::new();
         for p in persons.map(|r| r.items).unwrap_or_default() {
             asked.push((trf("Avec {}", &[&p.name]), "PersonIds", p.id));
@@ -1618,43 +1708,46 @@ impl Client {
     }
 
     /// Seerr : résultats absents du serveur (ceux présents sont déjà dans la recherche Jellyfin).
-    pub async fn seerr_search(&self, term: &str) -> Vec<CardInfo> {
+    /// `kind` : 0 tout · 1 films · 2 séries · 3 collections (sagas de TMDB : « Le Seigneur des anneaux »…).
+    pub async fn seerr_search(&self, term: &str, kind: u8) -> Vec<CardInfo> {
         let v: serde_json::Value = match self.get("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await {
             Ok(v) => v,
             Err(_) => return Vec::new(),
         };
         let mut out = Vec::new();
         for r in v["results"].as_array().into_iter().flatten() {
-            let tv = match r["mediaType"].as_str() {
-                Some("tv") => true,
-                Some("movie") => false,
-                _ => continue,
+            let wanted = match r["mediaType"].as_str() {
+                Some("movie") => kind <= 1,
+                Some("tv") => kind == 0 || kind == 2,
+                Some("collection") => kind == 0 || kind == 3,
+                _ => false,
             };
-            if r["mediaInfo"]["jellyfinMediaId"].as_str().is_some_and(|s| !s.is_empty()) {
+            if !wanted || r["mediaInfo"]["jellyfinMediaId"].as_str().is_some_and(|s| !s.is_empty()) {
                 continue;
             }
-            let Some(id) = r["id"].as_i64() else { continue };
-            let title = r["title"].as_str().or(r["name"].as_str()).unwrap_or("").to_string();
-            let year: String = r["releaseDate"].as_str().or(r["firstAirDate"].as_str()).unwrap_or("").chars().take(4).collect();
-            out.push(CardInfo {
-                group: String::new(),
-                id: seerr_id(tv, id),
-                title,
-                subtitle: [if tv { tr("Série") } else { tr("Film") }.to_string(), year].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
-                img_id: tmdb_img(r["posterPath"].as_str(), "w342"),
-                img_tag: None,
-                thumbs: Vec::new(),
-                progress: 0.0,
-                rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
-                seerr: true,
-                status: 0,
-                count: 0,
-                played: false,
-                deck: false,
-                overview: String::new(),
-            });
+            out.extend(seerr_card(r));
         }
         out
+    }
+
+    /// Seerr : les films d'une collection (saga), dans l'ordre de sortie. Ceux déjà sur le serveur
+    /// ouvrent leur fiche, les autres leur page Seerr.
+    pub async fn seerr_collection(&self, id: i64) -> Result<(String, Vec<CardInfo>)> {
+        let v: serde_json::Value = self.get(&format!("/JellyfinEnhanced/jellyseerr/collection/{id}"), &[]).await?;
+        let mut parts: Vec<&serde_json::Value> = v["parts"].as_array().into_iter().flatten().collect();
+        parts.sort_by_key(|p| p["releaseDate"].as_str().unwrap_or("9999").to_string());
+        let cards = parts
+            .into_iter()
+            .filter_map(|p| {
+                let mut c = seerr_card(p)?;
+                if let Some(jf) = p["mediaInfo"]["jellyfinMediaId"].as_str().filter(|s| !s.is_empty()) {
+                    c.id = jf.to_string();
+                    c.seerr = false;
+                }
+                Some(c)
+            })
+            .collect();
+        Ok((v["name"].as_str().unwrap_or("").to_string(), cards))
     }
 
     /// Favoris de l'utilisateur (films, séries, saisons, épisodes...).

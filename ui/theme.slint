@@ -60,8 +60,10 @@ export global Theme {
     // lumière sur bleu profond). `bubbles` : ancien nom du décor 1.
     in-out property <bool> bubbles: false;
     in-out property <int> scenery: 0;
-    // Barre de verre derrière l'en-tête (comme la barre des tâches de Windows 7).
-    in-out property <bool> header-glass: false;
+    // Barre derrière l'en-tête : 0 aucune · 1 verre (barre des tâches de Windows 7) · 2 nuit des
+    // profondeurs soulignée d'un trait d'accent (Turtlefin) · 3 bandeau de terminal (Nerd).
+    in-out property <int> header-style: 0;
+    out property <bool> header-glass: self.header-style != 0;
     // Liseré intérieur des éléments brillants et des panneaux (transparent : aucun).
     in-out property <color> edge: transparent;
     // Reflets en biais sur les grands panneaux de verre.
