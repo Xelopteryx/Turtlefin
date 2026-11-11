@@ -1,0 +1,1 @@
+shinchiro/mpv-winbuild-cmake du 10 juin 2026 (mpv-dev-i686-20260610.7z, copie gardée dans la pré-version libmpv-i686-20260610 de Turtlefin)

@@ -60,6 +60,12 @@ mod secret {
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
         let v = String::deserialize(d)?;
+        // Trousseau illisible pour l'instant : la référence est gardée (elle sera réécrite telle
+        // quelle) ; le serveur la refusera et la connexion sera redemandée.
+        #[cfg(all(unix, not(target_os = "android")))]
+        if let Some(k) = v.strip_prefix(keyring::PREFIX) {
+            return Ok(keyring::lookup(k).unwrap_or(v));
+        }
         Ok(match v.strip_prefix(PREFIX) {
             Some(b) => unprotect(b).unwrap_or_default(),
             None => v,
@@ -68,6 +74,7 @@ mod secret {
 
     const PREFIX: &str = "dpapi:";
 
+    #[cfg(not(all(unix, not(target_os = "android"))))]
     #[cfg(not(windows))]
     fn protect(t: &str) -> String {
         t.to_string()
@@ -76,6 +83,117 @@ mod secret {
     #[cfg(not(windows))]
     fn unprotect(_: &str) -> Option<String> {
         None
+    }
+
+    /// Linux (et autres Unix de bureau) : le jeton va dans le trousseau de la session (Secret Service :
+    /// GNOME Keyring, KWallet…, chiffré par le mot de passe de session) ; le fichier ne garde qu'une
+    /// référence (empreinte du jeton). Sans trousseau (Raspberry Pi sans bureau complet, Flatpak,
+    /// version portable) : fichier 0600 comme avant.
+    #[cfg(all(unix, not(target_os = "android")))]
+    pub(super) mod keyring {
+        use std::collections::HashMap;
+        use std::io::Write;
+        use std::process::Stdio;
+        use std::sync::Mutex;
+        use std::time::{Duration, Instant};
+
+        pub const PREFIX: &str = "secret-service:";
+        const ATTR: &str = "turtlefin-token";
+
+        /// Jetons déjà rangés ou relus pendant cette exécution (empreinte -> jeton) : le trousseau n'est
+        /// interrogé qu'une fois par jeton.
+        static CACHE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
+        fn usable() -> bool {
+            crate::paths::portable_root().is_none() && std::env::var_os("TURTLEFIN_NO_KEYRING").is_none()
+        }
+
+        pub fn key(token: &str) -> String {
+            use sha2::Digest;
+            sha2::Sha256::digest(token.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect()
+        }
+
+        /// `secret-tool` lancé avec `stdin` en entrée, arrêté au bout de `wait` (fenêtre de
+        /// déverrouillage laissée sans réponse) : sa sortie si tout s'est bien passé.
+        fn run(args: &[&str], stdin: Option<&str>, wait: Duration) -> Option<String> {
+            let mut child = crate::paths::quiet_command("secret-tool")
+                .args(args)
+                .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .ok()?;
+            if let (Some(text), Some(mut input)) = (stdin, child.stdin.take()) {
+                let _ = input.write_all(text.as_bytes());
+            }
+            let end = Instant::now() + wait;
+            loop {
+                match child.try_wait() {
+                    Ok(Some(st)) if st.success() => {
+                        let mut out = String::new();
+                        std::io::Read::read_to_string(&mut child.stdout.take()?, &mut out).ok()?;
+                        return Some(out);
+                    }
+                    Ok(Some(_)) | Err(_) => return None,
+                    Ok(None) if Instant::now() >= end => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return None;
+                    }
+                    Ok(None) => std::thread::sleep(Duration::from_millis(15)),
+                }
+            }
+        }
+
+        /// Range le jeton dans le trousseau : la référence à écrire dans le fichier, sinon `None`.
+        pub fn store(token: &str) -> Option<String> {
+            if !usable() {
+                return None;
+            }
+            let k = key(token);
+            let mut cache = CACHE.lock().unwrap();
+            let map = cache.get_or_insert_with(HashMap::new);
+            if map.get(&k).map(String::as_str) != Some(token) {
+                run(&["store", "--label=Turtlefin", ATTR, &k], Some(token), Duration::from_secs(3))?;
+                map.insert(k.clone(), token.to_string());
+            }
+            Some(format!("{PREFIX}{k}"))
+        }
+
+        /// Jeton rangé sous cette référence (`None` : trousseau absent, verrouillé, ou jeton retiré).
+        pub fn lookup(k: &str) -> Option<String> {
+            if let Some(t) = CACHE.lock().unwrap().as_ref().and_then(|m| m.get(k)) {
+                return Some(t.clone());
+            }
+            // Fenêtre de déverrouillage possible : on laisse le temps de taper le mot de passe.
+            let t = run(&["lookup", ATTR, k], None, Duration::from_secs(20))?.trim_end_matches('\n').to_string();
+            (!t.is_empty() && key(&t) == k).then(|| {
+                CACHE.lock().unwrap().get_or_insert_with(HashMap::new).insert(k.to_string(), t.clone());
+                t
+            })
+        }
+
+        /// Jeton retiré du trousseau (compte retiré de l'appareil).
+        pub fn forget(token: &str) {
+            if token.is_empty() || !usable() {
+                return;
+            }
+            let k = key(token);
+            if let Some(m) = CACHE.lock().unwrap().as_mut() {
+                m.remove(&k);
+            }
+            let _ = run(&["clear", ATTR, &k], None, Duration::from_secs(3));
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "android")))]
+    fn protect(t: &str) -> String {
+        // Référence dont le jeton n'a pas pu être relu (trousseau verrouillé) : gardée telle quelle,
+        // le jeton sera relu au prochain lancement.
+        if t.is_empty() || t.starts_with(keyring::PREFIX) {
+            return t.to_string();
+        }
+        keyring::store(t).unwrap_or_else(|| t.to_string())
     }
 
     #[cfg(windows)]
@@ -152,6 +270,54 @@ mod secret {
                 None => assert_eq!(p, "abc123"),
             }
             assert_eq!(super::protect(""), "");
+        }
+
+        /// Trousseau imité par un faux `secret-tool` (un fichier par jeton) : rangement, relecture,
+        /// retrait ; trousseau absent : fichier comme avant, référence illisible gardée telle quelle.
+        #[cfg(all(unix, not(target_os = "android")))]
+        #[test]
+        fn keyring_round_trip() {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = std::env::temp_dir().join(format!("tf-keyring-{}", std::process::id()));
+            let store = dir.join("store");
+            std::fs::create_dir_all(&store).unwrap();
+            let fake = dir.join("secret-tool");
+            std::fs::write(
+                &fake,
+                format!(
+                    "#!/bin/sh\nS={}\ncase \"$1\" in\n store) cat > \"$S/$4\" ;;\n lookup) cat \"$S/$3\" 2>/dev/null || exit 1 ;;\n clear) rm -f \"$S/$3\" ;;\nesac\n",
+                    store.display()
+                ),
+            )
+            .unwrap();
+            std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let old_path = std::env::var_os("PATH").unwrap_or_default();
+            std::env::set_var("PATH", format!("{}:{}", dir.display(), old_path.to_string_lossy()));
+
+            let token = "0123456789abcdef0123456789abcdef";
+            let r = super::protect(token);
+            let k = r.strip_prefix(super::keyring::PREFIX).expect("rangé dans le trousseau").to_string();
+            assert!(!r.contains(token));
+            assert_eq!(std::fs::read_to_string(store.join(&k)).unwrap(), token);
+            // Relecture sans le cache de cette exécution.
+            super::keyring::forget(token);
+            assert_eq!(super::keyring::lookup(&k), None);
+            std::fs::write(store.join(&k), token).unwrap();
+            assert_eq!(super::keyring::lookup(&k).as_deref(), Some(token));
+            let back: String = super::deserialize(serde_json::Value::String(r.clone())).unwrap();
+            assert_eq!(back, token);
+            // Retrait.
+            super::keyring::forget(token);
+            assert!(!store.join(&k).exists());
+            // Référence illisible : gardée telle quelle, réécrite telle quelle.
+            let lost: String = super::deserialize(serde_json::Value::String(r.clone())).unwrap();
+            assert_eq!(lost, r);
+            assert_eq!(super::protect(&lost), r);
+            // Pas de trousseau : le jeton reste dans le fichier.
+            std::env::set_var("PATH", "/nonexistent");
+            assert_eq!(super::protect("autre-jeton"), "autre-jeton");
+            std::env::set_var("PATH", old_path);
+            let _ = std::fs::remove_dir_all(&dir);
         }
     }
 }
@@ -327,6 +493,12 @@ pub struct Account {
     /// Mot de passe jugé trop simple à la dernière connexion (voir password.rs) : l'interface demande
     /// de le changer. Seul ce verdict est gardé, jamais le mot de passe.
     pub weak_pw: bool,
+    /// Code demandé pour ouvrir ce compte depuis « Qui regarde ? » (facultatif, voir lock.rs) :
+    /// vide (aucun), « pin:… » (4 chiffres) ou « keys:… » (6 flèches), haché, jamais en clair.
+    pub lock: String,
+    /// Essais ratés de suite, et attente imposée jusqu'à (secondes depuis 1970).
+    pub lock_fails: u32,
+    pub lock_until: u64,
 }
 
 fn accounts_path() -> Option<PathBuf> {
@@ -349,15 +521,46 @@ fn save_accounts(list: &[Account]) {
 
 /// Comptes enregistrés au plus sur un appareil : au-delà, le moins récemment utilisé est retiré
 /// (un jeton reste valable sur le serveur tant qu'il n'est pas révoqué : on n'en garde pas trop).
-pub const MAX_ACCOUNTS: usize = 12;
+pub const MAX_ACCOUNTS: usize = 64;
 
 /// Ajoute ou met à jour un compte (le plus récent en premier).
 pub fn save_account(a: Account) {
     let mut list = accounts();
+    // Ancien jeton du même compte (nouvelle connexion) : retiré du trousseau.
+    #[cfg(all(unix, not(target_os = "android")))]
+    for old in list.iter().filter(|x| x.user_id == a.user_id && x.token != a.token) {
+        secret::keyring::forget(&old.token);
+    }
+    // Le code du compte (et ses essais ratés) survit à une reconnexion : il ne se change que par
+    // `set_lock` (Paramètres, ou « Code oublié » suivi du mot de passe).
+    let mut a = a;
+    if let Some(old) = list.iter().find(|x| x.user_id == a.user_id) {
+        a.lock = old.lock.clone();
+        a.lock_fails = old.lock_fails;
+        a.lock_until = old.lock_until;
+    }
     list.retain(|x| x.user_id != a.user_id);
     list.insert(0, a);
     list.truncate(MAX_ACCOUNTS);
     save_accounts(&list);
+}
+
+/// Code d'un compte enregistré (`lock` haché, vide : aucun) et essais ratés remis à zéro.
+pub fn set_lock(user_id: &str, lock: &str) {
+    update_account(user_id, |a| {
+        a.lock = lock.to_string();
+        a.lock_fails = 0;
+        a.lock_until = 0;
+    });
+}
+
+/// Modifie un compte enregistré (rien s'il n'existe pas).
+pub fn update_account(user_id: &str, f: impl FnOnce(&mut Account)) {
+    let mut list = accounts();
+    if let Some(a) = list.iter_mut().find(|a| a.user_id == user_id) {
+        f(a);
+        save_accounts(&list);
+    }
 }
 
 /// Verdict « mot de passe trop simple » d'un compte enregistré.
@@ -379,6 +582,10 @@ pub fn set_weak_pw(user_id: &str, weak: bool) {
 
 pub fn forget_account(user_id: &str) {
     let mut list = accounts();
+    #[cfg(all(unix, not(target_os = "android")))]
+    for a in list.iter().filter(|x| x.user_id == user_id) {
+        secret::keyring::forget(&a.token);
+    }
     list.retain(|x| x.user_id != user_id);
     save_accounts(&list);
     // Compte de démarrage retiré : « Qui regarde ? » au prochain lancement.

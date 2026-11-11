@@ -361,6 +361,14 @@ pub struct Trickplay {
     pub interval_ms: i64,
 }
 
+impl CardInfo {
+    /// Même carte, avec ces images en format paysage.
+    pub fn with_thumbs(mut self, thumbs: Vec<ImgCand>) -> Self {
+        self.thumbs = thumbs;
+        self
+    }
+}
+
 impl SeerrRequest {
     pub fn card(&self) -> CardInfo {
         let mut parts: Vec<String> = vec![if self.tv { tr("Série") } else { tr("Film") }.to_string()];
@@ -781,6 +789,82 @@ pub struct Client {
     pub user_id: String,
     pub user_name: String,
     pub device_id: String,
+    /// Réponses gardées seulement, sans réseau (voir `cache_only`).
+    cache_only: bool,
+}
+
+// Dernières réponses du serveur pour ce qui s'affiche en naviguant : en mémoire et sur le disque (un
+// fichier par adresse, compte compris). Une page connue s'affiche tout de suite avec elles, puis se met à
+// jour si le serveur répond autre chose (voir `Client::cache_only`, `changes`).
+static RESP: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<Vec<u8>>>>> =
+    std::sync::LazyLock::new(Default::default);
+static RESP_CHANGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Compteur des réponses différentes de celles gardées : inchangé après un rechargement, la page est à jour.
+pub fn changes() -> u64 {
+    RESP_CHANGES.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Dossier des réponses gardées (Paramètres > À propos : vidé avec le cache d'images).
+pub fn resp_cache_dir() -> Option<PathBuf> {
+    crate::paths::cache_dir().map(|d| d.join("api"))
+}
+
+fn resp_file(key: &str) -> Option<PathBuf> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut h);
+    resp_cache_dir().map(|d| d.join(format!("{:016x}.json", h.finish())))
+}
+
+/// En mémoire : les dernières seulement (tout mettre en cache en lit des milliers ; le disque les garde).
+fn resp_keep_in_memory(key: &str, body: std::sync::Arc<Vec<u8>>) {
+    let mut m = RESP.lock().unwrap();
+    if m.len() >= 300 {
+        m.clear();
+    }
+    m.insert(key.to_string(), body);
+}
+
+fn resp_read(key: &str) -> Option<std::sync::Arc<Vec<u8>>> {
+    if let Some(b) = RESP.lock().unwrap().get(key) {
+        return Some(b.clone());
+    }
+    let b = std::sync::Arc::new(std::fs::read(resp_file(key)?).ok()?);
+    resp_keep_in_memory(key, b.clone());
+    Some(b)
+}
+
+fn resp_store(key: &str, body: &[u8]) {
+    let same = resp_read(key).is_some_and(|old| old.as_slice() == body);
+    if same {
+        return;
+    }
+    RESP_CHANGES.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    resp_keep_in_memory(key, std::sync::Arc::new(body.to_vec()));
+    if let Some(f) = resp_file(key) {
+        if let Some(dir) = f.parent() {
+            let _ = std::fs::create_dir_all(dir);
+            // Contenu des bibliothèques du compte : fermé aux autres comptes de la machine.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+        let _ = std::fs::write(f, body);
+    }
+}
+
+/// Seulement ce qui s'affiche en naviguant : ni comptes, ni tableau de bord, ni réglages du serveur.
+fn resp_keep(path: &str) -> bool {
+    path.starts_with("/Items")
+        || path.starts_with("/UserViews")
+        || path.starts_with("/UserItems")
+        || path.starts_with("/Shows")
+        || path.starts_with("/Playlists")
+        || (path.starts_with("/Users/") && path.contains("/Items"))
+        || (path.starts_with("/JellyfinEnhanced/jellyseerr/") && !path.ends_with("user-status"))
 }
 
 pub fn normalize_server(s: &str) -> String {
@@ -940,18 +1024,68 @@ async fn json_limited<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T>
 /// Morceau d'adresse venu du serveur (identifiant, étiquette d'image) : tout ce qui n'est pas
 /// lettre, chiffre, « - » ou « _ » est encodé (pas de « ../ », « ? » ou « # » glissés dans l'adresse).
 pub fn seg(s: &str) -> std::borrow::Cow<'_, str> {
-    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    seg_with(s, false)
+}
+
+/// Comme `seg`, en gardant les points (numéros de version « 1.2.3.0 » des extensions).
+pub fn seg_dots(s: &str) -> std::borrow::Cow<'_, str> {
+    seg_with(s, true)
+}
+
+fn seg_with(s: &str, dots: bool) -> std::borrow::Cow<'_, str> {
+    // « . » ou « .. » : même encodés (« %2E%2E »), l'analyse de l'adresse les prend pour un retour
+    // au dossier parent. Remplacés par un morceau sans effet (le vide reste vide : sans danger).
+    if !s.is_empty() && s.trim_matches('.').is_empty() {
+        return std::borrow::Cow::Borrowed("_");
+    }
+    let ok = |b: u8| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || (dots && b == b'.');
+    if s.bytes().all(ok) {
         return std::borrow::Cow::Borrowed(s);
     }
     let mut out = String::new();
     for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' {
+        if ok(b) {
             out.push(b as char);
         } else {
             out.push_str(&format!("%{b:02X}"));
         }
     }
     std::borrow::Cow::Owned(out)
+}
+
+/// Adresse joignable sur Internet : ni la machine elle-même, ni le réseau local, ni un VPN
+/// (100.64.0.0/10 : Tailscale), ni une adresse réservée.
+pub fn is_public_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v) => {
+            let o = v.octets();
+            !(v.is_private()
+                || v.is_loopback()
+                || v.is_link_local()
+                || v.is_unspecified()
+                || v.is_broadcast()
+                || v.is_multicast()
+                || v.is_documentation()
+                || o[0] == 0
+                || o[0] >= 240
+                || (o[0] == 100 && (64..128).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                || (o[0] == 198 && (18..20).contains(&o[1])))
+        }
+        std::net::IpAddr::V6(v) => {
+            if let Some(v4) = v.to_ipv4_mapped() {
+                return is_public_ip(std::net::IpAddr::V4(v4));
+            }
+            let s = v.segments();
+            !(v.is_loopback()
+                || v.is_unspecified()
+                || v.is_multicast()
+                || (s[0] & 0xfe00) == 0xfc00
+                || (s[0] & 0xffc0) == 0xfe80
+                || (s[0] == 0x2001 && s[1] == 0x0db8)
+                || (s[0] == 0x64 && s[1] == 0xff9b))
+        }
+    }
 }
 
 /// Nom de fichier sûr tiré d'un texte du serveur (cache d'images) : pas de séparateur de dossier.
@@ -969,6 +1103,16 @@ pub fn image_cache_dir() -> Option<PathBuf> {
 /// (carte SD du Pi, stockage du téléphone).
 pub fn trim_image_cache(max: u64) {
     let Some(dir) = image_cache_dir() else { return };
+    trim_dir(&dir, max);
+}
+
+/// Réponses gardées : même règle, avec leur propre limite.
+pub fn trim_resp_cache(max: u64) {
+    let Some(dir) = resp_cache_dir() else { return };
+    trim_dir(&dir, max);
+}
+
+fn trim_dir(dir: &std::path::Path, max: u64) {
     let Ok(rd) = std::fs::read_dir(dir) else { return };
     let mut files: Vec<(std::time::SystemTime, u64, PathBuf)> = rd
         .flatten()
@@ -1009,6 +1153,7 @@ impl Client {
             user_id: s.user_id.clone(),
             user_name: s.user_name.clone(),
             device_id: s.device_id.clone(),
+            cache_only: false,
         })
     }
 
@@ -1039,6 +1184,7 @@ impl Client {
             user_id: user_id.to_string(),
             user_name: user_name.to_string(),
             device_id: device_id.to_string(),
+            cache_only: false,
         })
     }
 
@@ -1068,10 +1214,27 @@ impl Client {
             user_id: r.user.id,
             user_name: r.user.name,
             device_id: device_id.to_string(),
+            cache_only: false,
         })
     }
 
+    /// Ce client, limité aux réponses gardées : aucune requête, une adresse jamais vue est une erreur.
+    pub fn cache_only(&self) -> Client {
+        Client { cache_only: true, ..self.clone() }
+    }
+
+    /// Ce client, sur le réseau (pour ce qu'un affichage lancé sur le cache démarre à côté).
+    pub fn live(&self) -> Client {
+        Client { cache_only: false, ..self.clone() }
+    }
+
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
+        let keep = resp_keep(path);
+        let key = if keep { format!("{}|{}|{path}|{query:?}", self.server, self.user_id) } else { String::new() };
+        if self.cache_only {
+            let body = keep.then(|| resp_read(&key)).flatten().ok_or_else(|| anyhow!("pas dans le cache"))?;
+            return Ok(serde_json::from_slice(&body)?);
+        }
         let resp = self
             .http
             .get(format!("{}{}", self.server, path))
@@ -1082,6 +1245,12 @@ impl Client {
         match resp.status().as_u16() {
             401 => Err(Unauthorized.into()),
             c if !(200..300).contains(&c) => Err(anyhow!("{}", trf("Le serveur a répondu {} sur {}", &[&c, &path]))),
+            _ if keep => {
+                let body = body_limited(resp, MAX_JSON).await?;
+                let v = serde_json::from_slice(&body)?;
+                resp_store(&key, &body);
+                Ok(v)
+            }
             _ => json_limited(resp).await,
         }
     }
@@ -1787,6 +1956,11 @@ impl Client {
         Ok(r.items)
     }
 
+    /// Dossiers qui contiennent un élément (bibliothèque comprise), du plus proche au plus lointain.
+    pub async fn ancestors(&self, id: &str) -> Result<Vec<Item>> {
+        self.get(&format!("/Items/{}/Ancestors", seg(id)), &[("userId", &self.user_id)]).await
+    }
+
     /// Bandes-annonces enregistrées sur le serveur pour un film / une série.
     pub async fn local_trailers(&self, id: &str) -> Result<Vec<Item>> {
         self.get(&format!("/Items/{}/LocalTrailers", seg(id)), &[("userId", &self.user_id)]).await
@@ -2184,6 +2358,42 @@ impl Client {
         auth_header(&self.device_id, Some(&self.token))
     }
 
+    /// Adresse du serveur que mpv va lire avec l'en-tête du jeton. mpv (ffmpeg) garde cet en-tête
+    /// en suivant une redirection : si le serveur renvoie le flux vers un autre hôte (stockage
+    /// externe, CDN, autre site), le jeton y partirait. Les redirections sont donc suivies ici
+    /// (requête d'un octet) : `(adresse à lire, jeton à joindre ?)`. Même serveur : rien ne change ;
+    /// autre hôte (ou passage de https à http) : l'adresse d'arrivée, sans jeton.
+    pub async fn offsite(&self, url: &str) -> (String, bool) {
+        static HTTP: std::sync::OnceLock<Option<reqwest::Client>> = std::sync::OnceLock::new();
+        let http = HTTP.get_or_init(|| {
+            let mut b = http_builder().timeout(Duration::from_secs(10)).connect_timeout(Duration::from_secs(5)).redirect(reqwest::redirect::Policy::none());
+            if std::env::var("TURTLEFIN_INSECURE").is_ok() {
+                b = b.danger_accept_invalid_certs(true);
+            }
+            b.build().ok()
+        });
+        let (Some(http), Ok(home)) = (http, reqwest::Url::parse(&self.server)) else { return (url.to_string(), true) };
+        let mut cur = url.to_string();
+        for _ in 0..10 {
+            let Ok(u) = reqwest::Url::parse(&cur) else { break };
+            if u.origin() != home.origin() {
+                return (cur, false);
+            }
+            let resp = http.get(u.clone()).header("Range", "bytes=0-0").header("Authorization", self.auth()).send().await;
+            let Ok(resp) = resp else { break };
+            if !resp.status().is_redirection() {
+                break;
+            }
+            let Some(next) = resp.headers().get("location").and_then(|l| l.to_str().ok()).and_then(|l| u.join(l).ok()) else { break };
+            if !matches!(next.scheme(), "http" | "https") {
+                // Ni file:, ni autre protocole que mpv saurait ouvrir.
+                return (url.to_string(), false);
+            }
+            cur = next.to_string();
+        }
+        (cur, true)
+    }
+
     /// Sous-titre externe, si son format est connu de mpv.
     pub fn subtitle_url(&self, item_id: &str, media_source_id: &str, st: &MediaStream) -> Option<String> {
         let fmt = match st.codec.as_deref()?.to_lowercase().as_str() {
@@ -2410,7 +2620,37 @@ impl Client {
     }
 
     /// Image hors Jellyfin (adresse complète), avec le même cache disque.
-    async fn image_url(&self, url: &str) -> Result<Vec<u8>> {
+    /// Image du catalogue d'extensions ou d'un appareil (tableau de bord). Ces adresses viennent des dépôts
+    /// choisis par l'administrateur : HTTPS et nom de domaine public seulement, jamais une adresse IP ni
+    /// une machine du réseau local.
+    pub async fn public_image(&self, url: &str) -> Result<Vec<u8>> {
+        let host = url.strip_prefix("https://").and_then(|r| r.split('/').next()).unwrap_or("");
+        let local = host.is_empty() || !host.contains('.') || host.ends_with(".local") || host.ends_with(".lan") || host.contains([':', '[', '@', '\\']) || host.chars().all(|c| c.is_ascii_digit() || c == '.');
+        if local {
+            return Err(anyhow!("image {url} : adresse refusée"));
+        }
+        // Le nom peut quand même désigner une machine du réseau (« 127.0.0.1.nip.io », entrée DNS
+        // piégée) et une redirection mener ailleurs : le nom est résolu ici, chaque adresse doit être
+        // publique, la connexion est faite à l'adresse vérifiée et aucune redirection n'est suivie.
+        let name = host.split(':').next().unwrap_or(host).to_string();
+        let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((name.as_str(), 443)).await?.collect();
+        if addrs.is_empty() || !addrs.iter().all(|a| is_public_ip(a.ip())) {
+            return Err(anyhow!("image {url} : adresse refusée"));
+        }
+        let http = http_builder()
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(&name, &addrs)
+            .build()?;
+        let resp = http.get(url).send().await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("image {url} : {}", resp.status()));
+        }
+        body_limited(resp, MAX_IMAGE).await
+    }
+
+    pub async fn image_url(&self, url: &str) -> Result<Vec<u8>> {
         // Affiches TMDB seulement : une adresse venue du serveur ne fait pas envoyer de requête à un
         // autre appareil du réseau (box, imprimante, page d'administration...).
         if !url.starts_with("https://image.tmdb.org/") || url.contains(['@', '\\']) {
@@ -2528,6 +2768,12 @@ impl Client {
     }
 
     /// Première image disponible parmi plusieurs candidats.
+    /// Taille des réponses gardées sur le disque.
+    pub fn resp_cache_size() -> u64 {
+        let Some(dir) = resp_cache_dir() else { return 0 };
+        std::fs::read_dir(dir).map(|d| d.flatten().filter_map(|e| e.metadata().ok()).map(|m| m.len()).sum()).unwrap_or(0)
+    }
+
     pub async fn image_first(&self, candidates: &[ImageRef], kind: &str, size: Size) -> Option<Vec<u8>> {
         for (id, tag) in candidates {
             if let Ok(b) = self.image(id, kind, tag.as_deref(), size).await {
@@ -2551,6 +2797,68 @@ fn fr_date(iso: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn path_segments() {
+        use super::{seg, seg_dots};
+        assert_eq!(seg("abc-1_2"), "abc-1_2");
+        assert_eq!(seg("../x"), "%2E%2E%2Fx");
+        assert_eq!(seg(""), "");
+        for bad in [".", "..", "..."] {
+            assert_eq!(seg(bad), "_");
+            assert_eq!(seg_dots(bad), "_");
+        }
+        assert_eq!(seg_dots("1.2.3.0"), "1.2.3.0");
+        assert_eq!(seg_dots("a/b?c"), "a%2Fb%3Fc");
+        // L'adresse obtenue reste dans le dossier voulu.
+        let u = reqwest::Url::parse(&format!("http://h/Items/{}/Images", seg(".."))).unwrap();
+        assert_eq!(u.path(), "/Items/_/Images");
+    }
+
+    /// Faux serveur : /same redirige sur lui-même, /away vers un autre hôte, /file vers file:,
+    /// le reste répond 206. Il note si l'en-tête Authorization lui arrive.
+    #[tokio::test]
+    async fn token_not_sent_offsite() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                let mut b = vec![0u8; 4096];
+                let n = s.read(&mut b).await.unwrap_or(0);
+                let req = String::from_utf8_lossy(&b[..n]).to_string();
+                let path = req.split_whitespace().nth(1).unwrap_or("").to_string();
+                let loc = match path.as_str() {
+                    "/same" => Some("/final".to_string()),
+                    "/away" => Some("https://cdn.example.com/v.mkv".to_string()),
+                    "/file" => Some("file:///etc/passwd".to_string()),
+                    _ => None,
+                };
+                let r = match loc {
+                    Some(l) => format!("HTTP/1.1 302 Found\r\nLocation: {l}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
+                    None => "HTTP/1.1 206 Partial\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx".to_string(),
+                };
+                let _ = s.write_all(r.as_bytes()).await;
+            }
+        });
+        let server = format!("http://127.0.0.1:{port}");
+        let c = super::Client::from_saved(&crate::config::Saved { server: server.clone(), ..Default::default() }).unwrap();
+        assert_eq!(c.offsite(&format!("{server}/plain")).await, (format!("{server}/plain"), true));
+        assert_eq!(c.offsite(&format!("{server}/same")).await, (format!("{server}/final"), true));
+        assert_eq!(c.offsite(&format!("{server}/away")).await, ("https://cdn.example.com/v.mkv".to_string(), false));
+        assert_eq!(c.offsite(&format!("{server}/file")).await.1, false);
+    }
+
+    #[test]
+    fn public_ips() {
+        use super::is_public_ip;
+        for ip in ["1.1.1.1", "140.82.112.3", "2606:4700::1111"] {
+            assert!(is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in ["127.0.0.1", "10.0.0.1", "192.168.1.32", "172.16.0.1", "169.254.1.1", "100.100.1.1", "0.0.0.0", "::1", "fd7a:115c::1", "fe80::1", "::ffff:192.168.1.1", "224.0.0.251"] {
+            assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+    }
+
     #[test]
     fn api_key_removed() {
         let p = "/videos/x/master.m3u8?DeviceId=d&ApiKey=secret&VideoBitrate=1&api_key=s2&Tag=t";

@@ -16,9 +16,25 @@ TOOLS="target/appimage-tools"
 rm -rf "$WORK"
 mkdir -p "$WORK" "$TOOLS"
 
-# Outil linuxdeploy (assemble l'AppImage et y copie les bibliothèques nécessaires).
-LD="$TOOLS/linuxdeploy-$ARCH.AppImage"
-[ -f "$LD" ] || wget -q -O "$LD" "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$ARCH.AppImage"
+# Outil linuxdeploy (assemble l'AppImage et y copie les bibliothèques nécessaires). Version épinglée
+# et empreinte SHA-256 vérifiée (celle publiée par GitHub pour cette version) : la version
+# « continuous » change sans cesse et n'a pas d'empreinte stable. Pour passer à une version plus
+# récente : changer LD_TAG et les quatre empreintes (champ « digest » de l'API GitHub des versions).
+LD_TAG="1-alpha-20251107-1"
+case "$ARCH" in
+    x86_64)  LD_SHA="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d" ;;
+    aarch64) LD_SHA="620095110d693282b8ebeb244a95b5e911cf8f65f76c88b4b47d16ae6346fcff" ;;
+    armhf)   LD_SHA="e359161979fa4bee50b92ce7102fb510299caebf34f711d983fba7a8f4bb1c2e" ;;
+    i386)    LD_SHA="a2a88d142aac42db779483ca07c10dbf318b27f514691107fc88a202faae17b5" ;;
+    *) echo "linuxdeploy : architecture $ARCH non prise en charge"; exit 1 ;;
+esac
+LD="$TOOLS/linuxdeploy-$LD_TAG-$ARCH.AppImage"
+[ -f "$LD" ] || wget -q -O "$LD" "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_TAG/linuxdeploy-$ARCH.AppImage"
+if [ "$(sha256sum "$LD" | cut -d' ' -f1)" != "$LD_SHA" ]; then
+    rm -f "$LD"
+    echo "linuxdeploy : empreinte SHA-256 inattendue, fichier supprimé"
+    exit 1
+fi
 chmod +x "$LD"
 
 # libmpv est chargée à l'exécution (dlopen) : linuxdeploy ne la verrait pas toute seule.

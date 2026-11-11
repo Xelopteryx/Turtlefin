@@ -264,6 +264,12 @@ msgstr "{} avatars in {} categorieën · Enter om te kiezen, Esc om terug te gaa
 msgid "{} avatars · Entrée pour choisir, Échap pour revenir"
 msgstr "{} avatars · Enter om te kiezen, Esc om terug te gaan"
 
+msgid "{} avatars en {} catégories"
+msgstr "{} avatars in {} categorieën"
+
+msgid "{} avatars"
+msgstr "{} avatars"
+
 msgid "Actuelle"
 msgstr "Huidig"
 
@@ -2615,3 +2621,117 @@ msgstr "De pagina van een medium neemt de kleur van de poster aan."
 
 msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
 msgstr "Tik op een regel om te proberen, nogmaals om te kiezen."
+
+msgid "{n} demande"
+msgid_plural "{n} demandes"
+msgstr[0] "{n} verzoek"
+msgstr[1] "{n} verzoeken"
+
+msgid "Pas encore de demande disponible"
+msgstr "Nog geen beschikbaar verzoek"
+
+msgid "Pas encore de demande en attente"
+msgstr "Nog geen openstaand verzoek"
+
+msgid "Pas encore de demande acceptée"
+msgstr "Nog geen geaccepteerd verzoek"
+
+msgid "Pas encore de demande refusée"
+msgstr "Nog geen geweigerd verzoek"
+
+msgid "Pas encore de demande en échec"
+msgstr "Nog geen mislukt verzoek"
+
+msgid "Pas encore de média dans {}"
+msgstr "Nog geen media in {}"
+
+msgid "Ce dossier est vide."
+msgstr "Deze map is leeg."
+
+msgid "Rien par ici"
+msgstr "Niets te zien"
+
+msgid "Autres"
+msgstr "Overige"
+
+msgid "Dans {} s"
+msgstr "Over {} s"
+
+msgid "Le serveur met trop de temps à répondre. Réessaie dans un instant."
+msgstr "De server doet er te lang over om te antwoorden. Probeer het zo meteen opnieuw."
+
+msgid "Demande acceptée"
+msgstr "Verzoek geaccepteerd"
+
+msgid "Demande refusée"
+msgstr "Verzoek geweigerd"
+
+msgid "La demande a échoué"
+msgstr "Het verzoek is mislukt"
+
+
+msgid "Code pour ouvrir ce compte"
+msgstr "Code om dit account te openen"
+
+msgid "Demandé sur « Qui regarde ? » (pas quand ce compte s'ouvre au démarrage). Code oublié : le mot de passe du compte le retire."
+msgstr "Gevraagd bij ‘Wie kijkt er?’ (niet als dit account bij het starten opent). Code vergeten: het wachtwoord van het account verwijdert hem."
+
+msgid "Code à 4 chiffres"
+msgstr "Code van 4 cijfers"
+
+msgid "Combinaison de 6 flèches"
+msgstr "Combinatie van 6 pijlen"
+
+msgid "Code de {}"
+msgstr "Code van {}"
+
+msgid "Retirer {} : code du compte"
+msgstr "{} verwijderen: code van het account"
+
+msgid "Code actuel du compte"
+msgstr "Huidige code van het account"
+
+msgid "Nouveau code : 4 chiffres"
+msgstr "Nieuwe code: 4 cijfers"
+
+msgid "Nouvelle combinaison : 6 flèches"
+msgstr "Nieuwe combinatie: 6 pijlen"
+
+msgid "Encore une fois, pour confirmer"
+msgstr "Nog een keer, ter bevestiging"
+
+msgid "Avec les flèches du clavier, de la télécommande ou ci-dessous."
+msgstr "Met de pijlen van het toetsenbord, de afstandsbediening of hieronder."
+
+msgid "Trop d'essais : réessaie dans {} s."
+msgstr "Te veel pogingen: probeer het over {} s opnieuw."
+
+msgid "Code incorrect."
+msgstr "Verkeerde code."
+
+msgid "Code incorrect. Réessaie dans {} s."
+msgstr "Verkeerde code. Probeer het over {} s opnieuw."
+
+msgid "Les deux codes ne sont pas les mêmes. Recommence."
+msgstr "De twee codes zijn niet gelijk. Begin opnieuw."
+
+msgid "Code enregistré."
+msgstr "Code opgeslagen."
+
+msgid "Combinaison enregistrée."
+msgstr "Combinatie opgeslagen."
+
+msgid "Code du compte retiré."
+msgstr "Code van het account verwijderd."
+
+msgid "Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte."
+msgstr "Code van het account verwijderd. Je kunt een nieuwe kiezen in Instellingen → Account."
+
+msgid "Code oublié ? Entre le mot de passe du compte"
+msgstr "Code vergeten? Voer het wachtwoord van het account in"
+
+msgid "OK : boutons du bas"
+msgstr "OK: knoppen hieronder"
+
+msgid "Code oublié : mot de passe de {}"
+msgstr "Code vergeten: wachtwoord van {}"

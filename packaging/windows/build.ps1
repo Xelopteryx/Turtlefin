@@ -4,6 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x64
 #   powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 -Arch x86
 # Prérequis : Rust (avec la cible i686-pc-windows-msvc pour x86), Inno Setup 6, 7-Zip, NASM (x86).
+# libmpv : dans le dépôt (vendor\libmpv), posée par build.rs.
 # Résultat dans target\dist : Turtlefin-<version>-windows-<arch>-setup.exe et -portable.zip.
 param(
     [ValidateSet("x64", "x86")][string]$Arch = "x64"
@@ -19,7 +20,6 @@ Set-Location $root
 
 $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
 $target = if ($Arch -eq "x64") { "x86_64-pc-windows-msvc" } else { "i686-pc-windows-msvc" }
-$mpvArch = if ($Arch -eq "x64") { "x86_64" } else { "i686" }
 $dist = Join-Path $root "target\dist"
 $stage = Join-Path $dist "Turtlefin-$Arch"
 New-Item -ItemType Directory -Force $dist | Out-Null
@@ -37,41 +37,11 @@ cargo build --release --target $target
 if ($LASTEXITCODE -ne 0) { throw "échec de la compilation" }
 Copy-Item "target\$target\release\turtlefin.exe" $stage
 
-# 2. libmpv (builds de shinchiro/mpv-winbuild-cmake), gardée en cache dans target\mpv-<arch>.
-$mpvDir = Join-Path $root "target\mpv-$mpvArch"
-if (-not (Test-Path "$mpvDir\libmpv-2.dll")) {
-    New-Item -ItemType Directory -Force $mpvDir | Out-Null
-    # x86 : les versions 32 bits publiées depuis juillet 2026 plantent au démarrage (« OpenSSL
-    # internal error: assertion failed: lock != NULL », mpv.exe seul compris) : on garde celle du
-    # 10 juin 2026, la dernière qui fonctionne. MPV_TAG permet d'en imposer une autre.
-    # Elle a disparu du dépôt de shinchiro : une copie est gardée dans une pré-version de Turtlefin
-    # (libmpv-i686-20260610, ignorée par la mise à jour). MPV_TAG : autre version de shinchiro.
-    $tag = if ($env:MPV_TAG) { $env:MPV_TAG } else { "" }
-    $repo = "shinchiro/mpv-winbuild-cmake"
-    if (-not $tag -and $Arch -eq "x86") { $repo = "Xelopteryx/Turtlefin"; $tag = "libmpv-i686-20260610" }
-    $api = if ($tag) { "tags/$tag" } else { "latest" }
-    # Jeton de la CI s'il y en a un : les appels anonymes sont vite limités sur les machines partagées.
-    $headers = @{ "User-Agent" = "turtlefin-build" }
-    if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
-    $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/$api" -Headers $headers
-    $asset = $rel.assets | Where-Object { $_.name -like "mpv-dev-$mpvArch-2*.7z" } | Select-Object -First 1
-    if (-not $asset) { throw "libmpv $mpvArch introuvable" }
-    $archive = Join-Path $mpvDir $asset.name
-    Invoke-WebRequest $asset.browser_download_url -OutFile $archive -UseBasicParsing
-    # Empreinte SHA-256 publiée par GitHub : une archive abîmée ou remplacée n'entre pas dans le paquet.
-    if ($asset.digest -and $asset.digest -like 'sha256:*') {
-        $got = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-        if ($got -ne $asset.digest.Substring(7).ToLower()) {
-            Remove-Item $archive -ErrorAction SilentlyContinue
-            throw "libmpv : empreinte différente de celle publiée ($($asset.name))"
-        }
-    }
-    $7z = (Get-Command 7z -ErrorAction SilentlyContinue).Source
-    if (-not $7z) { $7z = "C:\Program Files\7-Zip\7z.exe" }
-    & $7z e $archive "-o$mpvDir" libmpv-2.dll -y | Out-Null
-    if (-not (Test-Path "$mpvDir\libmpv-2.dll")) { throw "libmpv-2.dll absente de l'archive" }
-}
-Copy-Item "$mpvDir\libmpv-2.dll" $stage
+# 2. libmpv : fournie par le dépôt (vendor\libmpv), décompressée et vérifiée par build.rs à côté
+# de l'exécutable pendant la compilation (rien à télécharger).
+$mpvDll = "target\$target\release\libmpv-2.dll"
+if (-not (Test-Path $mpvDll)) { throw "libmpv-2.dll absente de target\$target\release (voir vendor\libmpv\README.md)" }
+Copy-Item $mpvDll $stage
 Copy-Item README.md $stage
 
 # 3. Installeur.

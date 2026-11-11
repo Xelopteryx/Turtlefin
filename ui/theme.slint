@@ -40,6 +40,17 @@ export global Theme {
     in-out property <color> danger-text: #ff8a8a;
     in-out property <color> ok: #4ade80;
     in-out property <color> warn: #f59e0b;
+    // Couleur d'un état de demande Seerr, dans la matière du thème : 1 en attente (orange) · 2 acceptée
+    // (bleu) · 3 refusée (rouge) · 4 disponible (vert) · 5 échec (violet).
+    public pure function req-color(state: int) -> color {
+        if (self.term) {
+            return state == 1 ? #ffb000 : state == 2 ? #4db8ff : state == 3 ? #ff5f56 : state == 4 ? #4dff88 : #c792ea;
+        }
+        if (self.win7) {
+            return state == 1 ? #f08a10 : state == 2 ? #1f7fe0 : state == 3 ? #d9322a : state == 4 ? #2fae3f : #8a4fd0;
+        }
+        return state == 1 ? #ea8a0b : state == 2 ? #2563eb : state == 3 ? #dc2626 : state == 4 ? #16a34a : #7c3aed;
+    }
     // Voile sur l'image de fond du média sélectionné : 1 normal, plus : image plus effacée.
     in-out property <float> veil: 1.0;
     in-out property <length> radius: 10px;
@@ -69,6 +80,10 @@ export global Theme {
     in-out property <bool> mono-font: false;
     // Boutons et panneaux façon composants de carte électronique (thème Nerd, voir TermGlass).
     in-out property <bool> term: false;
+    // Thème qui dessine lui-même le fond de ses boutons (Win7Glass, TermGlass).
+    out property <bool> skinned: self.win7 || self.term;
+    // Texte en couleur d'accent, posé directement sur le fond.
+    out property <color> accent-ink: self.dark ? self.accent2 : self.accent1.darker(0.35);
     // Police de l'interface, et sa copie vide (effet de changement de langue).
     out property <string> font-name: self.mono-font ? "JetBrains Mono NL" : self.aero-font ? "Selawik" : "Montserrat";
     out property <string> blank-name: self.mono-font ? "Turtlefin Blank Mono" : self.aero-font ? "Turtlefin Blank Aero" : "Turtlefin Blank";
@@ -196,6 +211,8 @@ export component TermGlass inherits Rectangle {
         visible: root.h > 26;
     }
 }
+
+
 
 // Réglages d'affichage de l'appareil (Paramètres > Affichage), posés par Rust.
 export global Prefs {

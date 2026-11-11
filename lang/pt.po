@@ -264,6 +264,12 @@ msgstr "{} avatares em {} categorias · Enter para escolher, Esc para voltar"
 msgid "{} avatars · Entrée pour choisir, Échap pour revenir"
 msgstr "{} avatares · Enter para escolher, Esc para voltar"
 
+msgid "{} avatars en {} catégories"
+msgstr "{} avatares em {} categorias"
+
+msgid "{} avatars"
+msgstr "{} avatares"
+
 msgid "Actuelle"
 msgstr "Atual"
 
@@ -2615,3 +2621,117 @@ msgstr "A página de um conteúdo assume a cor do seu cartaz."
 
 msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
 msgstr "Toque numa linha para experimentar, de novo para escolher."
+
+msgid "{n} demande"
+msgid_plural "{n} demandes"
+msgstr[0] "{n} pedido"
+msgstr[1] "{n} pedidos"
+
+msgid "Pas encore de demande disponible"
+msgstr "Ainda sem pedidos disponíveis"
+
+msgid "Pas encore de demande en attente"
+msgstr "Ainda sem pedidos pendentes"
+
+msgid "Pas encore de demande acceptée"
+msgstr "Ainda sem pedidos aceites"
+
+msgid "Pas encore de demande refusée"
+msgstr "Ainda sem pedidos recusados"
+
+msgid "Pas encore de demande en échec"
+msgstr "Ainda sem pedidos falhados"
+
+msgid "Pas encore de média dans {}"
+msgstr "Ainda sem conteúdo em {}"
+
+msgid "Ce dossier est vide."
+msgstr "Esta pasta está vazia."
+
+msgid "Rien par ici"
+msgstr "Nada por aqui"
+
+msgid "Autres"
+msgstr "Outros"
+
+msgid "Dans {} s"
+msgstr "Em {} s"
+
+msgid "Le serveur met trop de temps à répondre. Réessaie dans un instant."
+msgstr "O servidor está a demorar demasiado a responder. Tenta novamente daqui a pouco."
+
+msgid "Demande acceptée"
+msgstr "Pedido aceite"
+
+msgid "Demande refusée"
+msgstr "Pedido recusado"
+
+msgid "La demande a échoué"
+msgstr "O pedido falhou"
+
+
+msgid "Code pour ouvrir ce compte"
+msgstr "Código para abrir esta conta"
+
+msgid "Demandé sur « Qui regarde ? » (pas quand ce compte s'ouvre au démarrage). Code oublié : le mot de passe du compte le retire."
+msgstr "Pedido em «Quem está a ver?» (não quando esta conta abre no arranque). Código esquecido: a palavra-passe da conta remove-o."
+
+msgid "Code à 4 chiffres"
+msgstr "Código de 4 algarismos"
+
+msgid "Combinaison de 6 flèches"
+msgstr "Combinação de 6 setas"
+
+msgid "Code de {}"
+msgstr "Código de {}"
+
+msgid "Retirer {} : code du compte"
+msgstr "Remover {}: código da conta"
+
+msgid "Code actuel du compte"
+msgstr "Código atual da conta"
+
+msgid "Nouveau code : 4 chiffres"
+msgstr "Novo código: 4 algarismos"
+
+msgid "Nouvelle combinaison : 6 flèches"
+msgstr "Nova combinação: 6 setas"
+
+msgid "Encore une fois, pour confirmer"
+msgstr "Mais uma vez, para confirmar"
+
+msgid "Avec les flèches du clavier, de la télécommande ou ci-dessous."
+msgstr "Com as setas do teclado, do comando ou abaixo."
+
+msgid "Trop d'essais : réessaie dans {} s."
+msgstr "Demasiadas tentativas: tenta de novo dentro de {} s."
+
+msgid "Code incorrect."
+msgstr "Código incorreto."
+
+msgid "Code incorrect. Réessaie dans {} s."
+msgstr "Código incorreto. Tenta de novo dentro de {} s."
+
+msgid "Les deux codes ne sont pas les mêmes. Recommence."
+msgstr "Os dois códigos não são iguais. Recomeça."
+
+msgid "Code enregistré."
+msgstr "Código guardado."
+
+msgid "Combinaison enregistrée."
+msgstr "Combinação guardada."
+
+msgid "Code du compte retiré."
+msgstr "Código da conta removido."
+
+msgid "Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte."
+msgstr "Código da conta removido. Podes escolher um novo em Definições → Conta."
+
+msgid "Code oublié ? Entre le mot de passe du compte"
+msgstr "Código esquecido? Escreve a palavra-passe da conta"
+
+msgid "OK : boutons du bas"
+msgstr "OK: botões em baixo"
+
+msgid "Code oublié : mot de passe de {}"
+msgstr "Código esquecido: palavra-passe de {}"

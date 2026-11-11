@@ -206,6 +206,25 @@ async fn check_point(i: usize, start: &Start) -> Result<bool, String> {
             if !start.server_from_cli && s.server.is_empty() && s.server_main.is_empty() && s.server_backup.is_empty() {
                 return Ok(false); // premier lancement : la recherche des serveurs suivra
             }
+            // Adresses enregistrées en http:// qui passent par Internet : si le même serveur répond en
+            // https:// sur cet hôte, elles sont remplacées (le jeton ne circule plus en clair).
+            if !start.server_from_cli {
+                let mut up = config::load();
+                let mut changed = false;
+                for addr in [&mut up.server, &mut up.server_main, &mut up.server_backup] {
+                    if addr.starts_with("http://") && discovery::plain_over_internet(addr).await {
+                        if let Some(secure) = discovery::https_twin(addr).await {
+                            eprintln!("turtlefin : {addr} remplacée par l'adresse chiffrée {secure}");
+                            *addr = secure;
+                            changed = true;
+                        }
+                    }
+                }
+                if changed {
+                    config::save(&up);
+                }
+            }
+            let s = config::load();
             let (main, backup) = if start.server_from_cli {
                 (start.server.clone(), String::new())
             } else {
@@ -426,6 +445,8 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     if let Some(name) = &start.user {
         if let Some(acc) = config::accounts().into_iter().find(|a| a.user_name.eq_ignore_ascii_case(name)) {
             u.set_screen("login".into());
+            // Compte choisi au lancement de l'appli : son code n'est pas demandé.
+            crate::lock::give_pass(app, &acc.user_id);
             crate::login_pick(app, format!("acc:{}", acc.user_id));
             return;
         }

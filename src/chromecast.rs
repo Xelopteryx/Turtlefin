@@ -239,7 +239,8 @@ fn decode(m: &[u8]) -> Option<(String, String, String)> {
             }
             2 => {
                 let len = varint(&mut i)? as usize;
-                let bytes = m.get(i..i + len)?;
+                // Longueur annoncée par l'appareil : bornée sans débordement.
+                let bytes = m.get(i..i.checked_add(len)?)?;
                 i += len;
                 let s = String::from_utf8_lossy(bytes).into_owned();
                 match key >> 3 {

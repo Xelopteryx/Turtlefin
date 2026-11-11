@@ -428,6 +428,30 @@ pub async fn plain_over_internet(server: &str) -> bool {
         })
 }
 
+/// Adresse `http://` par Internet : le même serveur (même identifiant) répond-il aussi en `https://`
+/// sur cet hôte (port saisi, 443, puis 8920, le port HTTPS de Jellyfin) ? Si oui, cette adresse
+/// chiffrée, à utiliser à la place : ni le mot de passe ni le jeton ne circulent alors en clair.
+pub async fn https_twin(server: &str) -> Option<String> {
+    let rest = server.strip_prefix("http://")?;
+    let (host_port, path) = rest.split_once('/').map_or((rest, ""), |(h, p)| (h, p));
+    let host = match host_port.rsplit_once(':') {
+        Some((h, p)) if p.parse::<u16>().is_ok() && !host_port.ends_with(']') => h,
+        _ => host_port,
+    };
+    let path = if path.is_empty() { String::new() } else { format!("/{path}") };
+    let mut cands: Vec<String> = Vec::new();
+    for hp in [host_port.to_string(), host.to_string(), format!("{host}:8920")] {
+        let c = format!("https://{hp}{path}");
+        if !cands.contains(&c) {
+            cands.push(c);
+        }
+    }
+    // Tous les sondages à la fois (quelques secondes au plus, même au démarrage).
+    let (id, found) = tokio::join!(server_id(server), futures_util::future::join_all(cands.iter().map(|c| server_id(c))));
+    let id = id?;
+    cands.into_iter().zip(found).find(|(_, f)| f.as_deref() == Some(id.as_str())).map(|(c, _)| c)
+}
+
 /// Identifiant du serveur Jellyfin qui répond à cette adresse (quelques secondes au plus).
 pub async fn server_id(base: &str) -> Option<String> {
     probe(&http(), base).await.map(|(id, _, _)| id)
@@ -455,6 +479,17 @@ pub async fn pick(main: &str, backup: &str) -> String {
 }
 #[cfg(test)]
 mod tests {
+    /// Essai réseau (serveur de démonstration de Jellyfin) :
+    /// cargo test --release discovery::tests::https_twin_demo -- --ignored
+    #[tokio::test]
+    #[ignore]
+    async fn https_twin_demo() {
+        assert!(super::plain_over_internet("http://demo.jellyfin.org/stable").await);
+        assert_eq!(super::https_twin("http://demo.jellyfin.org/stable").await.as_deref(), Some("https://demo.jellyfin.org/stable"));
+        // Adresse du réseau local : jamais considérée comme passant par Internet.
+        assert!(!super::plain_over_internet("http://192.168.1.32:8096").await);
+    }
+
     #[test]
     fn magic_names() {
         assert_eq!(super::magic_name("ABYDOS").as_deref(), Some("abydos"));

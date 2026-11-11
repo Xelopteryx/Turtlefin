@@ -1,6 +1,6 @@
 //! Thèmes : couleurs et effets de l'interface (global `Theme` de ui/theme.slint).
 //!
-//! Cinq thèmes intégrés (Turtlefin, Sombre, Clair, Frutiger Aero, Turtlefin vert) et des thèmes
+//! Trois thèmes intégrés (Turtlefin, Frutiger Aero, Nerd) et des thèmes
 //! personnels : fichiers `.tftheme` (JSON) importés depuis le dossier « Turtlefin Themes »
 //! (à côté de « Turtlefin Languages »), gardés dans prefs.json. Un fichier est reconnu par sa clé
 //! `turtlefin_theme` (version du format, 1). Couleurs : « #rrggbb » ou « #rrggbbaa » ; une couleur
@@ -239,75 +239,9 @@ fn nerd() -> ThemeDef {
     }
 }
 
-/// Anime : crépuscule violet et rose, soleil rayé, montagnes et pétales.
-fn anime() -> ThemeDef {
-    ThemeDef {
-        name: s("Anime"),
-        dark: true,
-        bg: s("#1a0b33"),
-        bg_mid: s("#2a1040"),
-        bg_end: s("#170a2a"),
-        fg: s("#fff4f8"),
-        text: s("#fff4f8e6"),
-        muted: s("#f3c8dcA6"),
-        accent1: s("#ff5c8a"),
-        accent2: s("#ffb35c"),
-        on_accent: s("#2a0a22"),
-        glass: s("#2a103fd9"),
-        glass_border: s("#ff9ec440"),
-        panel: s("#1f0c33f5"),
-        card: s("#2a103fc7"),
-        card_focus: s("#4a1a5cc4"),
-        card_border: s("#ff9ec433"),
-        glow: s("#ff5c8a59"),
-        player_bar: s("#1f0c33e6"),
-        player_ink: s("#fff4f8"),
-        placeholder1: s("#4a1648"),
-        placeholder2: s("#2b1140"),
-        scrim: s("#0e0618"),
-        veil: 0.9,
-        radius: 12.0,
-        scenery: s("sakura"),
-        ..turtlefin()
-    }
-}
-
-/// Cartoon : bleu vif, jaune et rose, gros contours et grands arrondis, rayons de bande dessinée.
-fn cartoon() -> ThemeDef {
-    ThemeDef {
-        name: s("Cartoon"),
-        dark: true,
-        bg: s("#2f22c4"),
-        bg_mid: s("#2a1fb0"),
-        bg_end: s("#1a1480"),
-        fg: s("#ffffff"),
-        text: s("#ffffffeb"),
-        muted: s("#dcd8ffbf"),
-        accent1: s("#ff4fa0"),
-        accent2: s("#ffd21f"),
-        on_accent: s("#14104a"),
-        glass: s("#1a1480e0"),
-        glass_border: s("#14104a"),
-        panel: s("#231aa0f5"),
-        card: s("#14104ab8"),
-        card_focus: s("#14104acc"),
-        card_border: s("#14104a"),
-        glow: s("#ffd21f59"),
-        player_bar: s("#1a1480e6"),
-        player_ink: s("#ffffff"),
-        placeholder1: s("#4a3df0"),
-        placeholder2: s("#231aa0"),
-        scrim: s("#0e0a40"),
-        veil: 0.75,
-        radius: 20.0,
-        scenery: s("toon"),
-        ..turtlefin()
-    }
-}
-
 /// Thèmes intégrés : clé, thème.
 pub fn builtin() -> Vec<(&'static str, ThemeDef)> {
-    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd()), ("anime", anime()), ("cartoon", cartoon())]
+    vec![("turtlefin", turtlefin()), ("aero", aero()), ("nerd", nerd())]
 }
 
 /// Thème choisi dans les réglages : clé intégrée, ou « custom:<nom> » (thème importé).
@@ -386,6 +320,7 @@ fn amber(c: Color) -> Color {
 static PREVIEW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Aperçu : `key` appliqué sans être gardé ; vide : le thème enregistré revient.
+#[allow(dead_code)] // gardé pour un choix du thème au premier démarrage (ailleurs : appliqué une fois choisi)
 pub fn preview(u: &AppWindow, key: &str, saved: &str, custom: &[ThemeDef]) {
     PREVIEW.store(true, std::sync::atomic::Ordering::Relaxed);
     apply(u, &find(if key.is_empty() { saved } else { key }, custom));
@@ -437,8 +372,6 @@ pub fn apply(u: &AppWindow, t: &ThemeDef) {
         "harmony" => 2,
         "circuit" => 3,
         "abyss" => 4,
-        "sakura" => 5,
-        "toon" => 6,
         _ if t.bubbles => 1,
         _ => 0,
     };
@@ -950,8 +883,17 @@ pub fn dir() -> Option<std::path::PathBuf> {
 /// de modèle.
 pub fn export(t: &ThemeDef) -> std::io::Result<std::path::PathBuf> {
     let d = dir().ok_or_else(|| std::io::Error::other("dossier des thèmes introuvable"))?;
-    let safe: String = t.name.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }).collect();
-    let path = d.join(format!("{}.{EXT}", safe.trim()));
+    let safe: String = t.name.chars().take(80).map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }).collect();
+    let mut safe = safe.trim().to_string();
+    // Thème venu d'ailleurs nommé « CON », « NUL », « COM1 »… : sous Windows, ce nom désigne un
+    // périphérique, pas un fichier.
+    let up = safe.to_ascii_uppercase();
+    let reserved = matches!(up.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((up.starts_with("COM") || up.starts_with("LPT")) && up.len() == 4 && up.as_bytes()[3].is_ascii_digit());
+    if safe.is_empty() || reserved {
+        safe.insert(0, '_');
+    }
+    let path = d.join(format!("{safe}.{EXT}"));
     let mut t = t.clone();
     t.turtlefin_theme = 1;
     std::fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())?;

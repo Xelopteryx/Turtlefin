@@ -51,6 +51,12 @@ async fn relay() -> Result<&'static Relay> {
             // télé en lit 2 ou 3 à la fois (vidéo, sous-titres, morceaux HLS).
             let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(32));
             while let Ok((sock, peer)) = listener.accept().await {
+                // Seuls les écrans à qui une adresse a été donnée sont servis : un autre appareil du
+                // réseau est coupé avant même d'avoir lu sa requête (il ne prend aucune des places).
+                if !RELAY.get().is_some_and(|r| r.routes.lock().unwrap().values().any(|v| v.screen == peer.ip())) {
+                    drop(sock);
+                    continue;
+                }
                 let Ok(slot) = slots.clone().try_acquire_owned() else {
                     drop(sock);
                     continue;
@@ -79,7 +85,12 @@ fn local_ip_for(screen: Ipv4Addr) -> Option<Ipv4Addr> {
 pub async fn url_for(upstream: &str, screen: Ipv4Addr) -> Result<String> {
     let u = reqwest::Url::parse(upstream)?;
     let origin = u.origin().ascii_serialization();
-    let rest = &upstream[origin.len()..];
+    // Chemin et requête lus dans l'adresse analysée (l'adresse brute peut différer de son origine :
+    // port par défaut écrit, majuscules, identifiants « nom@ »).
+    let rest = match u.query() {
+        Some(q) => format!("{}?{q}", u.path()),
+        None => u.path().to_string(),
+    };
     let r = relay().await?;
     let me = local_ip_for(screen).ok_or_else(|| anyhow!("aucune adresse sur le réseau local"))?;
     let mut routes = r.routes.lock().unwrap();
@@ -129,7 +140,9 @@ async fn reply(sock: &mut TcpStream, status: &str) -> Result<()> {
 
 /// Une requête de l'écran : la même au serveur (avec sa plage d'octets), et la réponse recopiée.
 async fn serve(mut sock: TcpStream, peer: IpAddr) -> Result<()> {
-    let (first, headers) = read_head(&mut sock).await?;
+    // En-têtes complets en 10 s au plus : un appareil qui les envoie octet par octet ne garde pas
+    // une place des heures durant.
+    let (first, headers) = tokio::time::timeout(Duration::from_secs(10), read_head(&mut sock)).await.map_err(|_| anyhow!("requête trop lente"))??;
     let mut parts = first.split_whitespace();
     let (method, path) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
     // OPTIONS : vérification préalable du lecteur web d'un Chromecast (CORS), relayée aussi.
@@ -197,4 +210,73 @@ async fn serve(mut sock: TcpStream, peer: IpAddr) -> Result<()> {
     }
     let _ = sock.shutdown().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Faux serveur : répond « chemin reçu » à chaque requête.
+    async fn origin() -> u16 {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                tokio::spawn(async move {
+                    let (first, _) = read_head(&mut s).await.unwrap_or_default();
+                    let path = first.split_whitespace().nth(1).unwrap_or("").to_string();
+                    let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{path}", path.len()).as_bytes()).await;
+                });
+            }
+        });
+        port
+    }
+
+    async fn ask(to: SocketAddr, req: &str) -> String {
+        let Ok(mut s) = TcpStream::connect(to).await else { return String::new() };
+        let _ = s.write_all(req.as_bytes()).await;
+        let mut out = Vec::new();
+        let _ = tokio::time::timeout(Duration::from_secs(15), s.read_to_end(&mut out)).await;
+        String::from_utf8_lossy(&out).into_owned()
+    }
+
+    #[tokio::test]
+    async fn only_the_screen_is_served() {
+        let port = origin().await;
+        // Écran : 127.0.0.1 ; adresse avec port par défaut écrit et majuscules.
+        let url = url_for(&format!("http://LOCALHOST:{port}/Videos/x/stream?api_key=k&a=1"), Ipv4Addr::LOCALHOST).await.unwrap();
+        let path = url.splitn(4, '/').nth(3).unwrap().to_string();
+        let relay_port = RELAY.get().unwrap().port;
+        let me: SocketAddr = (Ipv4Addr::LOCALHOST, relay_port).into();
+        // L'écran lit la vidéo.
+        let r = ask(me, &format!("GET /{path} HTTP/1.1\r\nHost: x\r\n\r\n")).await;
+        assert!(r.starts_with("HTTP/1.1 200") && r.ends_with("/Videos/x/stream?api_key=k&a=1"), "{r}");
+        // Mauvais jeton, méthode refusée.
+        assert!(ask(me, "GET /r/0000/Videos HTTP/1.1\r\n\r\n").await.starts_with("HTTP/1.1 404"));
+        assert!(ask(me, &format!("POST /{path} HTTP/1.1\r\n\r\n")).await.starts_with("HTTP/1.1 405"));
+        // Jeton sans chemin derrière : rien.
+        let token = path.split('/').nth(1).unwrap();
+        assert!(ask(me, &format!("GET /r/{token}@evil.com/x HTTP/1.1\r\n\r\n")).await.starts_with("HTTP/1.1 404"));
+        // Un autre appareil (adresse locale de la machine, pas celle de l'écran) : coupé sans réponse.
+        if let Some(lan) = crate::lan::lan_ipv4s().into_iter().find(|ip| !ip.is_unspecified()) {
+            let other: SocketAddr = (lan, relay_port).into();
+            assert_eq!(ask(other, &format!("GET /{path} HTTP/1.1\r\n\r\n")).await, "");
+        }
+        // En-têtes envoyés au compte-gouttes : coupé au bout de 10 s.
+        let t = std::time::Instant::now();
+        let mut s = TcpStream::connect(me).await.unwrap();
+        let mut cut = false;
+        for _ in 0..30 {
+            if s.write_all(b"G").await.is_err() {
+                cut = true;
+                break;
+            }
+            let mut b = [0u8; 1];
+            if let Ok(Ok(0)) = tokio::time::timeout(Duration::from_secs(1), s.read(&mut b)).await {
+                cut = true;
+                break;
+            }
+        }
+        assert!(cut && t.elapsed() < Duration::from_secs(14), "connexion lente gardée");
+    }
 }

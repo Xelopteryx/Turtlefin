@@ -37,7 +37,7 @@ $env:ANDROID_JAR = $jar
 $env:ANDROID_BUILD_TOOLS_VERSION = Split-Path $tools -Leaf
 # Compilation hors du depot (place) ; pages de 16 Ko acceptees (Android 15 et plus).
 if (-not $env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = "$WorkDir\target" }
-$env:RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"
+$env:RUSTFLAGS = "$env:RUSTFLAGS -C link-arg=-Wl,-z,max-page-size=16384".Trim()
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
 
 # 1. Turtlefin (une bibliotheque par architecture).

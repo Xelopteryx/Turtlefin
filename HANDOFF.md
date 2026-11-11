@@ -69,6 +69,7 @@ src/mpv.rs          liaison libmpv ; src/video.rs texture OpenGL ; src/player.rs
 src/syncplay.rs     watch party (WebSocket /socket)
 src/chromecast.rs   Diffuser : appareils Google Cast ; src/relay.rs relais HTTP ; src/lan.rs réseau local
 src/password.rs     solidité d'un mot de passe (alerte « trop simple »)
+src/lock.rs         code facultatif d'un compte (4 chiffres ou 6 flèches), demandé sur « Qui regarde ? »
 src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_command
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant un déplacement
@@ -263,9 +264,34 @@ Fait après des remarques sur Reddit ; l'application a été « attaquée » poi
   rotation et volume vérifiés avant d'être passés au shell.
   Non corrigé : `build-appimage.sh` télécharge linuxdeploy « continuous » sans empreinte (pas d'empreinte
   stable publiée) ; mpv/ffmpeg renvoient l'en-tête du jeton si le serveur Jellyfin lui-même redirige un flux.
+- **Quatrième passe (6 novembre 2026)** : dépendances (`cargo audit`, PC et `android/`) : rustls 0.23.46
+  (4 failles), rustls-webpki 0.103.16, webpki-root-certs 1.0.11, pulldown-cmark 0.13.6, tokio 1.54 ;
+  restent seulement des crates « non maintenues » tirées par Slint. Relais : un appareil qui n'est pas
+  l'écran d'une diffusion est coupé dès la connexion (il ne prend plus une des 32 places), en-têtes en
+  10 s au total (avant : 10 s par octet, une place gardée des heures), chemin relayé lu dans l'adresse
+  analysée ; essai `relay::tests::only_the_screen_is_served`. `api::seg` : « . » et « .. » deviennent
+  « _ » (même encodés en `%2E%2E`, l'analyse de l'adresse les prenait pour un retour au dossier
+  parent) ; tableau de bord : tous les identifiants des chemins encodés (`pseg`, points des versions
+  gardés). Images du catalogue d'extensions (`public_image`) : nom résolu, adresses publiques seulement
+  (`api::is_public_ip`, Tailscale 100.64/10 compris), connexion à l'adresse vérifiée, sans redirection
+  (avant : un dépôt pouvait faire envoyer des requêtes aux machines du réseau local). Cast : longueur
+  de message sans débordement. Export d'un thème nommé « CON », « NUL », « COM1 »… : préfixé de « _ ».
+  Cache des réponses en 0700 sous Unix.
+  Points « non corrigés » de la troisième passe, réglés : `build-appimage.sh` télécharge linuxdeploy
+  `1-alpha-20251107-1` (version épinglée, empreinte SHA-256 vérifiée par architecture) ; flux redirigé
+  par le serveur vers un autre hôte : `Client::offsite` suit les redirections avant mpv (requête d'un
+  octet) et mpv lit l'adresse d'arrivée sans l'en-tête du jeton (sous-titres redirigés ailleurs
+  écartés ; flux HLS non concernés) ; adresse `http://` qui passe par Internet : si le même serveur
+  (même identifiant) répond en `https://` sur cet hôte (port saisi, 443, 8920), elle est remplacée
+  (`discovery::https_twin`, à la connexion et au démarrage pour les adresses enregistrées) ; Linux :
+  jeton rangé dans le trousseau de la session (Secret Service via `secret-tool` : GNOME Keyring,
+  KWallet), le fichier ne garde que `secret-service:<empreinte>` ; sans trousseau (Pi en kiosque,
+  Flatpak, version portable, `TURTLEFIN_NO_KEYRING=1`) : fichier 0600 comme avant. Trousseau
+  verrouillé au lancement : la référence est gardée, la connexion redemandée.
 
-Reste : un serveur en `http://` transmet le jeton en clair (choix de l'utilisateur) ; jeton en clair (0600)
-sous Linux, faute de trousseau commun à toutes les machines visées.
+Reste : un serveur joignable seulement en `http://` par Internet transmet le jeton en clair (rien à
+chiffrer côté client : HTTPS à configurer sur le serveur, ou VPN ; avertissement à la connexion) ; jeton
+en fichier 0600 sur les machines Linux sans trousseau.
 
 ## 6 ter. Travaux d'octobre 2026 (après la 1.2.0 ; publiés avec la 1.9.7)
 
@@ -575,8 +601,7 @@ Demandes du ticket n° 2 (LainX84) et du mainteneur. Commits locaux 8ba7ef1 … 
   `Saved.cast_last` noté à chaque envoi, `cast_restore` s'y rebranche à la connexion (`to_saved` le garde :
   la connexion réécrit la session). Android tue souvent l'appli sans passer par la sortie : c'est ce chemin-là.
 - **Thèmes** : aperçu dans la liste de choix (`theme-preview`, `theme::preview`, sans recalculer l'icône de la
-  fenêtre ; Échap revient au thème enregistré). Nouveaux thèmes « Anime » (`sakura`, 5) et « Cartoon » (`toon`, 6) :
-  dessins originaux, sans personnage, dans `ui/sky.slint` (`SakuraScene`/`SakuraDrift`, `ToonScene`/`ToonDrift`).
+  fenêtre ; Échap revient au thème enregistré). Les thèmes Anime et Cartoon ajoutés ici ont été retirés depuis (section 6 undecies).
 - **Android** : changer de thème ne change plus l'icône tout de suite (`PENDING_ICON`, appliqué sur
   `MainEvent::Stop`) : c'est `setComponentEnabledSetting` qui fermait l'appli. PAS ENCORE ESSAYÉ sur téléphone.
 - **Lecteur** : commandes en fondu et glissement (`osd-p`) ; souris sur le panneau ou réglage en cours : elles
@@ -605,13 +630,144 @@ Demandes du ticket n° 2 (LainX84) et du mainteneur. Commits locaux 8ba7ef1 … 
 - Android : l'icône du thème change en quittant l'appli, sans la fermer (essayé sur le téléphone, appli gardée en
   vie) ; ces propositions A à H n'ont pas été compilées ni essayées sur Android.
 
+## 6 undecies. Décors à tous les formats ; thèmes Anime et Cartoon retirés (4 novembre 2026, pas publié)
+
+- **Formats** : plus aucun décor étiré. `HarmonyScene` et `SkyScene` gardent la même échelle en largeur et en hauteur
+  (rognés sur les côtés en portrait). Nerd : `CircuitEchoes` répète la carte autour de la carte centrale quand la
+  fenêtre est plus large ou plus haute qu'elle (seulement en fond des pages, pas au démarrage).
+- **Anime et Cartoon retirés** à la demande du mainteneur : perfectionner l'appli d'abord, les thèmes ensuite. Restent
+  Turtlefin, Frutiger Aero et Nerd ; un `prefs.json` qui nomme `anime` ou `cartoon` retombe sur Turtlefin. Le dernier état
+  est sauvegardé hors du dépôt, dans `Turtlefin-themes-sauvegarde` à côté du dossier du projet (correctif et fichiers) ;
+  une version antérieure reste dans le commit 24f4064. Son image `anime-library.jpg` vient de NoobAI-XL 1.1, dont la licence
+  interdit la commercialisation, images générées comprises : à ne pas reprendre dans une version vendue.
+- Essais : `target/fast` a sa `libmpv-2.dll` (posée par `build.rs`, voir section 7) ; avant : `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`, sinon la lecture revient
+  aussitôt à la fiche.
+- **Tournée des 3 thèmes** : panneaux des fenêtres opaques sur Nerd (`Theme.term` les rendait transparents, seul Aero a un
+  `WinFrame` qui dessine le fond) ; voile sous les réglages sur Nerd ; coche de la liste de choix visible sur Nerd. Bandeau
+  d'épisodes du lecteur : bouton de fermeture dans sa propre colonne, flèches à la souris (`arrows`), un cran de molette = une
+  demi-carte, un clic sur un épisode referme le bandeau comme Entrée.
+- **Décor Nerd en retrait** (`decor-dim` à 0,45, sauf sur l'écran « loading ») : `Backdrop.decor`, opacité élément par élément dans
+  `CircuitDrift` (`dim`), pas sur tout le calque (trop coûteux sur le Pi). PAS ESSAYÉ sur le Pi.
+- **Menu des cartes sur les rangées** (accueil, recherche, fiche) : `SectionRow.card-menu`, `row-card-menu`. Pas sur les tuiles, ni
+  sur les cartes Seerr ou les personnes (`card-menu-ok`), ni sur la page Téléchargements. `card_played` met à jour la carte partout.
+- **Demandes et À regarder en cartes** : une carte par état (`request_sections`, affiche de la plus récente) ou par bibliothèque
+  (`watch_sections`, `watch_groups`, bibliothèque lue par `/Items/{id}/Ancestors`, gardée dans `App.item_lib`). Identifiants
+  `group:req:<état>`, `group:watch:<bibliothèque>` : la grille des bibliothèques les ouvre (`open_group`, `group_cards`, `lib-list` :
+  pas d'index A-Z). Groupe vide : `empty:…`, `status` négatif = code affiché (`EmptyTile`, propre à chaque thème).
+  Carte de demandes : `status` 10 + état = liseré de couleur.
+- **Compte à rebours** sur la carte « Épisode suivant » (`up-auto`, `up-left`) : seulement si l'enchaînement se fera (réglage du
+  compte, hors watch party). **Squelettes de chargement** (`LoadSkeleton`, `load-shape`) : pages après 0,35 s, connexion après 0,9 s.
+- **Délai d'attente** : `load_home` 40 s en tout (les requêtes s'enchaînent, chacune limitée à 30 s), `load_tab` 25 s, `root.loading` 25 s
+  (`load_timed_out`, `load-timeout`, `tab-failed`). **Chargement qui traîne** : `LoadMark`, propre à chaque thème, à la place de la bulle.
+- **Lecteur aux couleurs du thème** : `PlayerButton` (TermGlass sur Nerd ; Win7Glass sur Aero, sauf l'orbe de Lecture), `panel-r`, barres
+  carrées sur Nerd. **Collections et Playlists** : onglets de la barre du haut (`coll-id`, `play-id`, posés par `set_menu`), retirés de
+  « Mes médias », gardés dans le menu. Essai d'un serveur lent : relais local devant Jellyfin, avec une copie de la config qui le vise.
+  Pas de distribution sur eux ni sur les cartes de groupe (`deal`). À leur racine, ce sont des onglets (`lib-tab-root`) : même barre que
+  l'accueil, sans retour (Échap ramène à l'accueil). Ouverts par leur onglet, tuiles de groupe (`is-group`, Demandes, À regarder) et
+  collection ou bibliothèque déjà distribuée : pas d'image partagée, cartes en vague (`lib-wave`). Paquet : miniature de la grille
+  (`pc-cols` = colonnes de la grille), départs du haut vers le bas (`deal-delay`) ; au retour, `deck-holding` garde les affiches dans la
+  carte jusqu'à la page précédente (`deck-left`).
+- **Barre du haut** : `tabs-lo` identique sur toutes les pages (largeur mesurée du nom), donc une ou deux lignes, textes ou icônes, partout
+  pareil ; onglet en icône sélectionné : son nom dessous. Deux lignes : `hdr-arrow` (flèches par ligne, ↑ ↓ pour en changer) ; `nav-enter`
+  monte sur l'onglet affiché. **États des demandes** : `Theme.req-color` (vert disponible, orange en attente, bleu acceptée, rouge refusée,
+  violet échec), matière propre au thème (pastille, verre, étiquette à équerres et diode). **Fond** : pas de fond pour une tuile (bibliothèque,
+  groupe, dossier vide) ni un onglet vide. Rangées et grille : place pour la carte agrandie (`room`, `top-pad`).
+- **Accueil** : bannière moins haute au bureau (`banner-full`) ; la page ne défile pas pour une rangée déjà entièrement visible (`home-y`) ;
+  l'onglet Accueil, ou l'onglet déjà affiché, ramène tout en haut. **Recherche** : sélection sur le champ = aucun résultat sélectionné.
+  **Paramètres** : nom de la page dans la barre du haut ; sur une colonne, celui de la catégorie ouverte reste dans la page.
+- **Cache des réponses** (`api.rs` : `RESP`, `cache_only`, `live`, `changes`, dossier `cache/api`, 64 Mo, vidé avec le cache d'images) : onglets, première page des grilles et fiches déjà vues s'affichent tout de suite, puis sont remplacés sur place si le serveur répond autre chose (`refresh_sections`). Liste blanche `resp_keep` : ni comptes ni tableau de bord. Pas encore : pages Seerr, recherche ; le démarrage attend encore quelques réponses du serveur avant le premier onglet.
+- **À regarder, Demandes** : onglet et entrée de menu seulement s'ils ont un contenu (`sync_tabs`, `has-watch`, `has-requests`), jamais de tuile vide. **Page Seerr** : état de la demande du compte (`seerr_reqs`, `SeerrPage.state`) ; demande refusée ou en échec : on peut redemander (bouton non essayé, il enverrait une vraie demande).
+- **Connexion** : tuile déplacée au lieu de dupliquée quand l'ordre change ; taille des tuiles selon le nombre de comptes (`pk-fits`), zone qui défile sous le titre ; limite de 64 comptes. **Thèmes** : appliqués au choix seulement (`theme::preview` gardé pour un futur choix au premier démarrage) ; liste fermée en quittant la page. **Touche maintenue** (menu, Paramètres) : un pas toutes les 130 ms, surbrillance sans glissement (`rep-wait`, `rep-on`).
+- **Tableau de bord refait** (`src/dashboard.rs`, 22 catégories en 6 groupes, `cat-top`, `cat-heads`) : vue d'ensemble (chiffres, lectures avec affiche et avancement, tâches, stockage, activité ; relue toutes les 4 s, `dash-tick`), Général, Apparence, Comptes, Bibliothèques (création, dossiers, options), Affichage, Métadonnées, NFO, Transcodage, Reprise, Débit, Aperçus, Appareils, Activité, Réseau, Clés d'API, Sauvegardes, Journaux, Tâches (déclencheurs), Extensions, Catalogue, Dépôts. Sous-pages : `dash_open`, Échap ou ← pour en sortir. Réglages : `Fields` (toggle, text, choice) sur un document du serveur relu puis renvoyé entier (`set_field`). Types de lignes en plus : head, stats, bar, line, hero (en-tête d'une page), cards (grille : `dash-cards`, cartes d'une catégorie ; `dash-card-sel`, flèches dans la grille, sortie à ses bords ; images `image_slot`, chemin serveur ou HTTPS public, PNG/JPEG/SVG). Grilles : lectures, appareils, comptes, bibliothèques, extensions, catalogue. **Écritures essayées sur ABYDOS** et vérifiées par l'API : oui/non, nombre, liste, choix, création, droit, renommage et suppression de compte, clé d'API, sauvegarde, déclencheur, option de bibliothèque, message à un appareil. **Pas essayées** : pause et arrêt d'une lecture (Jormungand ne se lit pas sur ABYDOS), création de bibliothèque, dossiers, dépôts, extensions, réseau, redémarrage, restauration. Pas repris du web : TV en direct, pages de réglages propres aux extensions, envoi de l'image d'accueil.
+- **Tout mettre en cache** (Paramètres > À propos, `precache`) : onglets, bibliothèques page par page, fiches et enfants, images aux tailles affichées ; quatre à la fois ; limites `IMG_CACHE_MAX` 2 Gio et `RESP_CACHE_MAX` 256 Mio.
+- **Pi (5 novembre)** : `/usr/bin/turtlefin` remplacé (ancien : `turtlefin.avant-5nov`) ; `~/xelauncher/src/JSs/ipc-turtlefin.js` repris du dépôt Xelauncher (`--kiosk`, CEC ; ancien : `.avant-5nov`), lu au prochain lancement d'Electron.
+- **Clavier seul (tournée du 5 novembre sur le Pi)** : index A–Z au clavier (`az-on`, `az-sel`, `az-index`) ; ← → restent sur la ligne de la grille (→ au bout : lettres, ← au bout : menu). « Passer l'intro » caché sous une liste du lecteur. Lecteur : Diffuser atteignable (`zone` 4, → depuis Retour) ; le clavier revient au lecteur à la fermeture du panneau (`refocus` de `PlayerView`). Après une lecture : pas de cache pour l'onglet et la fiche suivants (`no_cache_once`, `home_stale`). Mesures sur le Pi (Aero, TV) : repos 18 %, navigation 25 à 58 % d'un cœur, 9 images de plus de 25 ms en 1 min, mémoire 470 à 740 Mo.
+- **Retirer un compte** : deux appuis (`ask-forget`, `arm-id`, 5 s), le titre et la tuile le disent.
+- **À traduire** : 297 textes manquent dans chaque langue (`tools/lang-check.py`), l'appli affiche le français à la place.
+- **Essais** : une copie de la config contient les vrais jetons ; « retirer un compte » révoque le jeton sur le serveur. Effacer les jetons de la copie pour tester ces écrans.
+- **Correctifs du 5 novembre au soir** : « Échap pour annuler » seulement quand une page s'ouvre depuis une autre (`LoadMark.can-cancel`, pas à l'accueil) ; lecture impossible : le message reste affiché après le retour à la page (`toast_hold`, vérifié sur ABYDOS, Y: absent) ; « Chargement… » du lecteur coupé d'un coup quand la vidéo est prête ; retour de lecture sans écran d'attente (`keep_page`, les rangées restent, la bannière se met à jour) ; recherche : ↑ depuis le champ va à son icône, le menu ne marque plus « Accueil », résultats du serveur d'abord, personnes et Seerr ajoutés dessous sans bouger la sélection, Échap ferme le clavier à l'écran ; page Seerr : distribution personne par personne (`sr-cast-i`, `cast-go`), Entrée cherche cette personne.
+- **Processeur au repos (Pi, 19 %)** : le décor ne bouge pas ; seuls l'avatar GIF et l'alerte de mot de passe du compte `test` font redessiner (`still_gifs` les fige pour le GIF). Pas de changement de code.
+- **Vérifié sur ABYDOS** : redémarrage et arrêt du serveur depuis le tableau de bord. **Pas encore essayés** : pause et arrêt d'une lecture depuis le tableau de bord, création de bibliothèque et chemins, dépôts, activation et installation d'extensions, restauration d'une sauvegarde, mode portrait, thèmes Turtlefin et Nerd sur le tableau de bord. Formulaire « Autre compte » au bureau : ↑ ↓ ne changent pas de champ (Entrée et Tab, oui) ; en mode TV, oui.
+- **Toutes les animations coupées** : pas de voile ni d'attente entre deux pages (`nav-go`, `veil`, `skel-go` à 0,9 s), pas d'image partagée
+  (`open-hero`), fond préparé avec la page (`page_backdrop`, grille et fiche ; 0,7 s au plus), attentes immobiles.
+
+## 6 duodecies. Téléphone en portrait (5 novembre 2026, pas publié)
+
+Essayé sur un Galaxy A12s (SM-A127F, 720 x 1600, Android 13 ; modeste), APK arm64 `-Release`.
+
+- **Distribution d'une bibliothèque** : en portrait le paquet se pose en haut, sur la première ligne de la grille.
+  Les lignes du haut partaient d'abord et se posaient sous le reste du paquet. Maintenant `deal-delay` part du bas
+  en portrait (toujours la ligne la plus loin du paquet d'abord) : le paquet se replie vers le haut. Les morceaux
+  disparaissent sans fondu en portrait (pas de calque). Au retour, une carte au-delà de `deal-n` rentre dans le
+  morceau de sa colonne sur la dernière ligne (`pc-j`) ; avant, elle visait une place sous le paquet.
+- **À regarder, Demandes** (une seule rangée de tuiles) : en portrait, la rangée devient une grille (`home-wrap`,
+  `wrap-cols`, `sec-h` ; `SectionRow.wrap-cols`). Largeur de carte habituelle, cartes élargies pour remplir la ligne
+  (sur le téléphone : vignettes 16:9 sur 1 colonne, affiches sur 2). ↑ ↓ changent de ligne.
+- **Menu de gauche** : la barre de navigation d'Android recouvrait « Paramètres » (pas touchable). Le menu réserve
+  maintenant `bot` en bas (même règle que les messages : 48 px sur un téléphone en portrait).
+- Vu correct en portrait : accueil, fiche, bibliothèque, favoris, collections, listes, téléchargements, Watch party,
+  Télécommande.
+
+## 6 terdecies. Code d'un compte (6 novembre 2026, pas publié)
+
+Paramètres → Compte → « Code pour ouvrir ce compte » : Aucun, code à 4 chiffres, ou combinaison de 6 flèches
+(clavier, télécommande, manette). Demandé sur « Qui regarde ? » pour ouvrir le compte (y compris Retour après
+« Changer de compte ») et pour le retirer de l'appareil ; **pas** quand le compte s'ouvre au lancement (compte de
+démarrage, `--user=`). Changer ou retirer le code demande le code actuel. « Code oublié ? » : le mot de passe
+du compte sur le serveur le retire (`App.lock_reset`, appliqué dans `start_session`).
+- `src/lock.rs` : code haché (`genre:sel:empreinte`, 50 000 tours de SHA-256), comparaison en temps constant ;
+  après 5 erreurs, attente de 30 s qui double (1 h au plus), comptée dans `accounts.json` (`lock_fails`,
+  `lock_until`) : relancer l'appli n'y change rien. `save_account` garde le code d'une reconnexion à l'autre.
+- Interface : `lock-*` dans `ui/app.slint` (pavé de chiffres ou croix de flèches, points, secousse). La
+  fenêtre garde le clavier (`changed has-focus`) ; la tuile d'un compte protégé ne lance pas l'envol de la
+  photo (`login-locked`). Clavier AZERTY : la rangée du haut sans Maj (& é " ' ( …) compte comme chiffres
+  (`lock::typed_digit`), comme le pavé numérique.
+- Animations : croix de flèches, boule au milieu qui s'étire en pointe vers la flèche appuyée (`pt-q`,
+  `pt-ang`, tourne par le plus court chemin) ; bouton allumé tant que sa touche est tenue (`down`,
+  `key-released`) ou 160 ms après un clic (`tap`) ; points qui gonflent en se remplissant.
+- Attente : `lock-wait` fait tourner un minuteur d'une seconde (lock-key « tick ») qui recompte le temps
+  restant ; `Flow.wrong` garde « Code incorrect » jusqu'à la fin de l'attente.
+- Télécommande : en combinaison, OK passe aux boutons du bas (`bar` : ⌫, Annuler, « Code oublié ? »),
+  ← → entre eux, ↑ revient au code (rappel « OK : boutons du bas » sous la croix) ; en chiffres, ↓ sous la
+  dernière rangée mène à « Code oublié ? » (`lock-sel` 12). Retour/Échap ferme toujours.
+- Limite (dite à l'utilisateur) : protège l'accès devant l'écran, pas le fichier (10 000 codes possibles).
+- Essayé sur le PC (config à part, faux compte) : mauvais code, bon code, flèches, attente, « Code oublié ».
+  Pas essayé à l'écran : le choix du code dans les Paramètres (il faut une vraie session).
+
+## 6 quattuordecies. Choix de l'avatar au doigt et en portrait (7 novembre 2026, pas publié)
+
+Signalé : sur le téléphone, la grille des photos de profil défilait beaucoup trop vite, et rien n'était visible
+en portrait.
+- **Défilement** : un glissement envoie des dizaines d'événements (`scroll_at`, puis le lancer) et chacun
+  avançait d'une rangée entière. Au doigt (`Nav.drag`), la grille et la liste des catégories défilent maintenant
+  au pixel (`av-off`, `g-off`, bornés par `av-max`, `g-max`) ; `av-top` et `g-top` suivent la rangée du haut. La
+  molette et le clavier gardent une rangée par cran ; le décalage se réaligne sur eux (`changed avt` / `gt`).
+  Seules les flèches ramènent la grille sur l'avatar choisi (une autre touche défaisait le défilement).
+- **Portrait** (`av-one` : `set-one` et plusieurs catégories) : comme les Paramètres, la liste des catégories en
+  pleine largeur, puis la catégorie touchée en plein écran (`av-zone` 1, son nom et son nombre en sous-titre) ;
+  Retour, Échap ou ← en première colonne reviennent à la liste. Avant, la colonne des catégories (250 px) ne
+  laissait à la grille qu'une vingtaine de pixels. « Actuelle » est caché sur une colonne ; titres coupés (`elide`).
+- Au doigt, le sous-titre n'affiche plus l'aide au clavier (« {} avatars en {} catégories », « {} avatars » :
+  traduits dans les 7 langues).
+- Essayé sur le PC (fenêtre 404 x 721, glissement à la souris : même chemin que le doigt) et en large. Pas encore
+  sur le téléphone (pas branché ce jour-là).
+- Chulak (serveur Ubuntu, `chulak-1` sur Tailscale) : version Linux x86_64 compilée sur le PC (cargo-zigbuild,
+  libfontconfig de chulak-1 dans `%LOCALAPPDATA%/turtlefin-x64-sys`), lancée sur un écran virtuel (Xvfb dans un
+  conteneur Docker, `--ipc=host`, écran :99) : langue, visite, thème, recherche (Chulak trouvé), « Qui regarde ? »
+  corrects. Pas plus loin sans mot de passe. Remarque : sous Linux, l'effet de changement de langue est sauté
+  (« take_snapshot is not supported by this FemtoVG backend »).
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
 - Windows : Rust (https://rustup.rs), « Outils de build Visual Studio » (C++), git ; `cargo build --release` ;
-  `libmpv-2.dll` (archive `mpv-dev-x86_64-….7z` de
-  [shinchiro/mpv-winbuild-cmake](https://github.com/shinchiro/mpv-winbuild-cmake/releases)) à côté de l'exe.
-  La version debug a besoin de `TURTLEFIN_LIBMPV=target/release/libmpv-2.dll`.
+  `libmpv-2.dll` est dans le dépôt (`vendor/libmpv/windows-x86_64` et `windows-i686`, compressée en gzip :
+  GitHub refuse les fichiers de plus de 100 Mo) ; `build.rs` (`libmpv_next_to_exe`) la décompresse, vérifie
+  son SHA-256 et la pose à côté de l'exe, debug comme release, même après un `cargo clean`, sans réseau.
+  `build.ps1` la reprend de là. Changer de version : `tools/update-libmpv.ps1 -Download` (ou le chemin
+  d'une DLL ; empreinte dans `libmpv-2.dll.sha256`, provenance dans `SOURCE.txt`), voir `vendor/libmpv/README.md`. La DLL ne se
+  recrée que quand le script de compilation tourne (après `cargo clean`, ou un changement de `build.rs`,
+  de l'interface ou du `.gz`) : DLL supprimée à la main, `touch build.rs`.
 - Linux (Debian / Ubuntu) : `sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
   libmpv-dev` puis `cargo build --release`.
 - `cargo test --release` : tests de i18n, update, etc.

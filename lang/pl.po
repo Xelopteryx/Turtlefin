@@ -266,6 +266,12 @@ msgstr "Awatary: {}, kategorie: {} · Enter, aby wybrać, Esc, aby wrócić"
 msgid "{} avatars · Entrée pour choisir, Échap pour revenir"
 msgstr "Awatary: {} · Enter, aby wybrać, Esc, aby wrócić"
 
+msgid "{} avatars en {} catégories"
+msgstr "Awatary: {}, kategorie: {}"
+
+msgid "{} avatars"
+msgstr "Awatary: {}"
+
 msgid "Actuelle"
 msgstr "Bieżące"
 
@@ -2623,3 +2629,118 @@ msgstr "Strona multimediów przyjmuje kolor plakatu."
 
 msgid "Touche une ligne pour l'essayer, encore une fois pour la choisir."
 msgstr "Dotknij wiersza, aby wypróbować, ponownie, aby wybrać."
+
+msgid "{n} demande"
+msgid_plural "{n} demandes"
+msgstr[0] "{n} prośba"
+msgstr[1] "{n} prośby"
+msgstr[2] "{n} próśb"
+
+msgid "Pas encore de demande disponible"
+msgstr "Brak jeszcze dostępnych próśb"
+
+msgid "Pas encore de demande en attente"
+msgstr "Brak jeszcze oczekujących próśb"
+
+msgid "Pas encore de demande acceptée"
+msgstr "Brak jeszcze zaakceptowanych próśb"
+
+msgid "Pas encore de demande refusée"
+msgstr "Brak jeszcze odrzuconych próśb"
+
+msgid "Pas encore de demande en échec"
+msgstr "Brak jeszcze nieudanych próśb"
+
+msgid "Pas encore de média dans {}"
+msgstr "Brak jeszcze multimediów w {}"
+
+msgid "Ce dossier est vide."
+msgstr "Ten folder jest pusty."
+
+msgid "Rien par ici"
+msgstr "Nic tu nie ma"
+
+msgid "Autres"
+msgstr "Inne"
+
+msgid "Dans {} s"
+msgstr "Za {} s"
+
+msgid "Le serveur met trop de temps à répondre. Réessaie dans un instant."
+msgstr "Serwer zbyt długo nie odpowiada. Spróbuj ponownie za chwilę."
+
+msgid "Demande acceptée"
+msgstr "Prośba zaakceptowana"
+
+msgid "Demande refusée"
+msgstr "Prośba odrzucona"
+
+msgid "La demande a échoué"
+msgstr "Prośba nie powiodła się"
+
+
+msgid "Code pour ouvrir ce compte"
+msgstr "Kod do otwarcia tego konta"
+
+msgid "Demandé sur « Qui regarde ? » (pas quand ce compte s'ouvre au démarrage). Code oublié : le mot de passe du compte le retire."
+msgstr "Pytany na ekranie „Kto ogląda?” (nie, gdy to konto otwiera się przy starcie). Zapomniany kod: hasło konta go usuwa."
+
+msgid "Code à 4 chiffres"
+msgstr "Kod 4-cyfrowy"
+
+msgid "Combinaison de 6 flèches"
+msgstr "Kombinacja 6 strzałek"
+
+msgid "Code de {}"
+msgstr "Kod konta {}"
+
+msgid "Retirer {} : code du compte"
+msgstr "Usuń {}: kod konta"
+
+msgid "Code actuel du compte"
+msgstr "Obecny kod konta"
+
+msgid "Nouveau code : 4 chiffres"
+msgstr "Nowy kod: 4 cyfry"
+
+msgid "Nouvelle combinaison : 6 flèches"
+msgstr "Nowa kombinacja: 6 strzałek"
+
+msgid "Encore une fois, pour confirmer"
+msgstr "Jeszcze raz, aby potwierdzić"
+
+msgid "Avec les flèches du clavier, de la télécommande ou ci-dessous."
+msgstr "Strzałkami klawiatury, pilota lub poniżej."
+
+msgid "Trop d'essais : réessaie dans {} s."
+msgstr "Zbyt wiele prób: spróbuj ponownie za {} s."
+
+msgid "Code incorrect."
+msgstr "Błędny kod."
+
+msgid "Code incorrect. Réessaie dans {} s."
+msgstr "Błędny kod. Spróbuj ponownie za {} s."
+
+msgid "Les deux codes ne sont pas les mêmes. Recommence."
+msgstr "Oba kody się różnią. Zacznij od nowa."
+
+msgid "Code enregistré."
+msgstr "Kod zapisany."
+
+msgid "Combinaison enregistrée."
+msgstr "Kombinacja zapisana."
+
+msgid "Code du compte retiré."
+msgstr "Kod konta usunięty."
+
+msgid "Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte."
+msgstr "Kod konta usunięty. Nowy możesz wybrać w Ustawienia → Konto."
+
+msgid "Code oublié ? Entre le mot de passe du compte"
+msgstr "Zapomniany kod? Wpisz hasło konta"
+
+msgid "OK : boutons du bas"
+msgstr "OK: przyciski na dole"
+
+msgid "Code oublié : mot de passe de {}"
+msgstr "Zapomniany kod: hasło konta {}"

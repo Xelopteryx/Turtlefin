@@ -1,0 +1,1 @@
+shinchiro/mpv-winbuild-cmake 20261106 (mpv-dev-x86_64-20261106-git-9028187538.7z)

@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion, Gloss, Sheen, Nav, Placeholder } from "theme.slint";
+import { Theme, Tr, Motion, Gloss, Sheen, Nav, Placeholder, Win7Glass, TermGlass } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -155,17 +155,17 @@ component Icon inherits Rectangle {
         stroke-line-join: round;
         commands: "M 4.5 17.5 A 8.5 8.5 0 1 1 19.5 17.5 M 12 15 L 15.5 9.5";
     }
-    if root.name == "ep-close": Path {
+    if root.name == "ep-close" || root.name == "ep-left" || root.name == "ep-right": Path {
         width: parent.width;
         height: parent.height;
         viewbox-width: 24;
         viewbox-height: 24;
         fill: transparent;
-        stroke: Theme.player-ink;
+        stroke: root.tint;
         stroke-width: root.height / 9;
         stroke-line-cap: round;
         stroke-line-join: round;
-        commands: "M 6 9 L 12 15 L 18 9";
+        commands: root.name == "ep-left" ? "M 15 6 L 9 12 L 15 18" : root.name == "ep-right" ? "M 9 6 L 15 12 L 9 18" : "M 6 9 L 12 15 L 18 9";
     }
     if root.name == "back": Path {
         width: parent.width;
@@ -226,21 +226,31 @@ component PlayerButton inherits Rectangle {
     animate lit-s { duration: Motion.player ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     // Le zoom est sur un rectangle intérieur : ignoré sur la racine d'un composant à minuterie.
+    // Nerd : composant de carte électronique ; Aero : verre de Windows 7 (le bouton Lecture reste l'orbe).
+    property <bool> chip: Theme.term;
+    property <bool> pane: Theme.win7 && !root.orb;
     face := Rectangle {
     width: parent.width;
     height: parent.height;
-    border-radius: self.height / 2;
+    border-radius: root.chip ? 2px : root.pane ? 4px : self.height / 2;
     transform-scale: root.lit-s + root.push;
     // Orbe au repos : verre teinté d'accent, plus discret ; choisie : pleine, brillante et lumineuse.
-    background: root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+    background: root.chip || root.pane ? transparent
+        : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
         : root.orb ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.38) 0%, Theme.accent2.with-alpha(0.38) 100%)
-        : Theme.player-ink.with-alpha(0.08);
+        : Theme.dark ? Theme.player-ink.with-alpha(0.08) : Theme.player-bar;
     animate background { duration: Motion.player ? 180ms : 0ms; }
-    border-width: root.lit && !root.orb ? 0px : 1px;
+    border-width: root.chip || root.pane || (root.lit && !root.orb) ? 0px : 1px;
     border-color: root.orb ? Theme.player-ink.with-alpha(0.55) : Theme.player-ink.with-alpha(0.25);
     drop-shadow-blur: Nav.no-shadow ? 0px : (root.orb && root.lit ? 16px : 0px);
     drop-shadow-color: Theme.accent2.with-alpha(0.8);
-    Gloss { r: parent.border-radius; }
+    if root.chip: TermGlass {
+        lit: root.lit;
+    }
+    if root.pane: Win7Glass {
+        lit: root.lit;
+    }
+    Gloss { r: parent.border-radius; visible: Theme.gloss > 0 && !root.pane; }
     // Orbe : éclat lumineux en bas, comme une bille de verre éclairée par-dessous.
     if root.orb: Rectangle {
         x: parent.width * 0.2;
@@ -461,6 +471,8 @@ export component PlayerView inherits Rectangle {
     in property <[CardData]> episodes;
     in property <int> ep-current;
     in property <string> up-mode;
+    // L'épisode suivant se lance seul à la fin du fichier : compte à rebours sur sa carte.
+    in property <bool> up-auto;
     in property <string> up-title;
     in property <string> up-sub;
     in property <image> up-image;
@@ -523,7 +535,8 @@ export component PlayerView inherits Rectangle {
     // Carte « Épisode suivant » et « Passer l'intro » : apparition et disparition en fondu.
     property <float> next-p: root.up-mode == "next" && root.menu == "" ? 1 : 0;
     animate next-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
-    property <float> skip-p: root.skip-intro && root.up-mode == "" ? 1 : 0;
+    // Pas par-dessus une liste ouverte (pistes, vitesse...).
+    property <float> skip-p: root.skip-intro && root.up-mode == "" && root.menu == "" ? 1 : 0;
     animate skip-p { duration: Motion.player ? 220ms : 0ms; easing: ease-out; }
 
     callback command(string);   // "pause", "seek:-10", "seek-to:0.5", "chapter:1", "episode:-1", "aid:2", "sid:no", "quality:8000", "stop"
@@ -574,7 +587,7 @@ export component PlayerView inherits Rectangle {
         }
     }
     property <int> idle: 0;      // secondes sans activité (négatif : délai de plus après un réglage)
-    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 5 épisodes · 6 volume
+    property <int> zone: 0;      // 0 aucune · 1 barre de temps · 2 boutons · 3 Retour · 4 Diffuser · 5 épisodes · 6 volume
     property <int> btn: 2;       // 0 ép. préc. · 1 chap. préc. · 2 lecture · 3 chap. suiv. · 4 ép. suiv. · 5 volume · 6 audio · 7 sous-titres · 8 qualité
     // Volume de Turtlefin (mpv), 0 à 100 ; réglé par la barre du bouton volume.
     in-out property <int> volume: 100;
@@ -602,6 +615,8 @@ export component PlayerView inherits Rectangle {
             : c >= 0 && c <= 8 && root.btn-ok(c) ? c
             : e >= 0 && e <= 8 && root.btn-ok(e) ? e : from;
     }
+    // Angles des panneaux et des barres selon le thème.
+    property <length> panel-r: Theme.term ? 3px : Theme.win7 ? 8px : 16px;
     property <string> menu: "";  // "" | "audio" | "sub" | "quality"
     // Dernier menu ouvert : son contenu reste affiché pendant qu'il disparaît.
     property <string> menu-last: "audio";
@@ -704,7 +719,14 @@ export component PlayerView inherits Rectangle {
     // Bandeau d'épisodes affiché (0 -> 1) : panneau et bandeau glissent ensemble.
     property <float> ep-p: root.osd && root.zone == 5 ? 1 : 0;
     animate ep-p { duration: Motion.player ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    // Secondes avant l'épisode suivant, et valeur de départ (la barre de la carte se vide). Le compte
+    // suit la vidéo : il s'arrête en pause.
+    property <int> up-left: max(0, ceil(root.dur-secs - root.pos-secs));
+    property <int> up-from: 1;
     changed up-mode => {
+        if (root.up-mode == "next") {
+            root.up-from = max(1, root.up-left);
+        }
         root.up-sel = root.up-mode == "next" ? 0 : root.up-mode == "" ? 0 : 1;
     }
 
@@ -843,7 +865,8 @@ export component PlayerView inherits Rectangle {
         }
     }
     property <float> load-a: root.load-slow && !root.ready ? 1 : 0;
-    animate load-a { duration: Motion.player ? 300ms : 0ms; easing: ease-in-out; }
+    // Vidéo prête : le texte part aussitôt (il restait un instant par-dessus l'image).
+    animate load-a { duration: Motion.player && !root.ready ? 300ms : 0ms; easing: ease-in-out; }
     if root.load-a > 0.01: Text {
         opacity: root.load-a;
         text: Tr.t(Tr.k, "Chargement…");
@@ -1073,11 +1096,17 @@ export component PlayerView inherits Rectangle {
         }
     }
 
+    // Incrémenté à la fermeture d'un panneau par-dessus le lecteur (Diffuser) : le clavier revient ici.
+    in property <int> refocus;
     FocusScope {
         width: 0px;
         height: 0px;
 
         init => {
+            self.focus();
+        }
+        property <int> back: root.refocus;
+        changed back => {
             self.focus();
         }
 
@@ -1119,7 +1148,7 @@ export component PlayerView inherits Rectangle {
             }
 
             // « Passer l'intro » affiché et commandes masquées : Entrée passe l'intro.
-            if (root.skip-intro && (!root.osd || root.zone == 0) && event.text == Key.Return) {
+            if (root.skip-intro && root.menu == "" && (!root.osd || root.zone == 0) && event.text == Key.Return) {
                 root.command("skip-intro");
                 return EventResult.accept;
             }
@@ -1272,11 +1301,26 @@ export component PlayerView inherits Rectangle {
                     root.zone = 2;
                 }
             } else if (root.zone == 3) {
-                // Bouton Retour
+                // Bouton Retour ; → : Diffuser, à l'autre bout de la rangée du haut.
                 if (event.text == Key.DownArrow) {
                     root.zone = 1;
+                } else if (event.text == Key.RightArrow) {
+                    root.zone = 4;
                 } else if (event.text == Key.Return) {
                     root.command("stop");
+                }
+            } else if (root.zone == 4) {
+                // Bouton Diffuser
+                if (event.text == Key.DownArrow) {
+                    root.zone = 1;
+                } else if (event.text == Key.LeftArrow) {
+                    root.zone = 3;
+                } else if (event.text == Key.Return) {
+                    if (root.remote) {
+                        root.cm-open = !root.cm-open;
+                    } else {
+                        root.cast();
+                    }
                 }
             }
             root.show();
@@ -1471,6 +1515,7 @@ export component PlayerView inherits Rectangle {
             y: root.m;
             size: 52px * root.k;
             icon: root.cast-on ? "cast-on" : "cast";
+            focused: root.zone == 4;
             clicked => {
                 if (root.remote) {
                     root.cm-open = !root.cm-open;
@@ -1534,6 +1579,9 @@ export component PlayerView inherits Rectangle {
             height: 30px * root.k;
             text: root.title;
             color: Theme.player-ink.with-alpha(0.92);
+            stroke: Theme.dark ? transparent : Theme.player-bar;
+            stroke-width: Theme.dark ? 0px : 4px;
+            stroke-style: outside;
             font-size: 22px * root.k;
             font-weight: 700;
             vertical-alignment: center;
@@ -1567,7 +1615,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - 2 * root.m;
             height: 160px * root.k;
             y: parent.height - self.height - root.m - root.ep-p * root.ep-h + (1 - root.osd-p) * 28px * root.k;
-            border-radius: 16px;
+            border-radius: root.panel-r;
             background: Theme.player-bar;
             Gloss { r: parent.border-radius; strength: 0.4; }
             border-width: 1px;
@@ -1628,7 +1676,7 @@ export component PlayerView inherits Rectangle {
                 track := Rectangle {
                     y: (parent.height - self.height) / 2;
                     height: bar.th;
-                    border-radius: self.height / 2;
+                    border-radius: Theme.term ? 0px : self.height / 2;
                     background: Theme.player-ink.with-alpha(0.2);
                 }
 
@@ -1637,7 +1685,7 @@ export component PlayerView inherits Rectangle {
                     y: track.y;
                     width: max(bar.th, parent.width * bar.shown);
                     height: bar.th;
-                    border-radius: self.height / 2;
+                    border-radius: Theme.term ? 0px : self.height / 2;
                     background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
                 }
 
@@ -1655,8 +1703,8 @@ export component PlayerView inherits Rectangle {
                     height: self.width;
                     x: parent.width * bar.shown - self.width / 2;
                     y: (parent.height - self.height) / 2;
-                    border-radius: self.width / 2;
-                    background: Theme.on-accent;
+                    border-radius: Theme.term ? 2px : self.width / 2;
+                    background: Theme.term ? Theme.accent2 : Theme.on-accent;
                     border-width: root.zone == 1 ? 3px : 0px;
                     border-color: Theme.accent2;
                 }
@@ -1870,7 +1918,7 @@ export component PlayerView inherits Rectangle {
             x: parent.width - self.width - root.m;
             y: panel.y - self.height - 16px * root.k + (1 - root.menu-p) * 24px * root.k;
             opacity: root.menu-p;
-            border-radius: 16px;
+            border-radius: root.panel-r;
             background: Theme.player-bar;
             Gloss { r: parent.border-radius; strength: 0.4; }
             border-width: 1px;
@@ -2020,7 +2068,7 @@ export component PlayerView inherits Rectangle {
         x: parent.width - self.width - root.m;
         y: parent.height - root.m - 160px * root.k - self.height - 16px * root.k + (1 - root.vol-p) * 24px * root.k;
         opacity: root.vol-p;
-        border-radius: 16px;
+        border-radius: root.panel-r;
         background: Theme.player-bar;
             Gloss { r: parent.border-radius; strength: 0.4; }
         border-width: 1px;
@@ -2049,7 +2097,7 @@ export component PlayerView inherits Rectangle {
             Rectangle {
                 y: (parent.height - self.height) / 2;
                 height: vbar.track;
-                border-radius: self.height / 2;
+                border-radius: Theme.term ? 0px : self.height / 2;
                 // Partie vide bien visible (au doigt, on doit voir où toucher).
                 background: Theme.player-ink.with-alpha(0.3);
                 border-width: 1px;
@@ -2061,7 +2109,7 @@ export component PlayerView inherits Rectangle {
                 width: max(vbar.track, parent.width * root.volume / 100);
                 animate width { duration: Motion.player && !vtouch.pressed ? 120ms : 0ms; easing: ease-out; }
                 height: vbar.track;
-                border-radius: self.height / 2;
+                border-radius: Theme.term ? 0px : self.height / 2;
                 background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
             }
             Rectangle {
@@ -2072,7 +2120,7 @@ export component PlayerView inherits Rectangle {
                 x: parent.width * root.volume / 100 - self.width / 2;
                 animate x { duration: Motion.player && !vtouch.pressed ? 120ms : 0ms; easing: ease-out; }
                 y: (parent.height - self.height) / 2;
-                border-radius: self.width / 2;
+                border-radius: Theme.term ? 2px : self.width / 2;
                 background: Theme.player-ink;
                 border-width: 3px;
                 border-color: Theme.accent2;
@@ -2106,10 +2154,12 @@ export component PlayerView inherits Rectangle {
 
     // ------------------------------------------------------------ Épisodes de la saison (↓)
     // Le bandeau monte du bas en même temps que le panneau (ep-p), sans le recouvrir.
+    // Le bouton de fermeture a sa colonne à droite : une carte ne peut pas passer dessus.
+    property <length> ep-close-w: Nav.kb ? 0px : 40px * root.k;
     if root.ep-p > 0.001: Rectangle {
         x: root.m;
         y: parent.height - root.ep-p * (root.ep-h + root.m / 2);
-        width: parent.width - 2 * root.m;
+        width: parent.width - 2 * root.m - root.ep-close-w - 8px * root.k;
         height: root.ep-h;
         clip: true;
 
@@ -2135,11 +2185,15 @@ export component PlayerView inherits Rectangle {
                 if (d == 0) {
                     return EventResult.reject;
                 }
-                parent.free-x = max(parent.strip-min, min(0px, (parent.free ? parent.free-x : parent.sel-x) + d));
-                parent.free = true;
-                root.show();
+                // Molette : un cran avance d'une demi-carte. Au doigt : le bandeau suit le doigt.
+                parent.scroll-by(Nav.touch ? d : d * 2);
                 return EventResult.accept;
             }
+        }
+        function scroll-by(d: length) {
+            self.free-x = max(self.strip-min, min(0px, (self.free ? self.free-x : self.sel-x) + d));
+            self.free = true;
+            root.show();
         }
 
         for e[i] in root.episodes: EpisodeCard {
@@ -2152,23 +2206,55 @@ export component PlayerView inherits Rectangle {
             focused: i == root.ep-sel;
             current: i == root.ep-current;
             clicked => {
+                // Comme Entrée au clavier : l'épisode se lance et le bandeau se referme.
                 if (i != root.ep-current) {
                     root.command("goto:" + e.id);
                 }
-            }
-        }
-        // Refermer le bandeau à la souris ou au doigt.
-        PlayerButton {
-            x: parent.width - self.width - 6px * root.k;
-            y: 6px * root.k;
-            size: 40px * root.k;
-            icon: "ep-close";
-            background: Theme.player-bar;
-            border-radius: self.height / 2;
-            clicked => {
                 root.zone = 2;
                 root.show();
             }
+        }
+        // Flèches à la souris (pas au doigt ni au clavier), seulement s'il reste des épisodes de ce côté.
+        property <length> page: self.width - 2 * self.pad - self.cw;
+        property <bool> arrows: !Nav.kb && !Nav.touch;
+        PlayerButton {
+            z: 5;
+            x: 4px * root.k;
+            y: (parent.height - self.height) / 2;
+            size: 44px * root.k;
+            icon: "ep-left";
+            visible: parent.arrows && parent.strip-x < 0px;
+            background: Theme.skinned ? transparent : Theme.player-bar;
+            border-radius: self.height / 2;
+            clicked => {
+                parent.scroll-by(parent.page);
+            }
+        }
+        PlayerButton {
+            z: 5;
+            x: parent.width - self.width - 4px * root.k;
+            y: (parent.height - self.height) / 2;
+            size: 44px * root.k;
+            icon: "ep-right";
+            visible: parent.arrows && parent.strip-x > parent.strip-min;
+            background: Theme.skinned ? transparent : Theme.player-bar;
+            border-radius: self.height / 2;
+            clicked => {
+                parent.scroll-by(-parent.page);
+            }
+        }
+    }
+    // Refermer le bandeau à la souris ou au doigt (au clavier : ↑, pas de bouton inatteignable).
+    if root.ep-p > 0.001 && !Nav.kb: PlayerButton {
+        x: parent.width - root.m - self.width;
+        y: parent.height - root.ep-p * (root.ep-h + root.m / 2) + (root.ep-h - self.height) / 2;
+        size: root.ep-close-w;
+        icon: "ep-close";
+        background: Theme.skinned ? transparent : Theme.player-bar;
+        border-radius: self.height / 2;
+        clicked => {
+            root.zone = 2;
+            root.show();
         }
     }
 
@@ -2203,7 +2289,7 @@ export component PlayerView inherits Rectangle {
         y: parent.height - self.height - root.m - root.osd-p * (160px * root.k + root.m);
         width: min(340px * root.k, parent.width - 32px * root.k);
         height: 340px * 0.5625 * root.k + 150px * root.k;
-        border-radius: 14px;
+        border-radius: root.panel-r;
         background: Theme.player-bar;
         // Toute la carte compte comme le bouton visé (voir aim), pas seulement ses boutons.
         TouchArea { }
@@ -2219,6 +2305,16 @@ export component PlayerView inherits Rectangle {
             font-size: 14px * root.k;
             font-weight: 700;
         }
+        if root.up-auto: Text {
+            x: 14px * root.k;
+            y: 10px * root.k;
+            width: parent.width - 28px * root.k;
+            text: Tr.f(Tr.k, "Dans {} s", "" + root.up-left, "");
+            color: Theme.player-ink;
+            font-size: 14px * root.k;
+            font-weight: 700;
+            horizontal-alignment: right;
+        }
         Rectangle {
             x: 14px * root.k;
             y: 34px * root.k;
@@ -2232,6 +2328,14 @@ export component PlayerView inherits Rectangle {
                 height: parent.height;
                 source: root.up-image;
                 image-fit: fill;
+            }
+            // Compte à rebours : la barre se vide jusqu'au passage à l'épisode suivant.
+            if root.up-auto: Rectangle {
+                x: 0px;
+                y: parent.height - self.height;
+                width: parent.width * clamp(root.up-left / root.up-from, 0, 1);
+                height: 4px * root.k;
+                background: Theme.accent2;
             }
         }
         Text {

@@ -44,6 +44,9 @@ libc = "0.2"
 [build-dependencies]
 slint-build = "1"
 winresource = "0.1"
+# Windows : libmpv-2.dll du dépôt (vendor/libmpv, compressée) décompressée et vérifiée à côté de l'exe.
+flate2 = "1"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = 3

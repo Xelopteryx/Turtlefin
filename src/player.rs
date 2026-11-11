@@ -429,11 +429,16 @@ pub async fn play(
                                 if std::env::var_os("TURTLEFIN_DEBUG_UP").is_some() && sec % 5 == 0 {
                                     eprintln!("turtlefin : pos {:.0} / {:.0}, générique à {:.0}, déjà proposé {}, fini {}", cur.pos, cur.dur, cur.outro_at(), cur.up_shown, cur.ended);
                                 }
+                                // Retour en arrière avant le générique : la proposition s'en va (elle reviendra).
+                                if cur.up_shown && !cur.ended && cur.pos < cur.outro_at() - 5.0 {
+                                    cur.up_shown = false;
+                                    let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("".into()));
+                                }
                                 // Générique de fin : on propose la suite (une fois par fichier).
                                 if !cur.up_shown && !cur.ended && cur.dur > 120.0 && cur.pos >= cur.outro_at() && cur.pos < cur.dur - 2.0 {
                                     cur.up_shown = true;
                                     let next = neighbour(&episodes, cur.item.as_ref(), 1);
-                                    show_up_next(&app, client, cur.item.as_ref(), next, false);
+                                    show_up_next(&app, client, cur.item.as_ref(), next, false, !sync && autonext(&app));
                                 }
                             }
                         }
@@ -556,7 +561,7 @@ pub async fn play(
                             cur.ended = true;
                             if sync {
                                 // Watch party : on laisse la suite au groupe (écran de fin pour choisir).
-                                show_up_next(&app, client, cur.item.as_ref(), None, true);
+                                show_up_next(&app, client, cur.item.as_ref(), None, true, false);
                             } else if neighbour(&episodes, cur.item.as_ref(), 1).is_some() && autonext(&app) {
                                 // Épisode suivant (ou premier de la saison suivante).
                                 go_episode = Some(1);
@@ -565,7 +570,7 @@ pub async fn play(
                                 let next = neighbour(&episodes, cur.item.as_ref(), 1);
                                 if !cur.up_shown {
                                     cur.up_shown = true;
-                                    show_up_next(&app, client, cur.item.as_ref(), next, false);
+                                    show_up_next(&app, client, cur.item.as_ref(), next, false, false);
                                 } else {
                                     let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("next".into()));
                                 }
@@ -574,7 +579,7 @@ pub async fn play(
                                 let _ = ui.upgrade_in_event_loop(|u| u.set_p_up_mode("end".into()));
                             } else if client.is_some() && cur.item.is_some() {
                                 // Fin de série ou de film : écran de fin (suggestions, retour à l'accueil).
-                                show_up_next(&app, client, cur.item.as_ref(), None, true);
+                                show_up_next(&app, client, cur.item.as_ref(), None, true, false);
                             } else {
                                 break;
                             }
@@ -996,7 +1001,8 @@ pub fn autonext(app: &Arc<App>) -> bool {
 /// - un épisode suit : « Épisode suivant » (ou « Saison suivante » s'il ouvre une autre saison) ;
 /// - sinon (fin de série, film) : 3 titres au hasard parmi « Plus de ce genre », la vidéo réduite
 ///   en haut à gauche ; à la fin du fichier (`ended`), écran de fin avec « Retour à l'accueil ».
-pub fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, next: Option<String>, ended: bool) {
+/// `auto` : l'épisode suivant se lancera seul à la fin du fichier (compte à rebours sur la carte).
+pub fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>, next: Option<String>, ended: bool, auto: bool) {
     let (Some(c), Some(it)) = (client.cloned(), item.cloned()) else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -1014,6 +1020,7 @@ pub fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>
                 u.set_p_up_title(title.into());
                 u.set_p_up_button(button.into());
                 u.set_p_up_sub(sub.into());
+                u.set_p_up_auto(auto);
                 u.set_p_has_up_image(false);
                 u.set_p_up_mode("next".into());
             });
@@ -1143,8 +1150,24 @@ async fn load(
     // journaux (mpv, serveur, proxy) ni dans les messages d'erreur. `append` garde la valeur entière
     // (elle contient des virgules, séparateur des listes de mpv).
     let _ = player.command(&["change-list", "http-header-fields", "clr", ""]);
-    // Seulement vers le serveur Jellyfin lui-même (pas vers une source distante).
-    if let (Some(c), Some(_), true) = (client, &item, client.is_some_and(|c| url.starts_with(&c.server))) {
+    // Seulement vers le serveur Jellyfin lui-même (pas vers une source distante), et jamais vers
+    // l'hôte où le serveur redirigerait le flux (voir `Client::offsite`). L'en-tête vaut pour toutes
+    // les requêtes de mpv : un sous-titre redirigé ailleurs est laissé de côté.
+    let (url, with_token, subs) = match (client, &item) {
+        (Some(c), Some(_)) if url.starts_with(&c.server) => {
+            // Flux converti (HLS) : le jeton est déjà dans ses adresses, pas de requête de plus.
+            let (url, with_token) = if tc.is_some() { (url, true) } else { c.offsite(&url).await };
+            let mut kept = Vec::new();
+            for (u, lang) in subs {
+                if !with_token || c.offsite(&u).await == (u.clone(), true) {
+                    kept.push((u, lang));
+                }
+            }
+            (url, with_token, kept)
+        }
+        _ => (url, false, subs),
+    };
+    if let (Some(c), Some(_), true) = (client, &item, with_token) {
         player.command(&["change-list", "http-header-fields", "append", &format!("Authorization: {}", c.auth())])?;
     }
     player.set_property("force-media-title", &title)?;
