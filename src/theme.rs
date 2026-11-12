@@ -894,11 +894,10 @@ fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32
         // Liseré sombre puis fin trait clair au bord.
         c = mix(c, deep, 0.6 * ((r - 112.0) / 8.0).clamp(0.0, 1.0));
         c = mix(c, white, 0.35 * (1.0 - ((r - 120.5).abs() / 1.5).clamp(0.0, 1.0)));
-        // Carapace (plus petite que sur l'icône carrée) : chaque quart dans sa couleur du drapeau de Windows 7,
-        // une lueur de la même couleur autour, un reflet clair sur le haut des traits ; cœur blanc nacré.
+        // Carapace (plus petite que sur l'icône carrée) aux quatre couleurs du drapeau de Windows 7, fondues
+        // d'une couleur à l'autre au milieu (comme Win7Ink, ui/logo.slint), sans lueur ; reflet sur le haut des
+        // traits ; cœur blanc nacré.
         let l = (128.0 + (sx - 128.0) / 1.12, 128.0 + (sy - 128.0) / 1.12);
-        let k = (l.0 >= 128.0) as usize + 2 * (l.1 >= 128.0) as usize;
-        let (hi, lo) = WIN7_COLORS[k];
         let shell = |q: (f32, f32)| {
             let mut d = f32::MAX;
             for i in 0..6 {
@@ -908,14 +907,22 @@ fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32
             d
         };
         let dist = shell(l);
-        let glow = (1.0 - (dist / 16.0).clamp(0.0, 1.0)).powf(1.6) * 0.55 * (dist > 0.0) as u8 as f32;
-        c = mix(c, hi, glow);
         // Ombre portée sous la carapace.
         c = mix(c, deep, 0.5 * cov(shell((l.0, l.1 - 2.0)) * 1.12));
-        let t = if k < 2 { (l.1 - 60.0) / 68.0 } else { (l.1 - 128.0) / 68.0 };
-        let mut sc = mix(hi, lo, t.clamp(0.0, 1.0));
+        let smooth = |v: f32| {
+            let v = v.clamp(0.0, 1.0);
+            v * v * (3.0 - 2.0 * v)
+        };
+        let tx = smooth((l.0 - 128.0) / 40.0 + 0.5);
+        let ty = smooth((l.1 - 128.0) / 40.0 + 0.5);
+        let (r0, g0, b0, y0) = (WIN7_COLORS[0].0, WIN7_COLORS[1].0, WIN7_COLORS[2].0, WIN7_COLORS[3].0);
+        let (r1, g1, b1, y1) = (WIN7_COLORS[0].1, WIN7_COLORS[1].1, WIN7_COLORS[2].1, WIN7_COLORS[3].1);
+        let mid = |a: [f32; 3], b: [f32; 3]| mix(a, b, 0.5);
+        let top = mix(mid(r0, r1), mid(g0, g1), tx);
+        let bot = mix(mid(b0, b1), mid(y0, y1), tx);
+        let mut sc = mix(top, bot, ty);
         // Reflet : le haut du trait plus clair.
-        sc = mix(sc, white, 0.45 * (1.0 - cov(shell((l.0, l.1 + 2.5)) * 1.12)));
+        sc = mix(sc, white, 0.4 * (1.0 - cov(shell((l.0, l.1 + 2.5)) * 1.12)));
         c = mix(c, sc, cov(dist * 1.12));
         let mut dc = f32::MAX;
         for i in 0..6 {

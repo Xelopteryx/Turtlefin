@@ -14,7 +14,7 @@ import { Theme, Tr, Gloss, Motion, Nav } from "theme.slint";
 import { AeroSky, CircuitScene } from "sky.slint";
 import { TrackData } from "player.slint";
 import { DustLine, DustLines } from "dust.slint";
-import { ThemeLogo, Srv } from "logo.slint";
+import { ThemeLogo, Srv, Win7Ink } from "logo.slint";
 
 export component BootLogo inherits Rectangle {
     in property <float> k: 1.0;
@@ -235,10 +235,11 @@ export component BootLogo inherits Rectangle {
             width: 200 * root.orb-s * root.u;
             height: self.width;
             border-radius: self.width / 2;
-            background: @radial-gradient(circle, root.srv.brighter(0.5).mix(Theme.accent1, 1 - root.orb-c) 0%,
-                root.srv.mix(Theme.accent1.mix(Theme.bg, 0.55), 1 - root.orb-c) 70%, root.srv.darker(0.35).mix(Theme.bg, 1 - root.orb-c) 100%);
+            // Fin : le verre sombre du logo (ThemeLogo), pour qu'il n'y ait pas de saut de couleur au relais.
+            background: @radial-gradient(circle, root.srv.brighter(0.5).mix(#0a3270, 1 - root.orb-c) 0%,
+                root.srv.mix(#061c44, 1 - root.orb-c) 62%, root.srv.darker(0.35).mix(#020c1e, 1 - root.orb-c) 100%);
             border-width: 2px;
-            border-color: Theme.accent2.with-alpha(0.45 * root.orb-c);
+            border-color: rgba(160, 210, 255, 0.55 * root.orb-c);
             drop-shadow-blur: 30 * root.u;
             drop-shadow-color: root.srv.mix(Theme.accent2, 1 - root.orb-c).with-alpha(0.6);
             Rectangle {
@@ -247,7 +248,7 @@ export component BootLogo inherits Rectangle {
                 width: parent.width * 0.7;
                 height: parent.height * 0.6;
                 border-radius: self.width / 2;
-                background: @radial-gradient(circle, Theme.accent2.with-alpha(0.65) 0%, Theme.accent2.with-alpha(0) 70%);
+                background: @radial-gradient(circle, #2a8ce6.with-alpha(0.75) 0%, #2a8ce6.with-alpha(0) 72%);
             }
         }
         // Aero : halo du logo qui s'allume, et éclair blanc au moment où les billes se rejoignent.
@@ -274,16 +275,17 @@ export component BootLogo inherits Rectangle {
         for i in 6: Path {
             visible: root.edge-p > 0 && !root.nerd && !root.handoff;
             // Slint réduit le dessin d'un chemin de l'épaisseur de son trait : on agrandit d'autant.
+            // Aero : cadre de Win7Shell (logo.slint), pour que les couleurs tombent au même endroit qu'à la fin.
             x: (53 - 7) * root.u;
             y: (53 - 7) * root.u;
             width: (150 + 14) * root.u;
             height: (150 + 14) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
+            viewbox-x: root.orb ? 53 - 7 : 53;
+            viewbox-y: root.orb ? 53 - 7 : 53;
+            viewbox-width: root.orb ? 150 + 14 : 150;
+            viewbox-height: root.orb ? 150 + 14 : 150;
             fill: transparent;
-            stroke: root.grad;
+            stroke: root.orb ? Win7Ink.edge(i, root.reveal, 0) : root.grad;
             stroke-width: 14 * root.u;
             stroke-line-cap: round;
             commands: "M " + root.px[i] + " " + root.py[i] + " L "
@@ -293,16 +295,16 @@ export component BootLogo inherits Rectangle {
         // Rayons, des sommets vers l'hexagone central.
         for i in 6: Path {
             visible: root.spoke-p > 0 && !root.nerd && !root.handoff;
-            x: (53 - 4) * root.u;
-            y: (53 - 4) * root.u;
-            width: (150 + 8) * root.u;
-            height: (150 + 8) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
+            x: (53 - (root.orb ? 7 : 4)) * root.u;
+            y: (53 - (root.orb ? 7 : 4)) * root.u;
+            width: (150 + (root.orb ? 14 : 8)) * root.u;
+            height: (150 + (root.orb ? 14 : 8)) * root.u;
+            viewbox-x: root.orb ? 53 - 7 : 53;
+            viewbox-y: root.orb ? 53 - 7 : 53;
+            viewbox-width: root.orb ? 150 + 14 : 150;
+            viewbox-height: root.orb ? 150 + 14 : 150;
             fill: transparent;
-            stroke: root.grad;
+            stroke: root.orb ? Win7Ink.spoke(i, root.reveal, 0) : root.grad;
             stroke-width: 8 * root.u;
             stroke-line-cap: round;
             commands: "M " + root.px[i] + " " + root.py[i] + " L "

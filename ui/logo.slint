@@ -15,117 +15,115 @@ export global Srv {
     in-out property <int> core;
 }
 
-// Aero : la carapace aux quatre couleurs du drapeau de Windows 7, en relief (chaque quart dans sa couleur :
-// rouge en haut à gauche, vert en haut à droite, bleu en bas à gauche, jaune en bas à droite), avec une
-// lueur de la même couleur à l'extérieur. Chaque quart est la carapace entière, rognée à son carré.
-// Mêmes couleurs que WIN7_COLORS (src/theme.rs).
+// Aero : la carapace aux quatre couleurs du drapeau de Windows 7 (rouge en haut à gauche, vert en haut à
+// droite, bleu en bas à gauche, jaune en bas à droite), sans lueur, avec des passages adoucis d'une couleur
+// à l'autre (fondu sur un quart de la largeur, au milieu). Chaque trait (arête, rayon) porte le dégradé de sa
+// moitié : horizontal en haut et en bas, vertical sur les côtés. Les mêmes pinceaux servent à l'animation
+// de démarrage (boot.slint), qui dessine donc directement en couleurs. Couleurs : WIN7_COLORS (src/theme.rs).
+export global Win7Ink {
+    // a : opacité (apparition) ; amber : 0..1 vers l'ambre (hors ligne).
+    pure public function red(amber: float) -> color { return #f2683a.mix(#f59e0b, 1 - amber); }
+    pure public function green(amber: float) -> color { return #78c23a.mix(#f59e0b, 1 - amber); }
+    pure public function blue(amber: float) -> color { return #3a9cf0.mix(#f59e0b, 1 - amber); }
+    pure public function yellow(amber: float) -> color { return #f7c02a.mix(#f59e0b, 1 - amber); }
+    // Arête i (du sommet i au suivant ; 0 en haut, puis dans le sens des aiguilles d'une montre).
+    pure public function edge(i: int, a: float, amber: float) -> brush {
+        if (i == 1) {
+            return @linear-gradient(180deg, self.green(amber).with-alpha(a) 0%, self.green(amber).with-alpha(a) 38%,
+                self.yellow(amber).with-alpha(a) 62%, self.yellow(amber).with-alpha(a) 100%);
+        }
+        if (i == 4) {
+            return @linear-gradient(180deg, self.red(amber).with-alpha(a) 0%, self.red(amber).with-alpha(a) 38%,
+                self.blue(amber).with-alpha(a) 62%, self.blue(amber).with-alpha(a) 100%);
+        }
+        return i == 0 || i == 5 ? self.top(a, amber) : self.bottom(a, amber);
+    }
+    // Rayon i (du sommet i vers le cœur).
+    pure public function spoke(i: int, a: float, amber: float) -> brush {
+        return i <= 1 || i == 5 ? self.top(a, amber) : self.bottom(a, amber);
+    }
+    pure public function top(a: float, amber: float) -> brush {
+        return @linear-gradient(90deg, self.red(amber).with-alpha(a) 0%, self.red(amber).with-alpha(a) 38%,
+            self.green(amber).with-alpha(a) 62%, self.green(amber).with-alpha(a) 100%);
+    }
+    pure public function bottom(a: float, amber: float) -> brush {
+        return @linear-gradient(90deg, self.blue(amber).with-alpha(a) 0%, self.blue(amber).with-alpha(a) 38%,
+            self.yellow(amber).with-alpha(a) 62%, self.yellow(amber).with-alpha(a) 100%);
+    }
+}
+
 export component Win7Shell inherits Rectangle {
     in property <length> u;
     in property <float> amber;
-    in property <string> hex;
-    in property <string> spokes;
-    property <[color]> hi: [#ff8f5e, #a6e05a, #5cc0ff, #ffdc5a];
-    property <[color]> lo: [#e2401c, #4fa61e, #1477d6, #f2a900];
-    // Lueur à l'extérieur de la carapace : un anneau de couleur entre la carapace et le bord de l'orbe,
-    // rogné au cercle de l'orbe (sinon les quarts dépassaient en carrés teintés).
-    Rectangle {
-        x: 28 * root.u;
-        y: 28 * root.u;
-        width: 200 * root.u;
-        height: 200 * root.u;
-        border-radius: 100 * root.u;
-        clip: true;
-        for g in 4: Rectangle {
-            x: mod(g, 2) * 100 * root.u;
-            y: floor(g / 2) * 100 * root.u;
-            width: 100 * root.u;
-            height: 100 * root.u;
-            clip: true;
-            property <color> c: root.hi[g].mix(#ffd27a, 1 - root.amber);
-            Rectangle {
-                x: -parent.x;
-                y: -parent.y;
-                width: 200 * root.u;
-                height: 200 * root.u;
-                background: @radial-gradient(circle, parent.c.with-alpha(0) 0%, parent.c.with-alpha(0) 50%,
-                    parent.c.with-alpha(0.5) 64%, parent.c.with-alpha(0.16) 82%, parent.c.with-alpha(0) 100%);
-            }
-        }
+    property <[float]> px: [128, 187, 187, 128, 69, 69];
+    property <[float]> py: [60, 94, 162, 196, 162, 94];
+    property <[float]> ix: [128, 154, 154, 128, 102, 102];
+    property <[float]> iy: [98, 113, 143, 158, 143, 113];
+    property <string> hex: "M 128 60 L 187 94 L 187 162 L 128 196 L 69 162 L 69 94 Z";
+    // Ombre sous la carapace (relief).
+    Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7 + 2) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: rgba(0, 12, 34, 0.55);
+        stroke-width: 13 * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: root.hex;
     }
-    for q in 4: Rectangle {
-        x: mod(q, 2) * 128 * root.u;
-        y: floor(q / 2) * 128 * root.u;
-        width: 128 * root.u;
-        height: 128 * root.u;
-        clip: true;
-        // Hors ligne : la carapace passe à l'ambre, comme le reste du logo.
-        property <color> c1: root.hi[q].mix(#ffd27a, 1 - root.amber);
-        property <color> c2: root.lo[q].mix(#f59e0b, 1 - root.amber);
-        // Ombre sous la carapace (relief).
-        Path {
-            x: (53 - 7) * root.u - parent.x;
-            y: (53 - 7 + 2) * root.u - parent.y;
-            width: (150 + 14) * root.u;
-            height: (150 + 14) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
-            fill: transparent;
-            stroke: rgba(0, 12, 34, 0.55);
-            stroke-width: 13 * root.u;
-            stroke-line-cap: round;
-            stroke-line-join: round;
-            commands: root.hex;
-        }
-        Path {
-            x: (53 - 7) * root.u - parent.x;
-            y: (53 - 7) * root.u - parent.y;
-            width: (150 + 14) * root.u;
-            height: (150 + 14) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
-            fill: transparent;
-            stroke: @linear-gradient(180deg, parent.c1 0%, parent.c2 100%);
-            stroke-width: 13 * root.u;
-            stroke-line-cap: round;
-            stroke-line-join: round;
-            commands: root.hex;
-        }
-        Path {
-            x: (53 - 4) * root.u - parent.x;
-            y: (53 - 4) * root.u - parent.y;
-            width: (150 + 8) * root.u;
-            height: (150 + 8) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
-            fill: transparent;
-            stroke: @linear-gradient(180deg, parent.c1 0%, parent.c2 100%);
-            stroke-width: 8 * root.u;
-            stroke-line-cap: round;
-            commands: root.spokes;
-        }
-        // Reflet clair sur le haut des traits (verre).
-        Path {
-            x: (53 - 7) * root.u - parent.x;
-            y: (53 - 7 - 2.5) * root.u - parent.y;
-            width: (150 + 14) * root.u;
-            height: (150 + 14) * root.u;
-            viewbox-x: 53;
-            viewbox-y: 53;
-            viewbox-width: 150;
-            viewbox-height: 150;
-            fill: transparent;
-            stroke: rgba(255, 255, 255, 0.35);
-            stroke-width: 4 * root.u;
-            stroke-line-cap: round;
-            stroke-line-join: round;
-            commands: root.hex;
-        }
+    // Les dégradés sont calculés sur toute la largeur du logo (chaque trait est dessiné dans le même cadre).
+    for i in 6: Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53 - 7;
+        viewbox-y: 53 - 7;
+        viewbox-width: 150 + 14;
+        viewbox-height: 150 + 14;
+        fill: transparent;
+        stroke: Win7Ink.edge(i, 1, root.amber);
+        stroke-width: 13 * root.u;
+        stroke-line-cap: round;
+        commands: "M " + root.px[i] + " " + root.py[i] + " L " + root.px[mod(i + 1, 6)] + " " + root.py[mod(i + 1, 6)];
+    }
+    for i in 6: Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53 - 7;
+        viewbox-y: 53 - 7;
+        viewbox-width: 150 + 14;
+        viewbox-height: 150 + 14;
+        fill: transparent;
+        stroke: Win7Ink.spoke(i, 1, root.amber);
+        stroke-width: 8 * root.u;
+        stroke-line-cap: round;
+        commands: "M " + root.px[i] + " " + root.py[i] + " L " + root.ix[i] + " " + root.iy[i];
+    }
+    // Reflet clair sur le haut des traits (verre).
+    Path {
+        x: (53 - 7) * root.u;
+        y: (53 - 7 - 2.5) * root.u;
+        width: (150 + 14) * root.u;
+        height: (150 + 14) * root.u;
+        viewbox-x: 53;
+        viewbox-y: 53;
+        viewbox-width: 150;
+        viewbox-height: 150;
+        fill: transparent;
+        stroke: rgba(255, 255, 255, 0.32);
+        stroke-width: 4 * root.u;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: root.hex;
     }
 }
 
@@ -261,8 +259,6 @@ component DrawnLogo inherits Rectangle {
     if root.orb: Win7Shell {
         u: root.u;
         amber: root.amber;
-        hex: root.hex;
-        spokes: root.spokes;
     }
     // Carapace (thème 0) : contour épais, rayons, centre plein.
     if !root.chip && !root.orb: Path {

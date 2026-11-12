@@ -184,8 +184,8 @@ fn file_for(event: &str) -> Option<String> {
         }
         return Some(path.to_string_lossy().into_owned());
     }
-    // « v2 » : à changer quand la synthèse change (les anciens fichiers sont alors refaits).
-    let path = dir.join(format!("{set}-{event}-v2.wav"));
+    // « v3 » : à changer quand la synthèse change (les anciens fichiers sont alors refaits).
+    let path = dir.join(format!("{set}-{event}-v3.wav"));
     if !path.is_file() {
         let samples = synth(&set, event)?;
         std::fs::create_dir_all(&dir).ok()?;
@@ -224,7 +224,9 @@ struct Note(f32, f32, f32, f32, Timbre, f32);
 enum Timbre {
     /// Goutte : sinus dont la hauteur monte vite au début (le « plop » d'une goutte d'eau).
     Drop,
-    /// Cloche de verre : synthèse FM (modulateur à 3,5 fois la fréquence), éclat qui s'éteint vite.
+    /// Verre frappé : les harmoniques d'un verre (1 ; 2,32 ; 4,25 ; 6,63 fois la fondamentale, chacune doublée
+    /// d'une jumelle à peine désaccordée qui la fait frémir), les aiguës s'éteignant plus vite ; pas de
+    /// glissement de hauteur. Une seule frappe par son (deux notes à la suite sonnaient « pièce de jeu vidéo »).
     Glass,
     /// Bip de vieille machine : onde carrée adoucie.
     Bleep,
@@ -252,9 +254,15 @@ fn tone(n: &Note, seed: &mut u32) -> Vec<f32> {
         let v = match timbre {
             Timbre::Drop | Timbre::Soft => (ph * tau).sin(),
             Timbre::Glass => {
-                ph_m += f * 3.5 / RATE as f32;
-                let index = 2.2 * (-t / 0.05).exp() + 0.25;
-                (ph * tau + index * (ph_m * tau).sin()).sin() * 0.8 + (ph * tau * 2.0).sin() * 0.12 * (-t / 0.08).exp()
+                let _ = &mut ph_m;
+                const MODES: [(f32, f32, f32); 4] = [(1.0, 1.0, 1.0), (2.32, 0.55, 0.55), (4.25, 0.32, 0.3), (6.63, 0.18, 0.16)];
+                let mut v = 0.0;
+                for (r, a, d) in MODES {
+                    let tau_k = dur * 0.45 * d;
+                    let e = (-t / tau_k).exp();
+                    v += a * e * ((f0 * r * t * tau).sin() * 0.6 + (f0 * r * 1.0035 * t * tau).sin() * 0.4);
+                }
+                v * 0.55
             }
             Timbre::Bleep => ((ph * tau).sin() * 2.5).tanh() * 0.7,
             Timbre::Tick => {
@@ -273,7 +281,8 @@ fn tone(n: &Note, seed: &mut u32) -> Vec<f32> {
         let decay = match timbre {
             Timbre::Tick => (-t / 0.004).exp(),
             Timbre::Bleep => (-t / (dur * 0.6)).exp(),
-            Timbre::Glass => (-t / (dur * 0.35)).exp(),
+            // Chaque harmonique a déjà son extinction (voir plus haut).
+            Timbre::Glass => 1.0,
             _ => (-t / (dur * 0.3)).exp(),
         };
         let tail = ((1.0 - q) / 0.08).min(1.0);
@@ -352,25 +361,26 @@ pub fn synth(set: &str, event: &str) -> Option<Vec<f32>> {
     use Timbre::*;
     // (notes, coupure du filtre en Hz, part de réverbération, taille de la pièce, niveau relatif)
     let (notes, cutoff, wet, room, level): (Vec<Note>, f32, f32, f32, f32) = match (set, event) {
-        // Aero : verre qui tinte, de l'espace autour.
-        ("aero", "move") => (vec![Note(0.0, 0.18, 2093.0, 2093.0, Glass, 1.0)], 9000.0, 0.22, 0.8, 0.45),
-        ("aero", "ok") => (vec![Note(0.0, 0.5, 1568.0, 1568.0, Glass, 1.0), Note(0.06, 0.6, 2349.0, 2349.0, Glass, 0.7)], 9000.0, 0.3, 1.0, 0.8),
-        ("aero", "back") => (vec![Note(0.0, 0.45, 1760.0, 1760.0, Glass, 1.0), Note(0.06, 0.5, 1175.0, 1175.0, Glass, 0.8)], 9000.0, 0.3, 1.0, 0.75),
-        ("aero", "tap") => (vec![Note(0.0, 0.12, 2637.0, 2637.0, Glass, 1.0)], 9000.0, 0.2, 0.7, 0.4),
-        ("aero", "type") => (vec![Note(0.0, 0.06, 3136.0, 3136.0, Glass, 1.0)], 9000.0, 0.1, 0.6, 0.25),
-        ("aero", "toggle") => (vec![Note(0.0, 0.25, 1319.0, 1319.0, Glass, 1.0), Note(0.07, 0.3, 1976.0, 1976.0, Glass, 0.8)], 9000.0, 0.25, 0.9, 0.6),
-        ("aero", "error") => (vec![Note(0.0, 0.6, 622.0, 622.0, Glass, 1.0), Note(0.0, 0.6, 880.0, 880.0, Glass, 0.6)], 6000.0, 0.3, 1.0, 0.85),
+        // Aero : verre frappé (une frappe, un petit « tic » au contact), de l'espace autour.
+        ("aero", "move") => (vec![Note(0.0, 0.005, 0.0, 0.0, Tick, 0.25), Note(0.0, 0.35, 1480.0, 1480.0, Glass, 1.0)], 7500.0, 0.3, 0.9, 0.4),
+        ("aero", "ok") => (vec![Note(0.0, 0.006, 0.0, 0.0, Tick, 0.3), Note(0.0, 0.8, 1047.0, 1047.0, Glass, 1.0), Note(0.0, 0.8, 523.0, 523.0, Glass, 0.35)], 7500.0, 0.35, 1.0, 0.75),
+        ("aero", "back") => (vec![Note(0.0, 0.006, 0.0, 0.0, Tick, 0.3), Note(0.0, 0.7, 784.0, 784.0, Glass, 1.0)], 7000.0, 0.35, 1.0, 0.7),
+        ("aero", "tap") => (vec![Note(0.0, 0.004, 0.0, 0.0, Tick, 0.25), Note(0.0, 0.25, 1760.0, 1760.0, Glass, 1.0)], 7500.0, 0.25, 0.8, 0.35),
+        ("aero", "type") => (vec![Note(0.0, 0.003, 0.0, 0.0, Tick, 0.2), Note(0.0, 0.12, 2217.0, 2217.0, Glass, 1.0)], 7500.0, 0.15, 0.6, 0.22),
+        ("aero", "toggle") => (vec![Note(0.0, 0.005, 0.0, 0.0, Tick, 0.3), Note(0.0, 0.45, 1319.0, 1319.0, Glass, 1.0)], 7500.0, 0.3, 0.9, 0.55),
+        ("aero", "error") => (vec![Note(0.0, 0.006, 0.0, 0.0, Tick, 0.3), Note(0.0, 0.9, 466.0, 466.0, Glass, 1.0), Note(0.0, 0.9, 494.0, 494.0, Glass, 0.8)], 5500.0, 0.35, 1.0, 0.8),
+        // Démarrage : un accord de verre qui sonne longtemps (frappé une fois, pas d'arpège).
         ("aero", "start") => (
             vec![
-                Note(0.0, 1.2, 784.0, 784.0, Glass, 0.8),
-                Note(0.18, 1.2, 1175.0, 1175.0, Glass, 0.7),
-                Note(0.36, 1.2, 1047.0, 1047.0, Glass, 0.7),
-                Note(0.6, 1.6, 1568.0, 1568.0, Glass, 0.8),
+                Note(0.0, 0.008, 0.0, 0.0, Tick, 0.3),
+                Note(0.0, 2.2, 523.0, 523.0, Glass, 0.7),
+                Note(0.0, 2.2, 784.0, 784.0, Glass, 0.6),
+                Note(0.0, 2.2, 1047.0, 1047.0, Glass, 0.5),
             ],
-            9000.0,
-            0.4,
-            1.2,
-            0.9,
+            7500.0,
+            0.45,
+            1.3,
+            0.85,
         ),
         // Nerd : bips d'une vieille machine, déclics de relais, sans écho.
         ("nerd", "move") => (vec![Note(0.0, 0.03, 1320.0, 1320.0, Bleep, 1.0)], 3500.0, 0.0, 0.5, 0.35),
