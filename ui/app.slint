@@ -160,6 +160,11 @@ export struct DetailData {
     title: string,
     subtitle: string,
     misc: string,
+    misc-short: string,   // ligne d'infos quand les chiffres sont à part (langues audio)
+    score: float,         // note sur 10 ; négative : aucune
+    stat-time: string,    // durée
+    stat-date: string,    // date de sortie
+    stat-age: string,     // classification (« 10+ », « PG »)
     facts: [FactData],
     overview: string,
     expect-logo: bool,
@@ -2438,6 +2443,109 @@ component RemotePad inherits Rectangle {
     }
 }
 
+
+// Onglet de la fiche : texte, souligné d'accent quand il est affiché ; choisi au clavier : pastille d'accent.
+component DetailTab inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    in property <bool> lit;
+    in property <float> k: 1.0;
+    callback clicked();
+    property <bool> hot: root.lit || (ta.has-hover && !Nav.touch);
+    preferred-width: label.preferred-width + (root.lit ? 28px : 0px) * root.k;
+    horizontal-stretch: 0;
+    Rectangle {
+        visible: root.lit;
+        y: (parent.height - self.height) / 2;
+        height: 36px * root.k;
+        border-radius: Theme.win7 ? 4px : Theme.term ? 2px : self.height / 2;
+        background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+    }
+    label := Text {
+        x: (parent.width - self.width) / 2;
+        text: root.text;
+        color: root.lit ? Theme.on-accent : root.on || root.hot ? Theme.text : Theme.muted;
+        font-size: 17px * root.k;
+        font-weight: root.on ? 700 : 500;
+        vertical-alignment: center;
+    }
+    Rectangle {
+        visible: root.on && !root.lit;
+        y: parent.height + 6px * root.k;
+        height: 3px * root.k;
+        border-radius: 2px;
+        background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+    }
+    ta := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Note d'un média dans un anneau : rouge si basse, jaune si moyenne, verte si haute, bleue si maximale.
+component ScoreRing inherits Rectangle {
+    in property <float> score;
+    in property <float> k: 1.0;
+    height: self.width;
+    property <color> ring-col: root.score >= 9.5 ? #1e9bff : root.score >= 7 ? #2fbf71 : root.score >= 5 ? #f5b301 : #e5484d;
+    property <float> f: clamp(root.score / 10, 0, 1);
+    property <angle> a: root.f * 360deg;
+    // Arc de l'anneau (repère 100, rayon 42, départ en haut, sens des aiguilles d'une montre).
+    property <string> arc: root.f >= 0.999 ? "M 50 8 A 42 42 0 1 1 49.99 8"
+        : "M 50 8 A 42 42 0 " + (root.f > 0.5 ? "1" : "0") + " 1 " + (50 + 42 * sin(root.a)) + " " + (50 - 42 * cos(root.a));
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        fill: Theme.bg.with-alpha(0.55);
+        stroke: Theme.fg.with-alpha(0.14);
+        stroke-width: 8px * root.k;
+        commands: "M 50 8 A 42 42 0 1 1 49.99 8 Z";
+    }
+    if root.f > 0.005: Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        fill: transparent;
+        stroke: root.ring-col;
+        stroke-width: 8px * root.k;
+        stroke-line-cap: round;
+        commands: root.arc;
+    }
+    Text {
+        text: round(root.score * 10) / 10;
+        color: Theme.text;
+        font-size: 21px * root.k;
+        font-weight: 800;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// Chiffre de l'en-tête de la fiche : valeur en grand, intitulé dessous.
+component StatBox inherits VerticalLayout {
+    in property <string> value;
+    in property <string> label;
+    in property <float> k: 1.0;
+    alignment: center;
+    spacing: 2px * root.k;
+    Text {
+        text: root.value;
+        color: Theme.text;
+        font-size: 22px * root.k;
+        font-weight: 700;
+    }
+    Text {
+        text: root.label;
+        color: Theme.muted;
+        font-size: 11px * root.k;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+}
 
 // Bouton de la fiche : icône (lecture, favori, vu, téléchargement) ou texte, au style de ActionButton.
 component DetailButton inherits Rectangle {
@@ -5354,7 +5462,38 @@ export component AppWindow inherits Window {
     // Fiche détail
     in-out property <DetailData> detail;
     in-out property <[CardData]> child-items;
-    in-out property <int> d-zone: 0;   // 0 boutons · 1 résumé · 2 enfants
+    // Onglets de la fiche, sous l'en-tête : 0 saisons ou épisodes (Aperçu) · 1 Distribution · 2 Détails ·
+    // 3 Similaires. Un onglet sans contenu n'est pas montré ; `d-tab-eff` est celui affiché.
+    in-out property <int> d-tab: 0;
+    in property <bool> d-has-cast;
+    in property <bool> d-has-similar;
+    callback detail-tab-changed();
+    pure function d-tab-ok(i: int) -> bool {
+        return i == 0 ? root.child-items.length > 0 : i == 1 ? root.d-has-cast : i == 2 ? root.detail.facts.length > 0 : i == 3 ? root.d-has-similar : false;
+    }
+    out property <int> d-tab-eff: root.d-tab-ok(root.d-tab) ? root.d-tab : root.d-tab-ok(0) ? 0 : root.d-tab-ok(1) ? 1
+        : root.d-tab-ok(3) ? 3 : root.d-tab-ok(2) ? 2 : -1;
+    changed d-tab-eff => {
+        root.detail-tab-changed();
+    }
+    // Onglet voisin (dir : -1 à gauche, 1 à droite), dans l'ordre affiché ; le même s'il n'y en a pas.
+    function d-tab-step(dir: int) -> int {
+        let i = root.d-tab-eff + dir;
+        if (dir > 0) {
+            if (i <= 3 && root.d-tab-ok(i)) { return i; }
+            if (i + 1 <= 3 && root.d-tab-ok(i + 1)) { return i + 1; }
+            if (i + 2 <= 3 && root.d-tab-ok(i + 2)) { return i + 2; }
+        } else {
+            if (i >= 0 && root.d-tab-ok(i)) { return i; }
+            if (i - 1 >= 0 && root.d-tab-ok(i - 1)) { return i - 1; }
+            if (i - 2 >= 0 && root.d-tab-ok(i - 2)) { return i - 2; }
+        }
+        return root.d-tab-eff;
+    }
+    property <bool> d-tabs-on: root.d-tab-eff >= 0;
+    // Saisons / épisodes affichés (onglet Aperçu).
+    property <bool> kids-on: root.child-items.length > 0 && root.d-tab-eff == 0;
+    in-out property <int> d-zone: 0;   // 0 boutons · 1 résumé · 2 enfants · 3 À suivre · 4+ rangées · 9 onglets
     in-out property <int> d-button: 0;
     in-out property <int> d-child: 0;
     in-out property <bool> overview-open: false;
@@ -5935,9 +6074,12 @@ export component AppWindow inherits Window {
     property <length> child-card-w: (root.detail.children-landscape ? 240px : 120px) * root.k;
     property <length> next-w: 260px * root.k;
     // Haut de la rangée d'enfants, et des rangées du bas (sous les enfants s'il y en a).
-    property <length> d-children-y: 24px + 316px * root.k + 16px + root.d-low;
+    // Ligne des onglets sous l'en-tête, puis le contenu de l'onglet.
+    property <length> tabs-y: 24px + 316px * root.k + 16px + root.d-low;
+    property <length> tabs-h: root.d-tabs-on ? 58px * root.k : 0px;
+    property <length> d-children-y: root.tabs-y + root.tabs-h;
     property <length> d-extra-y: root.d-children-y
-        + (root.child-items.length == 0 ? 0px : root.ep-list ? root.ep-block-h : root.child-card-w * root.child-ratio + 132px * root.k);
+        + (!root.kids-on ? 0px : root.ep-list ? root.ep-block-h : root.child-card-w * root.child-ratio + 132px * root.k);
     // Épisodes d'une saison : en liste verticale (comme les .listItem de Style.css) au lieu d'une
     // rangée ; vignette 16:9 à gauche, numéro et titre, durée, début du résumé.
     property <bool> ep-list: root.detail.children-landscape;
@@ -5977,7 +6119,7 @@ export component AppWindow inherits Window {
     in-out property <int> ep-btn: -1;
     // La liste occupe l'écran : son haut est déjà dans le premier quart de la vue, son bas encore sous
     // le milieu (jamais par-dessus le résumé ou le haut de la fiche).
-    property <bool> ep-in-view: root.screen == "detail" && root.ep-many && !root.ep-anim
+    property <bool> ep-in-view: root.screen == "detail" && root.ep-many && !root.ep-anim && root.kids-on
         && root.d-children-y + root.ep-head-h <= root.d-view-y + root.d-view-h * 0.25
         && root.d-children-y + root.ep-block-h - root.ep-row-h >= root.d-view-y + root.d-view-h * 0.5;
     property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
@@ -6001,7 +6143,8 @@ export component AppWindow inherits Window {
         : root.d-zone == 2 && root.ep-list ? (root.d-extra-y <= root.d-view-h ? 0px
             // Liste d'épisodes : l'épisode choisi reste vers le milieu de l'écran.
             : max(0px, root.d-children-y + root.ep-head-h + root.d-child * (root.ep-row-h + root.ep-gap) - root.d-view-h * 0.4))
-        : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k)) : 0px);
+        : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k))
+        : root.d-zone == 9 ? (root.tabs-y + root.tabs-h + 120px * root.k <= root.d-view-h ? 0px : max(0px, root.tabs-y - 140px * root.k)) : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
     property <bool> show-next: !root.narrow && root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
@@ -8139,9 +8282,16 @@ export component AppWindow inherits Window {
         // Vignette 16:9 qui devient le fond : la fiche apparaît en fondu pendant la fin de
         // l'agrandissement, au lieu de surgir d'un coup par-dessus l'image encore en vol.
         opacity: root.hero-page-a;
-        // Bloc d'informations à droite du titre : seulement s'il reste de la place au titre (420 px x k).
-        property <length> facts-w: min(440px * root.k, root.info-w - 444px * root.k);
-        property <bool> facts-on: !root.narrow && root.detail.facts.length > 0 && self.facts-w >= 250px * root.k;
+        // Chiffres à droite du titre (note, durée, sortie, public) : seulement s'il reste au titre 300 px x k.
+        property <int> stats-n: (root.detail.score >= 0 ? 1 : 0) + (root.detail.stat-time != "" ? 1 : 0)
+            + (root.detail.stat-date != "" ? 1 : 0) + (root.detail.stat-age != "" ? 1 : 0);
+        property <length> stats-w: min(root.info-w - 320px * root.k, (root.detail.score >= 0 ? 94px : 0px) * root.k + 3 * 132px * root.k);
+        property <bool> stats-on: !root.narrow && self.stats-n > 0 && self.stats-w >= 200px * root.k;
+        // Logo du média : large (2:1 ou plus, 240 px ou plus) à la place du titre ; sinon le titre en texte, et
+        // le logo en petit à côté s'il est assez net (120 px ou plus).
+        property <bool> logo-wide: root.detail.has-logo && root.detail.logo.width >= 240
+            && root.detail.logo.width >= 2 * root.detail.logo.height;
+        property <bool> logo-small: root.detail.has-logo && !self.logo-wide && root.detail.logo.width >= 120;
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
         property <length> icons-w: max(0px, icons-row.preferred-width - (root.detail.buttons.length - root.detail.icon-count) * self.btn-gap);
@@ -8200,11 +8350,8 @@ export component AppWindow inherits Window {
             if (t == Key.DownArrow) {
                 if (root.detail.overview != "") {
                     root.d-zone = 1;
-                } else if (root.child-items.length > 0) {
-                    root.d-zone = 2;
-                } else if (root.detail-rows.length > 0) {
-                    root.d-zone = 4;
-                    root.d-x = 0;
+                } else if (root.d-tabs-on) {
+                    root.d-zone = 9;
                 }
                 return true;
             }
@@ -8228,11 +8375,8 @@ export component AppWindow inherits Window {
                 return true;
             }
             if (t == Key.DownArrow) {
-                if (root.child-items.length > 0) {
-                    root.d-zone = 2;
-                } else if (root.detail-rows.length > 0) {
-                    root.d-zone = 4;
-                    root.d-x = 0;
+                if (root.d-tabs-on) {
+                    root.d-zone = 9;
                 }
                 return true;
             }
@@ -8240,6 +8384,28 @@ export component AppWindow inherits Window {
                 root.overview-open = true;
                 return true;
             }
+        }
+
+        // Zone 9 : onglets. ← → changent d'onglet (son contenu s'affiche aussitôt), ↓ y entre, ↑ remonte.
+        if (root.d-zone == 9) {
+            if (t == Key.LeftArrow || t == Key.RightArrow) {
+                root.d-tab = root.d-tab-step(t == Key.RightArrow ? 1 : -1);
+                return true;
+            }
+            if (t == Key.UpArrow) {
+                root.d-zone = root.detail.overview != "" ? 1 : 0;
+                return true;
+            }
+            if (t == Key.DownArrow) {
+                if (root.d-tab-eff == 0 && root.child-items.length > 0) {
+                    root.d-zone = 2;
+                } else if ((root.d-tab-eff == 1 || root.d-tab-eff == 3) && root.detail-rows.length > 0) {
+                    root.d-zone = 4;
+                    root.d-x = 0;
+                }
+                return true;
+            }
+            return true;
         }
 
         // Boutons flottants de la liste (longue saison) : ↑ ↓ de l'un à l'autre, Entrée, ← la liste.
@@ -8264,9 +8430,6 @@ export component AppWindow inherits Window {
             if (t == Key.DownArrow) {
                 if (root.d-child < root.child-items.length - 1) {
                     root.d-child += 1;
-                } else if (root.detail-rows.length > 0) {
-                    root.d-zone = 4;
-                    root.d-x = 0;
                 }
                 return true;
             }
@@ -8274,7 +8437,7 @@ export component AppWindow inherits Window {
                 if (root.d-child > 0) {
                     root.d-child -= 1;
                 } else {
-                    root.d-zone = root.detail.overview != "" ? 1 : 0;
+                    root.d-zone = 9;
                 }
                 return true;
             }
@@ -8308,14 +8471,10 @@ export component AppWindow inherits Window {
                 return true;
             }
             if (t == Key.UpArrow) {
-                root.d-zone = root.detail.overview != "" ? 1 : 0;
+                root.d-zone = 9;
                 return true;
             }
             if (t == Key.DownArrow) {
-                if (root.detail-rows.length > 0) {
-                    root.d-x = root.detail-pick-down(1002, root.d-child, root.child-card-w, 0);
-                    root.d-zone = 4;
-                }
                 return true;
             }
             if (t == Key.Return) {
@@ -8343,15 +8502,9 @@ export component AppWindow inherits Window {
                 if (root.d-zone > 4) {
                     root.d-x = root.detail-pick-down(1000 + root.d-zone, root.d-x, root.card-w, root.d-zone - 5);
                     root.d-zone -= 1;
-                } else if (root.ep-list && root.child-items.length > 0) {
-                    // Remontée dans la liste d'épisodes : sur le dernier.
-                    root.d-child = root.child-items.length - 1;
-                    root.d-zone = 2;
                 } else {
-                    if (root.child-items.length > 0) {
-                        root.d-child = root.row-to(1004, root.d-x, root.card-w, 1002, root.child-items.length, root.child-card-w);
-                    }
-                    root.d-zone = root.child-items.length > 0 ? 2 : root.detail.overview != "" ? 1 : 0;
+                    // Première rangée de l'onglet : au-dessus, les onglets.
+                    root.d-zone = 9;
                 }
             } else if (t == Key.Return) {
                 root.open-hero(root.detail-rows[root.d-zone - 4].items[root.d-x].id);
@@ -8366,8 +8519,8 @@ export component AppWindow inherits Window {
                 return true;
             }
             if (t == Key.DownArrow) {
-                if (root.child-items.length > 0) {
-                    root.d-zone = 2;
+                if (root.d-tabs-on) {
+                    root.d-zone = 9;
                 }
                 return true;
             }
@@ -8583,71 +8736,54 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Informations (genres, studio, réalisation, tags) à droite du titre, là où la ligne de l'affiche
-        // restait vide. Fenêtre trop étroite : rien (le titre garde toute la largeur).
-        if dt.facts-on: Rectangle {
-            x: root.col-x + root.info-w - dt.facts-w + root.po-right;
-            y: 24px + 2px * root.k;
-            width: dt.facts-w;
-            height: 104px * root.k;
+        // Chiffres à droite du titre : note dans un anneau coloré, durée, date de sortie, classification.
+        if dt.stats-on: HorizontalLayout {
+            x: root.col-x + root.info-w - dt.stats-w + root.po-right;
+            y: 24px + 6px * root.k;
+            width: dt.stats-w;
+            height: 72px * root.k;
+            spacing: 22px * root.k;
+            alignment: end;
             opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
-            // Filet d'accent à gauche, comme le bloc du résumé.
-            Rectangle {
-                x: 0px;
-                width: 3px;
-                height: min(parent.height, root.detail.facts.length * 26px * root.k) - 6px * root.k;
-                y: 3px * root.k;
-                border-radius: 2px;
-                background: @linear-gradient(180deg, Theme.accent1 0%, Theme.accent2 100%);
+            if root.detail.score >= 0: ScoreRing {
+                width: 72px * root.k;
+                score: root.detail.score;
+                k: root.k;
             }
-            for f[i] in root.detail.facts: Rectangle {
-                visible: i < 4;
-                x: 14px * root.k;
-                y: i * 26px * root.k;
-                width: parent.width - 14px * root.k;
-                height: 26px * root.k;
-                Text {
-                    x: 0px;
-                    width: 96px * root.k;
-                    height: parent.height;
-                    text: f.label;
-                    color: Theme.muted;
-                    font-size: 12px * root.k;
-                    font-weight: 700;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                Text {
-                    x: 100px * root.k;
-                    width: parent.width - 100px * root.k;
-                    height: parent.height;
-                    text: f.value;
-                    color: Theme.text;
-                    font-size: 14px * root.k;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-            }
+            if root.detail.stat-time != "": StatBox { value: root.detail.stat-time; label: Tr.t(Tr.k, "Durée"); k: root.k; }
+            if root.detail.stat-date != "": StatBox { value: root.detail.stat-date; label: Tr.t(Tr.k, "Sortie"); k: root.k; }
+            if root.detail.stat-age != "": StatBox { value: root.detail.stat-age; label: Tr.t(Tr.k, "Public"); k: root.k; }
         }
 
         // Logo, ou titre en texte à défaut
         Rectangle {
             x: root.col-x + root.po-right;
             y: 24px;
-            width: dt.facts-on ? root.info-w - dt.facts-w - 24px * root.k : root.info-w;
+            width: dt.stats-on ? root.info-w - dt.stats-w - 24px * root.k : root.info-w;
             height: 84px * root.k;
             opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
+            property <length> text-x: dt.logo-small ? 74px * root.k : 0px;
 
-            if root.detail.has-logo: Image {
+            if dt.logo-wide: Image {
                 x: 0px;
                 width: min(parent.width, 420px * root.k);
                 height: parent.height;
                 source: root.detail.logo;
                 image-fit: contain;
             }
+            // Logo carré, en hauteur : en pastille à gauche du titre.
+            if dt.logo-small: Image {
+                x: 0px;
+                y: (parent.height - self.height) / 2;
+                width: 60px * root.k;
+                height: 60px * root.k;
+                source: root.detail.logo;
+                image-fit: contain;
+            }
 
-            if !root.detail.has-logo && !root.detail.expect-logo && root.wiping(root.mt-title, root.detail.title): Wipe {
-                width: parent.width;
+            if !dt.logo-wide && !(root.detail.expect-logo && !root.detail.has-logo) && root.wiping(root.mt-title, root.detail.title): Wipe {
+                x: parent.text-x;
+                width: parent.width - parent.text-x;
                 height: parent.height;
                 from: root.mt-title;
                 to: root.detail.title;
@@ -8656,8 +8792,9 @@ export component AppWindow inherits Window {
                 font-size: 34px * root.k;
                 font-weight: 800;
             }
-            if !root.detail.has-logo && !root.detail.expect-logo && !root.wiping(root.mt-title, root.detail.title): Marquee {
-                width: parent.width;
+            if !dt.logo-wide && !(root.detail.expect-logo && !root.detail.has-logo) && !root.wiping(root.mt-title, root.detail.title): Marquee {
+                x: parent.text-x;
+                width: parent.width - parent.text-x;
                 height: parent.height;
                 text: root.detail.title;
                 text-color: Theme.text;
@@ -8774,7 +8911,7 @@ export component AppWindow inherits Window {
             width: root.info-w;
             height: 24px * root.k;
             from: root.mt-misc;
-            to: root.detail.misc;
+            to: dt.stats-on ? root.detail.misc-short : root.detail.misc;
             p: root.wipe-p;
             ink: Theme.muted;
             font-size: 15px * root.k;
@@ -8785,7 +8922,7 @@ export component AppWindow inherits Window {
             opacity: root.rev(0) * (1 - root.top-out-p);
             width: root.info-w;
             height: 24px * root.k;
-            text: root.detail.misc;
+            text: dt.stats-on ? root.detail.misc-short : root.detail.misc;
             color: Theme.muted;
             font-size: 15px * root.k;
             vertical-alignment: center;
@@ -8945,8 +9082,57 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Onglets : saisons ou épisodes, Distribution, Détails, Similaires (seulement ceux qui ont du contenu).
+        if root.d-tabs-on: Rectangle {
+            x: (root.narrow ? 16px : 32px) + root.po-right;
+            y: root.tabs-y + root.po-down;
+            width: parent.width - 2 * (root.narrow ? 16px : 32px);
+            height: root.tabs-h;
+            opacity: root.rev(3) * (1 - root.kids-out-p);
+            Rectangle {
+                y: parent.height - 10px * root.k;
+                height: 1px;
+                background: Theme.fg.with-alpha(0.15);
+            }
+            HorizontalLayout {
+                height: parent.height - 10px * root.k;
+                alignment: start;
+                spacing: 30px * root.k;
+                if root.d-tab-ok(0): DetailTab { text: root.detail.children-title != "" ? root.detail.children-title : Tr.t(Tr.k, "Aperçu"); on: root.d-tab-eff == 0; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 0 && Nav.kb; k: root.k; clicked => { root.d-tab = 0; root.d-zone = 9; } }
+                if root.d-tab-ok(1): DetailTab { text: Tr.t(Tr.k, "Distribution"); on: root.d-tab-eff == 1; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 1 && Nav.kb; k: root.k; clicked => { root.d-tab = 1; root.d-zone = 9; } }
+                if root.d-tab-ok(2): DetailTab { text: Tr.t(Tr.k, "Détails"); on: root.d-tab-eff == 2; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 2 && Nav.kb; k: root.k; clicked => { root.d-tab = 2; root.d-zone = 9; } }
+                if root.d-tab-ok(3): DetailTab { text: Tr.t(Tr.k, "Similaires"); on: root.d-tab-eff == 3; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 3 && Nav.kb; k: root.k; clicked => { root.d-tab = 3; root.d-zone = 9; } }
+            }
+        }
+        // Onglet Détails : toutes les informations, en deux colonnes (intitulé, valeur).
+        if root.d-tabs-on && root.d-tab-eff == 2: VerticalLayout {
+            x: (root.narrow ? 16px : 32px) + root.po-right;
+            y: root.d-children-y + 8px * root.k + root.po-down;
+            width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k);
+            spacing: 12px * root.k;
+            opacity: root.rev(3);
+            for f in root.detail.facts: HorizontalLayout {
+                spacing: 20px * root.k;
+                Text {
+                    width: (root.narrow ? 110px : 170px) * root.k;
+                    text: f.label;
+                    color: Theme.muted;
+                    font-size: 13px * root.k;
+                    font-weight: 700;
+                    vertical-alignment: top;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: f.value;
+                    color: Theme.text;
+                    font-size: 16px * root.k;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
         // Épisodes d'une saison : liste verticale (voir ep-list).
-        if root.child-items.length > 0 && root.ep-list: Rectangle {
+        if root.kids-on && root.ep-list: Rectangle {
             // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
             opacity: (root.sw-kids && !root.ep-anim ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
             // Place laissée de chaque côté aux boutons flottants d'une longue saison (liste toujours centrée).
@@ -9084,7 +9270,7 @@ export component AppWindow inherits Window {
         }
 
         // Saisons / épisodes / contenu
-        if root.child-items.length > 0 && !root.ep-list: SectionRow {
+        if root.kids-on && !root.ep-list: SectionRow {
             // Fondu seulement pendant l'apparition de la fiche : une opacité sur toute la rangée coûte
             // cher sur les petites machines, elle revient à 1 aussitôt après.
             opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
@@ -9121,7 +9307,7 @@ export component AppWindow inherits Window {
             y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down;
             width: parent.width;
             height: row.h-px * 1px;
-            title: row.title;
+            title: root.d-tab-eff == 1 ? "" : row.title; // onglet Distribution : son nom suffit
             items: row.items;
             card-w: root.card-w;
             ratio: 1.5;

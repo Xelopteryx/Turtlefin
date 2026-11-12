@@ -192,6 +192,8 @@ pub struct Item {
     pub community_rating: Option<f32>,
     pub run_time_ticks: Option<i64>,
     pub production_year: Option<u32>,
+    /// Date de sortie (« 2010-09-27T00:00:00.0000000Z »).
+    pub premiere_date: Option<String>,
     pub index_number: Option<u32>,
     pub parent_index_number: Option<u32>,
     pub series_id: Option<String>,
@@ -655,6 +657,48 @@ impl Item {
     }
 
     /// Année · classification · durée · note · langues audio
+    /// Chiffres de l'en-tête de la fiche : note (sur 10, négative si absente), durée, date de sortie,
+    /// classification (« 10+ », « PG »…). Une valeur vide n'est pas affichée.
+    pub fn stats(&self) -> (f32, String, String, String) {
+        let score = self.community_rating.filter(|c| *c > 0.0).unwrap_or(-1.0);
+        let time = match self.minutes().filter(|m| *m > 0) {
+            Some(m) if m >= 60 => format!("{}h{:02}", m / 60, m % 60),
+            Some(m) => format!("{m} min"),
+            None => String::new(),
+        };
+        let date = self
+            .premiere_date
+            .as_deref()
+            .and_then(|d| {
+                let (y, rest) = d.split_once('-')?;
+                let (m, rest) = rest.split_once('-')?;
+                let day: u32 = rest.get(..2)?.parse().ok()?;
+                let month = [
+                    "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+                ]
+                .get(m.parse::<usize>().ok()?.checked_sub(1)?)?;
+                Some(format!("{day} {} {y}", tr(month)))
+            })
+            .or_else(|| self.production_year.map(|y| y.to_string()))
+            .unwrap_or_default();
+        let age = self
+            .official_rating
+            .as_ref()
+            .filter(|r| !r.is_empty())
+            .map(|r| match r.strip_prefix('-').or_else(|| r.strip_prefix("FR-")) {
+                Some(n) if n.chars().all(|c| c.is_ascii_digit()) => format!("{n}+"),
+                _ => r.clone(),
+            })
+            .unwrap_or_default();
+        (score, time, date, age)
+    }
+
+    /// Ligne d'informations quand les chiffres sont affichés à part (voir `stats`) : les langues audio.
+    pub fn misc_short(&self) -> String {
+        let langs = self.audio_langs();
+        if langs.is_empty() { String::new() } else { trf("Audio : {}", &[&langs.join(", ")]) }
+    }
+
     pub fn misc_line(&self) -> String {
         let mut parts: Vec<String> = Vec::new();
         if let Some(y) = self.production_year {

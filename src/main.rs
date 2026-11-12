@@ -516,6 +516,56 @@ fn copy_rows(m: &ModelRc<Section>) -> Vec<Section> {
         .collect()
 }
 
+thread_local! {
+    /// Toutes les rangées du bas de la fiche affichée (distribution et suggestions) ; `detail-rows` n'en
+    /// montre que celles de l'onglet choisi (voir `show_detail_tab`).
+    static DETAIL_ALL: std::cell::RefCell<Vec<Section>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Rangées de l'onglet en cours : « Distribution » (1) ou les autres (3) ; aucun autre onglet n'en a.
+/// Positions recalculées (les rangées gardées se suivent).
+fn rows_for_tab(u: &AppWindow) -> Vec<Section> {
+    let tab = u.get_d_tab_eff();
+    let cast = tr("Distribution");
+    let mut y = 0.0f32;
+    DETAIL_ALL.with(|all| {
+        all.borrow()
+            .iter()
+            .filter(|s| (tab == 1 && s.title.as_str() == cast) || (tab == 3 && s.title.as_str() != cast))
+            .map(|s| {
+                let mut s = s.clone();
+                s.y_px = y;
+                s.leaving = false;
+                y += s.h_px;
+                s
+            })
+            .collect()
+    })
+}
+
+/// Nouvelles rangées du bas : gardées, puis celles de l'onglet affichées (mises à jour sur place).
+fn set_detail_all(u: &AppWindow, sections: Vec<Section>) {
+    let cast = tr("Distribution");
+    u.set_d_has_cast(sections.iter().any(|s| s.title.as_str() == cast));
+    u.set_d_has_similar(sections.iter().any(|s| s.title.as_str() != cast));
+    DETAIL_ALL.with(|all| *all.borrow_mut() = sections);
+    let rows = rows_for_tab(u);
+    set_rows_in_place(u, rows);
+}
+
+/// Fiche sans rangées du bas (autre page, hors ligne).
+fn clear_detail_rows(u: &AppWindow) {
+    DETAIL_ALL.with(|all| all.borrow_mut().clear());
+    u.set_d_has_cast(false);
+    u.set_d_has_similar(false);
+    u.set_detail_rows(ModelRc::default());
+}
+
+/// Onglet de la fiche changé : ses rangées remplacent les autres d'un coup (pas de cartes qui se retournent).
+fn show_detail_tab(u: &AppWindow) {
+    u.set_detail_rows(ModelRc::new(VecModel::from(rows_for_tab(u))));
+}
+
 /// Rangées du bas d'une fiche remplacées par celles d'un autre média : mises à jour sur place. Les
 /// cartes changent de média (elles se retournent, voir Card) ; une rangée en trop s'en va en glissant
 /// avant d'être retirée ; une rangée en plus arrive comme à l'ouverture.
@@ -2713,25 +2763,26 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
 // ---------------------------------------------------------------------------
 // Fiche : rangées du bas (casting, plus de ce genre, Seerr) et boutons à bascule
 // ---------------------------------------------------------------------------
-/// Bloc d'informations de la fiche, à droite du titre : genres, studio, réalisation, tags (ceux que le
-/// serveur connaît ; rien pour un épisode ou une saison, qui n'en portent pas).
+/// Informations de l'onglet « Détails » de la fiche : genres, studios, réalisation, scénario, production,
+/// tags, langues audio (ce que le serveur connaît ; un épisode ou une saison n'en portent que peu).
 fn detail_facts(item: &api::Item) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
-    let mut add = |label: &str, names: Vec<&str>, max: usize| {
+    let mut add = |label: &str, names: Vec<&str>| {
         if !names.is_empty() {
-            let more = if names.len() > max { " …" } else { "" };
-            out.push((label.to_string(), format!("{}{more}", names.into_iter().take(max).collect::<Vec<_>>().join(", "))));
+            out.push((label.to_string(), names.join(", ")));
         }
     };
-    add(tr("Genres"), item.genres.iter().map(String::as_str).collect(), 5);
-    add(tr("Studio"), item.studios.iter().map(|s| s.name.as_str()).collect(), 2);
+    add(tr("Genres"), item.genres.iter().map(String::as_str).collect());
+    add(tr("Studios"), item.studios.iter().map(|s| s.name.as_str()).collect());
     let people = item.people.as_deref().unwrap_or_default();
     let of = |kind: &str| people.iter().filter(|p| p.kind.as_deref() == Some(kind)).map(|p| p.name.as_str()).collect::<Vec<_>>();
-    add(tr("Réalisation"), of("Director"), 2);
-    if of("Director").is_empty() {
-        add(tr("Scénario"), of("Writer"), 2);
-    }
-    add(tr("Tags"), item.tags.iter().map(String::as_str).collect(), 8);
+    add(tr("Réalisation"), of("Director"));
+    add(tr("Scénario"), of("Writer"));
+    add(tr("Production"), of("Producer"));
+    add(tr("Musique"), of("Composer"));
+    add(tr("Tags"), item.tags.iter().map(String::as_str).collect());
+    let langs = item.audio_langs();
+    add(tr("Langues audio"), langs.iter().map(String::as_str).collect());
     out
 }
 
@@ -2808,7 +2859,7 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
             let id_check = item.id.clone();
             let _ = app2.ui().upgrade_in_event_loop(move |u| {
                 if u.get_detail().id.as_str() == id_check {
-                    set_rows_in_place(&u, Vec::new());
+                    set_detail_all(&u, Vec::new());
                 }
             });
             return;
@@ -2859,18 +2910,25 @@ fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
                     )),
                 })
                 .collect();
-            set_rows_in_place(&u, sections);
+            set_detail_all(&u, sections);
         });
         let apply: Apply = Arc::new(move |u: &AppWindow, job: &ImageJob, buf: SharedPixelBuffer<Rgba8Pixel>| {
-            let rows = u.get_detail_rows();
-            let Some(row) = rows.row_data(job.a) else { return };
-            let Some(mut card) = row.items.row_data(job.b) else { return };
-            if card.id.as_str() != job.item_id {
-                return;
+            // L'image va à la carte de la liste complète (`job.a` : son rang), et à celle affichée de la
+            // même rangée (retrouvée par son titre : l'onglet n'en montre qu'une partie).
+            let image = slint::Image::from_rgba8(buf);
+            let Some(row) = DETAIL_ALL.with(|all| all.borrow().get(job.a).cloned()) else { return };
+            let put = |items: &ModelRc<CardData>| {
+                if let Some(mut card) = items.row_data(job.b).filter(|c| c.id.as_str() == job.item_id) {
+                    card.image = image.clone();
+                    card.has_image = true;
+                    items.set_row_data(job.b, card);
+                }
+            };
+            put(&row.items);
+            let shown = u.get_detail_rows();
+            if let Some(s) = (0..shown.row_count()).filter_map(|i| shown.row_data(i)).find(|s| s.title == row.title) {
+                put(&s.items);
             }
-            card.image = slint::Image::from_rgba8(buf);
-            card.has_image = true;
-            row.items.set_row_data(job.b, card);
         });
         spawn_image_jobs(&app2, &client2, jobs, api::Size::Fill(270, 405), Shape::card_top(270, 405, card_w), apply);
     });
@@ -8209,6 +8267,8 @@ enum CachedPage {
         detail: DetailData,
         child: ModelRc<CardData>,
         rows: Vec<Section>,
+        /// Onglet de la fiche (voir d-tab).
+        tab: i32,
         zone: (i32, i32, i32, i32),
         /// Défilement libre au départ (affiche cliquée dans les rangées) : la position est rendue.
         free: Option<f32>,
@@ -8236,7 +8296,9 @@ fn cache_current_page(app: &Arc<App>, u: &AppWindow) {
             child: u.get_child_items(),
             // Copie : les rangées affichées sont ensuite mises à jour sur place (fiche suivante), la
             // page gardée ne doit pas changer avec elles.
-            rows: copy_rows(&u.get_detail_rows()),
+            // Toutes les rangées (pas seulement celles de l'onglet affiché), et l'onglet.
+            rows: DETAIL_ALL.with(|all| copy_rows(&ModelRc::new(VecModel::from(all.borrow().clone())))),
+            tab: u.get_d_tab(),
             zone: (u.get_d_zone(), u.get_d_x(), u.get_d_child(), u.get_d_button()),
             free: u.get_d_free().then(|| u.get_d_free_y() / 1.0),
         },
@@ -8264,7 +8326,7 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
     let Some(u) = app.ui().upgrade() else { return false };
     app.gen.fetch_add(1, Ordering::SeqCst);
     match page {
-        CachedPage::Detail { detail, child, rows, zone, free } => {
+        CachedPage::Detail { detail, child, rows, tab, zone, free } => {
             // Page quittée au milieu (affiche cliquée plus bas) : on y revient au même endroit.
             if free.is_some() {
                 u.set_keep_scroll(true);
@@ -8272,7 +8334,8 @@ fn restore_page(app: &Arc<App>, id: &str) -> bool {
             set_detail_smooth(&u, detail);
             u.set_child_items(child);
             // Les affiches des rangées se retournent sur celles de la page d'avant.
-            set_rows_in_place(&u, rows);
+            u.set_d_tab(tab);
+            set_detail_all(&u, rows);
             *app.rows_base.lock().unwrap() = String::new();
             if let Some(y) = free {
                 u.set_keep_scroll(false);
@@ -8492,6 +8555,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         b.3 = watched;
     }
     let misc = item.misc_line();
+    let misc_short = item.misc_short();
+    let (score, stat_time, stat_date, stat_age) = item.stats();
     let facts = detail_facts(&item);
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
@@ -8532,6 +8597,11 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             title: title.into(),
             subtitle: subtitle.into(),
             misc: misc.into(),
+            misc_short: misc_short.into(),
+            score,
+            stat_time: stat_time.into(),
+            stat_date: stat_date.into(),
+            stat_age: stat_age.into(),
             facts: ModelRc::new(VecModel::from(
                 facts.into_iter().map(|(label, value)| FactData { label: label.into(), value: value.into() }).collect::<Vec<_>>(),
             )),
@@ -8586,7 +8656,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         set_detail_smooth(&u, detail);
         u.set_child_items(ModelRc::new(VecModel::from(cards)));
         if !keep_rows && !from_detail {
-            u.set_detail_rows(ModelRc::default());
+            clear_detail_rows(&u);
         }
         if u.get_keep_scroll() {
             // Ouverte d'un clic dans les rangées du bas : la sélection et la position restent.
@@ -8595,6 +8665,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             u.set_d_x(0);
             u.set_d_zone(0);
             u.set_d_button(0);
+            // Autre média : premier onglet (saisons / épisodes, sinon le premier qui a du contenu).
+            u.set_d_tab(0);
         }
         u.set_d_child(0);
         u.set_overview_open(false);
@@ -10077,6 +10149,16 @@ pub(crate) fn main() -> anyhow::Result<()> {
         move || toggle_full(&app)
     });
 
+    // Onglet de la fiche choisi : ses rangées.
+    ui.on_detail_tab_changed({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(u) = weak.upgrade() {
+                show_detail_tab(&u);
+            }
+        }
+    });
+
     // Recherche avancée.
     ui.on_search_adv({
         let app = app.clone();
@@ -11547,6 +11629,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             title: title.into(),
             subtitle: subtitle.into(),
             misc: misc.into(),
+            score: -1.0,
             overview: overview.into(),
             expect_logo: has_logo_file,
             logo_key: logo_key.into(),
@@ -11571,7 +11654,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
                 .map(|c| CardData { id: c.0.clone().into(), title: c.1.clone().into(), subtitle: c.2.clone().into(), count: c.4, progress: c.5, played: c.6, ..Default::default() })
                 .collect::<Vec<_>>(),
         )));
-        u.set_detail_rows(ModelRc::default());
+        clear_detail_rows(&u);
         if !same {
             u.set_d_x(0);
             u.set_d_zone(0);
