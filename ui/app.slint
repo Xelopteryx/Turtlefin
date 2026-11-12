@@ -2470,7 +2470,11 @@ component DetailTab inherits Rectangle {
         vertical-alignment: center;
     }
     Rectangle {
-        visible: root.on && !root.lit;
+        property <float> w: root.on && !root.lit ? 1 : 0;
+        animate w { duration: Motion.select ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        visible: self.w > 0.01;
+        width: parent.width * self.w;
+        x: (parent.width - self.width) / 2;
         y: parent.height + 6px * root.k;
         height: 3px * root.k;
         border-radius: 2px;
@@ -5475,7 +5479,24 @@ export component AppWindow inherits Window {
         : root.d-tab-ok(3) ? 3 : root.d-tab-ok(2) ? 2 : -1;
     changed d-tab-eff => {
         root.detail-tab-changed();
+        // Changement d'onglet : son contenu arrive en fondu en remontant un peu (voir tab-e).
+        if (root.screen == "detail" && Motion.detail) {
+            root.tab-t0 = animation-tick();
+            root.tab-live = true;
+        }
     }
+    property <duration> tab-t0;
+    property <bool> tab-live;
+    Timer {
+        interval: 320ms;
+        running: root.tab-live;
+        triggered => {
+            root.tab-live = false;
+        }
+    }
+    property <float> tab-q: root.tab-live ? clamp((animation-tick() - root.tab-t0) / 300ms, 0, 1) : 1;
+    out property <float> tab-e: 1 - (1 - root.tab-q) * (1 - root.tab-q) * (1 - root.tab-q);
+    property <length> tab-dy: (1 - root.tab-e) * 24px * root.k;
     // Onglet voisin (dir : -1 à gauche, 1 à droite), dans l'ordre affiché ; le même s'il n'y en a pas.
     function d-tab-step(dir: int) -> int {
         let i = root.d-tab-eff + dir;
@@ -9107,10 +9128,13 @@ export component AppWindow inherits Window {
         // Onglet Détails : toutes les informations, en deux colonnes (intitulé, valeur).
         if root.d-tabs-on && root.d-tab-eff == 2: VerticalLayout {
             x: (root.narrow ? 16px : 32px) + root.po-right;
-            y: root.d-children-y + 8px * root.k + root.po-down;
+            y: root.d-children-y + 8px * root.k + root.po-down + root.tab-dy;
             width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k);
-            spacing: 12px * root.k;
-            opacity: root.rev(3);
+            // Hauteur de son contenu : sans elle, les lignes se répartissaient sur toute la page.
+            height: self.preferred-height;
+            alignment: start;
+            spacing: 10px * root.k;
+            opacity: root.rev(3) * root.tab-e;
             for f in root.detail.facts: HorizontalLayout {
                 spacing: 20px * root.k;
                 Text {
@@ -9119,7 +9143,7 @@ export component AppWindow inherits Window {
                     color: Theme.muted;
                     font-size: 13px * root.k;
                     font-weight: 700;
-                    vertical-alignment: top;
+                    vertical-alignment: center;
                 }
                 Text {
                     horizontal-stretch: 1;
@@ -9134,7 +9158,7 @@ export component AppWindow inherits Window {
         // Épisodes d'une saison : liste verticale (voir ep-list).
         if root.kids-on && root.ep-list: Rectangle {
             // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
-            opacity: (root.sw-kids && !root.ep-anim ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
+            opacity: (root.sw-kids && !root.ep-anim ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p) * root.tab-e;
             // Place laissée de chaque côté aux boutons flottants d'une longue saison (liste toujours centrée).
             width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 50px * root.k : 0px)), 1200px * root.k);
             // Centrée dans la fenêtre.
@@ -9273,8 +9297,8 @@ export component AppWindow inherits Window {
         if root.kids-on && !root.ep-list: SectionRow {
             // Fondu seulement pendant l'apparition de la fiche : une opacité sur toute la rangée coûte
             // cher sur les petites machines, elle revient à 1 aussitôt après.
-            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p);
-            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
+            opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p) * root.tab-e;
+            y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
             title: root.detail.children-title;
@@ -9303,8 +9327,8 @@ export component AppWindow inherits Window {
         for row[ri] in root.detail-rows: SectionRow {
             cascade: true;
             leaving: row.leaving;
-            opacity: root.rev(4) * (1 - root.kids-out-p);
-            y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down;
+            opacity: root.rev(4) * (1 - root.kids-out-p) * root.tab-e;
+            y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
             height: row.h-px * 1px;
             title: root.d-tab-eff == 1 ? "" : row.title; // onglet Distribution : son nom suffit
