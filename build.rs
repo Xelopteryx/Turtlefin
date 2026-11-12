@@ -16,6 +16,8 @@ fn main() {
     let config = slint_build::CompilerConfiguration::new().with_style("fluent-dark".into());
     slint_build::compile_with_config("ui/app.slint", config).expect("échec de la compilation Slint");
 
+    embed_sounds();
+
     // Windows : icône de l'exécutable (Explorateur, barre des tâches, raccourcis).
     println!("cargo:rerun-if-changed=packaging/icons/turtlefin.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
@@ -24,6 +26,34 @@ fn main() {
         res.compile().expect("échec de l'ajout de l'icône Windows");
         libmpv_next_to_exe();
     }
+}
+
+/// Effets sonores livrés avec l'appli : `sounds/<jeu>/<événement>.ogg` (ou .wav), intégrés au programme.
+/// Un son absent est fabriqué par synthèse (src/sfx.rs).
+fn embed_sounds() {
+    println!("cargo:rerun-if-changed=sounds");
+    let mut out = String::from("pub static EMBEDDED: &[(&str, &str, &str, &[u8])] = &[\n");
+    let root = std::path::Path::new("sounds");
+    let mut sets: Vec<_> = std::fs::read_dir(root).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    sets.sort();
+    for dir in sets {
+        println!("cargo:rerun-if-changed={}", dir.display());
+        let set = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let mut files: Vec<_> = std::fs::read_dir(&dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+        files.sort();
+        for f in files {
+            let ext = f.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+            if !matches!(ext.as_str(), "ogg" | "wav" | "flac" | "mp3") {
+                continue;
+            }
+            let ev = f.file_stem().unwrap().to_string_lossy().into_owned();
+            let abs = std::fs::canonicalize(&f).unwrap();
+            out.push_str(&format!("    ({set:?}, {ev:?}, {ext:?}, include_bytes!({:?})),\n", abs.display().to_string()));
+        }
+    }
+    out.push_str("];\n");
+    let dest = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("sounds.rs");
+    std::fs::write(dest, out).unwrap();
 }
 
 /// libmpv de Windows, fournie par le dépôt (vendor/libmpv, voir son README) : décompressée, vérifiée

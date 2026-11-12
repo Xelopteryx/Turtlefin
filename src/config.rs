@@ -882,7 +882,7 @@ impl Default for UiPrefs {
             marquee: true,
             show_clock: true,
             sfx: false,
-            sfx_volume: 50,
+            sfx_volume: 70,
             mods: Vec::new(),
             language: String::new(),
             autostart_user: String::new(),
