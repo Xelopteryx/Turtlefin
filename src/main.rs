@@ -8517,6 +8517,29 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     };
     let has_next = next_card.is_some();
     let mut buttons = item.buttons(app.can_download.load(Ordering::SeqCst));
+    // Série, saison : le bouton Lecture annonce l'épisode qu'il lance (« Reprendre S1E5 · 1:55 », son titre
+    // dessous, son avancement) ; plus de carte « À suivre » à part.
+    let (mut play_sub, mut play_progress) = (String::new(), -1.0f32);
+    if matches!(item.kind.as_str(), "Series" | "Season") {
+        if let Some(n) = next.as_ref() {
+            let code = match (n.parent_index_number, n.index_number) {
+                (Some(s), Some(e)) => format!("S{s}E{e}"),
+                _ => String::new(),
+            };
+            let resume = n.play_label();
+            let label = match resume.strip_prefix(tr("Reprendre à ").trim_end()).map(str::trim) {
+                Some(at) if !code.is_empty() => trf("Reprendre {} · {}", &[&code, &at]),
+                Some(_) => resume.clone(),
+                None if !code.is_empty() => trf("Lire {}", &[&code]),
+                None => resume.clone(),
+            };
+            for b in buttons.iter_mut().filter(|b| b.1 == "play") {
+                b.0 = label.clone();
+            }
+            play_sub = n.name.clone();
+            play_progress = n.progress();
+        }
+    }
     // Film / épisode : choix des pistes pour la lecture (retenu pour toute la série).
     let audio_streams = item.streams("Audio");
     let sub_streams = item.streams("Subtitle");
@@ -8598,6 +8621,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             subtitle: subtitle.into(),
             misc: misc.into(),
             misc_short: misc_short.into(),
+            play_sub: play_sub.into(),
+            play_progress,
             score,
             stat_time: stat_time.into(),
             stat_date: stat_date.into(),
@@ -11630,6 +11655,7 @@ fn show_local_detail(app: &Arc<App>, key: &str) {
             subtitle: subtitle.into(),
             misc: misc.into(),
             score: -1.0,
+            play_progress: -1.0,
             overview: overview.into(),
             expect_logo: has_logo_file,
             logo_key: logo_key.into(),

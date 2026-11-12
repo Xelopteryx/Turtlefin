@@ -161,6 +161,8 @@ export struct DetailData {
     subtitle: string,
     misc: string,
     misc-short: string,   // ligne d'infos quand les chiffres sont à part (langues audio)
+    play-sub: string,     // série, saison : titre de l'épisode que lance le bouton Lecture
+    play-progress: float, // son avancement (0..1) ; négatif : rien à montrer
     score: float,         // note sur 10 ; négative : aucune
     stat-time: string,    // durée
     stat-date: string,    // date de sortie
@@ -2566,6 +2568,10 @@ component DetailButton inherits Rectangle {
     in property <bool> compact;
     property <bool> primary: root.icon == "play" && root.text != "";
     property <bool> wide: root.primary && !root.compact;
+    // Bouton Lecture d'une série : titre de l'épisode sous le libellé, et son avancement.
+    in property <string> sub;
+    in property <float> prog: -1;
+    property <bool> two: root.wide && root.sub != "";
     property <bool> is-icon: root.icon != "" && root.icon != "label" && !root.wide;
 
     // Animations : appui (écrasé puis rebond) et changement d'état (le bouton « saute »).
@@ -2599,7 +2605,9 @@ component DetailButton inherits Rectangle {
     animate lit-s { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     in property <bool> chip; // pastille compacte (saison, série, pistes)
-    preferred-width: root.is-icon ? self.height : label.preferred-width + (root.wide ? 62px : root.chip ? 24px : 40px) * root.k;
+    preferred-width: root.is-icon ? self.height
+        : (root.two ? max(label.preferred-width, min(sub-t.preferred-width, 320px * root.k)) : label.preferred-width)
+            + (root.wide ? 62px : root.chip ? 24px : 40px) * root.k;
     min-width: self.preferred-width;
     horizontal-stretch: 0;
     // Le zoom ne s'applique pas à la racine d'un composant : il porte sur ce rectangle intérieur.
@@ -2768,14 +2776,42 @@ component DetailButton inherits Rectangle {
 
         label := Text {
             x: root.wide ? 40px * root.k : 0px;
-            width: parent.width - self.x;
-            height: parent.height;
+            width: parent.width - self.x - (root.two ? 12px * root.k : 0px);
+            y: root.two ? 3px * root.k : 0px;
+            height: root.two ? 18px * root.k : parent.height;
             text: root.is-icon ? "" : root.text;
             color: face.ink;
-            font-size: (root.chip ? 13px : root.icon == "label" ? 15px : 16px) * root.k;
+            font-size: (root.chip ? 13px : root.icon == "label" ? 15px : root.two ? 14px : 16px) * root.k;
             font-weight: 600;
-            horizontal-alignment: center;
+            horizontal-alignment: root.two ? left : center;
             vertical-alignment: center;
+        }
+        // Titre de l'épisode lancé (série, saison), puis son avancement.
+        sub-t := Text {
+            visible: root.two;
+            x: label.x;
+            y: 20px * root.k;
+            width: label.width;
+            height: 13px * root.k;
+            text: root.sub;
+            color: face.ink.with-alpha(0.85);
+            font-size: 11px * root.k;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        if root.two && root.prog > 0.005: Rectangle {
+            x: label.x;
+            y: parent.height - 6px * root.k;
+            width: label.width;
+            height: 3px * root.k;
+            border-radius: 1.5px * root.k;
+            background: face.ink.with-alpha(0.25);
+            Rectangle {
+                x: 0px;
+                width: parent.width * clamp(root.prog, 0, 1);
+                border-radius: parent.border-radius;
+                background: face.ink;
+            }
         }
 
         area := TouchArea {
@@ -6168,7 +6204,8 @@ export component AppWindow inherits Window {
         : root.d-zone == 9 ? (root.tabs-y + root.tabs-h + 120px * root.k <= root.d-view-h ? 0px : max(0px, root.tabs-y - 140px * root.k)) : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
-    property <bool> show-next: !root.narrow && root.detail.has-next && root.width - root.col-x - 56px - root.next-w > 420px * root.k;
+    // Carte « À suivre » retirée : le bouton Lecture annonce l'épisode suivant (play-sub, play-progress).
+    property <bool> show-next: false;
     property <length> info-w: root.width - root.col-x - 32px - (root.show-next ? root.next-w + 24px : 0px);
 
     // Nerd : les pistes et les puces lumineuses passaient sous les textes de toutes les pages.
@@ -8868,6 +8905,8 @@ export component AppWindow inherits Window {
                 visible: i < root.detail.icon-count;
                 width: i < root.detail.icon-count ? (b.icon == "label" || b.icon == "play" ? self.preferred-width : self.height) : 0px;
                 text: b.label;
+                sub: b.icon == "play" ? root.detail.play-sub : "";
+                prog: b.icon == "play" ? root.detail.play-progress : -1;
                 icon: b.icon;
                 active: b.active;
                 compact: root.narrow;

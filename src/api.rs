@@ -507,7 +507,7 @@ impl Item {
         v
     }
 
-    fn progress(&self) -> f32 {
+    pub(crate) fn progress(&self) -> f32 {
         let u = self.user_data.as_ref();
         match u.and_then(|u| u.played_percentage) {
             Some(p) if !u.map(|u| u.played).unwrap_or(false) => (p / 100.0).clamp(0.0, 1.0) as f32,
