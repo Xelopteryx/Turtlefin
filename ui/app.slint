@@ -7931,7 +7931,10 @@ export component AppWindow inherits Window {
             FocusScope {
                 property <int> tick: root.refocus;
                 changed tick => {
-                    self.focus();
+                    // Liste en train de se fermer : elle ne reprend pas le clavier (la page dessous l'aurait perdu).
+                    if (root.sf-open) {
+                        self.focus();
+                    }
                 }
                 init => {
                     self.focus();

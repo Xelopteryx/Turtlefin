@@ -2738,6 +2738,11 @@ fn detail_facts(item: &api::Item) -> Vec<(String, String)> {
 /// Personne de la distribution touchée : la recherche s'ouvre sur son nom (rangée « Avec … »).
 fn search_person(app: &Arc<App>, name: &str) {
     let Some(u) = app.ui().upgrade() else { return };
+    // Les filtres de la recherche avancée encore choisis cacheraient ses films (et sa rangée « Avec … ») :
+    // la recherche d'une personne repart sans filtre.
+    *app.search_filter.lock().unwrap() = SearchFilter::default();
+    u.set_s_adv(false);
+    filter_chips(app, &u);
     u.set_search_text(name.into());
     open_search(app);
     u.set_s_field(false);

@@ -1715,6 +1715,36 @@ impl Client {
             Err(_) => return Vec::new(),
         };
         let mut out = Vec::new();
+        // Collections : la recherche de Seerr (recherche « multi » de TMDB) n'en renvoie jamais. On les
+        // tire des films trouvés : la fiche d'un film dans Seerr indique sa saga (`collection`).
+        if kind == 3 {
+            let ids: Vec<i64> = v["results"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|r| r["mediaType"].as_str() == Some("movie"))
+                .filter_map(|r| r["id"].as_i64())
+                .take(6)
+                .collect();
+            let details = futures_util::future::join_all(
+                ids.iter().map(|id| async move { self.get::<serde_json::Value>(&format!("/JellyfinEnhanced/jellyseerr/movie/{id}"), &[]).await }),
+            )
+            .await;
+            let mut seen = std::collections::HashSet::new();
+            for d in details.into_iter().flatten() {
+                let c = &d["collection"];
+                let Some(id) = c["id"].as_i64() else { continue };
+                if !seen.insert(id) {
+                    continue;
+                }
+                let mut card = serde_json::json!({ "id": id, "mediaType": "collection", "name": c["name"], "posterPath": c["posterPath"] });
+                if card["posterPath"].is_null() {
+                    card["posterPath"] = d["posterPath"].clone();
+                }
+                out.extend(seerr_card(&card));
+            }
+            return out;
+        }
         for r in v["results"].as_array().into_iter().flatten() {
             let wanted = match r["mediaType"].as_str() {
                 Some("movie") => kind <= 1,
