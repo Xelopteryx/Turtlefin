@@ -47,6 +47,19 @@ pub fn set_theme(set: &str, custom: HashMap<String, String>) {
     *CUSTOM.lock().unwrap() = if custom.is_empty() { None } else { Some(custom) };
 }
 
+/// Touche maintenue : un son toutes les 220 ms au plus (pas une rafale à chaque répétition du clavier).
+pub fn play_repeat(event: &str) {
+    static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap();
+        if last.is_some_and(|t| t.elapsed() < Duration::from_millis(220)) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    play(event);
+}
+
 /// Joue le son d'un événement (sans attendre ; ignoré si les sons sont coupés).
 pub fn play(event: &str) {
     if !ON.load(Ordering::Relaxed) {

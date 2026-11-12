@@ -1171,8 +1171,8 @@ component SectionRow inherits Rectangle {
         }
     }
 
-    // Titre précédé d'un trait (comme .sectionTitle:before de JellySkin)
-    Rectangle {
+    // Titre précédé d'un trait (comme .sectionTitle:before de JellySkin) ; pas de titre, pas de trait.
+    if root.title != "": Rectangle {
         x: root.pad - (1 - root.te) * 40px * root.k;
         opacity: root.te;
         y: root.title-h / 2 - 1px;
@@ -2454,10 +2454,16 @@ component DetailTab inherits Rectangle {
     in property <float> k: 1.0;
     callback clicked();
     property <bool> hot: root.lit || (ta.has-hover && !Nav.touch);
-    preferred-width: label.preferred-width + (root.lit ? 28px : 0px) * root.k;
+    // Pastille de sélection (clavier, télécommande) : elle s'ouvre et se referme au lieu d'apparaître.
+    property <float> lp: root.lit ? 1 : 0;
+    animate lp { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+    preferred-width: label.preferred-width + 28px * root.k;
     horizontal-stretch: 0;
     Rectangle {
-        visible: root.lit;
+        visible: root.lp > 0.01;
+        opacity: root.lp;
+        width: parent.width * (0.7 + 0.3 * root.lp);
+        x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         height: 36px * root.k;
         border-radius: Theme.win7 ? 4px : Theme.term ? 2px : self.height / 2;
@@ -2466,13 +2472,14 @@ component DetailTab inherits Rectangle {
     label := Text {
         x: (parent.width - self.width) / 2;
         text: root.text;
-        color: root.lit ? Theme.on-accent : root.on || root.hot ? Theme.text : Theme.muted;
+        color: root.lp > 0.5 ? Theme.on-accent : root.on || root.hot ? Theme.text : Theme.muted;
+        animate color { duration: Motion.select ? 180ms : 0ms; }
         font-size: 17px * root.k;
         font-weight: root.on ? 700 : 500;
         vertical-alignment: center;
     }
     Rectangle {
-        property <float> w: root.on && !root.lit ? 1 : 0;
+        property <float> w: root.on && root.lp < 0.5 ? 1 : 0;
         animate w { duration: Motion.select ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         visible: self.w > 0.01;
         width: parent.width * self.w;
@@ -4687,6 +4694,11 @@ export component AppWindow inherits Window {
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
         root.ep-btn = -1;
+        // Fiche ouverte depuis une autre page : sa première mise en place n'est pas un changement de fiche
+        // (pas de balayage des textes depuis ceux d'une fiche vue avant).
+        if (root.screen == "detail") {
+            root.d-fresh = true;
+        }
         // Bibliothèque distribuée quittée autrement que par Retour : plus de ramassage à faire.
         if (root.screen != "library") {
             root.deck-back = false;
@@ -4800,9 +4812,10 @@ export component AppWindow inherits Window {
             root.ep-anim = true;
         }
         root.d-t0 = animation-tick();
-        // Textes qui changent : caractère par caractère (voir morph).
+        // Textes qui changent : caractère par caractère (voir morph) ; pas à l'arrivée d'une autre page.
         root.mt-t0 = animation-tick();
-        root.mt-live = Motion.detail && morph;
+        root.mt-live = Motion.detail && morph && !root.d-fresh;
+        root.d-fresh = false;
         root.sw-title = false;
         root.sw-sub = false;
         root.sw-icons = false;
@@ -4832,6 +4845,8 @@ export component AppWindow inherits Window {
     // Textes de la fiche : le précédent (pour le changement caractère par caractère) et celui d'où part
     // le changement en cours.
     property <bool> mt-live;
+    property <bool> d-fresh;
+    property <duration> d-rep-t;
     property <duration> mt-t0;
     Timer {
         interval: 900ms;
@@ -6182,7 +6197,8 @@ export component AppWindow inherits Window {
     property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
     property <length> ep-row-h: root.ep-thumb-w * 0.5625 + 16px * root.k;
     property <length> ep-gap: 8px * root.k;
-    property <length> ep-head-h: 56px * root.k;
+    // En-tête de la liste d'épisodes : rien quand les onglets le nomment déjà (Épisodes).
+    property <length> ep-head-h: root.d-tabs-on ? 10px * root.k : 56px * root.k;
     property <length> ep-block-h: root.ep-head-h + root.child-items.length * (root.ep-row-h + root.ep-gap) + 40px * root.k;
     // Défilement de la fiche : la rangée sélectionnée remonte vers le haut de l'écran.
     // Défilement affiché de la fiche : celui de la sélection, ou le défilement libre (doigt, molette).
@@ -6191,7 +6207,10 @@ export component AppWindow inherits Window {
     // saisons), choisir une rangée ne fait rien défiler.
     property <length> d-rows-h: root.detail-rows.length > 0
         ? (root.detail-rows[root.detail-rows.length - 1].y-px + root.detail-rows[root.detail-rows.length - 1].h-px) * 1px : 0px;
-    property <length> d-max: max(0px, root.d-extra-y + root.d-rows-h + 24px * root.k - root.height + root.header-h);
+    // Onglet Détails : hauteur de ses lignes (une par information, plus pour les longues).
+    property <length> details-real-h;
+    property <length> details-h: root.d-tab-eff == 2 ? root.details-real-h + 40px * root.k : 0px;
+    property <length> d-max: max(0px, root.d-extra-y + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
     // Rangée choisie déjà entièrement visible en haut de la fiche : pas de défilement.
     property <length> d-view-h: root.height - root.header-h;
     property <length> d-scroll: min(root.d-max, root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
@@ -6201,7 +6220,9 @@ export component AppWindow inherits Window {
             // Liste d'épisodes : l'épisode choisi reste vers le milieu de l'écran.
             : max(0px, root.d-children-y + root.ep-head-h + root.d-child * (root.ep-row-h + root.ep-gap) - root.d-view-h * 0.4))
         : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k))
-        : root.d-zone == 9 ? (root.tabs-y + root.tabs-h + 120px * root.k <= root.d-view-h ? 0px : max(0px, root.tabs-y - 140px * root.k)) : 0px);
+        : root.d-zone == 9 ? (root.tabs-y + root.tabs-h + 120px * root.k <= root.d-view-h ? 0px : max(0px, root.tabs-y - 140px * root.k))
+        // Zone 10 : dans l'onglet Détails, la page descend jusqu'à sa dernière ligne.
+        : root.d-zone == 10 ? root.d-max : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
     // « À suivre » seulement s'il reste assez de place aux infos (petite fenêtre : masqué).
     // Carte « À suivre » retirée : le bouton Lecture annonce l'épisode suivant (play-sub, play-progress).
@@ -8345,10 +8366,10 @@ export component AppWindow inherits Window {
             + (root.detail.stat-date != "" ? 1 : 0) + (root.detail.stat-age != "" ? 1 : 0);
         property <length> stats-w: min(root.info-w - 320px * root.k, (root.detail.score >= 0 ? 94px : 0px) * root.k + 3 * 132px * root.k);
         property <bool> stats-on: !root.narrow && self.stats-n > 0 && self.stats-w >= 200px * root.k;
-        // Logo du média : large (2:1 ou plus, 240 px ou plus) à la place du titre ; sinon le titre en texte, et
+        // Logo du média : plus large que haut (1,3:1 ou plus, 160 px ou plus) à la place du titre ; sinon le titre en texte, et
         // le logo en petit à côté s'il est assez net (120 px ou plus).
-        property <bool> logo-wide: root.detail.has-logo && root.detail.logo.width >= 240
-            && root.detail.logo.width >= 2 * root.detail.logo.height;
+        property <bool> logo-wide: root.detail.has-logo && root.detail.logo.width >= 160
+            && root.detail.logo.width * 10 >= 13 * root.detail.logo.height;
         property <bool> logo-small: root.detail.has-logo && !self.logo-wide && root.detail.logo.width >= 120;
         // Boutons : deux lignes centrées l'une sur l'autre (icônes, puis pastilles).
         property <length> btn-gap: 14px * root.k;
@@ -8460,8 +8481,18 @@ export component AppWindow inherits Window {
                 } else if ((root.d-tab-eff == 1 || root.d-tab-eff == 3) && root.detail-rows.length > 0) {
                     root.d-zone = 4;
                     root.d-x = 0;
+                } else if (root.d-tab-eff == 2) {
+                    root.d-zone = 10;
                 }
                 return true;
+            }
+            return true;
+        }
+
+        // Zone 10 : onglet Détails (rien à choisir : la page est descendue pour tout montrer). ↑ les onglets.
+        if (root.d-zone == 10) {
+            if (t == Key.UpArrow) {
+                root.d-zone = 9;
             }
             return true;
         }
@@ -8623,6 +8654,12 @@ export component AppWindow inherits Window {
                 }
                 // Fiche qui vient de s'afficher : un Entrée de trop (celui qui l'a ouverte) ne lance
                 // pas la lecture.
+                // Touche maintenue : un pas toutes les 130 ms au plus (la répétition du clavier filait) ; sur
+                // les onglets, aucune répétition (un appui, un onglet).
+                if (event.repeat && (root.d-zone == 9 || animation-tick() - root.d-rep-t < 130ms)) {
+                    return EventResult.accept;
+                }
+                root.d-rep-t = animation-tick();
                 if (event.text == Key.Return && animation-tick() - root.d-t0 < 600ms) {
                     return EventResult.accept;
                 }
@@ -9161,7 +9198,7 @@ export component AppWindow inherits Window {
                 if root.d-tab-ok(0): DetailTab { text: root.detail.children-title != "" ? root.detail.children-title : Tr.t(Tr.k, "Aperçu"); on: root.d-tab-eff == 0; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 0 && Nav.kb; k: root.k; clicked => { root.d-tab = 0; root.d-zone = 9; } }
                 if root.d-tab-ok(1): DetailTab { text: Tr.t(Tr.k, "Distribution"); on: root.d-tab-eff == 1; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 1 && Nav.kb; k: root.k; clicked => { root.d-tab = 1; root.d-zone = 9; } }
                 if root.d-tab-ok(2): DetailTab { text: Tr.t(Tr.k, "Détails"); on: root.d-tab-eff == 2; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 2 && Nav.kb; k: root.k; clicked => { root.d-tab = 2; root.d-zone = 9; } }
-                if root.d-tab-ok(3): DetailTab { text: Tr.t(Tr.k, "Similaires"); on: root.d-tab-eff == 3; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 3 && Nav.kb; k: root.k; clicked => { root.d-tab = 3; root.d-zone = 9; } }
+                if root.d-tab-ok(3): DetailTab { text: Tr.t(Tr.k, "Plus de ce genre"); on: root.d-tab-eff == 3; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 3 && Nav.kb; k: root.k; clicked => { root.d-tab = 3; root.d-zone = 9; } }
             }
         }
         // Onglet Détails : toutes les informations, en deux colonnes (intitulé, valeur).
@@ -9169,20 +9206,35 @@ export component AppWindow inherits Window {
             x: (root.narrow ? 16px : 32px) + root.po-right;
             y: root.d-children-y + 8px * root.k + root.po-down + root.tab-dy;
             width: min(parent.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k);
-            // Hauteur de son contenu : sans elle, les lignes se répartissaient sur toute la page.
+            // Hauteur de son contenu : sans elle, les lignes se répartissaient sur toute la page. Elle est
+            // donnée à la fiche pour que la page puisse descendre jusqu'à la dernière ligne.
             height: self.preferred-height;
+            property <length> ph: self.preferred-height;
+            init => {
+                root.details-real-h = self.ph;
+            }
+            changed ph => {
+                root.details-real-h = self.ph;
+            }
             alignment: start;
             spacing: 10px * root.k;
             opacity: root.rev(3) * root.tab-e;
             for f in root.detail.facts: HorizontalLayout {
                 spacing: 20px * root.k;
+                // Hauteur selon la longueur du texte (une valeur à la ligne compte pour une seule ligne dans
+                // la hauteur préférée d'un texte : la page ne descendait pas assez pour montrer les tags).
+                property <length> val-w: min(root.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k)
+                    - (root.narrow ? 110px : 170px) * root.k - 20px * root.k;
+                height: max(1, ceil(f.value.character-count * 8.8px * root.k / max(1px, self.val-w))) * 22px * root.k;
                 Text {
                     width: (root.narrow ? 110px : 170px) * root.k;
                     text: f.label;
                     color: Theme.muted;
                     font-size: 13px * root.k;
                     font-weight: 700;
-                    vertical-alignment: center;
+                    // En haut : une valeur longue (tags) tient sur plusieurs lignes.
+                    y: 3px * root.k;
+                    vertical-alignment: top;
                 }
                 Text {
                     horizontal-stretch: 1;
@@ -9205,7 +9257,7 @@ export component AppWindow inherits Window {
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
             height: root.ep-block-h;
             // Titre de la liste (« Épisodes »).
-            if root.wiping(root.mt-ctitle, root.detail.children-title): Wipe {
+            if !root.d-tabs-on && root.wiping(root.mt-ctitle, root.detail.children-title): Wipe {
                 x: 0px;
                 y: 0px;
                 width: parent.width;
@@ -9216,7 +9268,7 @@ export component AppWindow inherits Window {
                 ink: Theme.text;
                 font-size: 22px * root.k;
             }
-            if !root.wiping(root.mt-ctitle, root.detail.children-title): Text {
+            if !root.d-tabs-on && !root.wiping(root.mt-ctitle, root.detail.children-title): Text {
                 x: 0px;
                 y: 0px;
                 height: root.ep-head-h - 12px * root.k;
@@ -9340,7 +9392,8 @@ export component AppWindow inherits Window {
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
             height: root.child-card-w * root.child-ratio + 132px * root.k;
-            title: root.detail.children-title;
+            // Le nom de l'onglet (Saisons, Épisodes) suffit.
+            title: root.d-tabs-on ? "" : root.detail.children-title;
             items: root.child-items;
             card-w: root.child-card-w;
             ratio: root.child-ratio;
@@ -9370,7 +9423,8 @@ export component AppWindow inherits Window {
             y: root.d-extra-y + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
             height: row.h-px * 1px;
-            title: root.d-tab-eff == 1 ? "" : row.title; // onglet Distribution : son nom suffit
+            // Titre déjà donné par l'onglet : Distribution, et la première rangée de « Plus de ce genre ».
+            title: root.d-tab-eff == 1 || (root.d-tab-eff == 3 && ri == 0) ? "" : row.title;
             items: row.items;
             card-w: root.card-w;
             ratio: 1.5;
@@ -10759,6 +10813,11 @@ export component AppWindow inherits Window {
         // glissement en envoie des dizaines : la grille filait jusqu'au bout). av-top et g-top suivent la
         // rangée du haut ; le clavier et la molette les changent, et le décalage s'aligne sur eux.
         property <length> av-off;
+        // Position affichée : suit av-off en glissant (molette, clavier), aussitôt au doigt.
+        property <length> av-view: self.av-off;
+        animate av-view { duration: Motion.scroll && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
+        property <length> g-view: self.g-off;
+        animate g-view { duration: Motion.scroll && !Nav.drag ? 160ms : 0ms; easing: ease-out; }
         property <length> av-max: max(0px, self.av-lines * self.av-ch + 28px * root.k - self.av-gh);
         property <length> g-off;
         property <length> g-max: max(0px, root.av-groups.length * (self.g-h + 6px * root.k) - 6px * root.k - self.av-gh);
@@ -12101,18 +12160,12 @@ export component AppWindow inherits Window {
                 clip: true;
                 TouchArea {
                     scroll-event(e) => {
-                        if (Nav.drag) {
-                            sets.g-drag(e.delta-y);
-                        } else if (e.delta-y < 0) {
-                            root.g-top = max(0, min(root.av-groups.length - sets.g-vis, root.g-top + 1));
-                        } else if (e.delta-y > 0) {
-                            root.g-top = max(0, root.g-top - 1);
-                        }
+                        sets.g-drag(e.delta-y);
                         return EventResult.accept;
                     }
                 }
                 Rectangle {
-                    y: root.av-group * (sets.g-h + 6px * root.k) - sets.g-off;
+                    y: root.av-group * (sets.g-h + 6px * root.k) - sets.g-view;
                     animate y { duration: Motion.scroll && !Nav.drag ? 300ms : 0ms; easing: cubic-bezier(0.34, 1.3, 0.64, 1); }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
@@ -12126,7 +12179,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 for g[i] in root.av-groups: Rectangle {
-                    y: i * (sets.g-h + 6px * root.k) - sets.g-off;
+                    y: i * (sets.g-h + 6px * root.k) - sets.g-view;
                     animate y { duration: Motion.scroll && !Nav.drag ? 200ms : 0ms; easing: ease-out; }
                     height: sets.g-h;
                     border-radius: 10px * root.k;
@@ -12171,19 +12224,14 @@ export component AppWindow inherits Window {
                 clip: true;
                 TouchArea {
                     scroll-event(e) => {
-                        if (Nav.drag) {
-                            sets.av-drag(e.delta-y);
-                        } else if (e.delta-y < 0) {
-                            sets.av-scroll(1);
-                        } else if (e.delta-y > 0) {
-                            sets.av-scroll(-1);
-                        }
+                        // Doigt et molette : au pixel (la molette sautait d'une rangée entière à chaque cran).
+                        sets.av-drag(e.delta-y);
                         return EventResult.accept;
                     }
                 }
                 Rectangle {
                     x: 14px * root.k;
-                    y: 14px * root.k - sets.av-off;
+                    y: 14px * root.k - sets.av-view;
                     animate y { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
                     for a[i] in root.avatar-items: cell := Rectangle {
                         property <int> line: floor(i / sets.av-cols);
@@ -12312,7 +12360,7 @@ export component AppWindow inherits Window {
                     border-radius: 2px * root.k;
                     background: Theme.fg.with-alpha(0.08);
                     Rectangle {
-                        y: parent.height * sets.av-off / (sets.av-lines * sets.av-ch);
+                        y: parent.height * sets.av-view / (sets.av-lines * sets.av-ch);
                         animate y { duration: Motion.scroll ? 260ms : 0ms; easing: ease-out; }
                         height: parent.height * sets.av-rows / sets.av-lines;
                         border-radius: 2px * root.k;
@@ -12937,15 +12985,35 @@ export component AppWindow inherits Window {
                 spacing: (srp.tall ? 14 : 12) * srp.u;
                 alignment: center;
 
-                if !srp.tall: Marquee {
+                // Titre sur deux lignes au plus (les titres longs ne défilent plus), comme sur la fiche.
+                if !srp.tall: Text {
                     opacity: srp.blk(0);
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
-                    text-color: Theme.fg;
+                    color: Theme.fg;
                     font-size: 38 * srp.u;
                     font-weight: 700;
-                    active: true;
-                    horizontal-alignment: TextHorizontalAlignment.left;
-                    height: self.preferred-height;
+                    wrap: word-wrap;
+                    max-height: 2 * 48 * srp.u;
+                    overflow: elide;
+                }
+                // Note dans l'anneau coloré (comme sur la fiche), puis durée et genres.
+                if root.sr.rating != "": HorizontalLayout {
+                    opacity: srp.blk(1);
+                    spacing: 16 * srp.u;
+                    alignment: start;
+                    height: 64 * srp.u;
+                    ScoreRing {
+                        width: 64 * srp.u;
+                        score: root.sr.rating.to-float();
+                        k: srp.u / 1px;
+                    }
+                    Text {
+                        text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres;
+                        color: Theme.fg.with-alpha(0.82);
+                        font-size: 18 * srp.u;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
                 }
                 // Portrait : titre sur plusieurs lignes (la colonne est étroite).
                 if srp.tall: Text {
@@ -12960,8 +13028,10 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     opacity: srp.blk(1);
-                    text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
-                        + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                    // Avec une note, durée et genres sont déjà à côté de l'anneau (ligne au-dessus).
+                    height: root.sr.rating != "" ? 0px : self.preferred-height;
+                    visible: root.sr.rating == "";
+                    text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres;
                     color: Theme.fg.with-alpha(0.82);
                     font-size: (srp.tall ? 22 : 18) * srp.u;
                     wrap: srp.tall ? word-wrap : no-wrap;

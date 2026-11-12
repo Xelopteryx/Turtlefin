@@ -9318,7 +9318,10 @@ fn install_f11(app: &Arc<App>) {
             if event.state == winit::event::ElementState::Pressed {
                 use winit::keyboard::{Key, NamedKey};
                 match &event.logical_key {
-                    Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::Tab) => sfx::play("move"),
+                    // Touche maintenue : le son du déplacement n'est pas répété à chaque pas (voir sfx::play_repeat).
+                    Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::Tab) => {
+                        if event.repeat { sfx::play_repeat("move") } else { sfx::play("move") }
+                    }
                     Key::Named(NamedKey::Enter) if !event.repeat => sfx::play("ok"),
                     Key::Named(NamedKey::Escape | NamedKey::BrowserBack) if !event.repeat => sfx::play("back"),
                     // Interface TV : Retour arrière sert de Retour ; au bureau, il efface du texte.
