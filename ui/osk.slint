@@ -4,7 +4,7 @@
 // Retour arrière : effacer.
 // Le clavier ne modifie jamais `text` lui-même : il propose le nouveau texte par `edited`.
 
-import { Theme, Tr, Gloss, Motion } from "theme.slint";
+import { Theme, Tr, Gloss, Motion, Win7Glass, TermGlass } from "theme.slint";
 
 // Vrai clavier branché (mode TV) : un caractère imprimable est écrit tel quel (Rust décide).
 export global OskKeys {
@@ -157,16 +157,29 @@ export component Osk inherits Rectangle {
 
         for key[ci] in row: Rectangle {
             horizontal-stretch: key == "␣" ? 4 : key.character-count > 1 ? 1.6 : 1;
-            border-radius: 10px * root.k;
+            // Touches dans la matière du thème : verre de Windows 7 (Aero), composants (Nerd), sinon plates.
+            border-radius: Theme.win7 ? 4px * root.k : Theme.term ? 2px : 10px * root.k;
             property <bool> lit: (root.active && ri == root.r && ci == root.c) || ka.has-hover;
             property <bool> down: root.press-on && key == root.press-key;
             transform-scale: self.down ? 0.86 : 1.0;
             animate transform-scale { duration: Motion.search ? (self.down ? 50ms : 180ms) : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
-            background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+            background: Theme.skinned ? transparent
+                : self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
                 : key == "OK" ? Theme.fg.with-alpha(0.22) : (key == "⇧" && root.shift) ? Theme.fg.with-alpha(0.3)
                 : key.character-count > 1 || key == "⇧" || key == "⌫" ? Theme.fg.with-alpha(0.14) : Theme.fg.with-alpha(0.08);
-            Gloss { r: parent.border-radius; strength: 0.8; }
-            property <color> lit-ink: self.lit ? Theme.on-accent : Theme.fg;
+            if Theme.win7: Win7Glass {
+                lit: parent.lit;
+            }
+            if Theme.term: TermGlass {
+                lit: parent.lit;
+            }
+            // Aero : la touche OK teintée de bleu, comme le bouton par défaut d'une fenêtre de Windows 7.
+            if Theme.win7 && key == "OK" && !self.lit: Rectangle {
+                border-radius: parent.border-radius;
+                background: @linear-gradient(180deg, rgba(120, 200, 255, 0.35) 0%, rgba(40, 120, 220, 0.30) 100%);
+            }
+            if !Theme.skinned: Gloss { r: parent.border-radius; strength: 0.8; }
+            property <color> lit-ink: self.lit && !Theme.skinned ? Theme.on-accent : Theme.fg;
 
             if key == "⇧": Path {
                 width: 20px * root.k;

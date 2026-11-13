@@ -29,6 +29,15 @@ impl std::fmt::Display for WrongPassword {
 }
 impl std::error::Error for WrongPassword {}
 
+/// Filtres de la recherche avancée en plus des listes : années (« 2010,2011… »), note minimale, état
+/// (0 tous · 1 pas vus · 2 vus · 3 favoris).
+#[derive(Default)]
+pub struct MoreFilters {
+    pub years: String,
+    pub min_rating: u8,
+    pub status: u8,
+}
+
 /// Taille d'image demandée au serveur.
 #[derive(Clone, Copy, Debug)]
 pub enum Size {
@@ -1663,7 +1672,17 @@ impl Client {
 
     /// Recherche avancée dans la bibliothèque : texte (facultatif), types, et pour chaque filtre « l'un
     /// de ceux choisis ». Les genres et tags à exclure sont retirés ici (le serveur n'a pas ce filtre).
-    pub async fn search_filtered(&self, term: &str, kinds: &str, genres: &[String], tags: &[String], studios: &[String], exclude: &[String]) -> Result<Vec<Item>> {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn search_filtered(
+        &self,
+        term: &str,
+        kinds: &str,
+        genres: &[String],
+        tags: &[String],
+        studios: &[String],
+        exclude: &[String],
+        more: &MoreFilters,
+    ) -> Result<Vec<Item>> {
         let (g, t, s) = (genres.join("|"), tags.join("|"), studios.join("|"));
         let mut q: Vec<(&str, &str)> =
             vec![("userId", &self.user_id), ("Recursive", "true"), ("IncludeItemTypes", kinds), ("Fields", "Tags,Genres"), ("Limit", "200")];
@@ -1680,6 +1699,19 @@ impl Client {
         }
         if !s.is_empty() {
             q.push(("Studios", &s));
+        }
+        if !more.years.is_empty() {
+            q.push(("Years", &more.years));
+        }
+        let rating = more.min_rating.to_string();
+        if more.min_rating > 0 {
+            q.push(("MinCommunityRating", &rating));
+        }
+        match more.status {
+            1 => q.push(("IsPlayed", "false")),
+            2 => q.push(("IsPlayed", "true")),
+            3 => q.push(("Filters", "IsFavorite")),
+            _ => {}
         }
         let r: ItemsResp = self.get("/Items", &q).await?;
         let excluded = |name: &String| exclude.iter().any(|e| e.to_lowercase() == name.to_lowercase());

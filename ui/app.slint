@@ -2156,9 +2156,11 @@ component ActionButton inherits Rectangle {
     in property <length> font: 16px;
     // Choix en cours (filtre de la recherche) : liseré d'accent en bas et texte en gras.
     in property <bool> on;
+    // Ouvre un menu : chevron vers le bas à droite du texte.
+    in property <bool> drop;
     callback clicked();
 
-    preferred-width: label.preferred-width + 40px;
+    preferred-width: label.preferred-width + 40px + (root.drop ? 18px : 0px);
     // Thèmes brillants (Frutiger Aero) : bulle de verre teintée d'accent, en relief (contour clair,
     // ombre colorée, reflet), plutôt qu'un bouton plat.
     property <bool> bubble: Theme.gloss > 0 && !Theme.win7;
@@ -2213,13 +2215,26 @@ component ActionButton inherits Rectangle {
         // Coupé avec « … » s'il est plus large que le bouton (titre long dans « Voir la lecture · … »
         // ou « Ne plus diffuser sur … » : il débordait du panneau Diffuser). Le bouton veut toujours
         // la largeur du texte entier (preferred-width ci-dessus) ; contraint par sa place, il coupe.
-        width: parent.width - 24px;
+        x: 12px;
+        width: parent.width - 24px - (root.drop ? 18px : 0px);
         color: root.lit ? Theme.on-accent : Theme.fg;
         font-size: root.font;
         font-weight: root.on ? 800 : 600;
         horizontal-alignment: center;
         vertical-alignment: center;
         overflow: elide;
+    }
+    if root.drop: Path {
+        x: parent.width - 26px;
+        y: (parent.height - self.height) / 2;
+        width: 12px;
+        height: 8px;
+        viewbox-width: 12;
+        viewbox-height: 8;
+        fill: transparent;
+        stroke: label.color;
+        stroke-width: 2px;
+        commands: "M 1 1.5 L 6 6.5 L 11 1.5";
     }
     if root.on: Rectangle {
         x: parent.width * 0.2;
@@ -6231,17 +6246,29 @@ export component AppWindow inherits Window {
     // Onglet Détails : hauteur de ses lignes (une par information, plus pour les longues).
     property <length> details-real-h;
     property <length> details-h: root.d-tab-eff == 2 ? root.details-real-h + 40px * root.k : 0px;
-    property <length> d-max: max(0px, root.d-extra-y + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
+    property <length> d-max: max(0px, root.d-extra-y - root.tab-lift + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
+    // Défilement qui montre en entier ce qui va de `top` à `bottom` (positions dans la fiche) s'il tient
+    // à l'écran ; sinon son haut, sous la barre. Rien si c'est déjà visible depuis le haut de la page.
+    pure function d-fit(top: length, bottom: length) -> length {
+        return max(0px, min(top - 24px * root.k, bottom + 24px * root.k - root.d-view-h));
+    }
+    // Bas du premier contenu de l'onglet ouvert (rangée de saisons, première rangée du bas).
+    property <length> d-first-bottom: root.d-tab-eff == 2 ? root.d-children-y + 8px * root.k + min(root.details-real-h, root.d-view-h * 0.6)
+        : root.kids-on && !root.ep-list ? root.d-extra-y - root.tab-lift
+        : root.kids-on ? root.d-children-y + root.ep-head-h + root.ep-row-h
+        : root.detail-rows.length > 0 ? root.d-extra-y - root.tab-lift + root.detail-rows[0].h-px * 1px
+        : root.tabs-y + root.tabs-h;
     // Rangée choisie déjà entièrement visible en haut de la fiche : pas de défilement.
     property <length> d-view-h: root.height - root.header-h;
     property <length> d-scroll: min(root.d-max, root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
-        ? (root.d-extra-y + (root.detail-rows[root.d-zone - 4].y-px + root.detail-rows[root.d-zone - 4].h-px) * 1px <= root.d-view-h ? 0px
-            : max(0px, root.d-extra-y + root.detail-rows[root.d-zone - 4].y-px * 1px - 40px * root.k))
+        ? root.d-fit(root.d-extra-y - root.tab-lift + root.detail-rows[root.d-zone - 4].y-px * 1px,
+            root.d-extra-y - root.tab-lift + (root.detail-rows[root.d-zone - 4].y-px + root.detail-rows[root.d-zone - 4].h-px) * 1px)
         : root.d-zone == 2 && root.ep-list ? (root.d-extra-y <= root.d-view-h ? 0px
             // Liste d'épisodes : l'épisode choisi reste vers le milieu de l'écran.
             : max(0px, root.d-children-y + root.ep-head-h + root.d-child * (root.ep-row-h + root.ep-gap) - root.d-view-h * 0.4))
-        : root.d-zone == 2 ? (root.d-extra-y <= root.d-view-h ? 0px : max(0px, root.d-children-y - 140px * root.k))
-        : root.d-zone == 9 ? (root.tabs-y + root.tabs-h + 120px * root.k <= root.d-view-h ? 0px : max(0px, root.tabs-y - 140px * root.k))
+        : root.d-zone == 2 ? root.d-fit(root.d-children-y - root.tab-lift, root.d-extra-y - root.tab-lift)
+        // Onglets : eux et la première rangée de leur contenu, entière si elle tient.
+        : root.d-zone == 9 ? root.d-fit(root.tabs-y, root.d-first-bottom)
         // Zone 10 : dans l'onglet Détails, la page descend jusqu'à sa dernière ligne.
         : root.d-zone == 10 ? root.d-max : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
@@ -7598,11 +7625,19 @@ export component AppWindow inherits Window {
         // Ligne des filtres, entre le champ (ou le clavier à l'écran) et les résultats.
         // Suggestions (s'il y en a) au-dessus de la ligne des filtres. Un seul rang de sélection pour les
         // deux lignes (`s-chip`) : les suggestions d'abord, puis « Options avancées », les filtres, « Effacer ».
-        property <length> sg-y: 16px * root.k + self.box-h + 12px * root.k + self.osk-p * self.osk-h;
+        property <length> sg-y: 16px * root.k + self.box-h + 12px * root.k;
         property <int> sg-n: root.sg-items.length;
-        property <length> bar-y: self.sg-y + (self.sg-n > 0 ? 46px * root.k : 0px);
-        property <length> res-y: self.bar-y + 36px * root.k + 12px * root.k;
+        property <length> sg-h: self.sg-n > 0 ? 46px * root.k : 0px;
+        property <length> bar-y: self.sg-y + self.sg-h + self.osk-p * self.osk-h;
+        property <length> res-y: self.bar-y + (root.s-adv ? 36px * root.k + 12px * root.k : 0px);
         property <int> chip-n: self.sg-n + (root.s-adv ? root.sf-chips.length + 2 : 1);
+        // Sélection dans les résultats (clavier, télécommande) : le champ et les filtres glissent vers le
+        // haut, les résultats prennent toute la hauteur (une rangée d'affiches entière à l'écran).
+        property <length> lift: Nav.kb && !root.s-field && !root.s-bar && !root.s-osk && !root.s-sug && !root.h-focus
+            && root.search-sections.length > 0 ? self.res-y - 8px * root.k : 0px;
+        animate lift { duration: Motion.scroll ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
+        property <length> adv-w: adv-btn.preferred-width;
+        clip: true;
         function chip-act(i: int) {
             if (i < srch.sg-n) {
                 root.search-suggest-pick(i);
@@ -7686,6 +7721,36 @@ export component AppWindow inherits Window {
                 // Retour (clavier à l'écran ouvert : c'est lui qui efface).
                 if (event.repeat && (event.text == Key.Backspace || event.text == Key.Escape) && !(root.tv-mode && root.s-osk)) {
                     return EventResult.accept;
+                }
+                // Clavier à l'écran ouvert, sélection sur la ligne du haut (suggestions, « Recherche avancée ») :
+                // ← → d'un bouton à l'autre, OK le choisit puis revient au clavier, ↓ revient au clavier,
+                // ↑ va à la barre du haut. Une lettre tapée au vrai clavier repart dans le champ.
+                if (root.tv-mode && root.s-osk && root.s-sug) {
+                    if (event.text == Key.LeftArrow) {
+                        root.s-chip = max(0, root.s-chip - 1);
+                        return EventResult.accept;
+                    } else if (event.text == Key.RightArrow) {
+                        root.s-chip = min(srch.sg-n, root.s-chip + 1);
+                        return EventResult.accept;
+                    } else if (event.text == Key.DownArrow || event.text == Key.Escape || event.text == Key.Backspace) {
+                        if (!event.repeat) {
+                            root.s-sug = false;
+                        }
+                        return EventResult.accept;
+                    } else if (event.text == Key.UpArrow) {
+                        root.s-sug = false;
+                        root.nav-enter();
+                        return EventResult.accept;
+                    } else if (event.text == Key.Return) {
+                        srch.chip-act(min(root.s-chip, srch.sg-n));
+                        root.s-sug = false;
+                        return EventResult.accept;
+                    }
+                    // Une lettre au vrai clavier : retour au clavier à l'écran, qui l'écrit. Autre touche : rien.
+                    if (!root.typing-key(event)) {
+                        return EventResult.accept;
+                    }
+                    root.s-sug = false;
                 }
                 // Clavier à l'écran ouvert : Échap le ferme (la page reste).
                 if (event.text == Key.Escape && root.tv-mode && root.s-osk) {
@@ -7836,12 +7901,28 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Recherche avancée : à droite du champ.
+        adv-btn := ActionButton {
+            x: parent.width - 32px * root.k - self.width;
+            y: 16px * root.k - srch.lift;
+            width: self.preferred-width;
+            height: parent.box-h;
+            font: 15px * root.k;
+            text: Tr.t(Tr.k, "Recherche avancée");
+            on: root.s-adv;
+            focused: (root.s-bar || root.s-sug) && !root.h-focus && root.s-chip == srch.sg-n;
+            clicked => {
+                srch.chip-act(srch.sg-n);
+            }
+        }
         // Champ de recherche
         Rectangle {
             x: 32px * root.k;
-            y: 16px * root.k;
-            width: parent.width - 64px * root.k;
+            y: 16px * root.k - srch.lift;
+            width: parent.width - 64px * root.k - srch.adv-w - 12px * root.k;
             height: parent.box-h;
+            // Filtres choisis (rappel de ce qu'on cherche), devant le texte tapé.
+            property <length> tok-w: root.sf-tokens.length == 0 ? 0px : min(tok.preferred-width, self.width * 0.55) + 10px * root.k;
             border-radius: self.height / 2;
             background: Theme.fg.with-alpha(0.08);
             border-width: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? 2px : 1px;
@@ -7860,14 +7941,42 @@ export component AppWindow inherits Window {
                 stroke-width: 2.4px * root.k;
                 commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
             }
+            Rectangle {
+                x: 54px * root.k;
+                width: max(0px, parent.tok-w - 10px * root.k);
+                height: parent.height;
+                clip: true;
+                tok := HorizontalLayout {
+                    x: 0px;
+                    alignment: start;
+                    spacing: 6px * root.k;
+                    padding-top: (parent.height - 30px * root.k) / 2;
+                    padding-bottom: (parent.height - 30px * root.k) / 2;
+                    for t in root.sf-tokens: Rectangle {
+                        width: t-txt.preferred-width + 20px * root.k;
+                        border-radius: Theme.term ? 2px : self.height / 2;
+                        background: t.on ? Theme.danger.with-alpha(0.28) : Theme.accent2.with-alpha(0.28);
+                        border-width: 1px;
+                        border-color: t.on ? Theme.danger.with-alpha(0.7) : Theme.accent2.with-alpha(0.7);
+                        t-txt := Text {
+                            text: t.name;
+                            color: Theme.text;
+                            font-size: 14px * root.k;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
             // Texte tapé (animé, curseur qui clignote) : clavier à l'écran en mode TV, champ
             // classique au bureau (son texte et son curseur sont masqués, celui-ci les dessine).
             TypedText {
-                x: 54px * root.k;
-                width: parent.width - 70px * root.k;
+                x: 54px * root.k + parent.tok-w;
+                width: parent.width - 70px * root.k - parent.tok-w;
                 height: parent.height;
                 text: root.search-text;
-                placeholder: Tr.t(Tr.k, "Titre, acteur, studio, tag…");
+                placeholder: root.sf-tokens.length > 0 ? "" : Tr.t(Tr.k, "Titre, acteur, studio, tag…");
                 // Texte sélectionné : c'est le champ classique qui dessine (lettres et barre de sélection).
                 opacity: s-input.anchor-position-byte-offset != s-input.cursor-position-byte-offset ? 0 : 1;
                 cursor: root.tv-mode ? root.s-osk : s-input.has-focus;
@@ -7876,8 +7985,8 @@ export component AppWindow inherits Window {
                 k: root.k;
             }
             s-input := TextInput {
-                x: 54px * root.k;
-                width: parent.width - 70px * root.k;
+                x: 54px * root.k + parent.tok-w;
+                width: parent.width - 70px * root.k - parent.tok-w;
                 height: parent.height;
                 visible: !root.tv-mode;
                 enabled: !root.tv-mode;
@@ -7958,7 +8067,7 @@ export component AppWindow inherits Window {
         // Suggestions : un genre, un tag ou un studio qui finit le texte tapé (Tab ou OK le choisit).
         if srch.sg-n > 0: Rectangle {
             x: 32px * root.k;
-            y: srch.sg-y;
+            y: srch.sg-y - srch.lift;
             width: parent.width - 64px * root.k;
             height: 36px * root.k;
             clip: true;
@@ -7966,45 +8075,37 @@ export component AppWindow inherits Window {
                 alignment: start;
                 spacing: 10px * root.k;
                 Text {
-                    text: root.tv-mode ? Tr.t(Tr.k, "Suggestions") : Tr.t(Tr.k, "Tab :");
+                    text: root.tv-mode ? (root.s-osk ? Tr.t(Tr.k, "↑ Suggestions") : Tr.t(Tr.k, "Suggestions")) : Tr.t(Tr.k, "Tab :");
                     color: Theme.muted;
-                    font-size: 13px * root.k;
+                    font-size: 14px * root.k;
                     vertical-alignment: center;
                 }
                 for g[i] in root.sg-items: ActionButton {
                     height: 36px * root.k;
-                    font: 14px * root.k;
+                    width: self.preferred-width;
+                    font: 15px * root.k;
                     text: (g.on ? "− " : "+ ") + g.name;
-                    on: i == 0 && !root.s-bar;
-                    focused: root.s-bar && !root.h-focus && root.s-chip == i;
+                    on: i == 0 && !root.s-bar && !root.s-sug && !root.tv-mode;
+                    focused: (root.s-bar || root.s-sug) && !root.h-focus && root.s-chip == i;
                     clicked => {
                         srch.chip-act(i);
                     }
                 }
             }
         }
-        // Options avancées : type, genres, tags, studios, exclusions (listes du serveur).
-        Rectangle {
+        // Recherche avancée : type, genres, tags, studios, exclusions, année, note, état.
+        if root.s-adv: Rectangle {
             x: 32px * root.k;
-            y: srch.bar-y;
+            y: srch.bar-y - srch.lift;
             width: parent.width - 64px * root.k;
             height: 36px * root.k;
             HorizontalLayout {
                 alignment: start;
                 spacing: 8px * root.k;
-                ActionButton {
-                    height: 36px * root.k;
-                    font: 14px * root.k;
-                    text: Tr.t(Tr.k, "Options avancées");
-                    on: root.s-adv;
-                    focused: root.s-bar && !root.h-focus && root.s-chip == srch.sg-n;
-                    clicked => {
-                        srch.chip-act(srch.sg-n);
-                    }
-                }
                 for c[i] in root.sf-chips: ActionButton {
-                    visible: root.s-adv;
                     height: 36px * root.k;
+                    // Type, année, note, état : menus à choix unique.
+                    drop: i == 0 || i >= 5;
                     font: 14px * root.k;
                     text: c.name;
                     on: c.on;
@@ -8030,12 +8131,12 @@ export component AppWindow inherits Window {
         // Clavier à l'écran (mode TV)
         osk := Osk {
             x: max(32px * root.k, (parent.width - 900px * root.k) / 2);
-            y: 16px * root.k + parent.box-h + 16px * root.k - (1 - parent.osk-p) * 30px * root.k;
+            y: 16px * root.k + parent.box-h + 16px * root.k + parent.sg-h - (1 - parent.osk-p) * 30px * root.k - srch.lift;
             width: min(parent.width - 64px * root.k, 900px * root.k);
             visible: parent.osk-p > 0.01;
             opacity: parent.osk-p;
             k: root.k;
-            active: root.s-osk;
+            active: root.s-osk && !root.s-sug;
             text: root.search-text;
             erase(t) => {
                 return root.text-backspace("\u{8}" + t);
@@ -8050,8 +8151,10 @@ export component AppWindow inherits Window {
                 root.s-osk = false;
                 root.s-field = root.search-sections.length == 0;
             }
+            // ↑ : suggestions (s'il y en a), sinon « Recherche avancée ».
             leave-up => {
-                root.nav-enter();
+                root.s-sug = true;
+                root.s-chip = srch.sg-n > 0 ? 0 : srch.sg-n;
             }
             leave-down => {
                 root.s-osk = false;
@@ -8061,8 +8164,8 @@ export component AppWindow inherits Window {
 
         // Résultats
         Rectangle {
-            y: parent.res-y;
-            height: parent.height - parent.res-y;
+            y: parent.res-y - srch.lift;
+            height: parent.height - parent.res-y + srch.lift;
             clip: true;
 
             if root.search-sections.length == 0: EmptyNote {
@@ -8119,7 +8222,8 @@ export component AppWindow inherits Window {
             background: Theme.scrim.with-alpha(0.6);
             property <length> row-h: 42px * root.k;
             // Hauteur fixe (celle de la place disponible) : l'index A–Z ne bouge pas quand la liste se filtre.
-            property <int> rows: max(1, min(14, floor((self.height - 160px * root.k) / self.row-h)));
+            property <int> rows: root.sf-single ? max(1, root.sf-items.length) : max(1, min(14, floor((self.height - 160px * root.k) / self.row-h)));
+            property <length> list-y: (root.sf-single ? 64px : 96px) * root.k;
             property <length> az-w: 30px * root.k;
             property <string> letters: "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
             property <int> top: max(0, min(root.sf-sel - floor(self.rows / 2), root.sf-items.length - self.rows));
@@ -8140,7 +8244,7 @@ export component AppWindow inherits Window {
             }
             Rectangle {
                 width: min(500px * root.k, parent.width - 32px * root.k);
-                height: 96px * root.k + sfl.rows * sfl.row-h + 14px * root.k;
+                height: sfl.list-y + sfl.rows * sfl.row-h + 14px * root.k;
                 border-radius: (Theme.win7 ? 8px : Theme.term ? 3px : 16px);
                 background: Theme.win7 ? transparent : Theme.panel;
                 border-width: Theme.win7 ? 0px : 1px;
@@ -8160,12 +8264,13 @@ export component AppWindow inherits Window {
                     y: 40px * root.k;
                     width: parent.width - 48px * root.k;
                     overflow: elide;
-                    text: Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
+                    text: root.sf-single ? Tr.t(Tr.k, "Un seul choix.")
+                        : Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
                     color: Theme.muted;
                     font-size: 12px * root.k;
                 }
                 // Texte tapé : la liste ne garde que les noms qui le contiennent.
-                Rectangle {
+                if !root.sf-single: Rectangle {
                     x: 12px * root.k;
                     y: 60px * root.k;
                     width: parent.width - 24px * root.k;
@@ -8193,7 +8298,7 @@ export component AppWindow inherits Window {
                     font-size: 14px * root.k;
                 }
                 // Index A–Z (comme celui des bibliothèques) : une lettre amène au premier nom qui commence ainsi.
-                Rectangle {
+                if !root.sf-single: Rectangle {
                     x: parent.width - sfl.az-w - 8px * root.k;
                     y: 96px * root.k;
                     width: sfl.az-w;
@@ -8226,8 +8331,8 @@ export component AppWindow inherits Window {
                 }
                 Rectangle {
                     x: 12px * root.k;
-                    y: 96px * root.k;
-                    width: parent.width - 24px * root.k - sfl.az-w - 6px * root.k;
+                    y: sfl.list-y;
+                    width: parent.width - 24px * root.k - (root.sf-single ? 0px : sfl.az-w + 6px * root.k);
                     height: sfl.rows * sfl.row-h;
                     clip: true;
                     for o[i] in root.sf-items: sf-row := Rectangle {
@@ -8244,7 +8349,7 @@ export component AppWindow inherits Window {
                             y: (parent.height - self.height) / 2;
                             width: 20px * root.k;
                             height: 20px * root.k;
-                            border-radius: Theme.term ? 1px : 5px * root.k;
+                            border-radius: root.sf-single ? self.width / 2 : Theme.term ? 1px : 5px * root.k;
                             border-width: 2px;
                             border-color: sf-row.lit ? Theme.on-accent : o.on ? Theme.accent2 : Theme.fg.with-alpha(0.45);
                             background: o.on ? (sf-row.lit ? Theme.on-accent : Theme.accent2) : transparent;
@@ -8293,7 +8398,7 @@ export component AppWindow inherits Window {
                 key-pressed(event) => {
                     // Lettres tapées : la liste ne garde que les noms qui contiennent ce texte ; Retour arrière
                     // en efface la dernière, puis referme la liste.
-                    if (root.typing-key(event) || root.erase-key(event, root.sf-query)) {
+                    if (!root.sf-single && (root.typing-key(event) || root.erase-key(event, root.sf-query))) {
                         root.sf-query = root.key-edit(root.sf-query, event.text);
                         root.sf-az = false;
                         root.search-filter-query(root.sf-query);
@@ -8323,7 +8428,7 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.UpArrow) {
                         root.sf-sel = max(0, root.sf-sel - 1);
                     } else if (event.text == Key.RightArrow) {
-                        root.sf-az = true;
+                        root.sf-az = !root.sf-single;
                     } else if (event.text == Key.Return) {
                         if (!event.repeat && root.sf-items.length > 0) {
                             root.search-filter-pick(root.sf-sel);
@@ -8879,11 +8984,10 @@ export component AppWindow inherits Window {
                     dt.d-nav(Key.LeftArrow);
                 } else if (e.delta-y != 0) {
                     // Défilement libre (doigt, molette), sans changer la sélection.
-                    let rows-h = root.detail-rows.length > 0
-                        ? (root.detail-rows[root.detail-rows.length - 1].y-px + root.detail-rows[root.detail-rows.length - 1].h-px) * 1px : 0px;
-                    let max-y = max(0px, root.d-extra-y + rows-h - self.height + root.header-h);
+                    // Jusqu'au bas de la fiche, onglet Détails compris (avant, la molette ne comptait que les
+                    // rangées : dans l'onglet Détails, la page remontait tout en haut et ne descendait plus).
                     let base = root.d-free ? root.d-free-y : root.d-scroll;
-                    root.d-free-y = clamp(base - e.delta-y, 0px, max-y);
+                    root.d-free-y = clamp(base - e.delta-y, 0px, root.d-max);
                     root.d-free = true;
                 } else if (e.delta-y < 0) {
                     dt.d-nav(Key.DownArrow);
@@ -14053,6 +14157,16 @@ export component AppWindow inherits Window {
     }
     // Suggestions sous le champ (genres, tags, studios qui finissent le texte tapé ; « - » pour exclure).
     in property <[FilterOpt]> sg-items;
+    // Filtres choisis, rappelés dans le champ (`on` : exclusion).
+    in property <[FilterOpt]> sf-tokens;
+    // Liste ouverte à choix unique (type, année, note, état) : pas de cases, pas d'index A–Z.
+    in-out property <bool> sf-single;
+    // Mode TV, clavier à l'écran ouvert : la sélection est sur la ligne au-dessus du clavier (suggestions,
+    // puis « Recherche avancée »), au rang `s-chip`.
+    property <bool> s-sug;
+    changed sg-items => {
+        root.s-chip = min(root.s-chip, root.sg-items.length + (root.s-adv ? root.sf-chips.length + 1 : 0));
+    }
     property <bool> s-bar;
     property <int> s-chip;
     callback search-adv(bool);

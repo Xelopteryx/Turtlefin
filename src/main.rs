@@ -4425,19 +4425,72 @@ fn open_search(app: &Arc<App>) {
 /// Filtres de la recherche avancée (Recherche → « Options avancées »). Pour chaque liste : « l'un de ».
 #[derive(Default, Clone)]
 struct SearchFilter {
-    /// Options affichées : fermées, les filtres ne s'appliquent pas.
+    /// Recherche avancée ouverte : fermée, les filtres ne s'appliquent pas.
     on: bool,
     /// 0 tout · 1 films · 2 séries · 3 collections.
     kind: u8,
     genres: Vec<String>,
     tags: Vec<String>,
     studios: Vec<String>,
+    /// Genres ou tags à exclure.
     exclude: Vec<String>,
+    /// Décennie (1970, 1980… ; 1 : avant 1970 ; 0 : toutes).
+    decade: u32,
+    /// Note minimale de la communauté (0 : toutes).
+    rating: u8,
+    /// 0 tous · 1 pas encore vus · 2 déjà vus · 3 favoris.
+    status: u8,
+}
+
+/// Listes à choix unique (menus déroulants), numérotées après les listes à cases.
+const PICK_KIND: u64 = 10;
+const PICK_DECADE: u64 = 11;
+const PICK_RATING: u64 = 12;
+const PICK_STATUS: u64 = 13;
+
+/// Décennies proposées (de la plus récente à la plus ancienne), puis « avant 1970 ».
+fn decades() -> Vec<u32> {
+    let now = chrono::Datelike::year(&chrono::Local::now()) as u32;
+    let mut v: Vec<u32> = (1970..=now).step_by(10).map(|y| y - y % 10).collect();
+    v.dedup();
+    v.reverse();
+    v.push(1);
+    v
+}
+
+fn decade_label(d: u32) -> String {
+    match d {
+        0 => tr("Toutes les années").to_string(),
+        1 => tr("Avant 1970").to_string(),
+        d => format!("{d} – {}", d + 9),
+    }
+}
+
+const RATINGS: [u8; 5] = [5, 6, 7, 8, 9];
+
+fn status_label(s: u8) -> &'static str {
+    match s {
+        1 => tr("Pas encore vus"),
+        2 => tr("Déjà vus"),
+        3 => tr("Favoris"),
+        _ => tr("Vus ou non"),
+    }
+}
+
+fn kind_label(k: u8) -> &'static str {
+    [tr("Tout"), tr("Films"), tr("Séries"), tr("Collections")][k.min(3) as usize]
 }
 
 impl SearchFilter {
     fn lists(&self) -> bool {
-        self.on && !(self.genres.is_empty() && self.tags.is_empty() && self.studios.is_empty() && self.exclude.is_empty())
+        self.on
+            && !(self.genres.is_empty()
+                && self.tags.is_empty()
+                && self.studios.is_empty()
+                && self.exclude.is_empty()
+                && self.decade == 0
+                && self.rating == 0
+                && self.status == 0)
     }
     fn kind(&self) -> u8 {
         if self.on { self.kind } else { 0 }
@@ -4450,21 +4503,57 @@ impl SearchFilter {
             _ => &mut self.exclude,
         }
     }
+    /// Années de la décennie choisie, pour le serveur (« 2010,2011,… »).
+    fn years(&self) -> String {
+        let span: Vec<u32> = match self.decade {
+            0 => Vec::new(),
+            1 => (1900..1970).collect(),
+            d => (d..d + 10).collect(),
+        };
+        span.iter().map(|y| y.to_string()).collect::<Vec<_>>().join(",")
+    }
 }
 
-/// Boutons des filtres : les quatre types (le choisi allumé), puis les listes avec le nombre de choix faits.
+/// Boutons des filtres (menus pour le type, l'année, la note et l'état ; listes à cases avec le nombre de
+/// choix), et les filtres choisis rappelés dans le champ de recherche.
 fn filter_chips(app: &Arc<App>, u: &AppWindow) {
     let f = app.search_filter.lock().unwrap().clone();
     let n = |label: &str, v: &Vec<String>| if v.is_empty() { label.to_string() } else { format!("{label} ({})", v.len()) };
-    let mut chips: Vec<FilterOpt> = [tr("Tout"), tr("Films"), tr("Séries"), tr("Collections")]
-        .iter()
-        .enumerate()
-        .map(|(i, t)| FilterOpt { name: (*t).into(), on: f.kind as usize == i })
-        .collect();
-    for (label, v) in [(tr("Genres"), &f.genres), (tr("Tags"), &f.tags), (tr("Studios"), &f.studios), (tr("Exclus"), &f.exclude)] {
-        chips.push(FilterOpt { name: n(label, v).into(), on: !v.is_empty() });
-    }
+    let menu = |label: String| label;
+    let chips: Vec<FilterOpt> = vec![
+        FilterOpt { name: menu(if f.kind == 0 { tr("Type").to_string() } else { kind_label(f.kind).to_string() }).into(), on: f.kind != 0 },
+        FilterOpt { name: n(tr("Genres"), &f.genres).into(), on: !f.genres.is_empty() },
+        FilterOpt { name: n(tr("Tags"), &f.tags).into(), on: !f.tags.is_empty() },
+        FilterOpt { name: n(tr("Studios"), &f.studios).into(), on: !f.studios.is_empty() },
+        FilterOpt { name: n(tr("Exclus"), &f.exclude).into(), on: !f.exclude.is_empty() },
+        FilterOpt { name: menu(if f.decade == 0 { tr("Année").to_string() } else { decade_label(f.decade) }).into(), on: f.decade != 0 },
+        FilterOpt { name: menu(if f.rating == 0 { tr("Note").to_string() } else { format!("★ {}+", f.rating) }).into(), on: f.rating != 0 },
+        FilterOpt { name: menu(if f.status == 0 { tr("État").to_string() } else { status_label(f.status).to_string() }).into(), on: f.status != 0 },
+    ];
     u.set_sf_chips(ModelRc::new(VecModel::from(chips)));
+    // Rappel dans le champ : ce qu'on cherche reste visible (« on » : exclusion).
+    let mut tokens: Vec<FilterOpt> = Vec::new();
+    if f.on {
+        if f.kind != 0 {
+            tokens.push(FilterOpt { name: kind_label(f.kind).into(), on: false });
+        }
+        for v in f.genres.iter().chain(f.tags.iter()).chain(f.studios.iter()) {
+            tokens.push(FilterOpt { name: v.into(), on: false });
+        }
+        for v in &f.exclude {
+            tokens.push(FilterOpt { name: format!("− {v}").into(), on: true });
+        }
+        if f.decade != 0 {
+            tokens.push(FilterOpt { name: decade_label(f.decade).into(), on: false });
+        }
+        if f.rating != 0 {
+            tokens.push(FilterOpt { name: format!("★ {}+", f.rating).into(), on: false });
+        }
+        if f.status != 0 {
+            tokens.push(FilterOpt { name: status_label(f.status).into(), on: false });
+        }
+    }
+    u.set_sf_tokens(ModelRc::new(VecModel::from(tokens)));
 }
 
 thread_local! {
@@ -4474,15 +4563,38 @@ thread_local! {
     static SUGGEST: std::cell::RefCell<Vec<(u64, String, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Lignes de la liste ouverte qui contiennent `query` (sans tenir compte des majuscules), cochées selon les choix.
+/// Choix d'une liste à choix unique : (libellé, est le choix en cours).
+fn single_options(f: &SearchFilter, which: u64) -> Vec<(String, bool)> {
+    match which {
+        PICK_KIND => (0..4u8).map(|k| (kind_label(k).to_string(), f.kind == k)).collect(),
+        PICK_DECADE => std::iter::once(0).chain(decades()).map(|d| (decade_label(d), f.decade == d)).collect(),
+        PICK_RATING => std::iter::once((tr("Toutes les notes").to_string(), f.rating == 0))
+            .chain(RATINGS.iter().map(|r| (format!("★ {r} {}", tr("et plus")), f.rating == *r)))
+            .collect(),
+        _ => (0..4u8).map(|s| (status_label(s).to_string(), f.status == s)).collect(),
+    }
+}
+
+/// Lignes de la liste ouverte qui contiennent `query` (sans tenir compte des majuscules). Les cases
+/// cochées d'abord : on retrouve tout de suite ce qu'on a déjà choisi.
 fn filter_rows(app: &Arc<App>, u: &AppWindow, query: &str) {
-    let q = query.trim().to_lowercase();
-    let chosen = app.search_filter.lock().unwrap().list(app.filter_pick.load(Ordering::SeqCst)).clone();
-    let items: Vec<FilterOpt> = FILTER_ALL.with(|all| {
-        all.borrow().iter().filter(|n| q.is_empty() || n.to_lowercase().contains(&q)).map(|n| FilterOpt { on: chosen.contains(n), name: n.into() }).collect()
-    });
+    let which = app.filter_pick.load(Ordering::SeqCst);
+    let f = app.search_filter.lock().unwrap().clone();
+    let items: Vec<FilterOpt> = if which >= PICK_KIND {
+        single_options(&f, which).into_iter().map(|(name, on)| FilterOpt { name: name.into(), on }).collect()
+    } else {
+        let q = query.trim().to_lowercase();
+        let chosen = f.clone().list(which).clone();
+        let mut rows: Vec<FilterOpt> = FILTER_ALL.with(|all| {
+            all.borrow().iter().filter(|n| q.is_empty() || n.to_lowercase().contains(&q)).map(|n| FilterOpt { on: chosen.contains(n), name: n.into() }).collect()
+        });
+        // Tri stable : l'ordre alphabétique reste dans chaque groupe.
+        rows.sort_by_key(|r| !r.on);
+        rows
+    };
+    let sel = items.iter().position(|r| r.on && which >= PICK_KIND).unwrap_or(0);
     u.set_sf_items(ModelRc::new(VecModel::from(items)));
-    u.set_sf_sel(0);
+    u.set_sf_sel(sel as i32);
 }
 
 /// Genres et tags réunis (pour les exclusions), triés, sans doublon.
@@ -4493,21 +4605,26 @@ fn genres_and_tags(lists: &api::FilterLists) -> Vec<String> {
     v
 }
 
-/// Liste d'un filtre (genres, tags, studios, exclusions), cases cochées selon les choix faits.
+/// Liste d'un filtre : cases à cocher (genres, tags, studios, exclusions) ou choix unique (type, année,
+/// note, état).
 fn open_filter_list(app: &Arc<App>, u: &AppWindow, which: u64) {
-    let lists = app.filter_lists.lock().unwrap().clone().unwrap_or_default();
-    let names = match which {
-        1 => lists.genres,
-        2 => lists.tags,
-        3 => lists.studios,
-        _ => genres_and_tags(&lists),
-    };
-    if names.is_empty() {
-        u.set_toast(tr("Le serveur n'en propose aucun.").into());
-        return;
+    let single = which >= PICK_KIND;
+    if !single {
+        let lists = app.filter_lists.lock().unwrap().clone().unwrap_or_default();
+        let names = match which {
+            1 => lists.genres,
+            2 => lists.tags,
+            3 => lists.studios,
+            _ => genres_and_tags(&lists),
+        };
+        if names.is_empty() {
+            u.set_toast(tr("Le serveur n'en propose aucun.").into());
+            return;
+        }
+        FILTER_ALL.with(|all| *all.borrow_mut() = names);
     }
     app.filter_pick.store(which, Ordering::SeqCst);
-    FILTER_ALL.with(|all| *all.borrow_mut() = names);
+    u.set_sf_single(single);
     u.set_sf_query("".into());
     filter_rows(app, u, "");
     u.set_sf_title(
@@ -4515,23 +4632,28 @@ fn open_filter_list(app: &Arc<App>, u: &AppWindow, which: u64) {
             1 => tr("Genres"),
             2 => tr("Tags"),
             3 => tr("Studios"),
-            _ => tr("À exclure"),
+            PICK_KIND => tr("Type"),
+            PICK_DECADE => tr("Année de sortie"),
+            PICK_RATING => tr("Note minimale"),
+            PICK_STATUS => tr("État"),
+            _ => tr("À exclure (genres et tags)"),
         }
         .into(),
     );
     u.set_sf_open(true);
 }
 
-/// Filtre touché : 0 à 3 type (tout, films, séries, collections) · 4 à 7 ouvre une liste (genres,
-/// tags, studios, exclusions) · autre : efface tous les filtres.
+/// Filtre touché : 0 type · 1 à 4 listes (genres, tags, studios, exclusions) · 5 année · 6 note · 7 état
+/// · autre : efface tous les filtres.
 fn search_filter(app: &Arc<App>, i: i32) {
     let Some(u) = app.ui().upgrade() else { return };
     match i {
-        0..=3 => {
-            app.search_filter.lock().unwrap().kind = i as u8;
-        }
-        4..=7 => {
-            let which = i as u64 - 3;
+        0 => open_filter_list(app, &u, PICK_KIND),
+        5 => open_filter_list(app, &u, PICK_DECADE),
+        6 => open_filter_list(app, &u, PICK_RATING),
+        7 => open_filter_list(app, &u, PICK_STATUS),
+        1..=4 => {
+            let which = i as u64;
             if app.filter_lists.lock().unwrap().is_some() {
                 open_filter_list(app, &u, which);
             } else if let Some(client) = app.client() {
@@ -4544,12 +4666,48 @@ fn search_filter(app: &Arc<App>, i: i32) {
                     let _ = app2.ui().upgrade_in_event_loop(move |u| open_filter_list(&a, &u, which));
                 });
             }
-            return;
         }
         _ => {
-            let mut f = app.search_filter.lock().unwrap();
-            *f = SearchFilter { on: f.on, ..Default::default() };
+            {
+                let mut f = app.search_filter.lock().unwrap();
+                *f = SearchFilter { on: f.on, ..Default::default() };
+            }
+            filter_chips(app, &u);
+            search_changed(app, u.get_search_text().to_string());
         }
+    }
+}
+
+/// Ligne choisie dans la liste ouverte : case cochée ou décochée, ou choix unique (la liste se referme).
+fn filter_pick(app: &Arc<App>, i: usize) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let which = app.filter_pick.load(Ordering::SeqCst);
+    if which >= PICK_KIND {
+        {
+            let mut f = app.search_filter.lock().unwrap();
+            match which {
+                PICK_KIND => f.kind = (i as u8).min(3),
+                PICK_DECADE => f.decade = if i == 0 { 0 } else { decades().get(i - 1).copied().unwrap_or(0) },
+                PICK_RATING => f.rating = if i == 0 { 0 } else { RATINGS.get(i - 1).copied().unwrap_or(0) },
+                _ => f.status = (i as u8).min(3),
+            }
+        }
+        u.set_sf_open(false);
+        u.set_refocus(u.get_refocus() + 1);
+    } else {
+        let model = u.get_sf_items();
+        let Some(mut row) = model.row_data(i) else { return };
+        row.on = !row.on;
+        let name = row.name.to_string();
+        {
+            let mut f = app.search_filter.lock().unwrap();
+            let list = f.list(which);
+            list.retain(|n| *n != name);
+            if row.on {
+                list.push(name);
+            }
+        }
+        model.set_row_data(i, row);
     }
     filter_chips(app, &u);
     search_changed(app, u.get_search_text().to_string());
@@ -4614,11 +4772,11 @@ fn suggestions(text: &str, lists: &api::FilterLists) -> Vec<(u64, String, usize)
                 }
             }
         }
-        if out.len() >= 6 {
+        if out.len() >= 5 {
             break;
         }
     }
-    out.truncate(6);
+    out.truncate(5);
     out
 }
 
@@ -4715,7 +4873,8 @@ fn search_changed(app: &Arc<App>, text: String) {
                 3 => "BoxSet",
                 _ => "Movie,Series,BoxSet",
             };
-            client.search_filtered(&term, kinds, &filter.genres, &filter.tags, &filter.studios, &filter.exclude).await
+            let extra = api::MoreFilters { years: filter.years(), min_rating: filter.rating, status: filter.status };
+            client.search_filtered(&term, kinds, &filter.genres, &filter.tags, &filter.studios, &filter.exclude, &extra).await
         } else {
             client.search(&term).await
         };
@@ -10359,24 +10518,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
     });
     ui.on_search_filter_pick({
         let app = app.clone();
-        move |i| {
-            let Some(u) = app.ui().upgrade() else { return };
-            let model = u.get_sf_items();
-            let Some(mut row) = model.row_data(i as usize) else { return };
-            row.on = !row.on;
-            let name = row.name.to_string();
-            {
-                let mut f = app.search_filter.lock().unwrap();
-                let list = f.list(app.filter_pick.load(Ordering::SeqCst));
-                list.retain(|n| *n != name);
-                if row.on {
-                    list.push(name);
-                }
-            }
-            model.set_row_data(i as usize, row);
-            filter_chips(&app, &u);
-            search_changed(&app, u.get_search_text().to_string());
-        }
+        move |i| filter_pick(&app, i.max(0) as usize)
     });
     // Index A–Z d'une liste de filtre : premier nom qui commence par cette lettre (« # » : par autre chose
     // qu'une lettre) ; à défaut, le premier de la lettre suivante (-1 : aucun).
@@ -10391,8 +10533,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
             }
             let Some(c) = text.chars().next().filter(|c| c.is_alphanumeric()) else { return -1 };
             let c = c.to_lowercase().next().unwrap_or(c);
+            // Les cases cochées sont en tête de liste : l'index vise d'abord les autres.
+            let unchecked = |i: &usize| model.row_data(*i).is_some_and(|r| !r.on);
             (0..model.row_count())
-                .find(|i| first(*i).is_some_and(|f| f.is_alphabetic() && f >= c))
+                .find(|i| unchecked(i) && first(*i).is_some_and(|f| f.is_alphabetic() && f >= c))
+                .or_else(|| (0..model.row_count()).find(|i| first(*i).is_some_and(|f| f.is_alphabetic() && f >= c)))
                 .map(|i| i as i32)
                 .unwrap_or(-1)
         }

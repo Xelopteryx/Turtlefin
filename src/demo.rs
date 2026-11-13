@@ -338,8 +338,17 @@ fn list(q: &HashMap<String, String>) -> Value {
     if get("filters").is_some_and(|f| f.contains("IsFavorite")) {
         items.retain(|v| v["UserData"]["IsFavorite"] == true);
     }
-    if get("isplayed") == Some("false") {
-        items.retain(|v| v["UserData"]["Played"] != true);
+    match get("isplayed") {
+        Some("false") => items.retain(|v| v["UserData"]["Played"] != true),
+        Some("true") => items.retain(|v| v["UserData"]["Played"] == true),
+        _ => {}
+    }
+    if let Some(years) = get("years") {
+        let ys: Vec<u64> = years.split(',').filter_map(|y| y.trim().parse().ok()).collect();
+        items.retain(|v| v["ProductionYear"].as_u64().is_some_and(|y| ys.contains(&y)));
+    }
+    if let Some(min) = get("mincommunityrating").and_then(|m| m.parse::<f64>().ok()) {
+        items.retain(|v| v["CommunityRating"].as_f64().is_some_and(|r| r >= min));
     }
     if get("imagetypes").is_some_and(|t| t.contains("Backdrop")) {
         items.retain(|v| v["BackdropImageTags"].as_array().is_some_and(|a| !a.is_empty()));
@@ -493,7 +502,7 @@ fn route(method: &str, path: &str, q: &HashMap<String, String>) -> Reply {
             let cat = catalog().lock().unwrap();
             let seed = parts[1].bytes().map(|b| b as usize).sum::<usize>();
             let pool: Vec<&Value> = cat.iter().filter(|v| is(v, "Type", &kind) && !is(v, "Id", parts[1])).collect();
-            Reply::Json(wrap((0..pool.len().min(12)).map(|i| public(pool[(seed + i * 3) % pool.len()])).collect()))
+            Reply::Json(wrap((0..pool.len().min(12)).map(|i| public(pool[(seed + i) % pool.len()])).collect()))
         }
         ("GET", ["items", _, "ancestors"]) => {
             let mut out = Vec::new();

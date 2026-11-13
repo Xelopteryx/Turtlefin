@@ -823,6 +823,16 @@ en portrait.
 - **Défilement à ressort** (ticket n° 2) : rangées, accueil, recherche, fiche, grille, téléchargements (260 ms, léger
   dépassement).
 - Plus aucune mention du Pi dans les textes de l'appli.
+- **Recherche en interface TV (retours du 13 novembre au soir)** : suggestions juste sous le champ, au-dessus du clavier à
+  l'écran ; ↑ depuis sa première ligne → ligne du haut (`s-sug` : suggestions puis « Recherche avancée »), OK ajoute le
+  filtre et rend la main au clavier. Filtres choisis rappelés dans le champ (`sf-tokens`). « Recherche avancée » à droite du
+  champ ; filtres : Type, Année (décennies), Note minimale, État (vus, pas vus, favoris) en menus à choix unique
+  (`sf-single`, `PICK_*` de main.rs, `api::MoreFilters` : `Years`, `MinCommunityRating`, `IsPlayed`, `Filters=IsFavorite`),
+  Genres, Tags, Studios, Exclus en listes à cases (cochées en tête). Résultats choisis au clavier : le haut de la page glisse
+  (`lift`), une rangée d'affiches tient en entier. Clavier à l'écran dans la matière du thème (Win7Glass, TermGlass).
+- **Fiche** : défilement par `d-fit` (la rangée choisie, ou les onglets et la première rangée de leur contenu, entière si elle
+  tient) ; molette bornée par `d-max` (onglet Détails compris ; avant, elle remontait la page). PAS VÉRIFIÉ À LA MOLETTE :
+  la molette simulée (mouse_event, WM_MOUSEWHEEL) n'agit pas dans les essais automatisés.
 
 ## 7. Compiler, fabriquer les paquets, publier
 
