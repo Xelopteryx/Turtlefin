@@ -1847,8 +1847,8 @@ msgstr "Fernbedienung · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} antwortet nicht: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "Kein anderes Turtlefin ist mit diesem Konto geöffnet. Öffne es auf dem Fernseher (oder dem Pi) und komm dann hierher zurück."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "Kein anderes Turtlefin ist mit diesem Konto geöffnet. Öffne es auf dem anderen Gerät (Fernseher, Computer…) und komm dann hierher zurück."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Wähle den Bildschirm, an den Videos gesendet werden: „Abspielen auf“ erscheint dann auf den Detailseiten."

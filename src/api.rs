@@ -1662,11 +1662,11 @@ impl Client {
     }
 
     /// Recherche avancée dans la bibliothèque : texte (facultatif), types, et pour chaque filtre « l'un
-    /// de ceux choisis ». Les tags à exclure sont retirés ici (le serveur n'a pas ce filtre).
+    /// de ceux choisis ». Les genres et tags à exclure sont retirés ici (le serveur n'a pas ce filtre).
     pub async fn search_filtered(&self, term: &str, kinds: &str, genres: &[String], tags: &[String], studios: &[String], exclude: &[String]) -> Result<Vec<Item>> {
         let (g, t, s) = (genres.join("|"), tags.join("|"), studios.join("|"));
         let mut q: Vec<(&str, &str)> =
-            vec![("userId", &self.user_id), ("Recursive", "true"), ("IncludeItemTypes", kinds), ("Fields", "Tags"), ("Limit", "200")];
+            vec![("userId", &self.user_id), ("Recursive", "true"), ("IncludeItemTypes", kinds), ("Fields", "Tags,Genres"), ("Limit", "200")];
         if term.is_empty() {
             q.push(("SortBy", "SortName"));
         } else {
@@ -1682,7 +1682,8 @@ impl Client {
             q.push(("Studios", &s));
         }
         let r: ItemsResp = self.get("/Items", &q).await?;
-        Ok(r.items.into_iter().filter(|i| !i.tags.iter().any(|t| exclude.iter().any(|e| e.to_lowercase() == t.to_lowercase()))).collect())
+        let excluded = |name: &String| exclude.iter().any(|e| e.to_lowercase() == name.to_lowercase());
+        Ok(r.items.into_iter().filter(|i| !i.tags.iter().chain(i.genres.iter()).any(excluded)).collect())
     }
 
     /// Recherche par acteur, studio et tag : (intitulé de la rangée, films et séries), meilleures notes

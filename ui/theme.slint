@@ -232,6 +232,7 @@ export global Prefs {
     in-out property <bool> card-info: true;  // résumé sur la carte sélectionnée
     in-out property <bool> marquee: true;  // défilement des noms trop longs
     in-out property <bool> clock: true;    // heure en haut à droite
+    in-out property <int> pause-info: 10;  // écran de pause : secondes avant d'apparaître (0 : jamais)
 }
 
 // Traduction de l'interface, faite en Rust (i18n.rs) : langues intégrées et fichiers .po ajoutés,

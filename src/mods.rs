@@ -11,7 +11,7 @@
 //! Journal : `mods.log` dans le dossier de configuration, créé seulement si un mod est activé.
 //!
 //! Ce qu'un mod reçoit (table globale `turtlefin`) :
-//!   version, platform · log(texte) · toast(texte) · sound(événement ou fichier)
+//!   version, platform · log(texte) · toast(texte) · sound(fichier audio)
 //!   on(événement, fonction) : « start », « screen » (nom de la page), « play » / « stop » (identifiant
 //!     du média), « tick » (chaque seconde)
 //!   theme{ accent1 = "#ff0000", radius = 4, … } : change des réglages du thème en cours (mêmes noms
@@ -279,7 +279,7 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
     t.set(
         "sound",
         lua.create_function(|_, name: String| {
-            crate::sfx::play(&name);
+            crate::music::sound(&name);
             Ok(())
         })?,
     )?;

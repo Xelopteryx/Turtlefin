@@ -1853,8 +1853,8 @@ msgstr "Pilot · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} nie odpowiada: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "Żaden inny Turtlefin nie jest otwarty na tym koncie. Otwórz go na telewizorze (lub na Pi), a potem wróć tutaj."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "Żaden inny Turtlefin nie jest otwarty na tym koncie. Otwórz go na drugim urządzeniu (telewizor, komputer…), a potem wróć tutaj."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Wybierz ekran, na który wysyłać filmy: na kartach pojawi się „Odtwórz na”."

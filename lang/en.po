@@ -1847,8 +1847,8 @@ msgstr "Remote · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} isn't responding: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "No other Turtlefin is open with this account. Open it on the TV (or the Pi), then come back here."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "No other Turtlefin is open with this account. Open it on the other device (TV, computer…), then come back here."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Pick the screen to send videos to: “Play on” then appears on item pages."

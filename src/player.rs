@@ -930,6 +930,9 @@ pub async fn play(
     result
 }
 
+/// Vidéo dont l'écran de pause est affiché (son logo arrive après coup).
+static PAUSE_ID: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
 /// Par fichier : début du générique (segments Jellyfin) et épisodes de la saison (bandeau ↓).
 async fn prepare_extras(app: &Arc<App>, client: Option<&Client>, cur: &mut Current) {
     let (Some(c), Some(it)) = (client, cur.item.clone()) else { return };
@@ -938,12 +941,38 @@ async fn prepare_extras(app: &Arc<App>, client: Option<&Client>, cur: &mut Curre
     cur.outro = outro;
 
     let ui = app.ui();
-    let _ = ui.upgrade_in_event_loop(|u| {
+    // Écran de pause : logo (sinon le titre), « S01E02 - Titre » (un film : son année) et résumé.
+    let pause_title = if it.kind == "Episode" { it.series_name.clone().unwrap_or_else(|| it.name.clone()) } else { it.name.clone() };
+    let pause_line = match (it.kind.as_str(), it.parent_index_number, it.index_number) {
+        ("Episode", Some(s), Some(e)) => format!("S{s:02}E{e:02} - {}", it.name),
+        ("Episode", _, _) => it.name.clone(),
+        _ => it.production_year.map(|y| y.to_string()).unwrap_or_default(),
+    };
+    let pause_text = it.overview.clone().unwrap_or_default();
+    *PAUSE_ID.lock().unwrap() = it.id.clone();
+    let _ = ui.upgrade_in_event_loop(move |u| {
         u.set_p_episodes(ModelRc::default());
         u.set_p_up_mode("".into());
         u.set_p_skip_intro(false);
         u.set_p_has_bg(false);
+        u.set_p_pause_has_logo(false);
+        u.set_p_pause_title(pause_title.into());
+        u.set_p_pause_line(pause_line.into());
+        u.set_p_pause_text(pause_text.into());
     });
+    if let Some(logo) = it.logo_candidate() {
+        let (ui2, c2, id) = (ui.clone(), c.clone(), it.id.clone());
+        app.rt.spawn(async move {
+            let Some(buf) = crate::fetch_decoded(&c2, vec![logo], "Logo", crate::api::Size::MaxWidth(700), None).await else { return };
+            let _ = ui2.upgrade_in_event_loop(move |u| {
+                // Une autre vidéo a pu commencer entre-temps.
+                if PAUSE_ID.lock().unwrap().as_str() == id {
+                    u.set_p_pause_logo(slint::Image::from_rgba8(buf));
+                    u.set_p_pause_has_logo(true);
+                }
+            });
+        });
+    }
     // Fond de l'écran de fin : image du média, floutée et assombrie une fois.
     {
         let (ui2, c2, it2) = (ui.clone(), c.clone(), it.clone());

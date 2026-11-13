@@ -14,6 +14,8 @@ mod android_entry;
 mod config;
 #[cfg(not(target_os = "android"))]
 mod creator;
+#[cfg(not(target_os = "android"))]
+mod demo;
 mod dashboard;
 mod discovery;
 mod downloads;
@@ -28,7 +30,7 @@ mod player;
 mod relay;
 mod syncplay;
 mod mods;
-mod sfx;
+mod music;
 mod theme;
 mod update;
 mod video;
@@ -168,6 +170,8 @@ fn parse_cli() -> Cli {
             // Pistes voulues pour ce lancement (les préférences enregistrées ne changent pas).
             s if s.starts_with("--sub=") => player::cli_tracks(None, Some(&s["--sub=".len()..])),
             s if s.starts_with("--audio=") => player::cli_tracks(Some(&s["--audio=".len()..]), None),
+            // Essai d'un thème (Turtlefin Theme Creator) : voir demo.rs, lu dans main.
+            s if s.starts_with("--theme-demo=") => {}
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -287,6 +291,8 @@ struct App {
     search_filter: Mutex<SearchFilter>,
     filter_lists: Mutex<Option<api::FilterLists>>,
     filter_pick: AtomicU64,
+    /// Listes des filtres en cours de demande (suggestions du champ).
+    filter_loading: AtomicBool,
     /// Page Seerr affichée.
     seerr_page: Mutex<Option<api::SeerrDetails>>,
     /// Le compte peut télécharger (bouton Télécharger des fiches).
@@ -461,10 +467,6 @@ static SEERR_GONE: AtomicBool = AtomicBool::new(false);
 
 fn show_screen(u: &AppWindow, name: &str) {
     u.set_loading(false);
-    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    if name == "home" && !STARTED.swap(true, Ordering::Relaxed) {
-        sfx::play("start");
-    }
     mods::emit("screen", name);
     // Fiche tirée au hasard depuis une page Seerr : celle-ci s'en va à l'arrivée de la fiche.
     if name == "detail" && SEERR_GONE.swap(false, Ordering::Relaxed) {
@@ -528,6 +530,11 @@ fn rows_for_tab(u: &AppWindow) -> Vec<Section> {
     let tab = u.get_d_tab_eff();
     let cast = tr("Distribution");
     let mut y = 0.0f32;
+    // Hauteur recalculée selon l'interface en cours (TV ou bureau) : les rangées gardées peuvent dater
+    // d'avant un changement d'interface, et une rangée trop basse coupait le nom des cartes (la rangée
+    // suivante mordait sur ses affiches).
+    let (k, card_w) = if u.get_tv_mode() { (1.4_f32, 230.0_f32) } else { (1.0, 170.0) };
+    let row_h = 132.0 * k + card_w * 1.5;
     DETAIL_ALL.with(|all| {
         all.borrow()
             .iter()
@@ -535,6 +542,7 @@ fn rows_for_tab(u: &AppWindow) -> Vec<Section> {
             .map(|s| {
                 let mut s = s.clone();
                 s.y_px = y;
+                s.h_px = row_h;
                 s.leaving = false;
                 y += s.h_px;
                 s
@@ -4444,61 +4452,86 @@ impl SearchFilter {
     }
 }
 
-/// Intitulés des filtres, avec le nombre de choix faits.
+/// Boutons des filtres : les quatre types (le choisi allumé), puis les listes avec le nombre de choix faits.
 fn filter_chips(app: &Arc<App>, u: &AppWindow) {
     let f = app.search_filter.lock().unwrap().clone();
     let n = |label: &str, v: &Vec<String>| if v.is_empty() { label.to_string() } else { format!("{label} ({})", v.len()) };
-    let kind = [tr("Tout"), tr("Films"), tr("Séries"), tr("Collections")][f.kind.min(3) as usize];
-    let chips: Vec<slint::SharedString> = vec![
-        trf("Type : {}", &[&kind]).into(),
-        n(tr("Genres"), &f.genres).into(),
-        n(tr("Tags"), &f.tags).into(),
-        n(tr("Studios"), &f.studios).into(),
-        n(tr("Sans les tags"), &f.exclude).into(),
-    ];
+    let mut chips: Vec<FilterOpt> = [tr("Tout"), tr("Films"), tr("Séries"), tr("Collections")]
+        .iter()
+        .enumerate()
+        .map(|(i, t)| FilterOpt { name: (*t).into(), on: f.kind as usize == i })
+        .collect();
+    for (label, v) in [(tr("Genres"), &f.genres), (tr("Tags"), &f.tags), (tr("Studios"), &f.studios), (tr("Exclus"), &f.exclude)] {
+        chips.push(FilterOpt { name: n(label, v).into(), on: !v.is_empty() });
+    }
     u.set_sf_chips(ModelRc::new(VecModel::from(chips)));
 }
 
-/// Liste d'un filtre (genres, tags, studios, tags à exclure), cases cochées selon les choix faits.
+thread_local! {
+    /// Liste complète du filtre ouvert (la liste affichée n'en montre que ce qui contient le texte tapé).
+    static FILTER_ALL: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// Suggestions du champ de recherche : (liste visée, nom, début du texte remplacé).
+    static SUGGEST: std::cell::RefCell<Vec<(u64, String, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Lignes de la liste ouverte qui contiennent `query` (sans tenir compte des majuscules), cochées selon les choix.
+fn filter_rows(app: &Arc<App>, u: &AppWindow, query: &str) {
+    let q = query.trim().to_lowercase();
+    let chosen = app.search_filter.lock().unwrap().list(app.filter_pick.load(Ordering::SeqCst)).clone();
+    let items: Vec<FilterOpt> = FILTER_ALL.with(|all| {
+        all.borrow().iter().filter(|n| q.is_empty() || n.to_lowercase().contains(&q)).map(|n| FilterOpt { on: chosen.contains(n), name: n.into() }).collect()
+    });
+    u.set_sf_items(ModelRc::new(VecModel::from(items)));
+    u.set_sf_sel(0);
+}
+
+/// Genres et tags réunis (pour les exclusions), triés, sans doublon.
+fn genres_and_tags(lists: &api::FilterLists) -> Vec<String> {
+    let mut v: Vec<String> = lists.genres.iter().chain(lists.tags.iter()).cloned().collect();
+    v.sort_by_key(|a| a.to_lowercase());
+    v.dedup_by(|a, b| a.to_lowercase() == b.to_lowercase());
+    v
+}
+
+/// Liste d'un filtre (genres, tags, studios, exclusions), cases cochées selon les choix faits.
 fn open_filter_list(app: &Arc<App>, u: &AppWindow, which: u64) {
     let lists = app.filter_lists.lock().unwrap().clone().unwrap_or_default();
     let names = match which {
         1 => lists.genres,
+        2 => lists.tags,
         3 => lists.studios,
-        _ => lists.tags,
+        _ => genres_and_tags(&lists),
     };
     if names.is_empty() {
         u.set_toast(tr("Le serveur n'en propose aucun.").into());
         return;
     }
-    let chosen = app.search_filter.lock().unwrap().list(which).clone();
-    let items: Vec<FilterOpt> = names.into_iter().map(|n| FilterOpt { on: chosen.contains(&n), name: n.into() }).collect();
     app.filter_pick.store(which, Ordering::SeqCst);
+    FILTER_ALL.with(|all| *all.borrow_mut() = names);
+    u.set_sf_query("".into());
+    filter_rows(app, u, "");
     u.set_sf_title(
         match which {
             1 => tr("Genres"),
             2 => tr("Tags"),
             3 => tr("Studios"),
-            _ => tr("Tags à exclure"),
+            _ => tr("À exclure"),
         }
         .into(),
     );
-    u.set_sf_items(ModelRc::new(VecModel::from(items)));
-    u.set_sf_sel(0);
     u.set_sf_open(true);
 }
 
-/// Filtre touché : 0 type (tout, films, séries, collections, à tour de rôle) · 1 à 4 ouvre sa liste ·
-/// 5 efface tous les filtres.
+/// Filtre touché : 0 à 3 type (tout, films, séries, collections) · 4 à 7 ouvre une liste (genres,
+/// tags, studios, exclusions) · autre : efface tous les filtres.
 fn search_filter(app: &Arc<App>, i: i32) {
     let Some(u) = app.ui().upgrade() else { return };
     match i {
-        0 => {
-            let mut f = app.search_filter.lock().unwrap();
-            f.kind = (f.kind + 1) % 4;
+        0..=3 => {
+            app.search_filter.lock().unwrap().kind = i as u8;
         }
-        1..=4 => {
-            let which = i as u64;
+        4..=7 => {
+            let which = i as u64 - 3;
             if app.filter_lists.lock().unwrap().is_some() {
                 open_filter_list(app, &u, which);
             } else if let Some(client) = app.client() {
@@ -4547,8 +4580,110 @@ fn open_seerr_collection(app: &Arc<App>, id: i64) {
     });
 }
 
+/// Suggestions pour la fin du texte tapé : genres, tags et studios dont le nom (ou un de ses mots)
+/// commence par les derniers mots tapés (« survival ho » → « Survival Horror »). Un mot précédé de « - »
+/// propose d'exclure ce genre ou ce tag. Rend (liste visée, nom, début du texte remplacé).
+fn suggestions(text: &str, lists: &api::FilterLists) -> Vec<(u64, String, usize)> {
+    let mut starts: Vec<usize> = text
+        .char_indices()
+        .filter(|(i, c)| !c.is_whitespace() && (*i == 0 || text[..*i].ends_with(char::is_whitespace)))
+        .map(|(i, _)| i)
+        .collect();
+    starts.reverse();
+    let mut out: Vec<(u64, String, usize)> = Vec::new();
+    // Du plus long morceau (quatre derniers mots) au plus court : la suggestion la plus précise d'abord.
+    for &p in starts.iter().take(4).rev() {
+        let tail = text[p..].trim_end();
+        let (exclude, needle) = match tail.strip_prefix('-') {
+            Some(rest) => (true, rest.trim_start().to_lowercase()),
+            None => (false, tail.to_lowercase()),
+        };
+        if needle.chars().count() < 2 {
+            continue;
+        }
+        let fits = |name: &str| {
+            let low = name.to_lowercase();
+            low.starts_with(&needle) || low.match_indices(&needle).any(|(i, _)| low[..i].ends_with([' ', '-', '\'', '/']))
+        };
+        let groups: Vec<(u64, &Vec<String>)> =
+            if exclude { vec![(4, &lists.genres), (4, &lists.tags)] } else { vec![(1, &lists.genres), (2, &lists.tags), (3, &lists.studios)] };
+        for (which, names) in groups {
+            for n in names.iter().filter(|n| fits(n)) {
+                if !out.iter().any(|(w, m, _)| *w == which && m.eq_ignore_ascii_case(n)) {
+                    out.push((which, n.clone(), p));
+                }
+            }
+        }
+        if out.len() >= 6 {
+            break;
+        }
+    }
+    out.truncate(6);
+    out
+}
+
+/// Suggestions du champ affichées sous lui (vides si les listes du serveur ne sont pas encore là).
+fn show_suggestions(app: &Arc<App>, u: &AppWindow, text: &str) {
+    let lists = app.filter_lists.lock().unwrap().clone();
+    let list = match &lists {
+        Some(l) if !text.trim().is_empty() => suggestions(text, l),
+        _ => Vec::new(),
+    };
+    let chips: Vec<FilterOpt> = list
+        .iter()
+        .map(|(which, name, _)| {
+            let kind = match which {
+                1 => tr("Genre"),
+                2 => tr("Tag"),
+                3 => tr("Studio"),
+                _ => tr("Exclure"),
+            };
+            FilterOpt { name: format!("{kind} : {name}").into(), on: *which == 4 }
+        })
+        .collect();
+    SUGGEST.with(|s| *s.borrow_mut() = list);
+    u.set_sg_items(ModelRc::new(VecModel::from(chips)));
+    // Listes du serveur demandées à la première frappe.
+    if lists.is_none() && !text.trim().is_empty() && !app.filter_loading.swap(true, Ordering::SeqCst) {
+        if let Some(client) = app.client() {
+            let app2 = app.clone();
+            app.rt.spawn(async move {
+                let l = client.filter_lists().await;
+                *app2.filter_lists.lock().unwrap() = Some(l);
+                app2.filter_loading.store(false, Ordering::SeqCst);
+                let a = app2.clone();
+                let _ = app2.ui().upgrade_in_event_loop(move |u| show_suggestions(&a, &u, u.get_search_text().as_str()));
+            });
+        }
+    }
+}
+
+/// Suggestion choisie : le filtre s'ajoute (options avancées ouvertes), les mots tapés pour lui s'effacent.
+fn pick_suggestion(app: &Arc<App>, i: usize) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let Some((which, name, cut)) = SUGGEST.with(|s| s.borrow().get(i).cloned()) else { return };
+    {
+        let mut f = app.search_filter.lock().unwrap();
+        f.on = true;
+        let list = f.list(which);
+        if !list.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+            list.push(name);
+        }
+    }
+    let text = u.get_search_text().to_string();
+    let rest = text.get(..cut).unwrap_or("").trim_end().to_string();
+    let rest = if rest.is_empty() { rest } else { format!("{rest} ") };
+    u.set_search_text(rest.clone().into());
+    u.set_s_adv(true);
+    filter_chips(app, &u);
+    search_changed(app, rest);
+}
+
 fn search_changed(app: &Arc<App>, text: String) {
     let my = app.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
+    if let Some(u) = app.ui().upgrade() {
+        show_suggestions(app, &u, &text);
+    }
     let Some(client) = app.client() else { return };
     let term = text.trim().to_string();
     let filter = app.search_filter.lock().unwrap().clone();
@@ -5634,7 +5769,7 @@ pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
-    sfx::configure(p.sfx, p.sfx_volume);
+    music::configure(p.music, p.music_volume);
     update_chrome(u);
     // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
     thread_local! { static SHORTCUTS: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
@@ -5663,6 +5798,7 @@ fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     g.set_card_info(p.card_info);
     g.set_marquee(p.marquee);
     g.set_clock(p.show_clock);
+    g.set_pause_info(p.pause_info as i32);
     apply_motion(u, &p.anim);
 }
 
@@ -5861,6 +5997,14 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("alang", tr("Langue audio préférée"), tr("Choisie à l'ouverture d'un film ou d'un épisode, si elle existe."), label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
             row("defaudio", tr("Piste audio par défaut du fichier"), tr("Sans langue préférée, la piste marquée « par défaut » est lue."), String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
             row("autonext", tr("Épisode suivant automatique"), tr("À la fin d'un épisode, le suivant démarre tout seul."), String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
+            row(
+                "pauseinfo",
+                tr("Écran de pause"),
+                tr("Après ce délai en pause : logo du média, épisode et résumé à l'écran."),
+                if prefs.pause_info == 0 { tr("Jamais").to_string() } else { trf("Après {} s", &[&prefs.pause_info]) },
+                "action",
+                false,
+            ),
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
             row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
@@ -5881,7 +6025,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
             row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
-            row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, sons, aperçu en direct."), String::new(), "action", false),
+            row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
@@ -5889,8 +6033,8 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
-            row("sfx", tr("Effets sonores"), tr("Sons de navigation (déplacement, validation, retour), propres à chaque thème."), String::new(), "toggle", prefs.sfx),
-            row("sfx_volume", tr("Volume des effets sonores"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.sfx_volume), "action", false),
+            row("music", tr("Musique de fond du thème"), tr("Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."), String::new(), "toggle", prefs.music),
+            row("music_volume", tr("Volume de la musique de fond"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.music_volume), "action", false),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
         ]
         .into_iter()
@@ -6932,6 +7076,12 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             save_user_cfg(app, cfg);
         }
         "autoskip" => toggle_ui_pref(app, |p| p.auto_skip_intro = !p.auto_skip_intro),
+        // 5 à 30 secondes, ou jamais.
+        "pauseinfo" => toggle_ui_pref(app, |p| {
+            const STEPS: [u32; 7] = [5, 10, 15, 20, 25, 30, 0];
+            let i = STEPS.iter().position(|s| *s == p.pause_info).unwrap_or(0);
+            p.pause_info = STEPS[(i + 1) % STEPS.len()];
+        }),
         "yttrailers" => toggle_ui_pref(app, |p| p.no_yt_trailers = !p.no_yt_trailers),
         "hwdec" => toggle_ui_pref(app, |p| p.no_hwdec = !p.no_hwdec),
         "dldir" => lx_open_mode(app, "dldir"),
@@ -6950,22 +7100,18 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "card_info" => toggle_ui_pref(app, |p| p.card_info = !p.card_info),
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
-        "sfx" => {
-            toggle_ui_pref(app, |p| p.sfx = !p.sfx);
-            sfx::play("toggle");
-        }
-        "sfx_volume" => {
-            toggle_ui_pref(app, |p| {
-                p.sfx_volume = match p.sfx_volume {
-                    0..=24 => 25,
-                    25..=49 => 50,
-                    50..=74 => 75,
-                    75..=99 => 100,
-                    _ => 25,
-                }
-            });
-            sfx::play("ok");
-        }
+        "music" => toggle_ui_pref(app, |p| p.music = !p.music),
+        "music_volume" => toggle_ui_pref(app, |p| {
+            p.music_volume = match p.music_volume {
+                0..=9 => 10,
+                10..=24 => 25,
+                25..=39 => 40,
+                40..=59 => 60,
+                60..=79 => 80,
+                80..=99 => 100,
+                _ => 10,
+            }
+        }),
         "tvmode" => {
             let on = !app.tv();
             toggle_ui_pref(app, |p| p.tv = on);
@@ -7137,7 +7283,6 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 for p in edit.iter_mut().filter(|p| p.id == id) {
                     p.on = !p.on;
                 }
-                sfx::play("toggle");
             } else if let Some(i) = k.strip_prefix("modup:").and_then(|id| edit.iter().position(|p| p.id == id)).filter(|i| *i > 0) {
                 edit.swap(i - 1, i);
             }
@@ -9315,21 +9460,6 @@ fn install_f11(app: &Arc<App>) {
             }
         }
         if let winit::event::WindowEvent::KeyboardInput { event, .. } = ev {
-            if event.state == winit::event::ElementState::Pressed {
-                use winit::keyboard::{Key, NamedKey};
-                match &event.logical_key {
-                    // Touche maintenue : le son du déplacement n'est pas répété à chaque pas (voir sfx::play_repeat).
-                    Key::Named(NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::ArrowLeft | NamedKey::ArrowRight | NamedKey::Tab) => {
-                        if event.repeat { sfx::play_repeat("move") } else { sfx::play("move") }
-                    }
-                    Key::Named(NamedKey::Enter) if !event.repeat => sfx::play("ok"),
-                    Key::Named(NamedKey::Escape | NamedKey::BrowserBack) if !event.repeat => sfx::play("back"),
-                    // Interface TV : Retour arrière sert de Retour ; au bureau, il efface du texte.
-                    Key::Named(NamedKey::Backspace) => sfx::play(if app.tv() { "back" } else { "type" }),
-                    Key::Named(NamedKey::Space) | Key::Character(_) => sfx::play("type"),
-                    _ => {}
-                }
-            }
             if event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::F11) {
                 if event.state == winit::event::ElementState::Pressed && !event.repeat {
                     // Hors de l'événement en cours : la fenêtre change de taille.
@@ -9466,9 +9596,6 @@ impl Swipe {
     fn touch(&mut self, u: &AppWindow, phase: TouchPh, id: u64, p: (f64, f64), finger: bool) -> bool {
         use TouchPh as TouchPhase;
         let s = u.window().scale_factor() as f64;
-        if phase == TouchPhase::Ended && !self.active {
-            sfx::play("tap");
-        }
         if std::env::var_os("TURTLEFIN_DEBUG_TOUCH").is_some() && phase != TouchPhase::Moved {
             eprintln!("turtlefin : toucher {phase:?} {id} ({:.0}, {:.0})", p.0, p.1);
         }
@@ -9816,7 +9943,22 @@ pub(crate) fn main() -> anyhow::Result<()> {
     if std::env::args().any(|a| a == "--theme-creator") {
         return creator::run();
     }
-    let cli = parse_cli();
+    // Essai d'un thème depuis le créateur : faux serveur et dossiers à part, posés avant toute lecture
+    // de la configuration.
+    #[cfg(not(target_os = "android"))]
+    let demo_server = std::env::args().find_map(|a| a.strip_prefix("--theme-demo=").map(str::to_string)).and_then(|f| demo::start(&f));
+    #[cfg(target_os = "android")]
+    let demo_server: Option<String> = None;
+    #[allow(unused_mut)]
+    let mut cli = parse_cli();
+    if let Some(url) = &demo_server {
+        cli.server = Some(url.clone());
+        #[cfg(not(target_os = "android"))]
+        {
+            cli.user = Some(demo::USER.to_string());
+            cli.pass = Some(demo::PASSWORD.to_string());
+        }
+    }
     // Vérification « Configuration » du démarrage : avant toute lecture des fichiers (voir boot.rs).
     let config_issues = config::unreadable_files();
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -9930,6 +10072,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
         fit_window_later(ui.as_weak(), 40);
     }
     apply_ui_prefs(&ui, &prefs);
+    #[cfg(not(target_os = "android"))]
+    if demo_server.is_some() {
+        demo::watch(&ui);
+    }
 
     let app = Arc::new(App {
         rt: rt.handle().clone(),
@@ -9994,6 +10140,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         search_filter: Mutex::new(SearchFilter::default()),
         filter_lists: Mutex::new(None),
         filter_pick: AtomicU64::new(0),
+        filter_loading: AtomicBool::new(false),
         detail_streams: Mutex::new(Default::default()),
         missing_seasons: Mutex::new(Default::default()),
         dl_queue: Mutex::new(std::collections::VecDeque::new()),
@@ -10231,16 +10378,37 @@ pub(crate) fn main() -> anyhow::Result<()> {
             search_changed(&app, u.get_search_text().to_string());
         }
     });
-    // Lettre tapée dans une liste de filtre : premier nom qui commence ainsi (-1 : aucun).
+    // Index A–Z d'une liste de filtre : premier nom qui commence par cette lettre (« # » : par autre chose
+    // qu'une lettre) ; à défaut, le premier de la lettre suivante (-1 : aucun).
     ui.on_search_filter_jump({
         let weak = ui.as_weak();
         move |text| {
             let Some(u) = weak.upgrade() else { return -1 };
-            let Some(c) = text.chars().next().filter(|c| c.is_alphanumeric()) else { return -1 };
-            let c = c.to_lowercase().to_string();
             let model = u.get_sf_items();
-            (0..model.row_count()).find(|i| model.row_data(*i).is_some_and(|r| r.name.to_lowercase().starts_with(&c))).map(|i| i as i32).unwrap_or(-1)
+            let first = |i: usize| model.row_data(i).and_then(|r| r.name.chars().next()).map(|c| c.to_lowercase().next().unwrap_or(c));
+            if text.as_str() == "#" {
+                return (0..model.row_count()).find(|i| first(*i).is_some_and(|c| !c.is_alphabetic())).map(|i| i as i32).unwrap_or(-1);
+            }
+            let Some(c) = text.chars().next().filter(|c| c.is_alphanumeric()) else { return -1 };
+            let c = c.to_lowercase().next().unwrap_or(c);
+            (0..model.row_count())
+                .find(|i| first(*i).is_some_and(|f| f.is_alphabetic() && f >= c))
+                .map(|i| i as i32)
+                .unwrap_or(-1)
         }
+    });
+    // Texte tapé dans une liste de filtre : seuls les noms qui le contiennent restent.
+    ui.on_search_filter_query({
+        let app = app.clone();
+        move |q| {
+            if let Some(u) = app.ui().upgrade() {
+                filter_rows(&app, &u, q.as_str());
+            }
+        }
+    });
+    ui.on_search_suggest_pick({
+        let app = app.clone();
+        move |i| pick_suggestion(&app, i.max(0) as usize)
     });
 
     ui.on_random_pick({

@@ -2,7 +2,7 @@
 //! « Turtlefin Theme Creator », ou Paramètres → Affichage → « Créer un thème »).
 //!
 //! Tout ce qu'un thème peut régler : couleurs, formes, décor ou fond personnel (image, GIF, vidéo),
-//! logo et son animation, animation de démarrage, sons. L'aperçu est fait des briques de Turtlefin
+//! logo et son animation, animation de démarrage, musique de fond. L'aperçu est fait des briques de Turtlefin
 //! (global `Theme`, décors, logo). « Enregistrer » écrit un dossier dans « Turtlefin Themes »
 //! (`<nom>/<nom>.tftheme` et les fichiers du thème à côté) ; « Installer » l'ajoute aussi aux thèmes
 //! de Turtlefin et le choisit.
@@ -28,7 +28,8 @@ enum Kind {
     Choice(&'static [(&'static str, &'static str)]),
     /// Extensions acceptées.
     File(&'static [&'static str]),
-    Sound,
+    /// Fichier audio (musique de fond), avec un bouton pour l'écouter.
+    Music,
 }
 
 struct Def {
@@ -44,9 +45,9 @@ const fn d(key: &'static str, label: &'static str, hint: &'static str, kind: Kin
 
 const IMAGES: &[&str] = &["png", "jpg", "jpeg", "webp"];
 const BACKGROUNDS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "mp4", "mkv", "webm", "mov", "m4v"];
-const SOUNDS: &[&str] = &["wav", "ogg", "mp3", "flac", "opus", "m4a"];
+const MUSIC: &[&str] = &["mp3", "ogg", "opus", "flac", "wav", "m4a"];
 
-const TABS: [&str; 6] = ["Général", "Couleurs", "Formes", "Fond", "Logo", "Sons"];
+const TABS: [&str; 6] = ["Général", "Couleurs", "Formes", "Fond", "Logo", "Musique"];
 
 fn defs(tab: usize) -> Vec<Def> {
     use Kind::*;
@@ -106,7 +107,7 @@ fn defs(tab: usize) -> Vec<Def> {
             d("background", "Fond personnel", "Image, GIF ou vidéo ; il remplace le décor.", File(BACKGROUNDS)),
             d("background_dim", "Voile sur le fond", "Plus haut : fond plus effacé, textes plus lisibles.", Num(0.0, 1.0)),
             d("veil", "Voile sur l'image du média", "", Num(0.5, 2.0)),
-            d("", "Un fond animé (GIF, vidéo) demande plus de ressources : l'interface est redessinée à chaque image. Sur une petite machine (Raspberry Pi, vieux PC), préfère une image. Dans Turtlefin, il ne bouge que si « Décor du thème qui bouge » est activé (Paramètres → Animations).", "", Info),
+            d("", "Un fond animé (GIF, vidéo) demande plus de ressources : l'interface est redessinée à chaque image. Sur une petite machine, préfère une image. Dans Turtlefin, il ne bouge que si « Décor du thème qui bouge » est activé (Paramètres → Animations).", "", Info),
         ],
         4 => vec![
             d("logo", "Logo dessiné", "", Choice(&[("", "Carapace"), ("orb", "Orbe de verre"), ("chip", "Circuit")])),
@@ -115,15 +116,8 @@ fn defs(tab: usize) -> Vec<Def> {
             d("boot", "Animation de démarrage", "", Choice(&[("", "Logo qui se relie"), ("aero", "Billes de verre"), ("nerd", "Machine qui s'allume")])),
         ],
         _ => vec![
-            d("sounds", "Jeu de sons", "Sons fabriqués par Turtlefin ; chaque son peut être remplacé par un fichier.", Choice(&[("", "Selon le style"), ("abyss", "Gouttes"), ("aero", "Verre"), ("nerd", "Bips")])),
-            d("sound:move", "Déplacement", "", Sound),
-            d("sound:ok", "Validation", "", Sound),
-            d("sound:back", "Retour", "", Sound),
-            d("sound:tap", "Clic, toucher", "", Sound),
-            d("sound:type", "Frappe", "", Sound),
-            d("sound:toggle", "Réglage basculé", "", Sound),
-            d("sound:error", "Erreur", "", Sound),
-            d("sound:start", "Démarrage", "", Sound),
+            d("music", "Musique de fond", "Jouée en boucle dans Turtlefin, coupée dès qu'un média est ouvert (même en pause).", Music),
+            d("", "Chaque appareil peut la couper ou baisser son volume (Paramètres → Affichage). Choisis une musique que tu as le droit de partager si tu partages le thème.", "", Info),
         ],
     }
 }
@@ -141,9 +135,6 @@ fn get(t: &ThemeDef, key: &str) -> String {
     if key == "skin" {
         return if t.win7 { "win7" } else if t.term { "term" } else { "" }.to_string();
     }
-    if let Some(ev) = key.strip_prefix("sound:") {
-        return t.sound_files.get(ev).cloned().unwrap_or_default();
-    }
     match serde_json::to_value(t).ok().map(|v| v[key].clone()) {
         Some(serde_json::Value::String(s)) => s,
         Some(serde_json::Value::Bool(b)) => b.to_string(),
@@ -158,13 +149,6 @@ fn set(t: &mut ThemeDef, key: &str, value: serde_json::Value) {
         let v = value.as_str().unwrap_or("");
         t.win7 = v == "win7";
         t.term = v == "term";
-        return;
-    }
-    if let Some(ev) = key.strip_prefix("sound:") {
-        match value.as_str().filter(|s| !s.is_empty()) {
-            Some(f) => t.sound_files.insert(ev.to_string(), f.to_string()),
-            None => t.sound_files.remove(ev),
-        };
         return;
     }
     let Ok(mut v) = serde_json::to_value(&*t) else { return };
@@ -213,8 +197,8 @@ fn fields(t: &ThemeDef, tab: usize) -> Vec<CField> {
                     f.kind = "choice".into();
                     f.text = tr(opts.iter().find(|(v, _)| *v == value).map(|(_, l)| *l).unwrap_or(opts[0].1)).into();
                 }
-                Kind::File(_) | Kind::Sound => {
-                    f.kind = if matches!(def.kind, Kind::Sound) { "sound" } else { "file" }.into();
+                Kind::File(_) | Kind::Music => {
+                    f.kind = if matches!(def.kind, Kind::Music) { "sound" } else { "file" }.into();
                     f.text = std::path::Path::new(&value).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default().into();
                 }
             }
@@ -228,13 +212,40 @@ struct State {
     tab: usize,
     /// Fond et logo déjà chargés (les images ne sont relues que s'ils changent).
     assets: (String, String),
+    /// Musique en cours d'écoute (bouton ▶).
+    listening: bool,
+    /// Essai dans Turtlefin lancé : son fichier est réécrit à chaque changement (l'essai le suit).
+    trial: Option<std::path::PathBuf>,
+}
+
+/// Fichier du thème pour l'essai dans Turtlefin : ses fichiers (fond, logo, musique) en chemins complets.
+fn write_trial(t: &ThemeDef, path: &std::path::Path) -> std::io::Result<()> {
+    let mut out = t.clone();
+    let full = |f: &str| theme::asset(t, f).map(|p| p.display().to_string()).unwrap_or_default();
+    out.background = full(&t.background);
+    out.logo_file = full(&t.logo_file);
+    out.music = full(&t.music);
+    out.turtlefin_theme = 1;
+    if out.name.trim().is_empty() {
+        out.name = tr("Mon thème").to_string();
+    }
+    if let Some(d) = path.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    // Écrit d'un coup (fichier provisoire puis renommage) : l'essai ne lit jamais un fichier à moitié écrit.
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(&out).unwrap_or_default())?;
+    std::fs::rename(&tmp, path)
 }
 
 /// Pose le thème sur la fenêtre (aperçu), ses sons, et met les lignes à jour sur place (un champ en
 /// cours de saisie garde le clavier).
 fn refresh(ui: &ThemeCreator, st: &mut State, rebuild: bool) {
     theme::apply_tokens(&ui.global::<Theme>(), &st.theme);
-    crate::sfx::set_theme(theme::sound_set(&st.theme), theme::sound_paths(&st.theme));
+    crate::music::set_theme(if st.listening { theme::music_path(&st.theme) } else { None });
+    if let Some(p) = &st.trial {
+        let _ = write_trial(&st.theme, p);
+    }
     let assets = (st.theme.background.clone(), st.theme.logo_file.clone());
     if assets != st.assets {
         st.assets = assets;
@@ -271,15 +282,15 @@ pub fn run() -> anyhow::Result<()> {
     if !prefs.theme.starts_with("custom:") {
         start.name = tr("Mon thème").to_string();
     }
-    crate::sfx::configure(true, 60);
+    crate::music::configure(true, 60);
     ui.set_tabs(ModelRc::new(VecModel::from(TABS.iter().map(|t| SharedString::from(tr(t))).collect::<Vec<_>>())));
     let texts = [
         "Partir de :", "Turtlefin", "Frutiger Aero", "Nerd", "Ouvrir…", "Enregistrer", "Installer dans Turtlefin", "Parcourir…", "Retirer",
         "Aucun fichier", "Aperçu", "Accueil", "Favoris", "Collections", "Reprendre", "Lecture", "Favori", "Vu", "Réglages", "Sous-titres",
-        "La vidéo de fond se voit dans Turtlefin.",
+        "Essayer dans Turtlefin",
     ];
     ui.set_ui(ModelRc::new(VecModel::from(texts.iter().map(|t| SharedString::from(tr(t))).collect::<Vec<_>>())));
-    let st = Rc::new(RefCell::new(State { theme: start, tab: 0, assets: (String::new(), String::new()) }));
+    let st = Rc::new(RefCell::new(State { theme: start, tab: 0, assets: (String::new(), String::new()), listening: false, trial: None }));
     refresh(&ui, &mut st.borrow_mut(), true);
 
     let weak = ui.as_weak();
@@ -332,13 +343,13 @@ pub fn run() -> anyhow::Result<()> {
     ui.on_browse(with!(|u, s, key| {
         let exts = match defs(s.tab).iter().find(|d| d.key == key.as_str()).map(|d| d.kind) {
             Some(Kind::File(e)) => e,
-            Some(Kind::Sound) => SOUNDS,
+            Some(Kind::Music) => MUSIC,
             _ => return,
         };
         if let Some(path) = pick(tr("Fichiers acceptés"), exts) {
             set(&mut s.theme, key.as_str(), serde_json::Value::String(path));
             if key.as_str() == "background" && theme::background_kind(&s.theme) == 2 {
-                u.set_status(tr("Vidéo choisie : elle demande plus de ressources qu'une image, et se voit dans Turtlefin (pas dans cet aperçu).").into());
+                u.set_status(tr("Vidéo choisie : elle demande plus de ressources qu'une image. « Essayer dans Turtlefin » la montre en mouvement.").into());
             }
             refresh(&u, s, false);
         }
@@ -347,10 +358,10 @@ pub fn run() -> anyhow::Result<()> {
         set(&mut s.theme, key.as_str(), serde_json::Value::String(String::new()));
         refresh(&u, s, false);
     }));
-    ui.on_play_sound(with!(|_u, _s, key| {
-        if let Some(ev) = key.as_str().strip_prefix("sound:") {
-            crate::sfx::play(ev);
-        }
+    // ▶ : écoute la musique du thème (en boucle), un second appui l'arrête.
+    ui.on_play_sound(with!(|u, s, _key| {
+        s.listening = !s.listening && theme::music_path(&s.theme).is_some();
+        refresh(&u, s, false);
     }));
     ui.on_action(with!(|u, s, what| {
         match what.as_str() {
@@ -385,6 +396,24 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     Err(e) => u.set_status(trf("Enregistrement impossible : {}", &[&e]).into()),
                 }
+            }
+            "trial" => {
+                // Le vrai Turtlefin, sur un faux serveur (voir demo.rs), avec ce thème ; il suit ensuite
+                // chaque changement fait ici.
+                let Some(path) = crate::paths::cache_dir().map(|d| d.join("theme-demo").join("essai.tftheme")) else { return };
+                if let Err(e) = write_trial(&s.theme, &path) {
+                    u.set_status(trf("Essai impossible : {}", &[&e]).into());
+                    return;
+                }
+                let arg = format!("--theme-demo={}", path.display());
+                match std::env::current_exe().and_then(|exe| crate::paths::quiet_command(exe).arg(arg).spawn()) {
+                    Ok(_) => {
+                        s.trial = Some(path);
+                        u.set_status(tr("Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct.").into());
+                    }
+                    Err(e) => u.set_status(trf("Essai impossible : {}", &[&e]).into()),
+                }
+                return;
             }
             new => {
                 let key = new.strip_prefix("new:").unwrap_or("turtlefin");
@@ -428,7 +457,7 @@ mod tests {
                             assert_eq!(get(&t, def.key), *v, "{}", def.key);
                         }
                     }
-                    Kind::Text | Kind::File(_) | Kind::Sound => {
+                    Kind::Text | Kind::File(_) | Kind::Music => {
                         set(&mut t, def.key, serde_json::Value::String("x".into()));
                         assert_eq!(get(&t, def.key), "x", "{}", def.key);
                     }

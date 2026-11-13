@@ -693,9 +693,11 @@ pub struct UiPrefs {
     pub autostart_server: String,
     /// Volume de Turtlefin (0 à 100, celui de mpv : ni Windows ni le système de son).
     pub volume: u32,
-    /// Effets sonores de l'interface (coupés par défaut) et leur volume (0 à 100).
-    pub sfx: bool,
-    pub sfx_volume: u32,
+    /// Écran de pause (logo, épisode, résumé) : secondes en pause avant qu'il apparaisse ; 0 : jamais.
+    pub pause_info: u32,
+    /// Musique de fond du thème (s'il en a une) et son volume (0 à 100).
+    pub music: bool,
+    pub music_volume: u32,
     /// Mods (scripts Lua du dossier « Turtlefin Mods ») : ordre de chargement et activation.
     pub mods: Vec<crate::mods::ModPref>,
     /// Débit maximal de lecture en kbit/s (0 : fichier original). Au-delà, le serveur convertit la
@@ -881,8 +883,9 @@ impl Default for UiPrefs {
             card_info: true,
             marquee: true,
             show_clock: true,
-            sfx: false,
-            sfx_volume: 70,
+            pause_info: 10,
+            music: true,
+            music_volume: 40,
             mods: Vec::new(),
             language: String::new(),
             autostart_user: String::new(),

@@ -139,7 +139,7 @@ export component ThemeCreator inherits Window {
     // Textes de l'interface, dans l'ordre : Partir de · Turtlefin · Frutiger Aero · Nerd · Ouvrir… ·
     // Enregistrer · Installer dans Turtlefin · Parcourir… · Retirer · Aucun fichier · Aperçu ·
     // Accueil · Favoris · Collections · Reprendre · Lecture · Favori · Vu · Réglages · Sous-titres ·
-    // La vidéo de fond se voit dans Turtlefin.
+    // Essayer dans Turtlefin.
     in property <[string]> ui: ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
     callback tab-changed(int);
     callback edit-text(string, string);
@@ -527,6 +527,14 @@ export component ThemeCreator inherits Window {
                         }
                     }
                 }
+                // Le vrai Turtlefin sur un serveur de démonstration, avec ce thème (fond vidéo et musique compris).
+                Button {
+                    text: "▶  " + root.ui[20];
+                    clicked => {
+                        root.pick-key = "";
+                        root.action("trial");
+                    }
+                }
                 Text {
                     text: root.status;
                     color: #9fe3b0;
@@ -553,14 +561,6 @@ export component ThemeCreator inherits Window {
                 background: Theme.bg.with-alpha(min(1, Theme.bg-dim));
             }
             if Theme.bg-kind == 0 && Theme.bubbles: AeroSky { }
-            if Theme.bg-kind == 2: Text {
-                y: parent.height - 40px;
-                height: 30px;
-                text: root.ui[20];
-                color: Theme.muted;
-                font-family: Theme.font-name;
-                horizontal-alignment: center;
-            }
             // Barre du haut, selon le thème.
             if Theme.header-style == 1: Rectangle {
                 y: 0px;

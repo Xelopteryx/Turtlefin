@@ -31,6 +31,8 @@ static CURRENT: Mutex<Option<(Arc<mpv::Mpv>, Option<tokio::sync::oneshot::Sender
 /// d'ouvrir un fichier, sinon il désactive la vidéo.
 pub fn attach(ui: &slint::Weak<AppWindow>, player: Option<Arc<mpv::Mpv>>) -> tokio::sync::oneshot::Receiver<()> {
     let (tx, rx) = tokio::sync::oneshot::channel();
+    // Musique de fond du thème : coupée tant qu'un média occupe le lecteur (même en pause).
+    crate::music::block(player.is_some());
     // Vidéo de fond d'un thème : en pause pendant une lecture, elle reprend la place à la fin.
     let bg = BACKGROUND.lock().unwrap().clone();
     if let Some(b) = &bg {
@@ -67,6 +69,14 @@ pub fn set_background(ui: &slint::Weak<AppWindow>, file: Option<&std::path::Path
         return;
     };
     let Ok(m) = mpv::Mpv::new() else { return };
+    // TURTLEFIN_DEBUG_BG=1 : journal du lecteur du fond (`bg-mpv.log` dans le cache).
+    if std::env::var_os("TURTLEFIN_DEBUG_BG").is_some() {
+        if let Some(d) = crate::paths::cache_dir() {
+            let _ = std::fs::create_dir_all(&d);
+            m.log_to(&d.join("bg-mpv.log").display().to_string());
+        }
+        eprintln!("turtlefin : vidéo de fond : {}", file.display());
+    }
     for (k, v) in [
         ("config", "no"),
         ("terminal", "no"),
@@ -112,6 +122,14 @@ pub fn set_background(ui: &slint::Weak<AppWindow>, file: Option<&std::path::Path
         let _ = rx.blocking_recv();
         if let Err(e) = m.command(&["loadfile", &path]) {
             eprintln!("turtlefin : vidéo de fond : {e}");
+        }
+        // Diagnostic : les messages du lecteur ne s'écrivent qu'en les lisant.
+        if std::env::var_os("TURTLEFIN_DEBUG_BG").is_some() {
+            while Arc::strong_count(&m) > 1 {
+                if let Some(mpv::Event::EndFile { error: Some(e), .. }) = m.wait_event(0.5) {
+                    eprintln!("turtlefin : vidéo de fond : {e}");
+                }
+            }
         }
     });
 }

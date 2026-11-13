@@ -1847,8 +1847,8 @@ msgstr "Telecomando · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} non risponde: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "Nessun altro Turtlefin aperto con questo account. Aprilo sulla TV (o sul Pi), poi torna qui."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "Nessun altro Turtlefin aperto con questo account. Aprilo sull'altro dispositivo (TV, computer…), poi torna qui."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Scegli lo schermo a cui inviare i video: «Riproduci su» compare poi nelle schede."

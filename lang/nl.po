@@ -1847,8 +1847,8 @@ msgstr "Afstandsbediening · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} reageert niet: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "Er is geen andere Turtlefin open met dit account. Open hem op de tv (of de Pi) en kom dan hier terug."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "Er is geen andere Turtlefin open met dit account. Open hem op het andere apparaat (tv, computer…) en kom dan hier terug."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Kies het scherm waar video's naartoe gaan: ‘Afspelen op’ verschijnt dan op de detailpagina's."

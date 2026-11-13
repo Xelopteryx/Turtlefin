@@ -1,4 +1,4 @@
-# Turtlefin : passation de projet (état au 30 octobre 2026, version 1.9.9, correctif de la 1.9.8)
+# Turtlefin : passation de projet (état au 13 novembre 2026, version 1.9.9, correctif de la 1.9.8)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -794,6 +794,35 @@ en portrait.
   `D:\Fjolvar\Documents\Abydos Media` (films ouverts de Blender, CC BY, pris sur la chaîne YouTube de Blender par yt-dlp).
 - **À refaire après ce lot** : `python tools/flatpak-cargo-sources.py` (Cargo.lock a changé : mlua, rfd) ; traductions (les
   nouveaux textes s'affichent en français) ; APK Android (pas compilée avec ce lot).
+
+## 6 sexdecies. Troisième liste (13 novembre 2026, pas publié)
+
+- **Effets sonores retirés** (pas au goût du mainteneur) : plus de `src/sfx.rs`, du dossier `sounds/` ni de `embed_sounds`
+  (build.rs) ; réglages `sfx`, champs `sounds` / `sound_files` des thèmes oubliés à la lecture.
+- **Musique de fond d'un thème** (`src/music.rs`, champ `music` du `.tftheme`, copié par `export_package`) : un mpv audio à
+  part la joue en boucle. `video::attach` appelle `music::block` : coupée dès qu'un média occupe le lecteur, même en pause,
+  reprise au même endroit à la sortie du lecteur. Réglages `UiPrefs::music` (oui par défaut) et `music_volume` (40 %).
+  La fonction `sound(fichier)` des mods passe par `music::sound`.
+- **Essai d'un thème** (`src/demo.rs`) : bouton « Essayer dans Turtlefin » du créateur → `turtlefin --theme-demo=<fichier>` :
+  le vrai Turtlefin, sur un faux serveur Jellyfin interne (127.0.0.1, port libre : bibliothèques, films, séries, saisons,
+  épisodes, collections, recherche et filtres, favoris, vu, lecture d'une mire YUV4MPEG fabriquée à la demande), dossiers
+  de config / données / cache à part (`<cache>/theme-demo`, vidés à chaque essai), connexion automatique (compte « Démo »),
+  fond animé et musique activés. Le créateur réécrit `essai.tftheme` à chaque changement, l'essai le relit (`demo::watch`,
+  500 ms). « Créer un thème » reste masqué en interface TV, en borne et sur Android (`external_ok`).
+- **Écran de pause** (`PlayerView`, `pause-*`) : après `UiPrefs::pause_info` secondes en pause (5 à 30, ou jamais ; 10 par
+  défaut, Paramètres → Lecture), les commandes s'effacent ; logo du média à gauche, « S01E02 - Titre » à sa droite (un
+  film : l'année), résumé dessous. Un geste le retire (`show` remet `pause-t` à 0). Logo chargé par `prepare_extras`.
+- **Fiche** : bulle du résumé jusqu'au bas de l'affiche, un style par famille (citation pour Turtlefin, volet de verre de
+  l'Explorateur pour Aero, terminal pour Nerd) ; affiches des saisons à la taille des autres cartes (`child-card-w`) ;
+  contenu des onglets remonté (`tab-lift`) ; hauteur des rangées recalculée dans `rows_for_tab` selon l'interface en cours
+  (une rangée gardée d'avant un passage TV ↔ bureau était trop basse : noms des cartes coupés, titres sur les affiches).
+- **Recherche** : types en boutons directs (Tout, Films, Séries, Collections) ; listes Genres, Tags, Studios, Exclus
+  filtrées par le texte tapé (`sf-query`, `FILTER_ALL`) avec index A–Z à droite (`sf-az`, « # » pour le reste) ;
+  suggestions sous le champ (`suggestions`, `sg-items`) : genres, tags, studios qui finissent les derniers mots tapés
+  (noms à plusieurs mots compris), « -mot » pour exclure un genre ou un tag ; Tab ou OK l'ajoute aux filtres.
+- **Défilement à ressort** (ticket n° 2) : rangées, accueil, recherche, fiche, grille, téléchargements (260 ms, léger
+  dépassement).
+- Plus aucune mention du Pi dans les textes de l'appli.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

@@ -98,15 +98,11 @@ pub struct ThemeDef {
     /// l'apparition : « » aucune, « pulse » battement, « spin » tour complet, « bounce » rebond, « fade » fondu.
     pub logo_file: String,
     pub logo_anim: String,
-    /// Dossier du thème (ses fichiers : fond, logo, sons), posé à l'import ; pas dans le fichier partagé.
+    /// Dossier du thème (ses fichiers : fond, logo, musique), posé à l'import ; pas dans le fichier partagé.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub dir: String,
-    /// Jeu d'effets sonores : « » selon le style (verre pour `win7`, bips pour `term`, gouttes sinon),
-    /// « abyss », « aero », « nerd ».
-    pub sounds: String,
-    /// Sons remplacés par des fichiers : événement (`move`, `ok`, `back`, `tap`, `type`, `toggle`,
-    /// `error`, `start`) -> chemin d'un fichier audio.
-    pub sound_files: std::collections::HashMap<String, String>,
+    /// Musique de fond (fichier audio du dossier du thème, joué en boucle hors lecture ; vide : aucune).
+    pub music: String,
 }
 
 impl Default for ThemeDef {
@@ -171,8 +167,7 @@ pub fn turtlefin() -> ThemeDef {
         logo_file: String::new(),
         logo_anim: String::new(),
         dir: String::new(),
-        sounds: String::new(),
-        sound_files: Default::default(),
+        music: String::new(),
     }
 }
 
@@ -331,19 +326,9 @@ pub fn background_kind(t: &ThemeDef) -> i32 {
     }
 }
 
-/// Sons du thème remplacés par des fichiers : chemins complets des fichiers présents.
-pub fn sound_paths(t: &ThemeDef) -> std::collections::HashMap<String, String> {
-    t.sound_files.iter().filter_map(|(k, f)| asset(t, f).map(|p| (k.clone(), p.display().to_string()))).collect()
-}
-
-/// Jeu de sons d'un thème (« abyss », « aero », « nerd »).
-pub fn sound_set(t: &ThemeDef) -> &str {
-    match t.sounds.as_str() {
-        "" if t.win7 => "aero",
-        "" if t.term => "nerd",
-        "" => "abyss",
-        s => s,
-    }
+/// Musique de fond du thème : chemin complet du fichier, s'il existe.
+pub fn music_path(t: &ThemeDef) -> Option<String> {
+    asset(t, &t.music).map(|p| p.display().to_string())
 }
 
 static ASSET_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -491,7 +476,7 @@ pub fn preview(u: &AppWindow, key: &str, saved: &str, custom: &[ThemeDef]) {
 
 pub fn apply(u: &AppWindow, t: &ThemeDef) {
     apply_tokens(&u.global::<crate::Theme>(), t);
-    crate::sfx::set_theme(sound_set(t), sound_paths(t));
+    crate::music::set_theme(music_path(t));
     // Fond animé (GIF, vidéo) : seulement si le décor a le droit de bouger (Paramètres → Animations ;
     // coupé par défaut sur les petites machines). Sinon le GIF reste sur sa première image, et la
     // vidéo n'est pas lancée.
@@ -1121,7 +1106,7 @@ fn safe_name(name: &str) -> String {
 }
 
 /// Écrit un thème complet dans son dossier (`Turtlefin Themes/<nom>/`) : le fichier `.tftheme` et,
-/// copiés à côté, ses fichiers (fond, logo, sons), que le .tftheme désigne alors par leur seul nom :
+/// copiés à côté, ses fichiers (fond, logo, musique), que le .tftheme désigne alors par leur seul nom :
 /// le dossier se partage tel quel. Rend le chemin du .tftheme et le thème tel qu'installé (ses
 /// fichiers pris dans ce dossier).
 pub fn export_package(t: &ThemeDef) -> std::io::Result<(std::path::PathBuf, ThemeDef)> {
@@ -1142,8 +1127,7 @@ pub fn export_package(t: &ThemeDef) -> std::io::Result<(std::path::PathBuf, Them
     out.turtlefin_theme = 1;
     out.background = copy(&t.background)?;
     out.logo_file = copy(&t.logo_file)?;
-    out.sound_files = t.sound_files.iter().map(|(k, f)| copy(f).map(|n| (k.clone(), n))).collect::<std::io::Result<_>>()?;
-    out.sound_files.retain(|_, f| !f.is_empty());
+    out.music = copy(&t.music)?;
     out.dir = String::new();
     let path = d.join(format!("{safe}.{EXT}"));
     std::fs::write(&path, serde_json::to_string_pretty(&out).unwrap_or_default())?;

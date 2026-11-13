@@ -1847,8 +1847,8 @@ msgstr "Comando · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} não responde: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur la télé (ou le Pi), puis reviens ici."
-msgstr "Nenhum outro Turtlefin aberto com esta conta. Abre-o na TV (ou no Pi) e volta aqui."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgstr "Nenhum outro Turtlefin aberto com esta conta. Abre-o no outro dispositivo (TV, computador…) e volta aqui."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Escolhe o ecrã para onde enviar os vídeos: «Reproduzir em» aparece depois nas fichas."

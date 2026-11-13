@@ -11,7 +11,7 @@
 // la vidéo réduite en haut à gauche (sélectionnable pour rester jusqu'au bout).
 
 import { Marquee } from "marquee.slint";
-import { Theme, Tr, Motion, Gloss, Sheen, Nav, Placeholder, Win7Glass, TermGlass } from "theme.slint";
+import { Theme, Tr, Motion, Gloss, Sheen, Nav, Placeholder, Win7Glass, TermGlass, Prefs } from "theme.slint";
 import { CardData } from "card.slint";
 
 export struct TrackData {
@@ -743,6 +743,8 @@ export component PlayerView inherits Rectangle {
         root.osd = true;
         root.aim = false;
         root.idle = min(root.idle, 0);
+        // Un geste efface l'écran de pause ; il revient après un nouveau délai.
+        root.pause-t = 0;
     }
 
     function hide() {
@@ -1496,6 +1498,99 @@ export component PlayerView inherits Rectangle {
                 self.vol-shown = -1;
                 self.vol-rep = 0;
             }
+        }
+    }
+
+    // ------------------------------------------------------------ Écran de pause
+    // Après Prefs.pause-info secondes en pause (et sans geste) : les commandes s'effacent, le logo du
+    // média apparaît à gauche, « S01E02 - Titre » à sa droite au niveau de son haut, le résumé dessous.
+    in property <image> pause-logo;
+    in property <bool> pause-has-logo;
+    in property <string> pause-title;
+    in property <string> pause-line;
+    in property <string> pause-text;
+    property <int> pause-t: 0;
+    changed paused => {
+        root.pause-t = 0;
+    }
+    property <bool> pause-on: root.paused && Prefs.pause-info > 0 && root.pause-t >= Prefs.pause-info && !root.osd && !root.remote
+        && (root.pause-has-logo || root.pause-title != "");
+    Timer {
+        interval: 1s;
+        running: root.paused && Prefs.pause-info > 0 && !root.pause-on && !root.remote && root.ready;
+        triggered => {
+            root.pause-t += 1;
+            if (root.pause-t >= Prefs.pause-info && root.menu == "" && !root.dragging) {
+                root.hide();
+            }
+        }
+    }
+    property <float> pause-p: root.pause-on ? 1 : 0;
+    animate pause-p { duration: Motion.player ? 700ms : 0ms; easing: ease-out; }
+    if root.pause-p > 0.01: Rectangle {
+        opacity: root.pause-p;
+        property <length> m: 72px * root.k;
+        property <length> logo-w: min(self.width * 0.3, 440px * root.k);
+        property <length> logo-h: min(self.height * 0.26, 170px * root.k);
+        property <length> col-x: self.m + self.logo-w + 36px * root.k;
+        property <length> blk-y: self.height * 0.42 - self.logo-h / 2 + (1 - root.pause-p) * 24px * root.k;
+        // Voile sombre à gauche (là où sont les textes) ; la vidéo reste visible à droite.
+        Rectangle {
+            background: @linear-gradient(90deg, #000000d8 0%, #000000a0 50%, #00000030 100%);
+        }
+        if root.pause-has-logo: Image {
+            x: parent.m;
+            y: parent.blk-y;
+            width: parent.logo-w;
+            height: parent.logo-h;
+            source: root.pause-logo;
+            image-fit: contain;
+            horizontal-alignment: left;
+            vertical-alignment: top;
+        }
+        if !root.pause-has-logo: Text {
+            x: parent.m;
+            y: parent.blk-y;
+            width: parent.logo-w;
+            height: parent.logo-h;
+            text: root.pause-title;
+            color: #ffffff;
+            font-size: 40px * root.k;
+            font-weight: 800;
+            wrap: word-wrap;
+            overflow: elide;
+            vertical-alignment: top;
+        }
+        Text {
+            x: parent.col-x;
+            y: parent.blk-y;
+            width: parent.width - parent.col-x - parent.m;
+            text: root.pause-line;
+            color: #ffffff;
+            font-size: 26px * root.k;
+            font-weight: 700;
+            overflow: elide;
+        }
+        Text {
+            x: parent.col-x;
+            y: parent.blk-y + (root.pause-line != "" ? 44px * root.k : 0px);
+            width: parent.width - parent.col-x - parent.m;
+            height: max(parent.logo-h, 220px * root.k);
+            text: root.pause-text;
+            color: #ffffffd9;
+            font-size: 17px * root.k;
+            wrap: word-wrap;
+            overflow: elide;
+            vertical-alignment: top;
+        }
+        // Rappel discret : la vidéo est en pause.
+        Text {
+            x: parent.m;
+            y: parent.height - parent.m;
+            text: Tr.t(Tr.k, "En pause");
+            color: #ffffffa0;
+            font-size: 15px * root.k;
+            font-weight: 600;
         }
     }
 
