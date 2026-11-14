@@ -1789,7 +1789,10 @@ impl Client {
     pub async fn seerr_search(&self, term: &str, kind: u8) -> Vec<CardInfo> {
         let v: serde_json::Value = match self.get("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await {
             Ok(v) => v,
-            Err(_) => return Vec::new(),
+            Err(e) => {
+                eprintln!("turtlefin : recherche Seerr « {term} » : {e:#}");
+                return Vec::new();
+            }
         };
         let mut out = Vec::new();
         // Collections : la recherche de Seerr (recherche « multi » de TMDB) n'en renvoie jamais. On les
@@ -2914,6 +2917,18 @@ impl Client {
                 let v: serde_json::Value = json_limited(resp).await?;
                 let path = v["Path"].as_str().filter(|p| p.starts_with("/TurtlefinTrailers/File/")).ok_or_else(|| anyhow!("{}", tr("aucune bande-annonce pour ce titre")))?;
                 Ok((format!("{}{}", self.server, path), v["Lang"].as_str().unwrap_or("").to_string()))
+            }
+        }
+    }
+
+    /// Seerr joignable par Jellyfin Enhanced (de quoi chercher), même si le compte n'y est pas relié
+    /// (relié : voir `seerr_user`, nécessaire pour les demandes).
+    pub async fn seerr_active(&self) -> bool {
+        match self.get::<serde_json::Value>("/JellyfinEnhanced/jellyseerr/user-status", &[]).await {
+            Ok(v) => v["active"].as_bool() == Some(true),
+            Err(e) => {
+                eprintln!("turtlefin : Seerr (Jellyfin Enhanced) : {e:#}");
+                false
             }
         }
     }

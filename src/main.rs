@@ -221,6 +221,9 @@ struct App {
     tab: Mutex<String>,
     /// Identifiant Seerr de l'utilisateur (onglet Demandes), si Seerr est disponible.
     seerr_user: Mutex<Option<i64>>,
+    /// Seerr joignable pour la recherche (vérifié à la première recherche, puis gardé ; revérifié tant
+    /// qu'il ne l'est pas : un Seerr lent au démarrage n'est plus coupé pour toute la session).
+    seerr_search_ok: AtomicBool,
     /// Dernières demandes Seerr connues du compte (état réel sur les pages Seerr, onglet Demandes).
     seerr_reqs: Mutex<Vec<api::SeerrRequest>>,
     /// « Tout mettre en cache » : en cours, arrêt demandé, médias déjà lus.
@@ -1963,6 +1966,7 @@ async fn load_home_steps(app: Arc<App>, client: api::Client) {
     // Onglet Demandes : seulement si Seerr est joignable et relié au compte (via Jellyfin Enhanced).
     let (seerr, trailers) = tokio::join!(client.seerr_user(), client.trailers_plugin());
     *app.seerr_user.lock().unwrap() = seerr;
+    app.seerr_search_ok.store(seerr.is_some(), Ordering::SeqCst);
     app.seerr_reqs.lock().unwrap().clear();
     app.has_req.store(false, Ordering::SeqCst);
     app.has_watch.store(false, Ordering::SeqCst);
@@ -4908,29 +4912,25 @@ fn pick_suggestion(app: &Arc<App>, i: usize) {
 /// Compteur en bas à gauche de la recherche : résultats en tout, sur le serveur, à demander (Seerr).
 /// Un même média dans plusieurs rangées (titre, acteur, tag) ne compte qu'une fois. `done` faux : Seerr
 /// n'a pas encore répondu (« … » après le nombre).
-fn show_search_counts(app: &Arc<App>, sections: &[SectionData], done: bool) {
+fn show_search_counts(app: &Arc<App>, sections: &[SectionData], done: bool, seerr: bool) {
     let mut server = std::collections::HashSet::new();
-    let mut seerr = std::collections::HashSet::new();
+    let mut asked = std::collections::HashSet::new();
     for c in sections.iter().flat_map(|s| s.cards.iter()) {
         if c.seerr {
-            seerr.insert(c.id.clone());
+            asked.insert(c.id.clone());
         } else if !c.id.starts_with("jfperson:") && !c.id.starts_with("person:") {
             server.insert(c.id.clone());
         }
     }
-    let (n_server, n_seerr) = (server.len() as i64, seerr.len() as i64);
+    let (n_server, n_seerr) = (server.len() as i64, asked.len() as i64);
     let total = n_server + n_seerr;
-    let mut text = if total == 0 { String::new() } else { i18n::trn("{n} résultat", "{n} résultats", total) };
-    if total > 0 {
+    // Aussi quand rien n'est trouvé (« 0 résultat ») ; la part de Seerr dès qu'il est interrogé.
+    let mut text = i18n::trn("{n} résultat", "{n} résultats", total);
+    text.push_str(" · ");
+    text.push_str(&i18n::trn("{n} sur le serveur", "{n} sur le serveur", n_server));
+    if seerr {
         text.push_str(" · ");
-        text.push_str(&i18n::trn("{n} sur le serveur", "{n} sur le serveur", n_server));
-        if n_seerr > 0 {
-            text.push_str(" · ");
-            text.push_str(&i18n::trn("{n} à demander", "{n} à demander", n_seerr));
-        }
-        if !done {
-            text.push_str(" …");
-        }
+        text.push_str(&if done { i18n::trn("{n} à demander", "{n} à demander", n_seerr) } else { tr("Seerr…").to_string() });
     }
     let _ = app.ui().upgrade_in_event_loop(move |u| u.set_s_counts(text.into()));
 }
@@ -4958,12 +4958,17 @@ fn search_changed(app: &Arc<App>, text: String) {
         u.set_search_busy(true);
     }
     let app2 = app.clone();
-    let seerr = app.seerr_user.lock().unwrap().is_some();
+    let seerr_known = app.seerr_user.lock().unwrap().is_some() || app.seerr_search_ok.load(Ordering::SeqCst);
     app.rt.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(350)).await;
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
+        let seerr = seerr_known || {
+            let ok = !term.is_empty() && client.seerr_active().await;
+            app2.seerr_search_ok.store(ok, Ordering::SeqCst);
+            ok
+        };
         // Les médias du serveur d'abord ; les personnes et Seerr, plus lents, s'ajoutent ensuite dessous.
         let found = if lists || kind != 0 {
             let kinds = match kind {
@@ -4995,14 +5000,16 @@ fn search_changed(app: &Arc<App>, text: String) {
             push_section(&mut sections, title, landscape, Ok(of));
         }
         let first = !sections.is_empty();
-        show_search_counts(&app2, &sections, !(seerr && !lists && !term.is_empty()));
+        let ask_seerr = seerr && !term.is_empty();
+        show_search_counts(&app2, &sections, !ask_seerr, ask_seerr);
         if first {
             present_rows(&app2, &client, sections.clone(), true, None);
         }
         // Genres, tags et studios choisis ne valent que pour la bibliothèque : Seerr et les rangées par
         // personne ne sont pas interrogés. Un type choisi seul filtre aussi Seerr.
         let (from_seerr, by_people) = tokio::join!(
-            async { if seerr && !lists && !term.is_empty() { client.seerr_search(&term, kind).await } else { Vec::new() } },
+            // Seerr aussi avec des filtres (il ne connaît pas les genres et tags du serveur : la rangée le dit).
+            async { if ask_seerr { client.seerr_search(&term, kind).await } else { Vec::new() } },
             async { if !lists && kind == 0 { client.search_people(&term).await } else { Vec::new() } },
         );
         if app2.search_gen.load(Ordering::SeqCst) != my {
@@ -5013,9 +5020,10 @@ fn search_changed(app: &Arc<App>, text: String) {
             push_section(&mut sections, &title, false, Ok(of));
         }
         if !from_seerr.is_empty() {
-            sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, tiles: false, cards: from_seerr });
+            let title = if lists { tr("À demander (Seerr, sans les filtres)") } else { tr("À demander (Seerr)") };
+            sections.push(SectionData { title: title.into(), landscape: false, tiles: false, cards: from_seerr });
         }
-        show_search_counts(&app2, &sections, true);
+        show_search_counts(&app2, &sections, true, ask_seerr);
         // Ajout : la sélection reste où elle est.
         if !first {
             present_rows(&app2, &client, sections, true, None);
@@ -10356,6 +10364,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         }),
         tab: Mutex::new("home".to_string()),
         seerr_user: Mutex::new(None),
+        seerr_search_ok: AtomicBool::new(false),
         seerr_reqs: Mutex::new(Vec::new()),
         pre_on: AtomicBool::new(false),
         pre_stop: AtomicBool::new(false),

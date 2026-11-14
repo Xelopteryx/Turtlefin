@@ -854,6 +854,10 @@ en portrait.
   n'élargit plus la rangée) ; les cartes qui arrivent une à une apparaissent en entier (opacité de `Card` pendant
   `in-live`). **Recherche** : pastilles dans l'ordre de saisie (`SearchFilter::seq`, `note`).
 - **Recherche** : compteur en bas à gauche (`s-counts`, `show_search_counts`) : résultats en tout, sur le serveur, à demander (Seerr) ; un média présent dans plusieurs rangées compte une fois ; « … » tant que Seerr n'a pas répondu.
+- **Recherche et Seerr** : Seerr interrogé aussi avec des filtres (rangée « À demander (Seerr, sans les filtres) ») et dès que
+  Jellyfin Enhanced le dit actif (`Client::seerr_active`, `App.seerr_search_ok`), même sans compte relié et même si la
+  vérification de la connexion avait échoué ; erreurs de Seerr écrites dans le journal. Compteur aussi à 0 résultat.
+  **Accueil** : une lettre tapée ouvre la recherche avec elle ; « / » et Ctrl+F l'ouvrent vide (pas pendant la visite).
 
 ## 7. Compiler, fabriquer les paquets, publier
 

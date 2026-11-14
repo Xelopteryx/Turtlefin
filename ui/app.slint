@@ -7316,6 +7316,18 @@ export component AppWindow inherits Window {
                 if (root.tour-no-ok && event.text == Key.Return) {
                     return EventResult.accept;
                 }
+                // Une lettre tapée sur l'accueil (vrai clavier, télécommande à clavier) : la recherche s'ouvre avec
+                // elle. « / » ou Ctrl+F : la recherche, vide. Pas pendant la visite guidée.
+                if (root.tour-step < 0 && !event.modifiers.alt) {
+                    let find = event.modifiers.control && (event.text == "f" || event.text == "F");
+                    if (find || (!event.modifiers.control && event.text != " " && root.typing-key(event))) {
+                        root.h-focus = false;
+                        root.search-open();
+                        root.search-text = find || event.text == "/" ? "" : event.text;
+                        root.search-changed(root.search-text);
+                        return EventResult.accept;
+                    }
+                }
                 // Sélection dans l'en-tête : menu, onglets, recherche, profil
                 if (root.h-focus) {
                     if (root.hdr-arrow(event.text)) {
