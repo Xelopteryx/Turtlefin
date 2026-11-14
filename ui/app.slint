@@ -6257,7 +6257,8 @@ export component AppWindow inherits Window {
     property <length> details-real-h;
     // Au moins la hauteur d'une rangée d'affiches : passer sur l'onglet Détails ne fait pas remonter la page.
     property <length> details-h: root.d-tab-eff == 2 ? max(root.details-real-h + 40px * root.k, root.card-w * 1.5 + 132px * root.k) : 0px;
-    property <length> d-max: max(0px, root.d-extra-y - root.tab-lift + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
+    property <length> d-max: max(root.d-tabs-on ? root.tabs-y - 24px * root.k : 0px,
+        root.d-extra-y - root.tab-lift + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
     // Défilement qui montre en entier ce qui va de `top` à `bottom` (positions dans la fiche) s'il tient
     // à l'écran ; sinon son haut, sous la barre. Rien si c'est déjà visible depuis le haut de la page.
     pure function d-fit(top: length, bottom: length) -> length {
@@ -6285,7 +6286,7 @@ export component AppWindow inherits Window {
         : root.d-zone == 2 ? root.d-fit(root.d-children-y - root.tab-lift + floor(root.d-child / root.d-cols) * root.d-pitch,
             root.d-children-y - root.tab-lift + floor(root.d-child / root.d-cols) * root.d-pitch + root.child-card-w * root.child-ratio + 132px * root.k)
         // Onglets : eux et la première rangée de leur contenu, entière si elle tient.
-        : root.d-zone == 9 ? root.d-fit(root.tabs-y, root.d-first-bottom)
+        : root.d-zone == 9 ? root.d-fit(root.tabs-y, root.tabs-y + root.tabs-h + root.d-row1)
         // Zone 10 : dans l'onglet Détails, la page descend jusqu'à sa dernière ligne.
         : root.d-zone == 10 ? root.d-max : 0px);
     // Largeur de la colonne d'infos : rétrécie quand le bloc « À suivre » est affiché.
@@ -7903,6 +7904,14 @@ export component AppWindow inherits Window {
                 // Mode TV, sélection sur le champ : OK ouvre le clavier (ou y retourne), → « Recherche
                 // avancée », ↓ la ligne suivante, ↑ la barre du haut, Retour arrière retire le dernier filtre.
                 if (root.tv-mode && (root.s-field || root.search-sections.length == 0)) {
+                    if (root.tok-key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.LeftArrow && root.sf-tokens.length > 0) {
+                        root.s-field = true;
+                        root.tok-sel = root.sf-tokens.length - 1;
+                        return EventResult.accept;
+                    }
                     if (event.text == Key.Return) {
                         if (!event.repeat) {
                             root.s-field = false;
@@ -8029,10 +8038,12 @@ export component AppWindow inherits Window {
             width: parent.width - 64px * root.k - srch.adv-w - 12px * root.k;
             height: parent.box-h;
             // Filtres choisis (rappel de ce qu'on cherche), devant le texte tapé.
-            property <length> tok-w: root.sf-tokens.length == 0 ? 0px : min(tok.preferred-width, self.width * 0.55) + 10px * root.k;
+            property <length> tok-w: root.sf-tokens.length == 0 ? 0px : min(tok.preferred-width, self.width * 0.7) + 10px * root.k;
             border-radius: self.height / 2;
-            background: Theme.fg.with-alpha(0.08);
-            border-width: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? 2px : 1px;
+            // Interface TV, champ choisi au-dessus du clavier à l'écran : teinté, contour épais.
+            property <bool> picked: root.tv-mode && root.s-field && !root.h-focus;
+            background: self.picked ? Theme.accent2.with-alpha(0.22) : Theme.fg.with-alpha(0.08);
+            border-width: self.picked ? 3px : (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? 2px : 1px;
             border-color: (root.tv-mode && (root.s-osk || root.s-field)) || s-input.has-focus ? Theme.accent2 : Theme.fg.with-alpha(0.2);
             clip: true;
 
@@ -8048,13 +8059,22 @@ export component AppWindow inherits Window {
                 stroke-width: 2.4px * root.k;
                 commands: "M 10.5 3.5 A 7 7 0 1 1 10.49 3.5 Z M 15.6 15.6 L 21 21";
             }
-            Rectangle {
+            tok-strip := Rectangle {
                 x: 54px * root.k;
                 width: max(0px, parent.tok-w - 10px * root.k);
                 height: parent.height;
                 clip: true;
+                // Trop de filtres pour la place : la bande glisse (la dernière pastille par défaut, celle
+                // choisie aux flèches sinon ; largeur moyenne d'une pastille, faute de connaître chacune).
+                property <length> total: tok.preferred-width;
+                property <length> avg: root.sf-tokens.length > 0 ? self.total / root.sf-tokens.length : 0px;
+                property <length> off: root.tok-sel >= 0
+                    ? max(self.width - self.total, min(0px, self.width / 2 - (root.tok-sel + 0.5) * self.avg))
+                    : min(0px, self.width - self.total);
                 tok := HorizontalLayout {
-                    x: 0px;
+                    x: parent.off;
+                    animate x { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
+                    width: self.preferred-width;
                     alignment: start;
                     spacing: 6px * root.k;
                     padding-top: (parent.height - 30px * root.k) / 2;
@@ -8062,12 +8082,15 @@ export component AppWindow inherits Window {
                     for t[ti] in root.sf-tokens: Rectangle {
                         width: t-txt.preferred-width + 20px * root.k;
                         border-radius: Theme.term ? 2px : self.height / 2;
-                        background: t.on ? Theme.danger.with-alpha(0.28) : Theme.accent2.with-alpha(0.28);
+                        // Choisie aux flèches : pleine (OK ou Retour arrière la retire).
+                        property <bool> lit: root.tok-sel == ti && !root.h-focus;
+                        background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
+                            : t.on ? Theme.danger.with-alpha(0.28) : Theme.accent2.with-alpha(0.28);
                         border-width: 1px;
                         border-color: t.on ? Theme.danger.with-alpha(0.7) : Theme.accent2.with-alpha(0.7);
                         t-txt := Text {
                             text: t.name;
-                            color: Theme.text;
+                            color: parent.lit ? Theme.on-accent : Theme.text;
                             font-size: 14px * root.k;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -8079,6 +8102,18 @@ export component AppWindow inherits Window {
                                 root.search-token-remove(ti);
                             }
                         }
+                    }
+                }
+                // Pastilles cachées à gauche : « … ».
+                if tok-strip.off < -1px: Rectangle {
+                    x: 0px;
+                    width: 26px * root.k;
+                    background: @linear-gradient(90deg, Theme.bg.with-alpha(0.9) 0%, Theme.bg.with-alpha(0) 100%);
+                    Text {
+                        text: "…";
+                        color: Theme.text;
+                        font-size: 16px * root.k;
+                        font-weight: 700;
                     }
                 }
             }
@@ -8143,6 +8178,13 @@ export component AppWindow inherits Window {
                     // Tab : la première suggestion devient un filtre.
                     if (event.text == Key.Tab && root.sg-items.length > 0) {
                         root.search-suggest-pick(0);
+                        return EventResult.accept;
+                    }
+                    if (root.tok-key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.LeftArrow && self.cursor-position-byte-offset == 0 && root.sf-tokens.length > 0) {
+                        root.tok-sel = root.sf-tokens.length - 1;
                         return EventResult.accept;
                     }
                     if (event.text == Key.Backspace && self.text == "" && root.sf-tokens.length > 0) {
@@ -8256,7 +8298,7 @@ export component AppWindow inherits Window {
             visible: parent.osk-p > 0.01;
             opacity: parent.osk-p;
             k: root.k;
-            active: root.s-osk && srch.row-now() == 3;
+            active: root.s-osk && srch.row-now() == 3 && !root.h-focus;
             text: root.search-text;
             cursor-keys: true;
             // Retour arrière sur un champ vide : le dernier filtre rappelé dans le champ s'en va.
@@ -8397,12 +8439,14 @@ export component AppWindow inherits Window {
                     width: parent.width - 48px * root.k;
                     overflow: elide;
                     text: root.sf-single ? Tr.t(Tr.k, "Un seul choix.")
-                        : Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
+                        : Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.")
+                        : root.tv-mode ? Tr.t(Tr.k, "Plusieurs choix · → : index A–Z") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
                     color: Theme.muted;
                     font-size: 12px * root.k;
                 }
-                // Texte tapé : la liste ne garde que les noms qui le contiennent.
-                if !root.sf-single: Rectangle {
+                // Texte tapé : la liste ne garde que les noms qui le contiennent. Interface TV : pas de clavier à
+                // l'écran ici, le champ n'apparaît que si l'on tape au vrai clavier.
+                if !root.sf-single && (!root.tv-mode || root.sf-query != ""): Rectangle {
                     x: 12px * root.k;
                     y: 60px * root.k;
                     width: parent.width - 24px * root.k;
@@ -14334,6 +14378,34 @@ export component AppWindow inherits Window {
     // résultats (aucun de ces drapeaux).
     property <bool> s-sug;
     property <int> s-sgi;
+    // Pastille de filtre choisie aux flèches dans le champ (-1 : aucune).
+    property <int> tok-sel: -1;
+    changed sf-tokens => {
+        root.tok-sel = min(root.tok-sel, root.sf-tokens.length - 1);
+    }
+    // Pastille choisie : ← → d'une à l'autre (→ après la dernière : le texte), OK ou Retour arrière la
+    // retire ; vrai si la touche a servi.
+    function tok-key(t: string) -> bool {
+        if (root.tok-sel < 0) {
+            return false;
+        }
+        if (t == Key.LeftArrow) {
+            root.tok-sel = max(0, root.tok-sel - 1);
+        } else if (t == Key.RightArrow) {
+            root.tok-sel = root.tok-sel + 1 < root.sf-tokens.length ? root.tok-sel + 1 : -1;
+        } else if (t == Key.Return || t == Key.Backspace || t == Key.Delete) {
+            let i = root.tok-sel;
+            root.tok-sel = root.sf-tokens.length <= 1 ? -1 : max(0, i - 1);
+            root.search-token-remove(i);
+        } else {
+            // Une lettre, ↑ ↓ ou Échap quittent les pastilles ; une touche inconnue ne change rien.
+            if (Str.printable(t) || t == Key.UpArrow || t == Key.DownArrow || t == Key.Escape) {
+                root.tok-sel = -1;
+            }
+            return false;
+        }
+        return true;
+    }
     property <bool> s-adv-sel;
     changed sg-items => {
         root.s-sgi = min(root.s-sgi, max(0, root.sg-items.length - 1));

@@ -842,6 +842,13 @@ en portrait.
   (`d-cols`, `d-pitch`, `kids-h`, `dcast-h`, ↑ ↓ de ligne en ligne), onglet Détails au moins aussi haut qu'une rangée ;
   « Plus de ce genre » : chaque rangée a son titre quand il y en a plusieurs (« Dans ta bibliothèque », Similaires,
   Recommandés).
+- **Pastilles des filtres** (14 novembre, suite) : jusqu'à 70 % du champ, la dernière visible, « … » pour celles cachées ;
+  ← depuis le champ (TV) ou au début du texte (bureau) les parcourt (`tok-sel`, `tok-key`), OK ou Retour arrière retire.
+  Listes des filtres en TV : pas de champ de saisie (il n'apparaît que si l'on tape au vrai clavier). Clavier à l'écran éteint
+  quand la barre du haut a la main. Fiche : `d-max` au moins jusqu'aux onglets, onglets placés pareil pour tous les
+  onglets (la page ne bouge plus en passant à Détails).
+- **Compilation** : `[profile.release.build-override] opt-level = 3` (Cargo.toml) : le compilateur Slint du script de build,
+  qui ne tourne que sur un cœur, était compilé sans optimisation.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

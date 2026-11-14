@@ -66,6 +66,13 @@ codegen-units = 16
 incremental = true
 strip = true
 
+# Script de build (compilateur Slint de ui/*.slint) et ses dépendances optimisés : par défaut Cargo les
+# compile sans optimisation, et la compilation de l'interface, qui ne tourne que sur un cœur, durait
+# plusieurs minutes. Optimisé, il s'exécute bien plus vite (compilé une fois, puis gardé).
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 16
+
 # Paquet .deb (cargo deb) : Debian, Ubuntu et dérivées. libmpv vient du système.
 [package.metadata.deb]
 name = "turtlefin"
