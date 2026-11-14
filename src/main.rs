@@ -553,6 +553,7 @@ fn rows_for_tab(u: &AppWindow) -> Vec<Section> {
 
 /// Nouvelles rangées du bas : gardées, puis celles de l'onglet affichées (mises à jour sur place).
 fn set_detail_all(u: &AppWindow, sections: Vec<Section>) {
+    u.set_d_rows_loading(false);
     let cast = tr("Distribution");
     u.set_d_has_cast(sections.iter().any(|s| s.title.as_str() == cast));
     u.set_d_has_similar(sections.iter().any(|s| s.title.as_str() != cast));
@@ -563,6 +564,7 @@ fn set_detail_all(u: &AppWindow, sections: Vec<Section>) {
 
 /// Fiche sans rangées du bas (autre page, hors ligne).
 fn clear_detail_rows(u: &AppWindow) {
+    u.set_d_rows_loading(false);
     DETAIL_ALL.with(|all| all.borrow_mut().clear());
     u.set_d_has_cast(false);
     u.set_d_has_similar(false);
@@ -2809,6 +2811,8 @@ fn search_person(app: &Arc<App>, name: &str) {
 }
 
 fn spawn_detail_rows(app: &Arc<App>, client: &api::Client, item: &api::Item) {
+    // Les onglets Distribution et « Plus de ce genre » sont là tout de suite : « Chargement… » en attendant.
+    let _ = app.ui().upgrade_in_event_loop(|u| u.set_d_rows_loading(true));
     let (app2, client2, item) = (app.clone(), client.clone(), item.clone());
     let seerr = *app.seerr_user.lock().unwrap();
     app.rt.spawn(async move {
@@ -4440,6 +4444,9 @@ struct SearchFilter {
     rating: u8,
     /// 0 tous · 1 pas encore vus · 2 déjà vus · 3 favoris.
     status: u8,
+    /// Ordre dans lequel les filtres ont été choisis (« sorte:valeur », voir `filter_tokens`) : les
+    /// pastilles du champ le suivent.
+    seq: Vec<String>,
 }
 
 /// Listes à choix unique (menus déroulants), numérotées après les listes à cases.
@@ -4482,6 +4489,16 @@ fn kind_label(k: u8) -> &'static str {
 }
 
 impl SearchFilter {
+    /// Filtre choisi (ou changé) : il passe au bout de l'ordre de saisie. `on` faux : il en sort.
+    fn note(&mut self, sort: u8, value: &str, on: bool) {
+        let key = format!("{sort}:{}", value.to_lowercase());
+        // Choix unique (type, décennie, note, état) : une seule entrée par sorte.
+        let single = matches!(sort, 0 | 5 | 6 | 7);
+        self.seq.retain(|k| *k != key && !(single && k.starts_with(&format!("{sort}:"))));
+        if on {
+            self.seq.push(key);
+        }
+    }
     fn lists(&self) -> bool {
         self.on
             && !(self.genres.is_empty()
@@ -4563,6 +4580,9 @@ fn filter_tokens(f: &SearchFilter) -> Vec<(String, bool, u8, String)> {
     if f.status != 0 {
         t.push((status_label(f.status).to_string(), false, 7, String::new()));
     }
+    // Ordre de saisie (tri stable : un filtre absent de `seq` reste à sa place, à la fin).
+    let rank = |sort: u8, v: &str| f.seq.iter().position(|k| *k == format!("{sort}:{}", v.to_lowercase())).unwrap_or(usize::MAX);
+    t.sort_by_key(|(_, _, sort, v)| rank(*sort, v));
     t
 }
 
@@ -4581,6 +4601,7 @@ fn remove_token(app: &Arc<App>, i: i32) {
             7 => f.status = 0,
             s => f.list(s as u64).retain(|v| *v != value),
         }
+        f.note(sort, &value, false);
     }
     filter_chips(app, &u);
     search_changed(app, u.get_search_text().to_string());
@@ -4715,12 +4736,25 @@ fn filter_pick(app: &Arc<App>, i: usize) {
     if which >= PICK_KIND {
         {
             let mut f = app.search_filter.lock().unwrap();
-            match which {
-                PICK_KIND => f.kind = (i as u8).min(3),
-                PICK_DECADE => f.decade = if i == 0 { 0 } else { decades().get(i - 1).copied().unwrap_or(0) },
-                PICK_RATING => f.rating = if i == 0 { 0 } else { RATINGS.get(i - 1).copied().unwrap_or(0) },
-                _ => f.status = (i as u8).min(3),
-            }
+            let (sort, set) = match which {
+                PICK_KIND => {
+                    f.kind = (i as u8).min(3);
+                    (0, f.kind != 0)
+                }
+                PICK_DECADE => {
+                    f.decade = if i == 0 { 0 } else { decades().get(i - 1).copied().unwrap_or(0) };
+                    (5, f.decade != 0)
+                }
+                PICK_RATING => {
+                    f.rating = if i == 0 { 0 } else { RATINGS.get(i - 1).copied().unwrap_or(0) };
+                    (6, f.rating != 0)
+                }
+                _ => {
+                    f.status = (i as u8).min(3);
+                    (7, f.status != 0)
+                }
+            };
+            f.note(sort, "", set);
         }
         u.set_sf_open(false);
         u.set_refocus(u.get_refocus() + 1);
@@ -4734,8 +4768,9 @@ fn filter_pick(app: &Arc<App>, i: usize) {
             let list = f.list(which);
             list.retain(|n| *n != name);
             if row.on {
-                list.push(name);
+                list.push(name.clone());
             }
+            f.note(which as u8, &name, row.on);
         }
         model.set_row_data(i, row);
     }
@@ -4857,8 +4892,9 @@ fn pick_suggestion(app: &Arc<App>, i: usize) {
         f.on = true;
         let list = f.list(which);
         if !list.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
-            list.push(name);
+            list.push(name.clone());
         }
+        f.note(which as u8, &name, true);
     }
     let text = u.get_search_text().to_string();
     let rest = text.get(..cut).unwrap_or("").trim_end().to_string();

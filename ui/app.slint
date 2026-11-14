@@ -736,6 +736,7 @@ component Card inherits Rectangle {
     }
     property <float> ap-x: root.in-live && Motion.pages ? clamp((animation-tick() - root.in-t0 - root.in-delay) / 380ms, 0, 1) : 1;
     property <float> ap: 1 - (1 - root.ap-x) * (1 - root.ap-x);
+    opacity: root.in-live ? root.ap : 1;
     // Autre média à cette place (rangée mise à jour) : la carte se retourne (l'ancien jusqu'à la
     // moitié du tour, le nouveau ensuite), une fois la nouvelle image chargée (0,8 s au plus).
     property <CardData> prev;
@@ -2485,8 +2486,14 @@ component DetailTab inherits Rectangle {
     // Pastille de sélection (clavier, télécommande) : elle s'ouvre et se referme au lieu d'apparaître.
     property <float> lp: root.lit ? 1 : 0;
     animate lp { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
-    preferred-width: label.preferred-width + 28px * root.k;
+    preferred-width: bold-w.preferred-width + 28px * root.k;
     horizontal-stretch: 0;
+    bold-w := Text {
+        visible: false;
+        text: root.text;
+        font-size: 17px * root.k;
+        font-weight: 700;
+    }
     Rectangle {
         visible: root.lp > 0.01;
         opacity: root.lp;
@@ -5551,9 +5558,12 @@ export component AppWindow inherits Window {
     in-out property <int> d-tab: 0;
     in property <bool> d-has-cast;
     in property <bool> d-has-similar;
+    // Rangées du bas (distribution, suggestions) demandées au serveur, pas encore arrivées.
+    in property <bool> d-rows-loading;
     callback detail-tab-changed();
     pure function d-tab-ok(i: int) -> bool {
-        return i == 0 ? root.child-items.length > 0 : i == 1 ? root.d-has-cast : i == 2 ? root.detail.facts.length > 0 : i == 3 ? root.d-has-similar : false;
+        // Distribution et « Plus de ce genre » toujours là (onglets stables) : vides, un message le dit.
+        return i == 0 ? root.child-items.length > 0 : i == 1 ? true : i == 2 ? root.detail.facts.length > 0 : i == 3 ? true : false;
     }
     out property <int> d-tab-eff: root.d-tab-ok(root.d-tab) ? root.d-tab : root.d-tab-ok(0) ? 0 : root.d-tab-ok(1) ? 1
         : root.d-tab-ok(3) ? 3 : root.d-tab-ok(2) ? 2 : -1;
@@ -9726,6 +9736,16 @@ export component AppWindow inherits Window {
                 if root.d-tab-ok(2): DetailTab { text: Tr.t(Tr.k, "Détails"); on: root.d-tab-eff == 2; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 2 && Nav.kb; k: root.k; clicked => { root.d-tab = 2; root.d-zone = 9; } }
                 if root.d-tab-ok(3): DetailTab { text: Tr.t(Tr.k, "Plus de ce genre"); on: root.d-tab-eff == 3; lit: !root.h-focus && root.d-zone == 9 && root.d-tab-eff == 3 && Nav.kb; k: root.k; clicked => { root.d-tab = 3; root.d-zone = 9; } }
             }
+        }
+        // Distribution ou « Plus de ce genre » sans rangée : en chargement, ou rien à montrer.
+        if root.d-tabs-on && (root.d-tab-eff == 1 || root.d-tab-eff == 3) && root.detail-rows.length == 0: Text {
+            x: (root.narrow ? 16px : 32px) + root.po-right;
+            y: root.d-children-y + 24px * root.k + root.po-down + root.tab-dy;
+            opacity: root.rev(3) * root.tab-e;
+            text: root.d-rows-loading ? Tr.t(Tr.k, "Chargement…")
+                : root.d-tab-eff == 1 ? Tr.t(Tr.k, "Aucune distribution connue pour ce titre.") : Tr.t(Tr.k, "Rien de semblable pour l'instant.");
+            color: Theme.muted;
+            font-size: 17px * root.k;
         }
         // Onglet Détails : toutes les informations, en deux colonnes (intitulé, valeur).
         if root.d-tabs-on && root.d-tab-eff == 2: VerticalLayout {

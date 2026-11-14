@@ -849,6 +849,10 @@ en portrait.
   onglets (la page ne bouge plus en passant à Détails).
 - **Compilation** : `[profile.release.build-override] opt-level = 3` (Cargo.toml) : le compilateur Slint du script de build,
   qui ne tourne que sur un cœur, était compilé sans optimisation.
+- **Fiche** : onglets Distribution et « Plus de ce genre » toujours présents (« Chargement… » tant que `d-rows-loading`,
+  sinon un message s'ils sont vides) ; largeur des onglets mesurée en gras (`bold-w` de DetailTab : l'onglet ouvert
+  n'élargit plus la rangée) ; les cartes qui arrivent une à une apparaissent en entier (opacité de `Card` pendant
+  `in-live`). **Recherche** : pastilles dans l'ordre de saisie (`SearchFilter::seq`, `note`).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
