@@ -8400,6 +8400,26 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Nombre de résultats, en bas à gauche.
+        if root.s-counts != "" && !root.sf-open: Rectangle {
+            x: 32px * root.k;
+            y: parent.height - self.height - 14px * root.k;
+            width: cnt.preferred-width + 24px * root.k;
+            height: 30px * root.k;
+            border-radius: Theme.term ? 2px : self.height / 2;
+            background: Theme.panel.with-alpha(0.85);
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            cnt := Text {
+                text: root.s-counts;
+                color: Theme.muted;
+                font-size: 13px * root.k;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
         // Liste d'un filtre : cases à cocher (plusieurs choix), ↑ ↓, OK coche, une lettre saute au premier
         // nom qui commence ainsi, Échap referme. Les résultats se mettent à jour derrière.
         if root.sf-open: sfl := Rectangle {
@@ -14437,6 +14457,8 @@ export component AppWindow inherits Window {
     property <bool> s-bar;
     property <int> s-chip;
     callback search-token-remove(int);
+    // Nombre de résultats (en bas à gauche) : en tout, sur le serveur, à demander.
+    in property <string> s-counts;
     callback search-adv(bool);
     callback search-filter(int);
     callback search-filter-pick(int);

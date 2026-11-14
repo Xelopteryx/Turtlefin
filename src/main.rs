@@ -4905,6 +4905,36 @@ fn pick_suggestion(app: &Arc<App>, i: usize) {
     search_changed(app, rest);
 }
 
+/// Compteur en bas à gauche de la recherche : résultats en tout, sur le serveur, à demander (Seerr).
+/// Un même média dans plusieurs rangées (titre, acteur, tag) ne compte qu'une fois. `done` faux : Seerr
+/// n'a pas encore répondu (« … » après le nombre).
+fn show_search_counts(app: &Arc<App>, sections: &[SectionData], done: bool) {
+    let mut server = std::collections::HashSet::new();
+    let mut seerr = std::collections::HashSet::new();
+    for c in sections.iter().flat_map(|s| s.cards.iter()) {
+        if c.seerr {
+            seerr.insert(c.id.clone());
+        } else if !c.id.starts_with("jfperson:") && !c.id.starts_with("person:") {
+            server.insert(c.id.clone());
+        }
+    }
+    let (n_server, n_seerr) = (server.len() as i64, seerr.len() as i64);
+    let total = n_server + n_seerr;
+    let mut text = if total == 0 { String::new() } else { i18n::trn("{n} résultat", "{n} résultats", total) };
+    if total > 0 {
+        text.push_str(" · ");
+        text.push_str(&i18n::trn("{n} sur le serveur", "{n} sur le serveur", n_server));
+        if n_seerr > 0 {
+            text.push_str(" · ");
+            text.push_str(&i18n::trn("{n} à demander", "{n} à demander", n_seerr));
+        }
+        if !done {
+            text.push_str(" …");
+        }
+    }
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_s_counts(text.into()));
+}
+
 fn search_changed(app: &Arc<App>, text: String) {
     let my = app.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
     if let Some(u) = app.ui().upgrade() {
@@ -4918,6 +4948,7 @@ fn search_changed(app: &Arc<App>, text: String) {
     let term = if term.chars().count() < 2 && lists { String::new() } else { term };
     if term.chars().count() < 2 && !lists {
         if let Some(u) = app.ui().upgrade() {
+            u.set_s_counts("".into());
             u.set_search_sections(ModelRc::default());
             u.set_search_busy(false);
         }
@@ -4964,6 +4995,7 @@ fn search_changed(app: &Arc<App>, text: String) {
             push_section(&mut sections, title, landscape, Ok(of));
         }
         let first = !sections.is_empty();
+        show_search_counts(&app2, &sections, !(seerr && !lists && !term.is_empty()));
         if first {
             present_rows(&app2, &client, sections.clone(), true, None);
         }
@@ -4983,6 +5015,7 @@ fn search_changed(app: &Arc<App>, text: String) {
         if !from_seerr.is_empty() {
             sections.push(SectionData { title: tr("À demander (Seerr)").into(), landscape: false, tiles: false, cards: from_seerr });
         }
+        show_search_counts(&app2, &sections, true);
         // Ajout : la sélection reste où elle est.
         if !first {
             present_rows(&app2, &client, sections, true, None);

@@ -853,6 +853,7 @@ en portrait.
   sinon un message s'ils sont vides) ; largeur des onglets mesurée en gras (`bold-w` de DetailTab : l'onglet ouvert
   n'élargit plus la rangée) ; les cartes qui arrivent une à une apparaissent en entier (opacité de `Card` pendant
   `in-live`). **Recherche** : pastilles dans l'ordre de saisie (`SearchFilter::seq`, `note`).
+- **Recherche** : compteur en bas à gauche (`s-counts`, `show_search_counts`) : résultats en tout, sur le serveur, à demander (Seerr) ; un média présent dans plusieurs rangées compte une fois ; « … » tant que Seerr n'a pas répondu.
 
 ## 7. Compiler, fabriquer les paquets, publier
 
