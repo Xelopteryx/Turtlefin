@@ -3905,3 +3905,39 @@ msgid "{n} à demander"
 msgid_plural "{n} à demander"
 msgstr[0] "{n} para pedir"
 msgstr[1] "{n} para pedir"
+
+msgid "janv."
+msgstr "ene."
+
+msgid "févr."
+msgstr "feb."
+
+msgid "mars"
+msgstr "mar."
+
+msgid "avr."
+msgstr "abr."
+
+msgid "mai"
+msgstr "may."
+
+msgid "juin"
+msgstr "jun."
+
+msgid "juil."
+msgstr "jul."
+
+msgid "août"
+msgstr "ago."
+
+msgid "sept."
+msgstr "sept."
+
+msgid "oct."
+msgstr "oct."
+
+msgid "nov."
+msgstr "nov."
+
+msgid "déc."
+msgstr "dic."

@@ -582,9 +582,15 @@ export component BootLogo inherits Rectangle {
             width: min(420px * root.k, parent.width - 32px * root.k);
             height: 80px * root.k + self.shown * self.row-h;
             border-radius: 18px * root.k;
-            background: Theme.glass;
-            border-width: 1px;
-            border-color: Theme.glass-border;
+            // Base opaque sous le verre : rien de ce qui est derrière (accueil en chargement, grains de
+            // l'effet de langue) ne transparaît à travers les cases.
+            background: Theme.bg;
+            Rectangle {
+                border-radius: parent.border-radius;
+                background: Theme.glass;
+                border-width: 1px;
+                border-color: Theme.glass-border;
+            }
             Text {
                 y: 18px * root.k;
                 width: parent.width;

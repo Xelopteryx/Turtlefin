@@ -3917,3 +3917,39 @@ msgid_plural "{n} à demander"
 msgstr[0] "{n} do zamówienia"
 msgstr[1] "{n} do zamówienia"
 msgstr[2] "{n} do zamówienia"
+
+msgid "janv."
+msgstr "sty"
+
+msgid "févr."
+msgstr "lut"
+
+msgid "mars"
+msgstr "mar"
+
+msgid "avr."
+msgstr "kwi"
+
+msgid "mai"
+msgstr "maj"
+
+msgid "juin"
+msgstr "cze"
+
+msgid "juil."
+msgstr "lip"
+
+msgid "août"
+msgstr "sie"
+
+msgid "sept."
+msgstr "wrz"
+
+msgid "oct."
+msgstr "paź"
+
+msgid "nov."
+msgstr "lis"
+
+msgid "déc."
+msgstr "gru"

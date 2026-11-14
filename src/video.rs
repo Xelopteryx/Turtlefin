@@ -50,6 +50,12 @@ pub fn attach(ui: &slint::Weak<AppWindow>, player: Option<Arc<mpv::Mpv>>) -> tok
 /// qui a toujours la priorité).
 static BACKGROUND: Mutex<Option<Arc<mpv::Mpv>>> = Mutex::new(None);
 
+/// Fichier de la vidéo de fond (rechargé quand elle retrouve l'image après une lecture).
+static BACKGROUND_FILE: Mutex<Option<String>> = Mutex::new(None);
+
+/// Dernière vidéo de fond qui a eu un rendu (la première fois, set_background charge le fichier).
+static BACKGROUND_SHOWN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 fn is_background(id: usize) -> bool {
     BACKGROUND.lock().unwrap().as_ref().is_some_and(|b| Arc::as_ptr(b) as usize == id)
 }
@@ -105,6 +111,7 @@ pub fn set_background(ui: &slint::Weak<AppWindow>, file: Option<&std::path::Path
     let m = Arc::new(m);
     *BACKGROUND.lock().unwrap() = Some(m.clone());
     let path = file.display().to_string();
+    *BACKGROUND_FILE.lock().unwrap() = Some(path.clone());
     // Une lecture en cours garde l'image : la vidéo de fond attend (elle prendra la place à la fin).
     let (tx, rx) = tokio::sync::oneshot::channel();
     {
@@ -278,8 +285,16 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
             match mpv::Render::new(m, gpa, on_frame) {
                 Ok(r) => {
                     st.render = Some((id, r));
-                    // (La vidéo de fond retrouve aussi un rendu neuf après chaque lecture.)
-                    if again || is_background(id) {
+                    if is_background(id) {
+                        // Vidéo de fond après une lecture : son rendu a été libéré pendant la lecture,
+                        // et mpv, privé de sortie vidéo, a arrêté le fichier (« video output
+                        // initialization failed »). Il est rechargé sur le rendu neuf. (Au premier
+                        // rendu, c'est set_background qui le charge.)
+                        let shown = BACKGROUND_SHOWN.swap(id, Ordering::Relaxed) == id;
+                        if let Some(path) = BACKGROUND_FILE.lock().unwrap().clone().filter(|_| shown) {
+                            let _ = player.command(&["loadfile", &path]);
+                        }
+                    } else if again {
                         let _ = player.set_property("vid", "no");
                         let _ = player.set_property("vid", "auto");
                     }

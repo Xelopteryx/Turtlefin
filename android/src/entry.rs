@@ -86,6 +86,23 @@ pub fn lock_landscape(on: bool) {
     }
 }
 
+/// Application Android, gardée pour régler les drapeaux de la fenêtre.
+static APP: std::sync::OnceLock<slint::android::AndroidApp> = std::sync::OnceLock::new();
+
+/// Lecture : écran gardé allumé (FLAG_KEEP_SCREEN_ON), sinon le téléphone se met en veille au bout
+/// du délai d'inactivité, puisque personne ne touche l'écran pendant un film. Rendu au système à la
+/// sortie du lecteur.
+pub fn keep_screen_on(on: bool) {
+    use slint::android::android_activity::WindowManagerFlags as F;
+    if let Some(a) = APP.get() {
+        if on {
+            a.set_window_flags(F::KEEP_SCREEN_ON, F::empty());
+        } else {
+            a.set_window_flags(F::empty(), F::KEEP_SCREEN_ON);
+        }
+    }
+}
+
 /// Volume « média » d'Android (STREAM_MUSIC) : celui des touches du téléphone. Le lecteur de Turtlefin
 /// règle celui-ci (mpv reste à 100 %), pour qu'un seul volume existe sur le téléphone.
 fn with_audio_manager<T>(f: impl FnOnce(&mut jni::JNIEnv, &jni::objects::JObject) -> jni::errors::Result<T>) -> Option<T> {
@@ -376,6 +393,7 @@ fn android_main(a: slint::android::AndroidApp) {
     stderr_to_logcat();
     env_from_property();
     ACTIVITY.store(a.activity_as_ptr(), std::sync::atomic::Ordering::Relaxed);
+    let _ = APP.set(a.clone());
     // Nom de l'appareil (Diffuser : « Redmi Note 12 Pro »…), lu dans android.os.Build.MODEL.
     if let Some(model) = build_model() {
         std::env::set_var("TURTLEFIN_DEVICE_NAME", model);

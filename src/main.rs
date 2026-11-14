@@ -9452,6 +9452,8 @@ async fn play_flow_with(
         u.set_playing(true);
         #[cfg(target_os = "android")]
         android_entry::lock_landscape(true);
+        #[cfg(target_os = "android")]
+        android_entry::keep_screen_on(true);
     });
 
     let result: anyhow::Result<player::Exit> = async {
@@ -9499,6 +9501,8 @@ async fn play_flow_with(
         }
         #[cfg(target_os = "android")]
         android_entry::lock_landscape(false);
+        #[cfg(target_os = "android")]
+        android_entry::keep_screen_on(false);
         u.set_p_up_mode("".into());
         if go_home_after {
             go_home(&app2);

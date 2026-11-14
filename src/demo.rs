@@ -44,6 +44,10 @@ pub fn start(theme_file: &str) -> Option<String> {
     p.tutorial_offered = true;
     p.tutorial_pending = false;
     p.mods.clear();
+    // Pas de choix de langue à chaque essai : celle du système si aucune n'est encore choisie.
+    if p.language.is_empty() {
+        p.language = crate::i18n::system_language();
+    }
     // Le fond animé et la musique font partie de ce qu'on essaie.
     p.anim.scenery = true;
     p.music = true;
@@ -89,31 +93,93 @@ pub fn watch(ui: &crate::AppWindow) {
 // Catalogue
 // ---------------------------------------------------------------------------------------------
 
-const GENRES: [&str; 8] = ["Aventure", "Science-fiction", "Comédie", "Drame", "Animation", "Policier", "Fantastique", "Documentaire"];
-const TAGS: [&str; 8] = ["Voyage", "Espace", "Amitié", "Mystère", "Survival Horror", "Musique", "Nature", "Robots"];
-const STUDIOS: [&str; 5] = ["Studio Carapace", "Atelier Boréal", "Les Films du Récif", "Lagune Animation", "Phare Productions"];
 const PEOPLE: [&str; 10] = [
     "Maëlle Kerdoncuff", "Octave Lemarchand", "Inès Valcourt", "Basile Aubrac", "Solène Trévidic", "Ludovic Marsan", "Apolline Riquier",
     "Timothée Vasseur", "Capucine Hérault", "Anselme Dufresnoy",
 ];
-const MOVIES: [&str; 30] = [
+
+/// Textes du catalogue : en français si l'interface l'est, en anglais sinon (les captures et les
+/// essais de thème dans une autre langue n'affichent pas de titres français).
+struct Words {
+    genres: [&'static str; 8],
+    tags: [&'static str; 8],
+    studios: [&'static str; 5],
+    movies: [&'static str; 30],
+    shows: [&'static str; 10],
+    sets: [(&'static str, [usize; 3]); 2],
+    overview: [&'static str; 5],
+    roles: [&'static str; 5],
+    libs: [&'static str; 3],
+    season: &'static str,
+    episodes: [&'static str; 8],
+    ratings: [&'static str; 4],
+    stream: &'static str,
+}
+
+const FR: Words = Words {
+    genres: ["Aventure", "Science-fiction", "Comédie", "Drame", "Animation", "Policier", "Fantastique", "Documentaire"],
+    tags: ["Voyage", "Espace", "Amitié", "Mystère", "Survival Horror", "Musique", "Nature", "Robots"],
+    studios: ["Studio Carapace", "Atelier Boréal", "Les Films du Récif", "Lagune Animation", "Phare Productions"],
+    movies: [
     "La Baie des Tortues", "Marée Haute", "Le Dernier Phare", "Orbite Lente", "Les Cartographes", "Sable Rouge", "Nuit Polaire", "Le Jardin Suspendu",
     "Courant Froid", "Mille Lanternes", "Le Passeur", "Atlas Bleu", "Brume", "Le Grand Récif", "Signal Faible", "Les Veilleurs", "Tempête de Papier",
     "Zénith", "Le Voleur de Vent", "Eaux Calmes", "Minuit à Quai", "Kilomètre Zéro", "Les Funambules", "Comète", "Dernière Station", "Hors Saison",
     "Le Chant du Cargo", "Poussière d'Étoiles", "Rivage", "Un Été en Apnée",
-];
-const SHOWS: [&str; 10] = [
+],
+    shows: [
     "Les Naufragés du Ciel", "Archipel", "Brigade des Marées", "Chroniques du Phare", "Dix Mille Lieues", "Écume", "Station Corail", "Le Septième Port",
     "Vents Contraires", "Abysses",
-];
-const SETS: [(&str, [usize; 3]); 2] = [("Saga des Marées", [1, 8, 19]), ("Trilogie du Phare", [2, 15, 24])];
-const OVERVIEW: [&str; 5] = [
+],
+    sets: [("Saga des Marées", [1, 8, 19]), ("Trilogie du Phare", [2, 15, 24])],
+    overview: [
     "Une traversée qui devait durer trois jours, un équipage qui ne se connaît pas, et une carte dont il manque la moitié.",
     "Quand le signal revient après vingt ans de silence, il faut bien que quelqu'un aille voir d'où il vient.",
     "Ils pensaient avoir tout prévu. La mer, elle, n'avait rien promis.",
     "Entre deux escales, une rencontre remet en question tout ce qu'elle croyait savoir de sa famille.",
     "Ceci est un média de démonstration : il n'existe que pour essayer ton thème.",
-];
+],
+    roles: ["La capitaine", "Le mécano", "L'inconnue", "Le gardien", "La cartographe"],
+    libs: ["Films", "Séries", "Collections"],
+    season: "Saison",
+    episodes: ["Le départ", "Par gros temps", "Ce que disent les cartes", "L'escale", "Sous la surface", "Le signal", "Retour au port", "Dernier quart"],
+    ratings: ["Tous publics", "10+", "12+", "16+"],
+    stream: "Mire de démonstration",
+};
+
+const EN: Words = Words {
+    genres: ["Adventure", "Science Fiction", "Comedy", "Drama", "Animation", "Crime", "Fantasy", "Documentary"],
+    tags: ["Travel", "Space", "Friendship", "Mystery", "Survival Horror", "Music", "Nature", "Robots"],
+    studios: ["Shell Studio", "Boreal Workshop", "Reef Pictures", "Lagoon Animation", "Lighthouse Productions"],
+    movies: [
+        "Turtle Bay", "High Tide", "The Last Lighthouse", "Slow Orbit", "The Mapmakers", "Red Sand", "Polar Night", "The Hanging Garden",
+        "Cold Current", "A Thousand Lanterns", "The Ferryman", "Blue Atlas", "Mist", "The Great Reef", "Weak Signal", "The Watchers", "Paper Storm",
+        "Zenith", "The Wind Thief", "Still Waters", "Midnight at the Dock", "Mile Zero", "The Tightrope Walkers", "Comet", "Last Station", "Off Season",
+        "Song of the Freighter", "Stardust", "Shoreline", "A Summer Underwater",
+    ],
+    shows: [
+        "Castaways of the Sky", "Archipelago", "Tide Patrol", "Lighthouse Chronicles", "Ten Thousand Leagues", "Seafoam", "Coral Station",
+        "The Seventh Port", "Headwinds", "Abyss",
+    ],
+    sets: [("Tides Saga", [1, 8, 19]), ("Lighthouse Trilogy", [2, 15, 24])],
+    overview: [
+        "A crossing meant to last three days, a crew of strangers, and a map with half of it missing.",
+        "When the signal returns after twenty years of silence, someone has to go and see where it comes from.",
+        "They thought they had planned for everything. The sea had promised nothing.",
+        "Between two ports of call, a chance meeting calls into question everything she thought she knew about her family.",
+        "This is a demo title: it only exists so you can try out your theme.",
+    ],
+    roles: ["The Captain", "The Mechanic", "The Stranger", "The Keeper", "The Mapmaker"],
+    libs: ["Movies", "Shows", "Collections"],
+    season: "Season",
+    episodes: ["Departure", "Heavy Weather", "What the Maps Say", "The Stopover", "Below the Surface", "The Signal", "Back to Port", "Last Watch"],
+    ratings: ["All ages", "10+", "12+", "16+"],
+    stream: "Demo test pattern",
+};
+
+fn w() -> &'static Words {
+    if crate::i18n::current() == "fr" { &FR } else { &EN }
+}
+
 /// Durée de la mire lue à la place des vidéos (secondes) et sa cadence.
 const VIDEO_SECS: u64 = 90;
 const VIDEO_FPS: u64 = 12;
@@ -140,19 +206,19 @@ fn common(id: &str, name: &str, kind: &str, i: usize) -> Value {
     let people: Vec<Value> = (0..5)
         .map(|k| {
             let n = (i * 3 + k * 7) % PEOPLE.len();
-            let role = ["La capitaine", "Le mécano", "L'inconnue", "Le gardien", "La cartographe"][k];
+            let role = w().roles[k];
             json!({ "Id": format!("person{n}"), "Name": PEOPLE[n], "Role": role, "Type": "Actor" })
         })
         .collect();
-    let rating = ["Tous publics", "10+", "12+", "16+"][i % 4];
+    let rating = w().ratings[i % 4];
     json!({
         "Id": id,
         "Name": name,
         "Type": kind,
-        "Overview": OVERVIEW[i % OVERVIEW.len()],
-        "Genres": [GENRES[i % 8], GENRES[(i * 3 + 1) % 8]],
-        "Tags": [TAGS[i % 8], TAGS[(i * 5 + 2) % 8]],
-        "Studios": [{ "Name": STUDIOS[i % 5], "Id": format!("studio{}", i % 5) }],
+        "Overview": w().overview[i % 5],
+        "Genres": [w().genres[i % 8], w().genres[(i * 3 + 1) % 8]],
+        "Tags": [w().tags[i % 8], w().tags[(i * 5 + 2) % 8]],
+        "Studios": [{ "Name": w().studios[i % 5], "Id": format!("studio{}", i % 5) }],
         "People": people,
         "OfficialRating": rating,
         "CommunityRating": 5.5 + ((i * 37) % 42) as f64 / 10.0,
@@ -174,23 +240,24 @@ fn media_source(id: &str) -> Value {
     json!({
         "Id": id, "Protocol": "File", "Container": "y4m", "SupportsDirectPlay": true, "SupportsDirectStream": true,
         "Size": video_len(),
-        "MediaStreams": [{ "Type": "Video", "Index": 0, "Codec": "rawvideo", "DisplayTitle": "Mire de démonstration", "IsDefault": true }],
+        "MediaStreams": [{ "Type": "Video", "Index": 0, "Codec": "rawvideo", "DisplayTitle": w().stream, "IsDefault": true }],
     })
 }
 
 fn build() -> Vec<Value> {
     let mut out = Vec::new();
-    for (id, name, kind) in [("libmovies", "Films", "movies"), ("libshows", "Séries", "tvshows"), ("libsets", "Collections", "boxsets")] {
+    let libs = w().libs;
+    for (id, name, kind) in [("libmovies", libs[0], "movies"), ("libshows", libs[1], "tvshows"), ("libsets", libs[2], "boxsets")] {
         out.push(json!({ "Id": id, "Name": name, "Type": "CollectionFolder", "CollectionType": kind, "IsFolder": true, "ImageTags": { "Primary": "demo" } }));
     }
-    for (i, name) in MOVIES.iter().enumerate() {
+    for (i, name) in w().movies.iter().enumerate() {
         let id = format!("movie{i:02}");
         let mut v = common(&id, name, "Movie", i);
         v["Parent"] = json!("libmovies");
         playable(&mut v, &id, i);
         out.push(v);
     }
-    for (i, (name, movies)) in SETS.iter().enumerate() {
+    for (i, (name, movies)) in w().sets.iter().enumerate() {
         let mut v = common(&format!("set{i}"), name, "BoxSet", i + 40);
         v["Parent"] = json!("libsets");
         v["IsFolder"] = json!(true);
@@ -198,7 +265,7 @@ fn build() -> Vec<Value> {
         v["UserData"] = user_data(i + 40, false);
         out.push(v);
     }
-    for (i, name) in SHOWS.iter().enumerate() {
+    for (i, name) in w().shows.iter().enumerate() {
         let sid = format!("show{i:02}");
         let mut v = common(&sid, name, "Series", i + 50);
         v["Parent"] = json!("libshows");
@@ -208,7 +275,7 @@ fn build() -> Vec<Value> {
         out.push(v);
         for s in 1..=(2 + i % 2) {
             let season = format!("{sid}s{s}");
-            let mut sv = common(&season, &format!("Saison {s}"), "Season", i + 50);
+            let mut sv = common(&season, &format!("{} {s}", w().season), "Season", i + 50);
             sv["Parent"] = json!(sid);
             sv["SeriesId"] = json!(sid);
             sv["SeriesName"] = json!(name);
@@ -219,13 +286,13 @@ fn build() -> Vec<Value> {
             out.push(sv);
             for e in 1..=(6 + (i + s) % 3) {
                 let eid = format!("{season}e{e:02}");
-                let titles = ["Le départ", "Par gros temps", "Ce que disent les cartes", "L'escale", "Sous la surface", "Le signal", "Retour au port", "Dernier quart"];
+                let titles = w().episodes;
                 let mut ev = common(&eid, titles[(e - 1 + i) % titles.len()], "Episode", i * 31 + s * 7 + e);
                 ev["Parent"] = json!(season);
                 ev["SeriesId"] = json!(sid);
                 ev["SeriesName"] = json!(name);
                 ev["SeasonId"] = json!(season);
-                ev["SeasonName"] = json!(format!("Saison {s}"));
+                ev["SeasonName"] = json!(format!("{} {s}", w().season));
                 ev["IndexNumber"] = json!(e);
                 ev["ParentIndexNumber"] = json!(s);
                 ev["SeriesPrimaryImageTag"] = json!("demo");
@@ -490,10 +557,10 @@ fn route(method: &str, path: &str, q: &HashMap<String, String>) -> Reply {
             Reply::Json(Value::Array(v.into_iter().take(16).map(public).collect()))
         }
         ("GET", ["items", "filters2"]) | ("GET", ["items", "filters"]) => Reply::Json(json!({
-            "Genres": GENRES.iter().enumerate().map(|(i, g)| json!({ "Name": g, "Id": format!("genre{i}") })).collect::<Vec<_>>(),
-            "Tags": TAGS,
+            "Genres": w().genres.iter().enumerate().map(|(i, g)| json!({ "Name": g, "Id": format!("genre{i}") })).collect::<Vec<_>>(),
+            "Tags": w().tags,
         })),
-        ("GET", ["studios"]) => Reply::Json(named(&STUDIOS, "studio", q)),
+        ("GET", ["studios"]) => Reply::Json(named(&w().studios, "studio", q)),
         ("GET", ["persons"]) => Reply::Json(named(&PEOPLE, "person", q)),
         ("GET", ["items"]) | ("GET", ["users", _, "items"]) => Reply::Json(list(q)),
         ("GET", ["items", _, "similar"]) => {

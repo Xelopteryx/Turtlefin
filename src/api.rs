@@ -682,10 +682,7 @@ impl Item {
                 let (y, rest) = d.split_once('-')?;
                 let (m, rest) = rest.split_once('-')?;
                 let day: u32 = rest.get(..2)?.parse().ok()?;
-                let month = [
-                    "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.",
-                ]
-                .get(m.parse::<usize>().ok()?.checked_sub(1)?)?;
+                let month = MONTHS.get(m.parse::<usize>().ok()?.checked_sub(1)?)?;
                 Some(format!("{day} {} {y}", tr(month)))
             })
             .or_else(|| self.production_year.map(|y| y.to_string()))
@@ -2999,13 +2996,14 @@ impl Client {
     }
 }
 
-/// « 2020-07-08 » -> « 8 juillet 2020 ».
+/// Mois abrégés, traduits par `tr` (les fichiers .po les contiennent tous les douze).
+const MONTHS: [&str; 12] = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+/// « 2020-07-08 » -> « 8 juil. 2020 » (« 8 Jul 2020 » en anglais…).
 fn fr_date(iso: &str) -> String {
-    const MOIS: [&str; 12] =
-        ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
     let p: Vec<&str> = iso.get(..10).unwrap_or("").split('-').collect();
     match (p.first(), p.get(1).and_then(|m| m.parse::<usize>().ok()), p.get(2).and_then(|d| d.parse::<u32>().ok())) {
-        (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) => format!("{d} {} {y}", MOIS[m - 1]),
+        (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) => format!("{d} {} {y}", tr(MONTHS[m - 1])),
         _ => String::new(),
     }
 }
