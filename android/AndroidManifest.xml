@@ -24,7 +24,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Turtlefin"
         android:icon="@mipmap/ic_launcher"
-        android:banner="@mipmap/ic_launcher"
+        android:banner="@drawable/banner_turtlefin"
         android:hasCode="false"
         android:extractNativeLibs="true"
         android:usesCleartextTraffic="true"
@@ -38,6 +38,7 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|smallestScreenSize|uiMode|density|navigation">
             <meta-data android:name="android.app.lib_name" android:value="turtlefin" />
         </activity>
+        <!-- Bannières 16:9 d'Android TV : packaging/icons/make-tv-art.py (drawable-xhdpi / xxhdpi). -->
         <!-- Icône aux couleurs du thème : une entrée de lanceur par thème intégré, une seule active
              (android/src/entry.rs, set_launcher_icon ; icônes générées par le test android_icons de
              src/theme.rs). Thème importé : l'icône par défaut. -->
@@ -45,7 +46,7 @@
             android:name=".Icon_turtlefin"
             android:targetActivity="android.app.NativeActivity"
             android:icon="@mipmap/ic_launcher"
-            android:banner="@mipmap/ic_launcher"
+            android:banner="@drawable/banner_turtlefin"
             android:enabled="true"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
@@ -61,7 +62,7 @@
             android:name=".Icon_nerd"
             android:targetActivity="android.app.NativeActivity"
             android:icon="@mipmap/ic_nerd"
-            android:banner="@mipmap/ic_nerd"
+            android:banner="@drawable/banner_nerd"
             android:enabled="false"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :
@@ -77,7 +78,7 @@
             android:name=".Icon_aero"
             android:targetActivity="android.app.NativeActivity"
             android:icon="@mipmap/ic_aero"
-            android:banner="@mipmap/ic_aero"
+            android:banner="@drawable/banner_aero"
             android:enabled="false"
             android:exported="true">
             <!-- Lancée par cette entrée, NativeActivity lit le nom de la bibliothèque ici (sinon « main » :

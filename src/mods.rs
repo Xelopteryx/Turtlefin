@@ -5,8 +5,13 @@
 //! fichier `nom.lua`. Paramètres → Mods : activer, désactiver, ordre de chargement ; un changement
 //! prend effet au redémarrage (proposé après « Sauvegarder »).
 //!
-//! Un mod n'est PAS isolé : Lua complet (`io`, `os`), il peut lire et écrire des fichiers, lancer des
-//! programmes et parler au serveur avec le compte ouvert. Turtlefin le dit avant d'en activer un.
+//! Un mod est ISOLÉ (bac à sable) : il ne voit que ce que Turtlefin lui donne. Pas de bibliothèques
+//! `io`, `os`, `package`, `debug` ; pas de `load`, `loadfile`, `dofile`, ni de bytecode
+//! (`string.dump`) ; `require` ne charge que des fichiers `.lua` de son propre dossier ; pas d'accès
+//! réseau libre ; `api` seulement en lecture, sur les chemins des médias (pas les comptes, sessions,
+//! clés, réglages du serveur) ; fichiers (sons, images du thème) seulement dans son dossier. Mémoire
+//! plafonnée (`MEMORY`), et une fonction qui calcule trop longtemps est arrêtée (`MAX_RUN`). Un mod ne
+//! peut donc ni lire les fichiers de l'appareil, ni lancer un programme, ni envoyer des données ailleurs.
 //!
 //! Journal : `mods.log` dans le dossier de configuration, créé seulement si un mod est activé.
 //!
@@ -17,19 +22,72 @@
 //!   theme{ accent1 = "#ff0000", radius = 4, … } : change des réglages du thème en cours (mêmes noms
 //!     que dans un fichier .tftheme)
 //!   open(id) · search(texte) · screen() · server() -> { url, user }
-//!   api(chemin) -> table (requête GET au serveur Jellyfin, avec le compte ouvert)
-//!   http(adresse) -> texte
+//!   api(chemin) -> table (lecture au serveur Jellyfin, avec le compte ouvert ; chemins de `API_PATHS`)
+//!   time() -> secondes depuis 1970 · clock() -> secondes depuis le lancement (os n'est pas fourni)
 
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use mlua::{Function, Lua, Table, Value};
+use mlua::{Function, HookTriggers, Lua, LuaOptions, StdLib, Table, Value, VmState};
 use serde::{Deserialize, Serialize};
 
 use crate::App;
 
 pub const DIR_NAME: &str = "Turtlefin Mods";
+
+/// Mémoire de Lua pour tous les mods réunis.
+const MEMORY: usize = 64 << 20;
+/// Durée maximale d'un chargement ou d'un appel de mod (une boucle sans fin n'arrête pas les autres).
+const MAX_RUN: std::time::Duration = std::time::Duration::from_secs(3);
+/// Chemins du serveur qu'un mod peut lire (médias, bibliothèques ; pas les comptes, les sessions, les
+/// clés d'API, les réglages ni le système).
+const API_PATHS: [&str; 9] = ["/Items", "/UserItems", "/UserViews", "/Shows", "/Movies", "/Genres", "/Studios", "/Persons", "/Search"];
+/// Début de l'appel de mod en cours (voir `MAX_RUN`).
+static RUN_START: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+/// Dossiers des mods activés (leurs fichiers : sons).
+struct ModDirs(Vec<PathBuf>);
+/// Dossier du mod en cours de chargement (`require`, fichiers).
+static LOADING: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Lua sans rien qui touche à l'appareil (voir l'en-tête du module).
+fn sandbox() -> mlua::Result<Lua> {
+    let lua = Lua::new_with(StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH | StdLib::COROUTINE, LuaOptions::default())?;
+    let _ = lua.set_memory_limit(MEMORY);
+    let g = lua.globals();
+    for name in ["load", "loadfile", "dofile", "loadstring", "require", "collectgarbage"] {
+        g.set(name, Value::Nil)?;
+    }
+    if let Ok(s) = g.get::<Table>("string") {
+        s.set("dump", Value::Nil)?;
+    }
+    lua.set_hook(HookTriggers::new().every_nth_instruction(20_000), |_, _| {
+        let start = *RUN_START.lock().unwrap();
+        if start.is_some_and(|t| t.elapsed() > MAX_RUN) {
+            return Err(mlua::Error::runtime("trop long : le mod a été interrompu"));
+        }
+        Ok(VmState::Continue)
+    });
+    Ok(lua)
+}
+
+/// Exécute du code de mod avec la limite de temps.
+fn timed<T>(f: impl FnOnce() -> mlua::Result<T>) -> mlua::Result<T> {
+    *RUN_START.lock().unwrap() = Some(std::time::Instant::now());
+    let r = f();
+    *RUN_START.lock().unwrap() = None;
+    r
+}
+
+/// Fichier du dossier `dir` désigné par un mod : nom simple (lettres, chiffres, `-`, `_`, `.`, `/` pour
+/// un sous-dossier), jamais `..`, jamais un chemin absolu.
+fn inside(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
+    let ok = !name.is_empty()
+        && !name.starts_with('/')
+        && !name.contains("..")
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/'));
+    ok.then(|| dir.join(name)).filter(|p| p.is_file())
+}
 
 /// Mod connu des réglages : identifiant (nom du dossier ou du fichier) et activation, dans l'ordre de
 /// chargement.
@@ -171,11 +229,20 @@ pub fn start(app: &Arc<App>) {
 }
 
 fn run(app: Arc<App>, mods: Vec<ModInfo>, rx: mpsc::Receiver<Msg>) {
-    let lua = Lua::new();
+    let lua = match sandbox() {
+        Ok(l) => l,
+        Err(e) => {
+            log(&format!("préparation de Lua : {e}"));
+            return;
+        }
+    };
     if let Err(e) = install_api(&lua, &app) {
         log(&format!("préparation de Lua : {e}"));
         return;
     }
+    lua.set_app_data(ModDirs(
+        mods.iter().filter(|m| m.script.file_name().is_some_and(|n| n == "mod.lua")).filter_map(|m| m.script.parent().map(|p| p.to_path_buf())).collect(),
+    ));
     for m in &mods {
         let code = match std::fs::read_to_string(&m.script) {
             Ok(c) => c,
@@ -184,12 +251,13 @@ fn run(app: Arc<App>, mods: Vec<ModInfo>, rx: mpsc::Receiver<Msg>) {
                 continue;
             }
         };
-        // Les `require` d'un mod cherchent d'abord dans son dossier.
-        if let Some(d) = m.script.parent() {
-            let set_path = format!("package.path = {:?} .. '/?.lua;' .. package.path", d.display().to_string().replace('\\', "/"));
-            let _ = lua.load(set_path.as_str()).exec();
-        }
-        match lua.load(code.as_str()).set_name(m.id.as_str()).exec() {
+        // `require` et les fichiers du mod : dans son dossier (un mod en un seul fichier : aucun).
+        let own_dir = m.script.parent().filter(|_| m.script.file_name().is_some_and(|n| n == "mod.lua")).map(|p| p.to_path_buf());
+        *LOADING.lock().unwrap() = own_dir;
+        // Texte seulement (pas de bytecode Lua précompilé, qui peut contourner les vérifications).
+        let res = timed(|| lua.load(code.as_str()).set_name(m.id.as_str()).set_mode(mlua::ChunkMode::Text).exec());
+        *LOADING.lock().unwrap() = None;
+        match res {
             Ok(()) => log(&format!("{} {} chargé", m.name, m.version)),
             Err(e) => log(&format!("{} : erreur au chargement : {e}", m.id)),
         }
@@ -209,7 +277,7 @@ fn call(lua: &Lua, event: &str, arg: &str) {
     let Ok(handlers) = lua.named_registry_value::<Table>("turtlefin_handlers") else { return };
     let Ok(list) = handlers.get::<Table>(event) else { return };
     for f in list.sequence_values::<Function>().flatten() {
-        if let Err(e) = f.call::<()>(arg) {
+        if let Err(e) = timed(|| f.call::<()>(arg)) {
             log(&format!("événement « {event} » : {e}"));
         }
     }
@@ -243,6 +311,35 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
     t.set("version", env!("CARGO_PKG_VERSION"))?;
     t.set("platform", std::env::consts::OS)?;
     lua.set_named_registry_value("turtlefin_handlers", lua.create_table()?)?;
+    lua.set_named_registry_value("turtlefin_modules", lua.create_table()?)?;
+
+    // `require("nom")` : `nom.lua` du dossier du mod, pendant son chargement seulement ; gardé ensuite.
+    lua.globals().set(
+        "require",
+        lua.create_function(|lua, name: String| {
+            let dir = LOADING.lock().unwrap().clone().ok_or_else(|| mlua::Error::runtime("require : seulement au chargement d'un mod en dossier"))?;
+            let file = inside(&dir, &format!("{}.lua", name.replace('.', "/")))
+                .ok_or_else(|| mlua::Error::runtime(format!("require : « {name} » introuvable dans le dossier du mod")))?;
+            let modules: Table = lua.named_registry_value("turtlefin_modules")?;
+            let key = file.display().to_string();
+            if let Ok(v) = modules.get::<Value>(key.as_str()) {
+                if !v.is_nil() {
+                    return Ok(v);
+                }
+            }
+            let code = std::fs::read_to_string(&file).map_err(mlua::Error::external)?;
+            let v: Value = lua.load(code.as_str()).set_name(name.as_str()).set_mode(mlua::ChunkMode::Text).eval()?;
+            let v = if v.is_nil() { Value::Boolean(true) } else { v };
+            modules.set(key.as_str(), v.clone())?;
+            Ok(v)
+        })?,
+    )?;
+    let t0 = std::time::Instant::now();
+    t.set("clock", lua.create_function(move |_, ()| Ok(t0.elapsed().as_secs_f64()))?)?;
+    t.set(
+        "time",
+        lua.create_function(|_, ()| Ok(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)))?,
+    )?;
 
     t.set(
         "on",
@@ -276,10 +373,15 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
             Ok(())
         })?,
     )?;
+    // Un son d'un mod activé (chemin relatif à son dossier ; rien d'autre sur l'appareil).
     t.set(
         "sound",
-        lua.create_function(|_, name: String| {
-            crate::music::sound(&name);
+        lua.create_function(|lua, name: String| {
+            let found = lua.app_data_ref::<ModDirs>().and_then(|d| d.0.iter().find_map(|dir| inside(dir, &name)));
+            match found {
+                Some(f) => crate::music::sound(&f.display().to_string()),
+                None => log(&format!("sound : « {name} » n'est pas un fichier du dossier d'un mod")),
+            }
             Ok(())
         })?,
     )?;
@@ -329,24 +431,16 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
         "api",
         lua.create_function(move |lua, path: String| {
             let Some(c) = a.client() else { return Ok(Value::Nil) };
-            if !path.starts_with('/') {
-                return Err(mlua::Error::runtime("api : le chemin commence par « / »"));
+            // Lecture seulement, chemins des médias seulement (voir API_PATHS) ; pas de « .. » ni d'adresse.
+            let base = path.split('?').next().unwrap_or("");
+            let allowed = API_PATHS.iter().any(|p| base == *p || base.starts_with(&format!("{p}/")));
+            if !allowed || path.contains("..") || path.contains("://") || path.contains('\\') {
+                return Err(mlua::Error::runtime(format!("api : chemin non autorisé aux mods ({path})")));
             }
             match a.rt.block_on(c.get_json(&path)) {
                 Ok(v) => json_to_lua(lua, &v),
                 Err(e) => Err(mlua::Error::runtime(format!("api {path} : {e}"))),
             }
-        })?,
-    )?;
-    let a = app.clone();
-    t.set(
-        "http",
-        lua.create_function(move |_, url: String| {
-            let r = a.rt.block_on(async {
-                let resp = reqwest::Client::new().get(&url).timeout(std::time::Duration::from_secs(20)).send().await?;
-                resp.text().await
-            });
-            r.map_err(|e| mlua::Error::runtime(format!("http {url} : {e}")))
         })?,
     )?;
     let a = app.clone();
@@ -358,6 +452,12 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
             let mut v = serde_json::to_value(crate::theme::find(&p.theme, &p.themes)).map_err(mlua::Error::external)?;
             for pair in changes.pairs::<String, Value>() {
                 let (k, x) = pair?;
+                // Fichiers du thème (fond, logo, musique) : pas pour un mod (ils pourraient désigner
+                // n'importe quel fichier de l'appareil).
+                if matches!(k.as_str(), "background" | "logo_file" | "music" | "dir") {
+                    log(&format!("theme : « {k} » n'est pas modifiable par un mod"));
+                    continue;
+                }
                 v[k.as_str()] = match x {
                     Value::Boolean(b) => serde_json::Value::Bool(b),
                     Value::Integer(i) => serde_json::json!(i),
@@ -377,7 +477,8 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
 
 /// Mod d'exemple écrit dans le dossier à sa création : montre les fonctions offertes.
 pub const EXAMPLE: &str = r##"-- Exemple de mod Turtlefin. Active-le dans Paramètres -> Mods, puis redémarre.
--- Un mod n'est pas isolé : n'installe que des mods dont tu connais l'auteur.
+-- Un mod tourne dans un bac à sable : il n'a accès qu'à ce que Turtlefin lui donne (table turtlefin),
+-- pas aux fichiers de l'appareil ni au réseau.
 
 turtlefin.on("start", function()
   turtlefin.log("Bonjour depuis l'exemple (Turtlefin " .. turtlefin.version .. ")")
@@ -439,6 +540,22 @@ mod tests {
         call(&lua, "screen", "home");
         call(&lua, "absent", "");
         assert_eq!(lua.globals().get::<i64>("hits").unwrap(), 4);
+    }
+
+    #[test]
+    fn sandbox_blocks_the_device() {
+        let lua = sandbox().unwrap();
+        for code in ["return io", "return os", "return debug", "return package", "return load", "return dofile", "return loadfile", "return string.dump"] {
+            assert!(lua.load(code).eval::<Value>().unwrap().is_nil(), "{code}");
+        }
+        // Boucle sans fin : arrêtée.
+        let r = timed(|| lua.load("while true do end").exec());
+        assert!(r.is_err());
+        // Mémoire : plafonnée.
+        let r = timed(|| lua.load("local t = {} for i = 1, 1e8 do t[i] = string.rep('x', 100) end").exec());
+        assert!(r.is_err());
+        assert!(inside(std::path::Path::new("."), "../secret").is_none());
+        assert!(inside(std::path::Path::new("."), "/etc/passwd").is_none());
     }
 
     #[test]

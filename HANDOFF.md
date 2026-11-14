@@ -858,6 +858,16 @@ en portrait.
   Jellyfin Enhanced le dit actif (`Client::seerr_active`, `App.seerr_search_ok`), même sans compte relié et même si la
   vérification de la connexion avait échoué ; erreurs de Seerr écrites dans le journal. Compteur aussi à 0 résultat.
   **Accueil** : une lettre tapée ouvre la recherche avec elle ; « / » et Ctrl+F l'ouvrent vide (pas pendant la visite).
+- **Mods en bac à sable** (`src/mods.rs`, `sandbox`) : Lua sans `io`, `os`, `package`, `debug`, `load*`, `dofile`,
+  `string.dump` ; texte seulement (pas de bytecode) ; `require` limité au dossier du mod (au chargement) ; `api` en lecture,
+  chemins de `API_PATHS` ; `http` retiré ; `sound` et thème : pas de fichier hors des dossiers des mods ; 64 Mio au plus,
+  3 s par appel (crochet d'instructions) ; `time()`, `clock()` à la place de `os`. Essai `sandbox_blocks_the_device`.
+- **Traductions** : les 385 textes manquants (et les pluriels du compteur de la recherche) dans les 7 langues ;
+  `tools/lang-check.py` : 0 manquant. Les libellés du créateur de thèmes (`defs` de creator.rs, passés par variable)
+  ne sont pas vus par lang-check.
+- **Images TV** : `packaging/icons/make-tv-art.py` : bannières Android TV par thème (`drawable-xhdpi/xxhdpi/banner_*`,
+  utilisées par le manifeste) et `packaging/tv/<thème>-landscape.png` (1920 x 1080), `-poster.png` (1000 x 1500).
+- `packaging/flatpak/cargo-sources.json` régénéré (667 crates).
 
 ## 7. Compiler, fabriquer les paquets, publier
 

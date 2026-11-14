@@ -6432,7 +6432,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 row(
                     "info",
                     "",
-                    tr("Les mods sont écrits par d'autres personnes. Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Un mod peut tout faire sur cet appareil : lire et écrire des fichiers, lancer des programmes, agir avec le compte ouvert. N'installe que des mods venant d'une source de confiance."),
+                    tr("Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."),
                     String::new(),
                     "info",
                     false,

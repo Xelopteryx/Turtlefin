@@ -2735,3 +2735,1173 @@ msgstr "OK: knoppen hieronder"
 
 msgid "Code oublié : mot de passe de {}"
 msgstr "Code vergeten: wachtwoord van {}"
+
+msgid "-1 : automatique."
+msgstr "-1: automatisch."
+
+msgid "0 : aucun."
+msgstr "0: geen."
+
+msgid "0 : automatique."
+msgstr "0: automatisch."
+
+msgid "0 : jamais."
+msgstr "0: nooit."
+
+msgid "0 : sans limite."
+msgstr "0: geen limiet."
+
+msgid "0 : selon le processeur."
+msgstr "0: afhankelijk van de processor."
+
+msgid "Accès"
+msgstr "Toegang"
+
+msgid "Accélération"
+msgstr "Versnelling"
+
+msgid "Accélération matérielle"
+msgstr "Hardwareversnelling"
+
+msgid "Activer HTTPS"
+msgstr "HTTPS inschakelen"
+
+msgid "Activité gardée (jours)"
+msgstr "Activiteit bewaard (dagen)"
+
+msgid "Activité récente"
+msgstr "Recente activiteit"
+
+msgid "Activé : ces adresses sont refusées ; sinon, elles seules sont acceptées."
+msgstr "Aan: deze adressen worden geweigerd; anders worden alleen zij geaccepteerd."
+
+msgid "Activée"
+msgstr "Ingeschakeld"
+
+msgid "Actualisation automatique"
+msgstr "Automatisch vernieuwen"
+
+msgid "Actualisations en parallèle"
+msgstr "Parallelle vernieuwingen"
+
+msgid "Adresse (manifest.json)"
+msgstr "Adres (manifest.json)"
+
+msgid "Adresses"
+msgstr "Adressen"
+
+msgid "Adresses d'écoute"
+msgstr "Luisteradressen"
+
+msgid "Adresses publiées"
+msgstr "Gepubliceerde adressen"
+
+msgid "Affiche une image pendant le chargement."
+msgstr "Toont een afbeelding tijdens het laden."
+
+msgid "Affiché sous le formulaire de connexion de l'interface web."
+msgstr "Getoond onder het aanmeldformulier van de webinterface."
+
+msgid "Ajouter"
+msgstr "Toevoegen"
+
+msgid "Ajouter : au démarrage du serveur"
+msgstr "Toevoegen: bij het starten van de server"
+
+msgid "Ajouter : tous les jours"
+msgstr "Toevoegen: elke dag"
+
+msgid "Ajouter : toutes les…"
+msgstr "Toevoegen: elke…"
+
+msgid "Ajouter un dossier"
+msgstr "Map toevoegen"
+
+msgid "Ajouter un dépôt"
+msgstr "Repository toevoegen"
+
+msgid "Algorithme"
+msgstr "Algoritme"
+
+msgid "Amplification du mixage stéréo"
+msgstr "Versterking van de stereomix"
+
+msgid "Analyses en parallèle"
+msgstr "Parallelle scans"
+
+msgid "Année de sortie"
+msgstr "Jaar van uitgave"
+
+msgid "Aperçu"
+msgstr "Voorbeeld"
+
+msgid "Aperçus"
+msgstr "Voorbeelden"
+
+msgid "Appareil renommé."
+msgstr "Apparaat hernoemd."
+
+msgid "Appareils actifs"
+msgstr "Actieve apparaten"
+
+msgid "Apparence"
+msgstr "Uiterlijk"
+
+msgid "Appli"
+msgstr "App"
+
+msgid "Appliqué à l'interface web du serveur."
+msgstr "Toegepast op de webinterface van de server."
+
+msgid "Après : le média est considéré comme vu."
+msgstr "Daarna: het medium geldt als bekeken."
+
+msgid "Après ce délai en pause : logo du média, épisode et résumé à l'écran."
+msgstr "Na deze tijd in pauze: logo, aflevering en samenvatting in beeld."
+
+msgid "Après {} s"
+msgstr "Na {} s"
+
+msgid "Arrêter la lecture"
+msgstr "Afspelen stoppen"
+
+msgid "Attendre la fin"
+msgstr "Wachten tot het klaar is"
+
+msgid "Au démarrage du serveur"
+msgstr "Bij het starten van de server"
+
+msgid "Aucun mod installé."
+msgstr "Geen mod geïnstalleerd."
+
+msgid "Aucun nom ne contient ce texte."
+msgstr "Geen naam bevat deze tekst."
+
+msgid "Aucune distribution connue pour ce titre."
+msgstr "Geen bekende cast voor deze titel."
+
+msgid "Aucune limite"
+msgstr "Geen limiet"
+
+msgid "Automatique"
+msgstr "Automatisch"
+
+msgid "Avance avant la limite (s)"
+msgstr "Voorsprong vóór de limiet (s)"
+
+msgid "Avancé"
+msgstr "Geavanceerd"
+
+msgid "Avant 1970"
+msgstr "Vóór 1970"
+
+msgid "Avant : le média est considéré comme non commencé."
+msgstr "Daarvoor: het medium geldt als niet begonnen."
+
+msgid "Base de données et réglages, sur le serveur."
+msgstr "Database en instellingen, op de server."
+
+msgid "Basse"
+msgstr "Laag"
+
+msgid "Bibliothèque créée."
+msgstr "Bibliotheek aangemaakt."
+
+msgid "Bibliothèque introuvable."
+msgstr "Bibliotheek niet gevonden."
+
+msgid "Bibliothèque renommée."
+msgstr "Bibliotheek hernoemd."
+
+msgid "Bibliothèque supprimée."
+msgstr "Bibliotheek verwijderd."
+
+msgid "Bien plus rapide, moins précis."
+msgstr "Veel sneller, minder nauwkeurig."
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Cache plein : {} médias lus."
+msgstr "Cache vol: {} media gelezen."
+
+msgid "Cacher les médias sans classification"
+msgstr "Media zonder leeftijdsclassificatie verbergen"
+
+msgid "Caché à la connexion"
+msgstr "Verborgen bij aanmelden"
+
+msgid "Ce fichier n'est pas un thème de Turtlefin."
+msgstr "Dit bestand is geen Turtlefin-thema."
+
+msgid "Celle de la vidéo"
+msgstr "Die van de video"
+
+msgid "Certificat"
+msgstr "Certificaat"
+
+msgid "Ces réglages prennent effet au redémarrage du serveur. Une erreur peut le rendre injoignable."
+msgstr "Deze instellingen gelden na het herstarten van de server. Een fout kan hem onbereikbaar maken."
+
+msgid "Cette collection est vide."
+msgstr "Deze collectie is leeg."
+
+msgid "Cette lecture est terminée."
+msgstr "Deze weergave is beëindigd."
+
+msgid "Changements enregistrés : ils s'appliquent au redémarrage."
+msgstr "Wijzigingen opgeslagen: ze gelden na een herstart."
+
+msgid "Chapitres"
+msgstr "Hoofdstukken"
+
+msgid "Chapitres factices toutes les (s)"
+msgstr "Kunstmatige hoofdstukken elke (s)"
+
+msgid "Chaque appui passe au niveau suivant."
+msgstr "Elke druk gaat naar het volgende niveau."
+
+msgid "Charger plus tôt"
+msgstr "Eerder laden"
+
+msgid "Chemin du fichier .pfx sur le serveur."
+msgstr "Pad van het .pfx-bestand op de server."
+
+msgid "Chemin sur le serveur"
+msgstr "Pad op de server"
+
+msgid "Chemin sur le serveur."
+msgstr "Pad op de server."
+
+msgid "Chemins des images dans les NFO"
+msgstr "Afbeeldingspaden in NFO-bestanden"
+
+msgid "Classification maximale"
+msgstr "Maximale leeftijdsclassificatie"
+
+msgid "Classifications et dates de sortie."
+msgstr "Classificaties en releasedatums."
+
+msgid "Clips"
+msgstr "Clips"
+
+msgid "Clé créée."
+msgstr "Sleutel aangemaakt."
+
+msgid "Collection"
+msgstr "Collectie"
+
+msgid "Collection : {}"
+msgstr "Collectie: {}"
+
+msgid "Collections"
+msgstr "Collecties"
+
+msgid "Colonnes par planche"
+msgstr "Kolommen per vel"
+
+msgid "Commande envoyée."
+msgstr "Opdracht verzonden."
+
+msgid "Compte dont l'avancement est enregistré"
+msgstr "Account waarvan de voortgang wordt opgeslagen"
+
+msgid "Compte renommé."
+msgstr "Account hernoemd."
+
+msgid "Conservation"
+msgstr "Bewaartermijn"
+
+msgid "Contenu externe dans les suggestions"
+msgstr "Externe inhoud in suggesties"
+
+msgid "Contrôle parental"
+msgstr "Ouderlijk toezicht"
+
+msgid "Conversion du conteneur"
+msgstr "Containerconversie"
+
+msgid "Convertit le HDR pour les écrans SDR."
+msgstr "Zet HDR om voor SDR-schermen."
+
+msgid "Copie extrafanart dans extrathumbs."
+msgstr "Kopieert extrafanart naar extrathumbs."
+
+msgid "Créer la bibliothèque"
+msgstr "Bibliotheek aanmaken"
+
+msgid "Créer les aperçus de la barre de temps"
+msgstr "Voorbeelden van de tijdbalk maken"
+
+msgid "Créer les aperçus pendant l'analyse"
+msgstr "Voorbeelden maken tijdens het scannen"
+
+msgid "Créer une sauvegarde"
+msgstr "Back-up maken"
+
+msgid "Dans ta bibliothèque"
+msgstr "In je bibliotheek"
+
+msgid "Dates de lecture, vu ou non, favoris."
+msgstr "Afspeeldatums, bekeken of niet, favorieten."
+
+msgid "Dernier compte"
+msgstr "Laatste account"
+
+msgid "Dernière fois : {} le {}"
+msgstr "Laatste keer: {} op {}"
+
+msgid "Donne d'abord un nom au thème (onglet Général)."
+msgstr "Geef het thema eerst een naam (tabblad Algemeen)."
+
+msgid "Données du serveur"
+msgstr "Servergegevens"
+
+msgid "Dossier"
+msgstr "Map"
+
+msgid "Dossier ajouté."
+msgstr "Map toegevoegd."
+
+msgid "Dossier de la police de secours"
+msgstr "Map van het reservelettertype"
+
+msgid "Dossier des mods"
+msgstr "Modmap"
+
+msgid "Dossier des métadonnées"
+msgstr "Metadatamap"
+
+msgid "Dossier du cache"
+msgstr "Cachemap"
+
+msgid "Dossier du transcodage"
+msgstr "Transcoderingsmap"
+
+msgid "Dossier retiré."
+msgstr "Map verwijderd."
+
+msgid "Dossiers"
+msgstr "Mappen"
+
+msgid "Doubler la fréquence d'images"
+msgstr "Beeldsnelheid verdubbelen"
+
+msgid "Droits"
+msgstr "Rechten"
+
+msgid "Dupliquer les vignettes"
+msgstr "Miniaturen dupliceren"
+
+msgid "Durée"
+msgstr "Duur"
+
+msgid "Durée minimale pour reprendre (s)"
+msgstr "Minimale duur om te hervatten (s)"
+
+msgid "Débit"
+msgstr "Bitrate"
+
+msgid "Débit audio variable"
+msgstr "Variabele audiobitrate"
+
+msgid "Débit maximal à distance (Mbit/s)"
+msgstr "Maximale bitrate op afstand (Mbit/s)"
+
+msgid "Débit maximal à distance (bit/s)"
+msgstr "Maximale bitrate op afstand (bit/s)"
+
+msgid "Déclencheur ajouté."
+msgstr "Trigger toegevoegd."
+
+msgid "Déclencheur retiré."
+msgstr "Trigger verwijderd."
+
+msgid "Déclencheurs"
+msgstr "Triggers"
+
+msgid "Décodage HEVC 10 bits"
+msgstr "10-bit HEVC-decodering"
+
+msgid "Décodage VP9 10 bits"
+msgstr "10-bit VP9-decodering"
+
+msgid "Découverte sur le réseau"
+msgstr "Netwerkdetectie"
+
+msgid "Déjà vus"
+msgstr "Al bekeken"
+
+msgid "Délai d'extraction (min)"
+msgstr "Extractievertraging (min)"
+
+msgid "Dépose un mod dans « {} », puis reviens sur cette page."
+msgstr "Zet een mod in “{}” en kom dan terug naar deze pagina."
+
+msgid "Dépôt ajouté."
+msgstr "Repository toegevoegd."
+
+msgid "Dépôt retiré."
+msgstr "Repository verwijderd."
+
+msgid "Dépôts"
+msgstr "Repository's"
+
+msgid "Désaturation"
+msgstr "Desaturatie"
+
+msgid "Désentrelacement"
+msgstr "Deïnterlacing"
+
+msgid "Désinstaller"
+msgstr "Verwijderen"
+
+msgid "Détails"
+msgstr "Details"
+
+msgid "Effacer"
+msgstr "Wissen"
+
+msgid "Elle est analysée aussitôt."
+msgstr "Ze wordt meteen gescand."
+
+msgid "En arrière-plan"
+msgstr "Op de achtergrond"
+
+msgid "Encodage AV1"
+msgstr "AV1-codering"
+
+msgid "Encodage HEVC"
+msgstr "HEVC-codering"
+
+msgid "Encodage matériel"
+msgstr "Hardwarecodering"
+
+msgid "Encore une fois pour retirer ce compte et fermer sa session"
+msgstr "Nog een keer om dit account te verwijderen en de sessie te sluiten"
+
+msgid "Enregistrement impossible : {}"
+msgstr "Opslaan mislukt: {}"
+
+msgid "Enregistrer les aperçus avec les médias"
+msgstr "Voorbeelden bij de media opslaan"
+
+msgid "Enregistrer les images avec les médias"
+msgstr "Afbeeldingen bij de media opslaan"
+
+msgid "Enregistrer les sous-titres avec les médias"
+msgstr "Ondertitels bij de media opslaan"
+
+msgid "Envoyer un message"
+msgstr "Bericht sturen"
+
+msgid "Essai impossible : {}"
+msgstr "Proef starten mislukt: {}"
+
+msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct."
+msgstr "Proef gestart: Turtlefin opent op een demoserver. Je wijzigingen gelden meteen."
+
+msgid "Exclure"
+msgstr "Uitsluiten"
+
+msgid "Exclus"
+msgstr "Uitgesloten"
+
+msgid "Exiger HTTPS"
+msgstr "HTTPS vereisen"
+
+msgid "Extension désinstallée (au prochain redémarrage)."
+msgstr "Extensie verwijderd (bij de volgende herstart)."
+
+msgid "Extraire les chapitres pendant l'analyse"
+msgstr "Hoofdstukken extraheren tijdens het scannen"
+
+msgid "Extraire les images de chapitres"
+msgstr "Hoofdstukafbeeldingen extraheren"
+
+msgid "Extraire les sous-titres à la demande"
+msgstr "Ondertitels op aanvraag extraheren"
+
+msgid "Fichiers NFO"
+msgstr "NFO-bestanden"
+
+msgid "Fichiers acceptés"
+msgstr "Toegestane bestanden"
+
+msgid "Fichiers temporaires"
+msgstr "Tijdelijke bestanden"
+
+msgid "Fichiers temporaires du serveur (redémarrage nécessaire)."
+msgstr "Tijdelijke bestanden van de server (herstart nodig)."
+
+msgid "File d'attente de multiplexage"
+msgstr "Muxwachtrij"
+
+msgid "Films et séries mélangés"
+msgstr "Gemengde films en series"
+
+msgid "Fils d'encodage"
+msgstr "Coderingsthreads"
+
+msgid "Fils utilisés"
+msgstr "Gebruikte threads"
+
+msgid "Filtre d'adresses à distance"
+msgstr "Filter voor externe adressen"
+
+msgid "Filtrer… (ex. : surv)"
+msgstr "Filteren… (bijv. surv)"
+
+msgid "Format des dates"
+msgstr "Datumnotatie"
+
+msgid "Formats décodés par la puce"
+msgstr "Door de chip gedecodeerde formaten"
+
+msgid "Genre"
+msgstr "Genre"
+
+msgid "Genres"
+msgstr "Genres"
+
+msgid "Général"
+msgstr "Algemeen"
+
+msgid "Gérer les collections"
+msgstr "Collecties beheren"
+
+msgid "Gérer les paroles"
+msgstr "Songteksten beheren"
+
+msgid "Gérer les sous-titres"
+msgstr "Ondertitels beheren"
+
+msgid "Haute"
+msgstr "Hoog"
+
+msgid "Heure (3:30)"
+msgstr "Tijd (3:30)"
+
+msgid "Heure, par exemple 3:30."
+msgstr "Tijd, bijvoorbeeld 3:30."
+
+msgid "Il devra se reconnecter."
+msgstr "Die persoon moet opnieuw aanmelden."
+
+msgid "Il s'affiche sur l'écran de cet appareil."
+msgstr "Het verschijnt op het scherm van dit apparaat."
+
+msgid "Images encodées en parallèle"
+msgstr "Parallel gecodeerde beelden"
+
+msgid "Images et informations téléchargées (redémarrage nécessaire)."
+msgstr "Gedownloade afbeeldingen en informatie (herstart nodig)."
+
+msgid "Informations depuis Internet"
+msgstr "Informatie van internet"
+
+msgid "Journal des mods"
+msgstr "Modlogboek"
+
+msgid "Journaux envoyés par les applis"
+msgstr "Logboeken verzonden door apps"
+
+msgid "Journaux gardés (jours)"
+msgstr "Logboeken bewaard (dagen)"
+
+msgid "Lancer maintenant"
+msgstr "Nu uitvoeren"
+
+msgid "Langue du serveur : messages, activité, noms de tâches."
+msgstr "Servertaal: berichten, activiteit, taaknamen."
+
+msgid "Langue préférée"
+msgstr "Voorkeurstaal"
+
+msgid "Langues audio"
+msgstr "Audiotalen"
+
+msgid "Largeurs des images"
+msgstr "Afbeeldingsbreedtes"
+
+msgid "Le nom que voient les applis."
+msgstr "De naam die apps zien."
+
+msgid "Le serveur n'en propose aucun."
+msgstr "De server biedt er geen."
+
+msgid "Le {} à {}"
+msgstr "Op {} om {}"
+
+msgid "Lecture des médias"
+msgstr "Media afspelen"
+
+msgid "Les applis peuvent envoyer leurs journaux au serveur."
+msgstr "Apps kunnen hun logboeken naar de server sturen."
+
+msgid "Les applis trouvent le serveur toutes seules."
+msgstr "Apps vinden de server zelf."
+
+msgid "Les changements de fichiers sont vus aussitôt."
+msgstr "Bestandswijzigingen worden meteen gezien."
+
+msgid "Les changements prennent effet au prochain démarrage de Turtlefin."
+msgstr "Wijzigingen gelden bij de volgende start van Turtlefin."
+
+msgid "Les fichiers restent sur le disque."
+msgstr "De bestanden blijven op de schijf."
+
+msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."
+msgstr "Mods worden door anderen geschreven: Turtlefin controleert ze niet en de maker is er niet verantwoordelijk voor. Elke mod draait in een sandbox: hij kan je bestanden niet lezen, geen programma's starten en geen gegevens via internet versturen; hij kan alleen het uiterlijk veranderen, berichten tonen en de media van de server lezen. Kies toch liever betrouwbare bronnen."
+
+msgid "Les médias au-dessus sont cachés à ce compte."
+msgstr "Media daarboven zijn verborgen voor dit account."
+
+msgid "Lignes par planche"
+msgstr "Rijen per vel"
+
+msgid "Limiter la conversion"
+msgstr "Transcodering beperken"
+
+msgid "Lire {}"
+msgstr "{} afspelen"
+
+msgid "Liste de blocage"
+msgstr "Blokkeerlijst"
+
+msgid "Livres"
+msgstr "Boeken"
+
+msgid "Livres audio"
+msgstr "Luisterboeken"
+
+msgid "Luminance de crête"
+msgstr "Piekluminantie"
+
+msgid "Mappage des tons"
+msgstr "Tonemapping"
+
+msgid "Mappage des tons (HDR)"
+msgstr "Tonemapping (HDR)"
+
+msgid "Message"
+msgstr "Bericht"
+
+msgid "Message de connexion"
+msgstr "Aanmeldbericht"
+
+msgid "Message envoyé."
+msgstr "Bericht verzonden."
+
+msgid "Messages et erreurs des mods chargés (mods.log)."
+msgstr "Berichten en fouten van geladen mods (mods.log)."
+
+msgid "Mesurer le volume sonore"
+msgstr "Luidheid meten"
+
+msgid "Mettre en pause"
+msgstr "Pauzeren"
+
+msgid "Mise en cache arrêtée : {} médias lus."
+msgstr "Cachen gestopt: {} media gelezen."
+
+msgid "Mixage stéréo"
+msgstr "Stereomix"
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Mods"
+msgstr "Mods"
+
+msgid "Mon thème"
+msgstr "Mijn thema"
+
+msgid "Musique de fond du thème"
+msgstr "Achtergrondmuziek van het thema"
+
+msgid "Métadonnées"
+msgstr "Metadata"
+
+msgid "N'apparaît pas dans la liste de « Qui regarde ? »."
+msgstr "Staat niet in de lijst “Wie kijkt er?”."
+
+msgid "Nom affiché"
+msgstr "Weergavenaam"
+
+msgid "Nom de l'application"
+msgstr "Naam van de toepassing"
+
+msgid "Nom du dépôt"
+msgstr "Naam van de repository"
+
+msgid "Nombre"
+msgstr "Aantal"
+
+msgid "Nombre d'heures"
+msgstr "Aantal uren"
+
+msgid "Nombre d'heures."
+msgstr "Aantal uren."
+
+msgid "Non défini"
+msgstr "Niet ingesteld"
+
+msgid "Note"
+msgstr "Score"
+
+msgid "Note minimale"
+msgstr "Minimale score"
+
+msgid "Nouvelle bibliothèque"
+msgstr "Nieuwe bibliotheek"
+
+msgid "Nouvelle clé"
+msgstr "Nieuwe sleutel"
+
+msgid "Options"
+msgstr "Opties"
+
+msgid "Ouverture automatique du port (UPnP)"
+msgstr "Automatisch poort openen (UPnP)"
+
+msgid "Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."
+msgstr "Opent de Turtlefin Theme Creator: kleuren, vormen, achtergrond, logo, muziek, live proef."
+
+msgid "Ouvrir"
+msgstr "Openen"
+
+msgid "Pages et images de toutes les bibliothèques de ce compte : tout s'ouvre ensuite sans attendre. Peut durer longtemps."
+msgstr "Pagina's en afbeeldingen van alle bibliotheken van dit account: daarna opent alles zonder wachten. Kan lang duren."
+
+msgid "Par exemple /jellyfin."
+msgstr "Bijvoorbeeld /jellyfin."
+
+msgid "Partage public"
+msgstr "Openbaar delen"
+
+msgid "Pas de sous-titres si le fichier en contient"
+msgstr "Geen ondertitels als het bestand ze bevat"
+
+msgid "Pas encore vus"
+msgstr "Nog niet bekeken"
+
+msgid "Pays"
+msgstr "Land"
+
+msgid "Pendant l'analyse"
+msgstr "Tijdens het scannen"
+
+msgid "Performances"
+msgstr "Prestaties"
+
+msgid "Piloter les appareils partagés"
+msgstr "Gedeelde apparaten bedienen"
+
+msgid "Piloter les autres comptes"
+msgstr "Andere accounts bedienen"
+
+msgid "Plage"
+msgstr "Bereik"
+
+msgid "Plus bas : meilleure qualité."
+msgstr "Lager: betere kwaliteit."
+
+msgid "Plus court : pas de reprise."
+msgstr "Korter: niet hervatten."
+
+msgid "Plus lent : de meilleures images pour le même débit."
+msgstr "Trager: betere beelden bij dezelfde bitrate."
+
+msgid "Plusieurs choix possibles."
+msgstr "Meerdere keuzes mogelijk."
+
+msgid "Plusieurs choix · tape pour filtrer · → : index A–Z"
+msgstr "Meerdere keuzes · typ om te filteren · →: index A–Z"
+
+msgid "Plusieurs choix · → : index A–Z"
+msgstr "Meerdere keuzes · →: index A–Z"
+
+msgid "Police de secours"
+msgstr "Reservelettertype"
+
+msgid "Port HTTP"
+msgstr "HTTP-poort"
+
+msgid "Port HTTP public"
+msgstr "Openbare HTTP-poort"
+
+msgid "Port HTTPS"
+msgstr "HTTPS-poort"
+
+msgid "Port HTTPS public"
+msgstr "Openbare HTTPS-poort"
+
+msgid "Pour tous les appareils hors du réseau. 0 : sans limite."
+msgstr "Voor alle apparaten buiten het netwerk. 0: geen limiet."
+
+msgid "Pour une application qui parle au serveur sans compte."
+msgstr "Voor een toepassing die zonder account met de server praat."
+
+msgid "Priorité"
+msgstr "Prioriteit"
+
+msgid "Pris en compte au prochain redémarrage du serveur."
+msgstr "Toegepast bij de volgende herstart van de server."
+
+msgid "Proxys connus"
+msgstr "Bekende proxy's"
+
+msgid "Préfixe d'adresse"
+msgstr "Basis-URL"
+
+msgid "Préférer le décodeur du système"
+msgstr "Systeemdecoder verkiezen"
+
+msgid "Préférer les informations d'épisode intégrées"
+msgstr "Ingebedde afleveringsinformatie verkiezen"
+
+msgid "Préférer les titres intégrés aux fichiers"
+msgstr "In bestanden ingebedde titels verkiezen"
+
+msgid "Public"
+msgstr "Openbaar"
+
+msgid "Puce graphique utilisée pour convertir les vidéos."
+msgstr "Grafische chip voor het omzetten van video's."
+
+msgid "Périphérique Quick Sync"
+msgstr "Quick Sync-apparaat"
+
+msgid "Périphérique VA-API"
+msgstr "VA-API-apparaat"
+
+msgid "Qualité (1 à 31)"
+msgstr "Kwaliteit (1 tot 31)"
+
+msgid "Qualité H.264 (CRF)"
+msgstr "H.264-kwaliteit (CRF)"
+
+msgid "Qualité HEVC (CRF)"
+msgstr "HEVC-kwaliteit (CRF)"
+
+msgid "Qualité JPEG (%)"
+msgstr "JPEG-kwaliteit (%)"
+
+msgid "Recherche avancée"
+msgstr "Geavanceerd zoeken"
+
+msgid "Regrouper les films en collections"
+msgstr "Films in collecties groeperen"
+
+msgid "Regrouper les séries en collections"
+msgstr "Series in collecties groeperen"
+
+msgid "Regrouper les séries réparties en plusieurs dossiers"
+msgstr "Over meerdere mappen verspreide series groeperen"
+
+msgid "Relit les informations des médias."
+msgstr "Leest de media-informatie opnieuw in."
+
+msgid "Remplacer les chemins"
+msgstr "Padvervanging"
+
+msgid "Reprendre {} · {}"
+msgstr "{} · {} hervatten"
+
+msgid "Reprendre à "
+msgstr "Hervatten op "
+
+msgid "Reprise"
+msgstr "Hervatten"
+
+msgid "Reprise jusqu'à (%)"
+msgstr "Hervatten tot (%)"
+
+msgid "Reprise à partir de (%)"
+msgstr "Hervatten vanaf (%)"
+
+msgid "Reprise à partir de (min)"
+msgstr "Hervatten vanaf (min)"
+
+msgid "Restauration lancée : le serveur redémarre."
+msgstr "Herstel gestart: de server herstart."
+
+msgid "Restaurer"
+msgstr "Herstellen"
+
+msgid "Reste au plus pour reprendre (min)"
+msgstr "Maximaal resterende tijd om te hervatten (min)"
+
+msgid "Retirer"
+msgstr "Verwijderen"
+
+msgid "Retour à la liste."
+msgstr "Terug naar de lijst."
+
+msgid "Rien de semblable pour l'instant."
+msgstr "Nog niets vergelijkbaars."
+
+msgid "Réglages du serveur"
+msgstr "Serverinstellingen"
+
+msgid "Réponse lente à partir de (ms)"
+msgstr "Trage reactie vanaf (ms)"
+
+msgid "Réseau local"
+msgstr "Lokaal netwerk"
+
+msgid "S'arrête en avance sur la lecture : moins de processeur."
+msgstr "Stopt vóór de weergave: minder processor."
+
+msgid "Sans réencoder la vidéo ni le son."
+msgstr "Zonder video of geluid opnieuw te coderen."
+
+msgid "Sauvegarde créée."
+msgstr "Back-up gemaakt."
+
+msgid "Sauvegarder"
+msgstr "Opslaan"
+
+msgid "Sauvegardes"
+msgstr "Back-ups"
+
+msgid "Seerr…"
+msgstr "Seerr…"
+
+msgid "Segments gardés (s)"
+msgstr "Bewaarde segmenten (s)"
+
+msgid "Selon les substitutions du serveur."
+msgstr "Volgens de padvervangingen van de server."
+
+msgid "Session inactive après (min)"
+msgstr "Sessie inactief na (min)"
+
+msgid "Sessions simultanées au plus"
+msgstr "Maximaal aantal gelijktijdige sessies"
+
+msgid "Seulement les images clés"
+msgstr "Alleen sleutelbeelden"
+
+msgid "Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."
+msgstr "Als het thema er een heeft. Ze stopt zodra een medium geopend is, ook in pauze."
+
+msgid "Signaler les réponses lentes"
+msgstr "Trage reacties melden"
+
+msgid "Son nom, puis son adresse (manifest.json)."
+msgstr "De naam, dan het adres (manifest.json)."
+
+msgid "Studio"
+msgstr "Studio"
+
+msgid "Style personnalisé (CSS)"
+msgstr "Aangepaste stijl (CSS)"
+
+msgid "Suggestions"
+msgstr "Suggesties"
+
+msgid "Suppression"
+msgstr "Verwijdering"
+
+msgid "Supprimer l'appareil"
+msgstr "Apparaat verwijderen"
+
+msgid "Supprimer la bibliothèque"
+msgstr "Bibliotheek verwijderen"
+
+msgid "Supprimer les segments déjà lus"
+msgstr "Al afgespeelde segmenten verwijderen"
+
+msgid "Supprimée au prochain redémarrage du serveur."
+msgstr "Verwijderd bij de volgende herstart van de server."
+
+msgid "Surveillance en temps réel"
+msgstr "Realtime bewaking"
+
+msgid "Séparé par des virgules. Vide : celui de la machine."
+msgstr "Gescheiden door komma's. Leeg: dat van de machine."
+
+msgid "Séparées par des virgules."
+msgstr "Gescheiden door komma's."
+
+msgid "Séparées par des virgules. Vide : toutes."
+msgstr "Gescheiden door komma's. Leeg: alle."
+
+msgid "Séparés par des virgules."
+msgstr "Gescheiden door komma's."
+
+msgid "Tab :"
+msgstr "Tab:"
+
+msgid "Tag"
+msgstr "Tag"
+
+msgid "Tags"
+msgstr "Tags"
+
+msgid "Tags bloqués"
+msgstr "Geblokkeerde tags"
+
+msgid "Taille des images de chapitres"
+msgstr "Grootte van hoofdstukafbeeldingen"
+
+msgid "Thème de Turtlefin"
+msgstr "Turtlefin-thema"
+
+msgid "Thème enregistré : {}"
+msgstr "Thema opgeslagen: {}"
+
+msgid "Thème installé et choisi : il s'applique au prochain lancement de Turtlefin."
+msgstr "Thema geïnstalleerd en gekozen: het geldt bij de volgende start van Turtlefin."
+
+msgid "Titres et résumés téléchargés."
+msgstr "Gedownloade titels en samenvattingen."
+
+msgid "Tous les 30 jours"
+msgstr "Elke 30 dagen"
+
+msgid "Tous les 60 jours"
+msgstr "Elke 60 dagen"
+
+msgid "Tous les 90 jours"
+msgstr "Elke 90 dagen"
+
+msgid "Tous les jours à {}"
+msgstr "Elke dag om {}"
+
+msgid "Tout"
+msgstr "Alles"
+
+msgid "Tout est en cache : {} médias."
+msgstr "Alles staat in de cache: {} media."
+
+msgid "Tout mettre en cache"
+msgstr "Alles cachen"
+
+msgid "Toutes les années"
+msgstr "Alle jaren"
+
+msgid "Toutes les notes"
+msgstr "Alle scores"
+
+msgid "Toutes les {} h"
+msgstr "Elke {} u"
+
+msgid "Transcodage"
+msgstr "Transcodering"
+
+msgid "Transcodage audio"
+msgstr "Audiotranscodering"
+
+msgid "Très basse"
+msgstr "Zeer laag"
+
+msgid "Très haute"
+msgstr "Zeer hoog"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Type de contenu"
+msgstr "Inhoudstype"
+
+msgid "Tâches en cours"
+msgstr "Lopende taken"
+
+msgid "Télévision en direct, par exemple."
+msgstr "Live tv, bijvoorbeeld."
+
+msgid "Un nom, un type de contenu et un dossier."
+msgstr "Een naam, een inhoudstype en een map."
+
+msgid "Un seul choix."
+msgstr "Eén keuze."
+
+msgid "Une image toutes les (ms)"
+msgstr "Eén afbeelding elke (ms)"
+
+msgid "Version"
+msgstr "Versie"
+
+msgid "Vide : le nom donné par l'appareil."
+msgstr "Leeg: de naam die het apparaat geeft."
+
+msgid "Vidéo choisie : elle demande plus de ressources qu'une image. « Essayer dans Turtlefin » la montre en mouvement."
+msgstr "Video gekozen: het vraagt meer middelen dan een afbeelding. “Proberen in Turtlefin” toont het in beweging."
+
+msgid "Vidéos et photos"
+msgstr "Video's en foto's"
+
+msgid "Vitesse de l'encodeur"
+msgstr "Snelheid van de encoder"
+
+msgid "Voir toute l'activité"
+msgstr "Alle activiteit bekijken"
+
+msgid "Volume de la musique de fond"
+msgstr "Volume van de achtergrondmuziek"
+
+msgid "Vue d'ensemble"
+msgstr "Overzicht"
+
+msgid "Vus ou non"
+msgstr "Bekeken of niet"
+
+msgid "en cours ({} %)"
+msgstr "bezig ({} %)"
+
+msgid "en pause"
+msgstr "gepauzeerd"
+
+msgid "et plus"
+msgstr "en hoger"
+
+msgid "il faut un nombre"
+msgstr "er is een getal nodig"
+
+msgid "{} médias lus. Appuie pour arrêter."
+msgstr "{} media gelezen. Druk om te stoppen."
+
+msgid "« {} » n'est pas une couleur : écris #rrggbb ou #rrggbbaa."
+msgstr "“{}” is geen kleur: schrijf #rrggbb of #rrggbbaa."
+
+msgid "« {} » passe avant le mod précédent (ordre de chargement)."
+msgstr "“{}” laadt nu vóór de vorige mod (laadvolgorde)."
+
+msgid "À demander (Seerr, sans les filtres)"
+msgstr "Aan te vragen (Seerr, zonder de filters)"
+
+msgid "À exclure (genres et tags)"
+msgstr "Uit te sluiten (genres en tags)"
+
+msgid "Écran d'accueil de l'interface web"
+msgstr "Startscherm van de webinterface"
+
+msgid "Écran de pause"
+msgstr "Pauzescherm"
+
+msgid "Écrit un avertissement dans le journal."
+msgstr "Schrijft een waarschuwing in het logboek."
+
+msgid "État"
+msgstr "Status"
+
+msgid "écris une heure, par exemple 3:30"
+msgstr "schrijf een tijd, bijvoorbeeld 3:30"
+
+msgid "{n} résultat"
+msgid_plural "{n} résultats"
+msgstr[0] "{n} resultaat"
+msgstr[1] "{n} resultaten"
+
+msgid "{n} sur le serveur"
+msgid_plural "{n} sur le serveur"
+msgstr[0] "{n} op de server"
+msgstr[1] "{n} op de server"
+
+msgid "{n} à demander"
+msgid_plural "{n} à demander"
+msgstr[0] "{n} aan te vragen"
+msgstr[1] "{n} aan te vragen"

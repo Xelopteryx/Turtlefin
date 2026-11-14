@@ -2735,3 +2735,1173 @@ msgstr "OK: Tasten unten"
 
 msgid "Code oublié : mot de passe de {}"
 msgstr "Code vergessen: Passwort von {}"
+
+msgid "-1 : automatique."
+msgstr "-1: automatisch."
+
+msgid "0 : aucun."
+msgstr "0: keine."
+
+msgid "0 : automatique."
+msgstr "0: automatisch."
+
+msgid "0 : jamais."
+msgstr "0: nie."
+
+msgid "0 : sans limite."
+msgstr "0: keine Grenze."
+
+msgid "0 : selon le processeur."
+msgstr "0: je nach Prozessor."
+
+msgid "Accès"
+msgstr "Zugriff"
+
+msgid "Accélération"
+msgstr "Beschleunigung"
+
+msgid "Accélération matérielle"
+msgstr "Hardwarebeschleunigung"
+
+msgid "Activer HTTPS"
+msgstr "HTTPS aktivieren"
+
+msgid "Activité gardée (jours)"
+msgstr "Aktivität behalten (Tage)"
+
+msgid "Activité récente"
+msgstr "Letzte Aktivität"
+
+msgid "Activé : ces adresses sont refusées ; sinon, elles seules sont acceptées."
+msgstr "Ein: diese Adressen werden abgelehnt; sonst werden nur sie akzeptiert."
+
+msgid "Activée"
+msgstr "Aktiviert"
+
+msgid "Actualisation automatique"
+msgstr "Automatische Aktualisierung"
+
+msgid "Actualisations en parallèle"
+msgstr "Parallele Aktualisierungen"
+
+msgid "Adresse (manifest.json)"
+msgstr "Adresse (manifest.json)"
+
+msgid "Adresses"
+msgstr "Adressen"
+
+msgid "Adresses d'écoute"
+msgstr "Abhöradressen"
+
+msgid "Adresses publiées"
+msgstr "Veröffentlichte Adressen"
+
+msgid "Affiche une image pendant le chargement."
+msgstr "Zeigt beim Laden ein Bild."
+
+msgid "Affiché sous le formulaire de connexion de l'interface web."
+msgstr "Wird unter dem Anmeldeformular der Weboberfläche angezeigt."
+
+msgid "Ajouter"
+msgstr "Hinzufügen"
+
+msgid "Ajouter : au démarrage du serveur"
+msgstr "Hinzufügen: beim Serverstart"
+
+msgid "Ajouter : tous les jours"
+msgstr "Hinzufügen: jeden Tag"
+
+msgid "Ajouter : toutes les…"
+msgstr "Hinzufügen: alle…"
+
+msgid "Ajouter un dossier"
+msgstr "Ordner hinzufügen"
+
+msgid "Ajouter un dépôt"
+msgstr "Repository hinzufügen"
+
+msgid "Algorithme"
+msgstr "Algorithmus"
+
+msgid "Amplification du mixage stéréo"
+msgstr "Verstärkung beim Stereo-Downmix"
+
+msgid "Analyses en parallèle"
+msgstr "Parallele Scans"
+
+msgid "Année de sortie"
+msgstr "Erscheinungsjahr"
+
+msgid "Aperçu"
+msgstr "Vorschau"
+
+msgid "Aperçus"
+msgstr "Vorschaubilder"
+
+msgid "Appareil renommé."
+msgstr "Gerät umbenannt."
+
+msgid "Appareils actifs"
+msgstr "Aktive Geräte"
+
+msgid "Apparence"
+msgstr "Darstellung"
+
+msgid "Appli"
+msgstr "App"
+
+msgid "Appliqué à l'interface web du serveur."
+msgstr "Wird auf die Weboberfläche des Servers angewendet."
+
+msgid "Après : le média est considéré comme vu."
+msgstr "Danach: das Medium gilt als gesehen."
+
+msgid "Après ce délai en pause : logo du média, épisode et résumé à l'écran."
+msgstr "Nach dieser Pausendauer: Logo, Folge und Zusammenfassung auf dem Bildschirm."
+
+msgid "Après {} s"
+msgstr "Nach {} s"
+
+msgid "Arrêter la lecture"
+msgstr "Wiedergabe stoppen"
+
+msgid "Attendre la fin"
+msgstr "Bis zum Ende warten"
+
+msgid "Au démarrage du serveur"
+msgstr "Beim Serverstart"
+
+msgid "Aucun mod installé."
+msgstr "Kein Mod installiert."
+
+msgid "Aucun nom ne contient ce texte."
+msgstr "Kein Name enthält diesen Text."
+
+msgid "Aucune distribution connue pour ce titre."
+msgstr "Keine Besetzung für diesen Titel bekannt."
+
+msgid "Aucune limite"
+msgstr "Keine Grenze"
+
+msgid "Automatique"
+msgstr "Automatisch"
+
+msgid "Avance avant la limite (s)"
+msgstr "Vorlauf vor der Grenze (s)"
+
+msgid "Avancé"
+msgstr "Erweitert"
+
+msgid "Avant 1970"
+msgstr "Vor 1970"
+
+msgid "Avant : le média est considéré comme non commencé."
+msgstr "Davor: das Medium gilt als nicht begonnen."
+
+msgid "Base de données et réglages, sur le serveur."
+msgstr "Datenbank und Einstellungen, auf dem Server."
+
+msgid "Basse"
+msgstr "Niedrig"
+
+msgid "Bibliothèque créée."
+msgstr "Bibliothek erstellt."
+
+msgid "Bibliothèque introuvable."
+msgstr "Bibliothek nicht gefunden."
+
+msgid "Bibliothèque renommée."
+msgstr "Bibliothek umbenannt."
+
+msgid "Bibliothèque supprimée."
+msgstr "Bibliothek gelöscht."
+
+msgid "Bien plus rapide, moins précis."
+msgstr "Viel schneller, weniger genau."
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Cache plein : {} médias lus."
+msgstr "Cache voll: {} Medien gelesen."
+
+msgid "Cacher les médias sans classification"
+msgstr "Medien ohne Altersfreigabe ausblenden"
+
+msgid "Caché à la connexion"
+msgstr "Bei der Anmeldung ausgeblendet"
+
+msgid "Ce fichier n'est pas un thème de Turtlefin."
+msgstr "Diese Datei ist kein Turtlefin-Design."
+
+msgid "Celle de la vidéo"
+msgstr "Die des Videos"
+
+msgid "Certificat"
+msgstr "Zertifikat"
+
+msgid "Ces réglages prennent effet au redémarrage du serveur. Une erreur peut le rendre injoignable."
+msgstr "Diese Einstellungen gelten nach dem Neustart des Servers. Ein Fehler kann ihn unerreichbar machen."
+
+msgid "Cette collection est vide."
+msgstr "Diese Sammlung ist leer."
+
+msgid "Cette lecture est terminée."
+msgstr "Diese Wiedergabe ist beendet."
+
+msgid "Changements enregistrés : ils s'appliquent au redémarrage."
+msgstr "Änderungen gespeichert: sie gelten nach einem Neustart."
+
+msgid "Chapitres"
+msgstr "Kapitel"
+
+msgid "Chapitres factices toutes les (s)"
+msgstr "Platzhalterkapitel alle (s)"
+
+msgid "Chaque appui passe au niveau suivant."
+msgstr "Jeder Druck wechselt zur nächsten Stufe."
+
+msgid "Charger plus tôt"
+msgstr "Früher laden"
+
+msgid "Chemin du fichier .pfx sur le serveur."
+msgstr "Pfad der .pfx-Datei auf dem Server."
+
+msgid "Chemin sur le serveur"
+msgstr "Pfad auf dem Server"
+
+msgid "Chemin sur le serveur."
+msgstr "Pfad auf dem Server."
+
+msgid "Chemins des images dans les NFO"
+msgstr "Bildpfade in NFO-Dateien"
+
+msgid "Classification maximale"
+msgstr "Höchste Altersfreigabe"
+
+msgid "Classifications et dates de sortie."
+msgstr "Altersfreigaben und Erscheinungsdaten."
+
+msgid "Clips"
+msgstr "Clips"
+
+msgid "Clé créée."
+msgstr "Schlüssel erstellt."
+
+msgid "Collection"
+msgstr "Sammlung"
+
+msgid "Collection : {}"
+msgstr "Sammlung: {}"
+
+msgid "Collections"
+msgstr "Sammlungen"
+
+msgid "Colonnes par planche"
+msgstr "Spalten pro Bogen"
+
+msgid "Commande envoyée."
+msgstr "Befehl gesendet."
+
+msgid "Compte dont l'avancement est enregistré"
+msgstr "Konto, dessen Fortschritt gespeichert wird"
+
+msgid "Compte renommé."
+msgstr "Konto umbenannt."
+
+msgid "Conservation"
+msgstr "Aufbewahrung"
+
+msgid "Contenu externe dans les suggestions"
+msgstr "Externe Inhalte in Vorschlägen"
+
+msgid "Contrôle parental"
+msgstr "Jugendschutz"
+
+msgid "Conversion du conteneur"
+msgstr "Containerkonvertierung"
+
+msgid "Convertit le HDR pour les écrans SDR."
+msgstr "Wandelt HDR für SDR-Bildschirme um."
+
+msgid "Copie extrafanart dans extrathumbs."
+msgstr "Kopiert extrafanart nach extrathumbs."
+
+msgid "Créer la bibliothèque"
+msgstr "Bibliothek erstellen"
+
+msgid "Créer les aperçus de la barre de temps"
+msgstr "Vorschaubilder der Zeitleiste erstellen"
+
+msgid "Créer les aperçus pendant l'analyse"
+msgstr "Vorschaubilder beim Scan erstellen"
+
+msgid "Créer une sauvegarde"
+msgstr "Sicherung erstellen"
+
+msgid "Dans ta bibliothèque"
+msgstr "In deiner Bibliothek"
+
+msgid "Dates de lecture, vu ou non, favoris."
+msgstr "Wiedergabedaten, gesehen oder nicht, Favoriten."
+
+msgid "Dernier compte"
+msgstr "Letztes Konto"
+
+msgid "Dernière fois : {} le {}"
+msgstr "Zuletzt: {} am {}"
+
+msgid "Donne d'abord un nom au thème (onglet Général)."
+msgstr "Gib dem Design zuerst einen Namen (Reiter Allgemein)."
+
+msgid "Données du serveur"
+msgstr "Serverdaten"
+
+msgid "Dossier"
+msgstr "Ordner"
+
+msgid "Dossier ajouté."
+msgstr "Ordner hinzugefügt."
+
+msgid "Dossier de la police de secours"
+msgstr "Ordner der Ersatzschrift"
+
+msgid "Dossier des mods"
+msgstr "Mod-Ordner"
+
+msgid "Dossier des métadonnées"
+msgstr "Metadatenordner"
+
+msgid "Dossier du cache"
+msgstr "Cache-Ordner"
+
+msgid "Dossier du transcodage"
+msgstr "Transkodierungsordner"
+
+msgid "Dossier retiré."
+msgstr "Ordner entfernt."
+
+msgid "Dossiers"
+msgstr "Ordner"
+
+msgid "Doubler la fréquence d'images"
+msgstr "Bildrate verdoppeln"
+
+msgid "Droits"
+msgstr "Rechte"
+
+msgid "Dupliquer les vignettes"
+msgstr "Miniaturen duplizieren"
+
+msgid "Durée"
+msgstr "Dauer"
+
+msgid "Durée minimale pour reprendre (s)"
+msgstr "Mindestlänge zum Fortsetzen (s)"
+
+msgid "Débit"
+msgstr "Bitrate"
+
+msgid "Débit audio variable"
+msgstr "Variable Audio-Bitrate"
+
+msgid "Débit maximal à distance (Mbit/s)"
+msgstr "Maximale Remote-Bitrate (Mbit/s)"
+
+msgid "Débit maximal à distance (bit/s)"
+msgstr "Maximale Remote-Bitrate (bit/s)"
+
+msgid "Déclencheur ajouté."
+msgstr "Auslöser hinzugefügt."
+
+msgid "Déclencheur retiré."
+msgstr "Auslöser entfernt."
+
+msgid "Déclencheurs"
+msgstr "Auslöser"
+
+msgid "Décodage HEVC 10 bits"
+msgstr "10-Bit-HEVC-Dekodierung"
+
+msgid "Décodage VP9 10 bits"
+msgstr "10-Bit-VP9-Dekodierung"
+
+msgid "Découverte sur le réseau"
+msgstr "Netzwerkerkennung"
+
+msgid "Déjà vus"
+msgstr "Bereits gesehen"
+
+msgid "Délai d'extraction (min)"
+msgstr "Extraktionsverzögerung (min)"
+
+msgid "Dépose un mod dans « {} », puis reviens sur cette page."
+msgstr "Lege einen Mod in „{}“ ab und kehre dann zu dieser Seite zurück."
+
+msgid "Dépôt ajouté."
+msgstr "Repository hinzugefügt."
+
+msgid "Dépôt retiré."
+msgstr "Repository entfernt."
+
+msgid "Dépôts"
+msgstr "Repositorys"
+
+msgid "Désaturation"
+msgstr "Entsättigung"
+
+msgid "Désentrelacement"
+msgstr "Deinterlacing"
+
+msgid "Désinstaller"
+msgstr "Deinstallieren"
+
+msgid "Détails"
+msgstr "Details"
+
+msgid "Effacer"
+msgstr "Löschen"
+
+msgid "Elle est analysée aussitôt."
+msgstr "Sie wird sofort gescannt."
+
+msgid "En arrière-plan"
+msgstr "Im Hintergrund"
+
+msgid "Encodage AV1"
+msgstr "AV1-Kodierung"
+
+msgid "Encodage HEVC"
+msgstr "HEVC-Kodierung"
+
+msgid "Encodage matériel"
+msgstr "Hardwarekodierung"
+
+msgid "Encore une fois pour retirer ce compte et fermer sa session"
+msgstr "Noch einmal, um dieses Konto zu entfernen und seine Sitzung zu schließen"
+
+msgid "Enregistrement impossible : {}"
+msgstr "Speichern nicht möglich: {}"
+
+msgid "Enregistrer les aperçus avec les médias"
+msgstr "Vorschaubilder bei den Medien speichern"
+
+msgid "Enregistrer les images avec les médias"
+msgstr "Bilder bei den Medien speichern"
+
+msgid "Enregistrer les sous-titres avec les médias"
+msgstr "Untertitel bei den Medien speichern"
+
+msgid "Envoyer un message"
+msgstr "Nachricht senden"
+
+msgid "Essai impossible : {}"
+msgstr "Probe nicht möglich: {}"
+
+msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct."
+msgstr "Probe gestartet: Turtlefin öffnet sich mit einem Demoserver. Deine Änderungen gelten sofort."
+
+msgid "Exclure"
+msgstr "Ausschließen"
+
+msgid "Exclus"
+msgstr "Ausgeschlossen"
+
+msgid "Exiger HTTPS"
+msgstr "HTTPS verlangen"
+
+msgid "Extension désinstallée (au prochain redémarrage)."
+msgstr "Erweiterung deinstalliert (beim nächsten Neustart)."
+
+msgid "Extraire les chapitres pendant l'analyse"
+msgstr "Kapitel beim Scan extrahieren"
+
+msgid "Extraire les images de chapitres"
+msgstr "Kapitelbilder extrahieren"
+
+msgid "Extraire les sous-titres à la demande"
+msgstr "Untertitel bei Bedarf extrahieren"
+
+msgid "Fichiers NFO"
+msgstr "NFO-Dateien"
+
+msgid "Fichiers acceptés"
+msgstr "Erlaubte Dateien"
+
+msgid "Fichiers temporaires"
+msgstr "Temporäre Dateien"
+
+msgid "Fichiers temporaires du serveur (redémarrage nécessaire)."
+msgstr "Temporäre Dateien des Servers (Neustart nötig)."
+
+msgid "File d'attente de multiplexage"
+msgstr "Muxing-Warteschlange"
+
+msgid "Films et séries mélangés"
+msgstr "Gemischte Filme und Serien"
+
+msgid "Fils d'encodage"
+msgstr "Kodierungsthreads"
+
+msgid "Fils utilisés"
+msgstr "Verwendete Threads"
+
+msgid "Filtre d'adresses à distance"
+msgstr "Filter für entfernte Adressen"
+
+msgid "Filtrer… (ex. : surv)"
+msgstr "Filtern… (z. B. surv)"
+
+msgid "Format des dates"
+msgstr "Datumsformat"
+
+msgid "Formats décodés par la puce"
+msgstr "Vom Chip dekodierte Formate"
+
+msgid "Genre"
+msgstr "Genre"
+
+msgid "Genres"
+msgstr "Genres"
+
+msgid "Général"
+msgstr "Allgemein"
+
+msgid "Gérer les collections"
+msgstr "Sammlungen verwalten"
+
+msgid "Gérer les paroles"
+msgstr "Liedtexte verwalten"
+
+msgid "Gérer les sous-titres"
+msgstr "Untertitel verwalten"
+
+msgid "Haute"
+msgstr "Hoch"
+
+msgid "Heure (3:30)"
+msgstr "Uhrzeit (3:30)"
+
+msgid "Heure, par exemple 3:30."
+msgstr "Uhrzeit, zum Beispiel 3:30."
+
+msgid "Il devra se reconnecter."
+msgstr "Die Person muss sich erneut anmelden."
+
+msgid "Il s'affiche sur l'écran de cet appareil."
+msgstr "Sie erscheint auf dem Bildschirm dieses Geräts."
+
+msgid "Images encodées en parallèle"
+msgstr "Parallel kodierte Bilder"
+
+msgid "Images et informations téléchargées (redémarrage nécessaire)."
+msgstr "Heruntergeladene Bilder und Informationen (Neustart nötig)."
+
+msgid "Informations depuis Internet"
+msgstr "Informationen aus dem Internet"
+
+msgid "Journal des mods"
+msgstr "Mod-Protokoll"
+
+msgid "Journaux envoyés par les applis"
+msgstr "Von Apps gesendete Protokolle"
+
+msgid "Journaux gardés (jours)"
+msgstr "Protokolle behalten (Tage)"
+
+msgid "Lancer maintenant"
+msgstr "Jetzt ausführen"
+
+msgid "Langue du serveur : messages, activité, noms de tâches."
+msgstr "Serversprache: Meldungen, Aktivität, Aufgabennamen."
+
+msgid "Langue préférée"
+msgstr "Bevorzugte Sprache"
+
+msgid "Langues audio"
+msgstr "Audiosprachen"
+
+msgid "Largeurs des images"
+msgstr "Bildbreiten"
+
+msgid "Le nom que voient les applis."
+msgstr "Der Name, den Apps sehen."
+
+msgid "Le serveur n'en propose aucun."
+msgstr "Der Server bietet keine an."
+
+msgid "Le {} à {}"
+msgstr "Am {} um {}"
+
+msgid "Lecture des médias"
+msgstr "Medienwiedergabe"
+
+msgid "Les applis peuvent envoyer leurs journaux au serveur."
+msgstr "Apps können ihre Protokolle an den Server senden."
+
+msgid "Les applis trouvent le serveur toutes seules."
+msgstr "Apps finden den Server von selbst."
+
+msgid "Les changements de fichiers sont vus aussitôt."
+msgstr "Dateiänderungen werden sofort erkannt."
+
+msgid "Les changements prennent effet au prochain démarrage de Turtlefin."
+msgstr "Änderungen gelten beim nächsten Start von Turtlefin."
+
+msgid "Les fichiers restent sur le disque."
+msgstr "Die Dateien bleiben auf dem Datenträger."
+
+msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."
+msgstr "Mods werden von anderen Personen geschrieben: Turtlefin prüft sie nicht und sein Autor haftet nicht dafür. Jeder Mod läuft in einer Sandbox: Er kann weder deine Dateien lesen noch Programme starten noch Daten ins Internet senden; er kann nur das Aussehen ändern, Meldungen anzeigen und die Medien des Servers lesen. Bevorzuge trotzdem vertrauenswürdige Quellen."
+
+msgid "Les médias au-dessus sont cachés à ce compte."
+msgstr "Medien darüber sind für dieses Konto ausgeblendet."
+
+msgid "Lignes par planche"
+msgstr "Zeilen pro Bogen"
+
+msgid "Limiter la conversion"
+msgstr "Transkodierung drosseln"
+
+msgid "Lire {}"
+msgstr "{} abspielen"
+
+msgid "Liste de blocage"
+msgstr "Sperrliste"
+
+msgid "Livres"
+msgstr "Bücher"
+
+msgid "Livres audio"
+msgstr "Hörbücher"
+
+msgid "Luminance de crête"
+msgstr "Spitzenhelligkeit"
+
+msgid "Mappage des tons"
+msgstr "Tonemapping"
+
+msgid "Mappage des tons (HDR)"
+msgstr "Tonemapping (HDR)"
+
+msgid "Message"
+msgstr "Nachricht"
+
+msgid "Message de connexion"
+msgstr "Anmeldenachricht"
+
+msgid "Message envoyé."
+msgstr "Nachricht gesendet."
+
+msgid "Messages et erreurs des mods chargés (mods.log)."
+msgstr "Meldungen und Fehler der geladenen Mods (mods.log)."
+
+msgid "Mesurer le volume sonore"
+msgstr "Lautheit messen"
+
+msgid "Mettre en pause"
+msgstr "Pausieren"
+
+msgid "Mise en cache arrêtée : {} médias lus."
+msgstr "Zwischenspeichern gestoppt: {} Medien gelesen."
+
+msgid "Mixage stéréo"
+msgstr "Stereo-Downmix"
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Mods"
+msgstr "Mods"
+
+msgid "Mon thème"
+msgstr "Mein Design"
+
+msgid "Musique de fond du thème"
+msgstr "Hintergrundmusik des Designs"
+
+msgid "Métadonnées"
+msgstr "Metadaten"
+
+msgid "N'apparaît pas dans la liste de « Qui regarde ? »."
+msgstr "Erscheint nicht in der Liste „Wer schaut?“."
+
+msgid "Nom affiché"
+msgstr "Anzeigename"
+
+msgid "Nom de l'application"
+msgstr "Anwendungsname"
+
+msgid "Nom du dépôt"
+msgstr "Name des Repositorys"
+
+msgid "Nombre"
+msgstr "Anzahl"
+
+msgid "Nombre d'heures"
+msgstr "Anzahl Stunden"
+
+msgid "Nombre d'heures."
+msgstr "Anzahl Stunden."
+
+msgid "Non défini"
+msgstr "Nicht festgelegt"
+
+msgid "Note"
+msgstr "Bewertung"
+
+msgid "Note minimale"
+msgstr "Mindestbewertung"
+
+msgid "Nouvelle bibliothèque"
+msgstr "Neue Bibliothek"
+
+msgid "Nouvelle clé"
+msgstr "Neuer Schlüssel"
+
+msgid "Options"
+msgstr "Optionen"
+
+msgid "Ouverture automatique du port (UPnP)"
+msgstr "Automatische Portfreigabe (UPnP)"
+
+msgid "Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."
+msgstr "Öffnet den Turtlefin Theme Creator: Farben, Formen, Hintergrund, Logo, Musik, Live-Probe."
+
+msgid "Ouvrir"
+msgstr "Öffnen"
+
+msgid "Pages et images de toutes les bibliothèques de ce compte : tout s'ouvre ensuite sans attendre. Peut durer longtemps."
+msgstr "Seiten und Bilder aller Bibliotheken dieses Kontos: danach öffnet sich alles ohne Wartezeit. Kann lange dauern."
+
+msgid "Par exemple /jellyfin."
+msgstr "Zum Beispiel /jellyfin."
+
+msgid "Partage public"
+msgstr "Öffentliche Freigabe"
+
+msgid "Pas de sous-titres si le fichier en contient"
+msgstr "Keine Untertitel, wenn die Datei welche enthält"
+
+msgid "Pas encore vus"
+msgstr "Noch nicht gesehen"
+
+msgid "Pays"
+msgstr "Land"
+
+msgid "Pendant l'analyse"
+msgstr "Während des Scans"
+
+msgid "Performances"
+msgstr "Leistung"
+
+msgid "Piloter les appareils partagés"
+msgstr "Geteilte Geräte steuern"
+
+msgid "Piloter les autres comptes"
+msgstr "Andere Konten steuern"
+
+msgid "Plage"
+msgstr "Bereich"
+
+msgid "Plus bas : meilleure qualité."
+msgstr "Niedriger: bessere Qualität."
+
+msgid "Plus court : pas de reprise."
+msgstr "Kürzer: kein Fortsetzen."
+
+msgid "Plus lent : de meilleures images pour le même débit."
+msgstr "Langsamer: bessere Bilder bei gleicher Bitrate."
+
+msgid "Plusieurs choix possibles."
+msgstr "Mehrfachauswahl möglich."
+
+msgid "Plusieurs choix · tape pour filtrer · → : index A–Z"
+msgstr "Mehrfachauswahl · tippen zum Filtern · →: Index A–Z"
+
+msgid "Plusieurs choix · → : index A–Z"
+msgstr "Mehrfachauswahl · →: Index A–Z"
+
+msgid "Police de secours"
+msgstr "Ersatzschrift"
+
+msgid "Port HTTP"
+msgstr "HTTP-Port"
+
+msgid "Port HTTP public"
+msgstr "Öffentlicher HTTP-Port"
+
+msgid "Port HTTPS"
+msgstr "HTTPS-Port"
+
+msgid "Port HTTPS public"
+msgstr "Öffentlicher HTTPS-Port"
+
+msgid "Pour tous les appareils hors du réseau. 0 : sans limite."
+msgstr "Für alle Geräte außerhalb des Netzwerks. 0: keine Grenze."
+
+msgid "Pour une application qui parle au serveur sans compte."
+msgstr "Für eine Anwendung, die ohne Konto mit dem Server spricht."
+
+msgid "Priorité"
+msgstr "Priorität"
+
+msgid "Pris en compte au prochain redémarrage du serveur."
+msgstr "Wird beim nächsten Serverneustart übernommen."
+
+msgid "Proxys connus"
+msgstr "Bekannte Proxys"
+
+msgid "Préfixe d'adresse"
+msgstr "Basis-URL"
+
+msgid "Préférer le décodeur du système"
+msgstr "Systemdecoder bevorzugen"
+
+msgid "Préférer les informations d'épisode intégrées"
+msgstr "Eingebettete Episodeninfos bevorzugen"
+
+msgid "Préférer les titres intégrés aux fichiers"
+msgstr "In Dateien eingebettete Titel bevorzugen"
+
+msgid "Public"
+msgstr "Öffentlich"
+
+msgid "Puce graphique utilisée pour convertir les vidéos."
+msgstr "Grafikchip zum Konvertieren von Videos."
+
+msgid "Périphérique Quick Sync"
+msgstr "Quick-Sync-Gerät"
+
+msgid "Périphérique VA-API"
+msgstr "VA-API-Gerät"
+
+msgid "Qualité (1 à 31)"
+msgstr "Qualität (1 bis 31)"
+
+msgid "Qualité H.264 (CRF)"
+msgstr "H.264-Qualität (CRF)"
+
+msgid "Qualité HEVC (CRF)"
+msgstr "HEVC-Qualität (CRF)"
+
+msgid "Qualité JPEG (%)"
+msgstr "JPEG-Qualität (%)"
+
+msgid "Recherche avancée"
+msgstr "Erweiterte Suche"
+
+msgid "Regrouper les films en collections"
+msgstr "Filme in Sammlungen gruppieren"
+
+msgid "Regrouper les séries en collections"
+msgstr "Serien in Sammlungen gruppieren"
+
+msgid "Regrouper les séries réparties en plusieurs dossiers"
+msgstr "Auf mehrere Ordner verteilte Serien zusammenfassen"
+
+msgid "Relit les informations des médias."
+msgstr "Liest die Medieninformationen neu ein."
+
+msgid "Remplacer les chemins"
+msgstr "Pfadersetzung"
+
+msgid "Reprendre {} · {}"
+msgstr "{} · {} fortsetzen"
+
+msgid "Reprendre à "
+msgstr "Fortsetzen bei "
+
+msgid "Reprise"
+msgstr "Fortsetzen"
+
+msgid "Reprise jusqu'à (%)"
+msgstr "Fortsetzen bis (%)"
+
+msgid "Reprise à partir de (%)"
+msgstr "Fortsetzen ab (%)"
+
+msgid "Reprise à partir de (min)"
+msgstr "Fortsetzen ab (min)"
+
+msgid "Restauration lancée : le serveur redémarre."
+msgstr "Wiederherstellung gestartet: der Server startet neu."
+
+msgid "Restaurer"
+msgstr "Wiederherstellen"
+
+msgid "Reste au plus pour reprendre (min)"
+msgstr "Höchstens verbleibende Zeit zum Fortsetzen (min)"
+
+msgid "Retirer"
+msgstr "Entfernen"
+
+msgid "Retour à la liste."
+msgstr "Zurück zur Liste."
+
+msgid "Rien de semblable pour l'instant."
+msgstr "Noch nichts Ähnliches."
+
+msgid "Réglages du serveur"
+msgstr "Servereinstellungen"
+
+msgid "Réponse lente à partir de (ms)"
+msgstr "Langsame Antwort ab (ms)"
+
+msgid "Réseau local"
+msgstr "Lokales Netzwerk"
+
+msgid "S'arrête en avance sur la lecture : moins de processeur."
+msgstr "Stoppt vor der Wiedergabe: weniger Prozessorlast."
+
+msgid "Sans réencoder la vidéo ni le son."
+msgstr "Ohne Video oder Ton neu zu kodieren."
+
+msgid "Sauvegarde créée."
+msgstr "Sicherung erstellt."
+
+msgid "Sauvegarder"
+msgstr "Speichern"
+
+msgid "Sauvegardes"
+msgstr "Sicherungen"
+
+msgid "Seerr…"
+msgstr "Seerr…"
+
+msgid "Segments gardés (s)"
+msgstr "Behaltene Segmente (s)"
+
+msgid "Selon les substitutions du serveur."
+msgstr "Nach den Pfadersetzungen des Servers."
+
+msgid "Session inactive après (min)"
+msgstr "Sitzung inaktiv nach (min)"
+
+msgid "Sessions simultanées au plus"
+msgstr "Höchstzahl gleichzeitiger Sitzungen"
+
+msgid "Seulement les images clés"
+msgstr "Nur Schlüsselbilder"
+
+msgid "Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."
+msgstr "Falls das Design eine hat. Sie verstummt, sobald ein Medium geöffnet ist, auch pausiert."
+
+msgid "Signaler les réponses lentes"
+msgstr "Langsame Antworten melden"
+
+msgid "Son nom, puis son adresse (manifest.json)."
+msgstr "Sein Name, dann seine Adresse (manifest.json)."
+
+msgid "Studio"
+msgstr "Studio"
+
+msgid "Style personnalisé (CSS)"
+msgstr "Eigener Stil (CSS)"
+
+msgid "Suggestions"
+msgstr "Vorschläge"
+
+msgid "Suppression"
+msgstr "Löschen"
+
+msgid "Supprimer l'appareil"
+msgstr "Gerät löschen"
+
+msgid "Supprimer la bibliothèque"
+msgstr "Bibliothek löschen"
+
+msgid "Supprimer les segments déjà lus"
+msgstr "Bereits abgespielte Segmente löschen"
+
+msgid "Supprimée au prochain redémarrage du serveur."
+msgstr "Wird beim nächsten Serverneustart gelöscht."
+
+msgid "Surveillance en temps réel"
+msgstr "Echtzeitüberwachung"
+
+msgid "Séparé par des virgules. Vide : celui de la machine."
+msgstr "Durch Kommas getrennt. Leer: das des Rechners."
+
+msgid "Séparées par des virgules."
+msgstr "Durch Kommas getrennt."
+
+msgid "Séparées par des virgules. Vide : toutes."
+msgstr "Durch Kommas getrennt. Leer: alle."
+
+msgid "Séparés par des virgules."
+msgstr "Durch Kommas getrennt."
+
+msgid "Tab :"
+msgstr "Tab:"
+
+msgid "Tag"
+msgstr "Tag"
+
+msgid "Tags"
+msgstr "Tags"
+
+msgid "Tags bloqués"
+msgstr "Gesperrte Tags"
+
+msgid "Taille des images de chapitres"
+msgstr "Größe der Kapitelbilder"
+
+msgid "Thème de Turtlefin"
+msgstr "Turtlefin-Design"
+
+msgid "Thème enregistré : {}"
+msgstr "Design gespeichert: {}"
+
+msgid "Thème installé et choisi : il s'applique au prochain lancement de Turtlefin."
+msgstr "Design installiert und gewählt: es gilt beim nächsten Start von Turtlefin."
+
+msgid "Titres et résumés téléchargés."
+msgstr "Heruntergeladene Titel und Zusammenfassungen."
+
+msgid "Tous les 30 jours"
+msgstr "Alle 30 Tage"
+
+msgid "Tous les 60 jours"
+msgstr "Alle 60 Tage"
+
+msgid "Tous les 90 jours"
+msgstr "Alle 90 Tage"
+
+msgid "Tous les jours à {}"
+msgstr "Jeden Tag um {}"
+
+msgid "Tout"
+msgstr "Alle"
+
+msgid "Tout est en cache : {} médias."
+msgstr "Alles zwischengespeichert: {} Medien."
+
+msgid "Tout mettre en cache"
+msgstr "Alles zwischenspeichern"
+
+msgid "Toutes les années"
+msgstr "Alle Jahre"
+
+msgid "Toutes les notes"
+msgstr "Alle Bewertungen"
+
+msgid "Toutes les {} h"
+msgstr "Alle {} h"
+
+msgid "Transcodage"
+msgstr "Transkodierung"
+
+msgid "Transcodage audio"
+msgstr "Audio-Transkodierung"
+
+msgid "Très basse"
+msgstr "Sehr niedrig"
+
+msgid "Très haute"
+msgstr "Sehr hoch"
+
+msgid "Type"
+msgstr "Typ"
+
+msgid "Type de contenu"
+msgstr "Inhaltstyp"
+
+msgid "Tâches en cours"
+msgstr "Laufende Aufgaben"
+
+msgid "Télévision en direct, par exemple."
+msgstr "Live-TV, zum Beispiel."
+
+msgid "Un nom, un type de contenu et un dossier."
+msgstr "Ein Name, ein Inhaltstyp und ein Ordner."
+
+msgid "Un seul choix."
+msgstr "Nur eine Auswahl."
+
+msgid "Une image toutes les (ms)"
+msgstr "Ein Bild alle (ms)"
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Vide : le nom donné par l'appareil."
+msgstr "Leer: der vom Gerät gemeldete Name."
+
+msgid "Vidéo choisie : elle demande plus de ressources qu'une image. « Essayer dans Turtlefin » la montre en mouvement."
+msgstr "Video gewählt: es braucht mehr Ressourcen als ein Bild. „In Turtlefin ausprobieren“ zeigt es in Bewegung."
+
+msgid "Vidéos et photos"
+msgstr "Videos und Fotos"
+
+msgid "Vitesse de l'encodeur"
+msgstr "Encoder-Geschwindigkeit"
+
+msgid "Voir toute l'activité"
+msgstr "Gesamte Aktivität anzeigen"
+
+msgid "Volume de la musique de fond"
+msgstr "Lautstärke der Hintergrundmusik"
+
+msgid "Vue d'ensemble"
+msgstr "Übersicht"
+
+msgid "Vus ou non"
+msgstr "Gesehen oder nicht"
+
+msgid "en cours ({} %)"
+msgstr "läuft ({} %)"
+
+msgid "en pause"
+msgstr "pausiert"
+
+msgid "et plus"
+msgstr "und mehr"
+
+msgid "il faut un nombre"
+msgstr "eine Zahl ist nötig"
+
+msgid "{} médias lus. Appuie pour arrêter."
+msgstr "{} Medien gelesen. Drücken zum Anhalten."
+
+msgid "« {} » n'est pas une couleur : écris #rrggbb ou #rrggbbaa."
+msgstr "„{}“ ist keine Farbe: schreibe #rrggbb oder #rrggbbaa."
+
+msgid "« {} » passe avant le mod précédent (ordre de chargement)."
+msgstr "„{}“ wird nun vor dem vorherigen Mod geladen (Ladereihenfolge)."
+
+msgid "À demander (Seerr, sans les filtres)"
+msgstr "Anfragbar (Seerr, ohne die Filter)"
+
+msgid "À exclure (genres et tags)"
+msgstr "Auszuschließen (Genres und Tags)"
+
+msgid "Écran d'accueil de l'interface web"
+msgstr "Startbild der Weboberfläche"
+
+msgid "Écran de pause"
+msgstr "Pausenbildschirm"
+
+msgid "Écrit un avertissement dans le journal."
+msgstr "Schreibt eine Warnung ins Protokoll."
+
+msgid "État"
+msgstr "Status"
+
+msgid "écris une heure, par exemple 3:30"
+msgstr "gib eine Uhrzeit ein, zum Beispiel 3:30"
+
+msgid "{n} résultat"
+msgid_plural "{n} résultats"
+msgstr[0] "{n} Ergebnis"
+msgstr[1] "{n} Ergebnisse"
+
+msgid "{n} sur le serveur"
+msgid_plural "{n} sur le serveur"
+msgstr[0] "{n} auf dem Server"
+msgstr[1] "{n} auf dem Server"
+
+msgid "{n} à demander"
+msgid_plural "{n} à demander"
+msgstr[0] "{n} anfragbar"
+msgstr[1] "{n} anfragbar"
