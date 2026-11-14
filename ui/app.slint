@@ -2158,6 +2158,8 @@ component ActionButton inherits Rectangle {
     in property <bool> on;
     // Ouvre un menu : chevron vers le bas à droite du texte.
     in property <bool> drop;
+    // Survolé à la souris (pour qu'un bouton s'allume au survol même quand la télécommande a la main).
+    out property <bool> hovered: area.has-hover && !Nav.touch;
     callback clicked();
 
     preferred-width: label.preferred-width + 40px + (root.drop ? 18px : 0px);
@@ -6185,9 +6187,17 @@ export component AppWindow inherits Window {
     property <length> tabs-h: root.d-tabs-on ? 58px * root.k : 0px;
     property <length> d-children-y: root.tabs-y + root.tabs-h;
     // Onglets : leur nom suffit, la place du titre de la première rangée est rendue (cartes remontées).
-    property <length> tab-lift: root.d-tabs-on ? 40px * root.k : 0px;
+    property <length> tab-lift: root.d-tabs-on && !(root.d-tab-eff == 3 && root.detail-rows.length > 1) ? 40px * root.k : 0px;
+    // Saisons et distribution en grille : colonnes, pas d'une ligne à l'autre, hauteurs.
+    property <int> d-cols: max(1, floor((root.width - 64px * root.k + 18px * root.k) / (root.card-w + 18px * root.k)));
+    property <length> d-pitch: root.card-w * 1.5 + 74px * root.k;
+    property <length> d-row1: root.card-w * 1.5 + 132px * root.k;
+    property <length> kids-h: root.child-card-w * root.child-ratio + 132px * root.k
+        + (max(1, ceil(root.child-items.length / root.d-cols)) - 1) * root.d-pitch;
+    property <length> dcast-h: root.detail-rows.length > 0
+        ? root.d-row1 + (max(1, ceil(root.detail-rows[0].items.length / root.d-cols)) - 1) * root.d-pitch : 0px;
     property <length> d-extra-y: root.d-children-y
-        + (!root.kids-on ? 0px : root.ep-list ? root.ep-block-h : root.child-card-w * root.child-ratio + 132px * root.k);
+        + (!root.kids-on ? 0px : root.ep-list ? root.ep-block-h : root.kids-h);
     // Épisodes d'une saison : en liste verticale (comme les .listItem de Style.css) au lieu d'une
     // rangée ; vignette 16:9 à gauche, numéro et titre, durée, début du résumé.
     property <bool> ep-list: root.detail.children-landscape;
@@ -6241,11 +6251,12 @@ export component AppWindow inherits Window {
     property <length> d-view-y: root.d-free ? root.d-free-y : root.d-scroll;
     // Jamais plus loin que le bas de la fiche : quand tout tient à l'écran (grand écran, peu de
     // saisons), choisir une rangée ne fait rien défiler.
-    property <length> d-rows-h: root.detail-rows.length > 0
+    property <length> d-rows-h: root.d-tab-eff == 1 ? root.dcast-h : root.detail-rows.length > 0
         ? (root.detail-rows[root.detail-rows.length - 1].y-px + root.detail-rows[root.detail-rows.length - 1].h-px) * 1px : 0px;
     // Onglet Détails : hauteur de ses lignes (une par information, plus pour les longues).
     property <length> details-real-h;
-    property <length> details-h: root.d-tab-eff == 2 ? root.details-real-h + 40px * root.k : 0px;
+    // Au moins la hauteur d'une rangée d'affiches : passer sur l'onglet Détails ne fait pas remonter la page.
+    property <length> details-h: root.d-tab-eff == 2 ? max(root.details-real-h + 40px * root.k, root.card-w * 1.5 + 132px * root.k) : 0px;
     property <length> d-max: max(0px, root.d-extra-y - root.tab-lift + root.d-rows-h + root.details-h + 24px * root.k - root.height + root.header-h);
     // Défilement qui montre en entier ce qui va de `top` à `bottom` (positions dans la fiche) s'il tient
     // à l'écran ; sinon son haut, sous la barre. Rien si c'est déjà visible depuis le haut de la page.
@@ -6260,13 +6271,19 @@ export component AppWindow inherits Window {
         : root.tabs-y + root.tabs-h;
     // Rangée choisie déjà entièrement visible en haut de la fiche : pas de défilement.
     property <length> d-view-h: root.height - root.header-h;
-    property <length> d-scroll: min(root.d-max, root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
+    property <length> d-scroll: min(root.d-max, root.d-zone == 4 && root.d-tab-eff == 1
+        // Distribution en grille : la ligne de la personne choisie.
+        ? root.d-fit(root.d-extra-y - root.tab-lift + floor(root.d-x / root.d-cols) * root.d-pitch,
+            root.d-extra-y - root.tab-lift + floor(root.d-x / root.d-cols) * root.d-pitch + root.d-row1)
+        : root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length
         ? root.d-fit(root.d-extra-y - root.tab-lift + root.detail-rows[root.d-zone - 4].y-px * 1px,
             root.d-extra-y - root.tab-lift + (root.detail-rows[root.d-zone - 4].y-px + root.detail-rows[root.d-zone - 4].h-px) * 1px)
         : root.d-zone == 2 && root.ep-list ? (root.d-extra-y <= root.d-view-h ? 0px
             // Liste d'épisodes : l'épisode choisi reste vers le milieu de l'écran.
             : max(0px, root.d-children-y + root.ep-head-h + root.d-child * (root.ep-row-h + root.ep-gap) - root.d-view-h * 0.4))
-        : root.d-zone == 2 ? root.d-fit(root.d-children-y - root.tab-lift, root.d-extra-y - root.tab-lift)
+        // Saisons en grille : la ligne de la saison choisie.
+        : root.d-zone == 2 ? root.d-fit(root.d-children-y - root.tab-lift + floor(root.d-child / root.d-cols) * root.d-pitch,
+            root.d-children-y - root.tab-lift + floor(root.d-child / root.d-cols) * root.d-pitch + root.child-card-w * root.child-ratio + 132px * root.k)
         // Onglets : eux et la première rangée de leur contenu, entière si elle tient.
         : root.d-zone == 9 ? root.d-fit(root.tabs-y, root.d-first-bottom)
         // Zone 10 : dans l'onglet Détails, la page descend jusqu'à sa dernière ligne.
@@ -7623,35 +7640,94 @@ export component AppWindow inherits Window {
         property <float> osk-p: root.tv-mode && root.s-osk ? 1 : 0;
         animate osk-p { duration: Motion.search ? 280ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         // Ligne des filtres, entre le champ (ou le clavier à l'écran) et les résultats.
-        // Suggestions (s'il y en a) au-dessus de la ligne des filtres. Un seul rang de sélection pour les
-        // deux lignes (`s-chip`) : les suggestions d'abord, puis « Options avancées », les filtres, « Effacer ».
-        property <length> sg-y: 16px * root.k + self.box-h + 12px * root.k;
+        // Sous le champ : les filtres (recherche avancée ouverte), les suggestions, le clavier à l'écran,
+        // puis les résultats.
+        property <length> bar-y: 16px * root.k + self.box-h + 12px * root.k;
+        property <length> bar-h: root.s-adv ? 48px * root.k : 0px;
+        property <length> sg-y: self.bar-y + self.bar-h;
         property <int> sg-n: root.sg-items.length;
         property <length> sg-h: self.sg-n > 0 ? 46px * root.k : 0px;
-        property <length> bar-y: self.sg-y + self.sg-h + self.osk-p * self.osk-h;
-        property <length> res-y: self.bar-y + (root.s-adv ? 36px * root.k + 12px * root.k : 0px);
-        property <int> chip-n: self.sg-n + (root.s-adv ? root.sf-chips.length + 2 : 1);
+        property <length> res-y: self.sg-y + self.sg-h + self.osk-p * (self.osk-h + 12px * root.k);
+        // Filtres, puis « Effacer ».
+        property <int> chip-n: root.sf-chips.length + 1;
+        function adv-toggle() {
+            root.s-adv = !root.s-adv;
+            root.s-chip = 0;
+            root.search-adv(root.s-adv);
+        }
+        // Rangée de la sélection : 0 champ · 1 filtres · 2 suggestions · 3 clavier à l'écran · 4 résultats.
+        function row-now() -> int {
+            if (root.s-field || root.s-adv-sel) {
+                return 0;
+            }
+            if (root.s-bar) {
+                return 1;
+            }
+            if (root.s-sug) {
+                return 2;
+            }
+            if (root.s-osk) {
+                return 3;
+            }
+            return 4;
+        }
+        function go(r: int) {
+            root.s-adv-sel = false;
+            root.s-bar = false;
+            root.s-sug = false;
+            root.s-field = r == 0;
+            if (r == 1) {
+                root.s-bar = true;
+                root.s-chip = 0;
+            }
+            if (r == 2) {
+                root.s-sug = true;
+                root.s-sgi = 0;
+            }
+            if (r == 4) {
+                root.s-osk = false;
+            }
+            if (r == 0 && !root.tv-mode) {
+                srch.s-type();
+            } else {
+                root.refocus += 1;
+            }
+        }
+        // Rangée voisine qui existe (filtres seulement ouverts, suggestions seulement s'il y en a…).
+        function move(from: int, dir: int) {
+            if (dir > 0) {
+                if (from < 1 && root.s-adv) {
+                    srch.go(1);
+                } else if (from < 2 && srch.sg-n > 0) {
+                    srch.go(2);
+                } else if (from < 3 && root.s-osk) {
+                    srch.go(3);
+                } else if (from < 4 && root.search-sections.length > 0) {
+                    srch.go(4);
+                }
+            } else {
+                if (from > 3 && root.s-osk) {
+                    srch.go(3);
+                } else if (from > 2 && srch.sg-n > 0) {
+                    srch.go(2);
+                } else if (from > 1 && root.s-adv) {
+                    srch.go(1);
+                } else if (from > 0) {
+                    srch.go(0);
+                } else {
+                    root.nav-enter();
+                }
+            }
+        }
         // Sélection dans les résultats (clavier, télécommande) : le champ et les filtres glissent vers le
         // haut, les résultats prennent toute la hauteur (une rangée d'affiches entière à l'écran).
-        property <length> lift: Nav.kb && !root.s-field && !root.s-bar && !root.s-osk && !root.s-sug && !root.h-focus
+        property <length> lift: Nav.kb && !root.s-field && !root.s-bar && !root.s-osk && !root.s-sug && !root.s-adv-sel && !root.h-focus
             && root.search-sections.length > 0 ? self.res-y - 8px * root.k : 0px;
         animate lift { duration: Motion.scroll ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
         property <length> adv-w: adv-btn.preferred-width;
         clip: true;
         function chip-act(i: int) {
-            if (i < srch.sg-n) {
-                root.search-suggest-pick(i);
-                root.s-chip = 0;
-                return;
-            }
-            let j = i - srch.sg-n;
-            if (j == 0) {
-                root.s-adv = !root.s-adv;
-                root.s-chip = srch.sg-n;
-                root.search-adv(root.s-adv);
-            } else {
-                root.search-filter(j > root.sf-chips.length ? 99 : j - 1);
-            }
+            root.search-filter(i >= root.sf-chips.length ? 99 : i);
         }
         function sf-close() {
             root.sf-open = false;
@@ -7709,6 +7785,9 @@ export component AppWindow inherits Window {
                 if (!(root.tv-mode && root.s-osk) && (root.typing-key(event)
                     || root.erase-key(event, root.tv-mode && (!root.s-field || root.h-focus) ? "" : root.search-text))) {
                     root.h-focus = false;
+                    root.s-adv-sel = false;
+                    root.s-bar = false;
+                    root.s-sug = false;
                     root.s-field = true;
                     root.search-text = root.key-edit(root.search-text, event.text);
                     root.search-changed(root.search-text);
@@ -7722,38 +7801,8 @@ export component AppWindow inherits Window {
                 if (event.repeat && (event.text == Key.Backspace || event.text == Key.Escape) && !(root.tv-mode && root.s-osk)) {
                     return EventResult.accept;
                 }
-                // Clavier à l'écran ouvert, sélection sur la ligne du haut (suggestions, « Recherche avancée ») :
-                // ← → d'un bouton à l'autre, OK le choisit puis revient au clavier, ↓ revient au clavier,
-                // ↑ va à la barre du haut. Une lettre tapée au vrai clavier repart dans le champ.
-                if (root.tv-mode && root.s-osk && root.s-sug) {
-                    if (event.text == Key.LeftArrow) {
-                        root.s-chip = max(0, root.s-chip - 1);
-                        return EventResult.accept;
-                    } else if (event.text == Key.RightArrow) {
-                        root.s-chip = min(srch.sg-n, root.s-chip + 1);
-                        return EventResult.accept;
-                    } else if (event.text == Key.DownArrow || event.text == Key.Escape || event.text == Key.Backspace) {
-                        if (!event.repeat) {
-                            root.s-sug = false;
-                        }
-                        return EventResult.accept;
-                    } else if (event.text == Key.UpArrow) {
-                        root.s-sug = false;
-                        root.nav-enter();
-                        return EventResult.accept;
-                    } else if (event.text == Key.Return) {
-                        srch.chip-act(min(root.s-chip, srch.sg-n));
-                        root.s-sug = false;
-                        return EventResult.accept;
-                    }
-                    // Une lettre au vrai clavier : retour au clavier à l'écran, qui l'écrit. Autre touche : rien.
-                    if (!root.typing-key(event)) {
-                        return EventResult.accept;
-                    }
-                    root.s-sug = false;
-                }
-                // Clavier à l'écran ouvert : Échap le ferme (la page reste).
-                if (event.text == Key.Escape && root.tv-mode && root.s-osk) {
+                // Clavier à l'écran ouvert, sélection sur lui : Échap le ferme (la page reste).
+                if (event.text == Key.Escape && root.tv-mode && root.s-osk && srch.row-now() == 3) {
                     if (!event.repeat) {
                         root.s-osk = false;
                         root.s-field = true;
@@ -7767,53 +7816,111 @@ export component AppWindow inherits Window {
                     }
                     return EventResult.accept;
                 }
-                if (event.text == Key.Escape) {
-                    root.nav-out("go-home", "");
+                // Une lettre au vrai clavier, sélection ailleurs que sur le clavier à l'écran ouvert : elle y
+                // retourne et l'écrit.
+                if (root.tv-mode && root.s-osk && srch.row-now() != 3 && root.typing-key(event)) {
+                    srch.go(3);
+                }
+                // « Recherche avancée » (à droite du champ) : ← le champ, OK ouvre ou ferme les filtres.
+                if (root.s-adv-sel) {
+                    if (event.text == Key.LeftArrow) {
+                        srch.go(0);
+                    } else if (event.text == Key.UpArrow) {
+                        root.s-adv-sel = false;
+                        root.nav-enter();
+                    } else if (event.text == Key.DownArrow) {
+                        srch.move(0, 1);
+                    } else if (event.text == Key.Return) {
+                        if (!event.repeat) {
+                            srch.adv-toggle();
+                        }
+                    } else if ((event.text == Key.Escape || event.text == Key.Backspace) && !event.repeat) {
+                        if (root.s-osk) {
+                            srch.go(3);
+                        } else {
+                            root.nav-out("go-home", "");
+                        }
+                    }
                     return EventResult.accept;
                 }
-                // Clavier à l'écran (mode TV)
-                if (root.tv-mode && root.s-osk) {
-                    if (osk.key(event.text)) {
-                        return EventResult.accept;
-                    }
-                    return EventResult.reject;
-                }
-                // Ligne des filtres : ← → d'un bouton à l'autre, OK l'active, ↑ le champ, ↓ les résultats.
+                // Ligne des filtres : ← → d'un bouton à l'autre, OK l'active, ↑ ↓ les lignes voisines.
                 if (root.s-bar) {
                     if (event.text == Key.LeftArrow) {
                         root.s-chip = max(0, root.s-chip - 1);
                     } else if (event.text == Key.RightArrow) {
                         root.s-chip = min(srch.chip-n - 1, root.s-chip + 1);
                     } else if (event.text == Key.UpArrow) {
-                        root.s-bar = false;
-                        root.s-field = true;
-                        if (!root.tv-mode) {
-                            srch.s-type();
-                        }
+                        srch.move(1, -1);
                     } else if (event.text == Key.DownArrow) {
-                        if (root.search-sections.length > 0) {
-                            root.s-bar = false;
-                        }
+                        srch.move(1, 1);
                     } else if (event.text == Key.Return) {
                         srch.chip-act(min(root.s-chip, srch.chip-n - 1));
-                    } else if (event.text == Key.Backspace) {
-                        root.nav-out("go-home", "");
+                    } else if ((event.text == Key.Escape || event.text == Key.Backspace) && !event.repeat) {
+                        if (root.s-osk) {
+                            srch.go(3);
+                        } else {
+                            root.nav-out("go-home", "");
+                        }
                     }
                     return EventResult.accept;
                 }
-                // Mode TV, sélection sur le champ : OK ouvre le clavier, ↓ va aux filtres, ↑ à la barre.
+                // Suggestions : ← → de l'une à l'autre, OK l'ajoute aux filtres (puis retour au clavier à
+                // l'écran s'il est ouvert), ↑ ↓ les lignes voisines.
+                if (root.s-sug) {
+                    if (event.text == Key.LeftArrow) {
+                        root.s-sgi = max(0, root.s-sgi - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.s-sgi = min(srch.sg-n - 1, root.s-sgi + 1);
+                    } else if (event.text == Key.UpArrow) {
+                        srch.move(2, -1);
+                    } else if (event.text == Key.DownArrow) {
+                        srch.move(2, 1);
+                    } else if (event.text == Key.Return) {
+                        if (!event.repeat) {
+                            root.search-suggest-pick(min(root.s-sgi, srch.sg-n - 1));
+                            if (root.s-osk || !root.tv-mode) {
+                                srch.go(root.s-osk ? 3 : 0);
+                            } else {
+                                root.s-sgi = 0;
+                            }
+                        }
+                    } else if ((event.text == Key.Escape || event.text == Key.Backspace) && !event.repeat) {
+                        srch.go(root.s-osk ? 3 : 0);
+                    }
+                    return EventResult.accept;
+                }
+                // Clavier à l'écran (mode TV)
+                if (root.tv-mode && root.s-osk && !root.s-field) {
+                    if (osk.key(event.text)) {
+                        return EventResult.accept;
+                    }
+                    return EventResult.reject;
+                }
+                if (event.text == Key.Escape) {
+                    root.nav-out("go-home", "");
+                    return EventResult.accept;
+                }
+                // Mode TV, sélection sur le champ : OK ouvre le clavier (ou y retourne), → « Recherche
+                // avancée », ↓ la ligne suivante, ↑ la barre du haut, Retour arrière retire le dernier filtre.
                 if (root.tv-mode && (root.s-field || root.search-sections.length == 0)) {
                     if (event.text == Key.Return) {
+                        if (!event.repeat) {
+                            root.s-field = false;
+                            root.s-osk = true;
+                        }
+                    } else if (event.text == Key.RightArrow) {
                         root.s-field = false;
-                        root.s-osk = true;
+                        root.s-adv-sel = true;
                     } else if (event.text == Key.DownArrow) {
-                        root.s-field = false;
-                        root.s-chip = 0;
-                        root.s-bar = true;
+                        srch.move(0, 1);
                     } else if (event.text == Key.UpArrow) {
                         root.nav-enter();
                     } else if (event.text == Key.Backspace) {
-                        root.nav-out("go-home", "");
+                        if (root.search-text == "" && root.sf-tokens.length > 0) {
+                            root.search-token-remove(-1);
+                        } else if (!event.repeat) {
+                            root.nav-out("go-home", "");
+                        }
                     } else {
                         root.s-field = true;
                     }
@@ -7845,8 +7952,8 @@ export component AppWindow inherits Window {
                             root.search-sections[root.s-section - 1].landscape ? root.card-w * 1.5 : root.card-w);
                         root.s-section -= 1;
                     } else {
-                        // Au-dessus des résultats : la ligne des filtres (puis le champ).
-                        root.s-bar = true;
+                        // Au-dessus des résultats : suggestions, filtres ou champ.
+                        srch.move(4, -1);
                     }
                 } else if (event.text == Key.Return) {
                     root.open-hero(root.search-sections[root.s-section].items[root.s-item].id);
@@ -7910,9 +8017,9 @@ export component AppWindow inherits Window {
             font: 15px * root.k;
             text: Tr.t(Tr.k, "Recherche avancée");
             on: root.s-adv;
-            focused: (root.s-bar || root.s-sug) && !root.h-focus && root.s-chip == srch.sg-n;
+            focused: root.s-adv-sel && !root.h-focus;
             clicked => {
-                srch.chip-act(srch.sg-n);
+                srch.adv-toggle();
             }
         }
         // Champ de recherche
@@ -7952,7 +8059,7 @@ export component AppWindow inherits Window {
                     spacing: 6px * root.k;
                     padding-top: (parent.height - 30px * root.k) / 2;
                     padding-bottom: (parent.height - 30px * root.k) / 2;
-                    for t in root.sf-tokens: Rectangle {
+                    for t[ti] in root.sf-tokens: Rectangle {
                         width: t-txt.preferred-width + 20px * root.k;
                         border-radius: Theme.term ? 2px : self.height / 2;
                         background: t.on ? Theme.danger.with-alpha(0.28) : Theme.accent2.with-alpha(0.28);
@@ -7966,8 +8073,20 @@ export component AppWindow inherits Window {
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.search-token-remove(ti);
+                            }
+                        }
                     }
                 }
+            }
+            // Largeur du texte avant le curseur (interface TV : ‹ › du clavier à l'écran le déplacent).
+            s-head := Text {
+                visible: false;
+                text: Str.head(root.search-text, osk.back);
+                font-size: 18px * root.k;
             }
             // Texte tapé (animé, curseur qui clignote) : clavier à l'écran en mode TV, champ
             // classique au bureau (son texte et son curseur sont masqués, celui-ci les dessine).
@@ -7980,7 +8099,7 @@ export component AppWindow inherits Window {
                 // Texte sélectionné : c'est le champ classique qui dessine (lettres et barre de sélection).
                 opacity: s-input.anchor-position-byte-offset != s-input.cursor-position-byte-offset ? 0 : 1;
                 cursor: root.tv-mode ? root.s-osk : s-input.has-focus;
-                cursor-x: root.tv-mode ? -1px : root.s-cur-x;
+                cursor-x: root.tv-mode ? (osk.back == 0 ? -1px : s-head.preferred-width) : root.s-cur-x;
                 font-size: 18px * root.k;
                 k: root.k;
             }
@@ -8026,12 +8145,13 @@ export component AppWindow inherits Window {
                         root.search-suggest-pick(0);
                         return EventResult.accept;
                     }
-                    // ↓ : la ligne des filtres. Entrée : les résultats (s'il y en a : sinon le champ garde le clavier).
+                    if (event.text == Key.Backspace && self.text == "" && root.sf-tokens.length > 0) {
+                        root.search-token-remove(-1);
+                        return EventResult.accept;
+                    }
+                    // ↓ : la rangée suivante (filtres, suggestions, résultats). Entrée : les résultats.
                     if (event.text == Key.DownArrow) {
-                        root.s-field = false;
-                        root.s-chip = 0;
-                        root.s-bar = true;
-                        root.refocus += 1;
+                        srch.move(0, 1);
                         return EventResult.accept;
                     }
                     if (event.text == Key.Return) {
@@ -8075,7 +8195,7 @@ export component AppWindow inherits Window {
                 alignment: start;
                 spacing: 10px * root.k;
                 Text {
-                    text: root.tv-mode ? (root.s-osk ? Tr.t(Tr.k, "↑ Suggestions") : Tr.t(Tr.k, "Suggestions")) : Tr.t(Tr.k, "Tab :");
+                    text: root.tv-mode ? Tr.t(Tr.k, "Suggestions") : Tr.t(Tr.k, "Tab :");
                     color: Theme.muted;
                     font-size: 14px * root.k;
                     vertical-alignment: center;
@@ -8084,11 +8204,11 @@ export component AppWindow inherits Window {
                     height: 36px * root.k;
                     width: self.preferred-width;
                     font: 15px * root.k;
-                    text: (g.on ? "− " : "+ ") + g.name;
-                    on: i == 0 && !root.s-bar && !root.s-sug && !root.tv-mode;
-                    focused: (root.s-bar || root.s-sug) && !root.h-focus && root.s-chip == i;
+                    text: g.name;
+                    on: i == 0 && !root.s-sug && !root.tv-mode;
+                    focused: (root.s-sug && !root.h-focus && root.s-sgi == i) || self.hovered;
                     clicked => {
-                        srch.chip-act(i);
+                        root.search-suggest-pick(i);
                     }
                 }
             }
@@ -8109,20 +8229,20 @@ export component AppWindow inherits Window {
                     font: 14px * root.k;
                     text: c.name;
                     on: c.on;
-                    focused: root.s-bar && !root.h-focus && root.s-chip == srch.sg-n + i + 1;
+                    focused: root.s-bar && !root.h-focus && root.s-chip == i;
                     clicked => {
-                        root.s-chip = srch.sg-n + i + 1;
-                        srch.chip-act(srch.sg-n + i + 1);
+                        root.s-chip = i;
+                        srch.chip-act(i);
                     }
                 }
                 if root.s-adv: ActionButton {
                     height: 36px * root.k;
                     font: 14px * root.k;
                     text: Tr.t(Tr.k, "Effacer");
-                    focused: root.s-bar && !root.h-focus && root.s-chip == srch.sg-n + root.sf-chips.length + 1;
+                    focused: root.s-bar && !root.h-focus && root.s-chip == root.sf-chips.length;
                     clicked => {
-                        root.s-chip = srch.sg-n + root.sf-chips.length + 1;
-                        srch.chip-act(srch.sg-n + root.sf-chips.length + 1);
+                        root.s-chip = root.sf-chips.length;
+                        srch.chip-act(root.sf-chips.length);
                     }
                 }
             }
@@ -8131,13 +8251,18 @@ export component AppWindow inherits Window {
         // Clavier à l'écran (mode TV)
         osk := Osk {
             x: max(32px * root.k, (parent.width - 900px * root.k) / 2);
-            y: 16px * root.k + parent.box-h + 16px * root.k + parent.sg-h - (1 - parent.osk-p) * 30px * root.k - srch.lift;
+            y: parent.sg-y + parent.sg-h + 4px * root.k - (1 - parent.osk-p) * 30px * root.k - srch.lift;
             width: min(parent.width - 64px * root.k, 900px * root.k);
             visible: parent.osk-p > 0.01;
             opacity: parent.osk-p;
             k: root.k;
-            active: root.s-osk && !root.s-sug;
+            active: root.s-osk && srch.row-now() == 3;
             text: root.search-text;
+            cursor-keys: true;
+            // Retour arrière sur un champ vide : le dernier filtre rappelé dans le champ s'en va.
+            erase-empty => {
+                root.search-token-remove(-1);
+            }
             erase(t) => {
                 return root.text-backspace("\u{8}" + t);
             }
@@ -8151,14 +8276,17 @@ export component AppWindow inherits Window {
                 root.s-osk = false;
                 root.s-field = root.search-sections.length == 0;
             }
-            // ↑ : suggestions (s'il y en a), sinon « Recherche avancée ».
+            // ↑ : suggestions, filtres ou champ (la rangée au-dessus qui existe) ; ↓ : les résultats.
             leave-up => {
-                root.s-sug = true;
-                root.s-chip = srch.sg-n > 0 ? 0 : srch.sg-n;
+                srch.move(3, -1);
             }
             leave-down => {
-                root.s-osk = false;
-                root.s-field = root.search-sections.length == 0;
+                if (root.search-sections.length > 0) {
+                    srch.go(4);
+                } else {
+                    root.s-osk = false;
+                    root.s-field = true;
+                }
             }
         }
 
@@ -8196,6 +8324,8 @@ export component AppWindow inherits Window {
                     touched(i) => {
                         root.s-field = false;
                         root.s-bar = false;
+                        root.s-sug = false;
+                        root.s-adv-sel = false;
                         root.refocus += 1;
                         root.s-section = si;
                         root.s-item = i;
@@ -8204,6 +8334,8 @@ export component AppWindow inherits Window {
                         // La sélection quitte le champ : la carte choisie doit donner son image (voir Hero).
                         root.s-field = false;
                         root.s-bar = false;
+                        root.s-sug = false;
+                        root.s-adv-sel = false;
                         root.refocus += 1;
                         root.s-section = si;
                         root.s-item = i;
@@ -8822,11 +8954,21 @@ export component AppWindow inherits Window {
                 }
                 return true;
             }
+            // Grille : ↑ ↓ changent de ligne ; au-dessus de la première, les onglets.
             if (t == Key.UpArrow) {
-                root.d-zone = 9;
+                if (root.d-child >= root.d-cols) {
+                    root.d-child -= root.d-cols;
+                } else {
+                    root.d-zone = 9;
+                }
                 return true;
             }
             if (t == Key.DownArrow) {
+                if (root.d-child + root.d-cols < root.child-items.length) {
+                    root.d-child += root.d-cols;
+                } else if (floor(root.d-child / root.d-cols) < floor((root.child-items.length - 1) / root.d-cols)) {
+                    root.d-child = root.child-items.length - 1;
+                }
                 return true;
             }
             if (t == Key.Return) {
@@ -8835,6 +8977,26 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Distribution en grille (onglet 1, une seule rangée) : ↑ ↓ changent de ligne.
+        if (root.d-zone == 4 && root.d-tab-eff == 1 && root.detail-rows.length > 0) {
+            let n = root.detail-rows[0].items.length;
+            if (t == Key.UpArrow) {
+                if (root.d-x >= root.d-cols) {
+                    root.d-x -= root.d-cols;
+                } else {
+                    root.d-zone = 9;
+                }
+                return true;
+            }
+            if (t == Key.DownArrow) {
+                if (root.d-x + root.d-cols < n) {
+                    root.d-x += root.d-cols;
+                } else if (floor(root.d-x / root.d-cols) < floor((n - 1) / root.d-cols)) {
+                    root.d-x = n - 1;
+                }
+                return true;
+            }
+        }
         // Zones 4 et + : rangées du bas
         if (root.d-zone >= 4 && root.d-zone - 4 < root.detail-rows.length) {
             if (t == Key.RightArrow) {
@@ -9711,7 +9873,8 @@ export component AppWindow inherits Window {
             opacity: (root.sw-kids ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p) * root.tab-e;
             y: root.d-children-y - root.tab-lift + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
-            height: root.child-card-w * root.child-ratio + 132px * root.k;
+            height: root.kids-h;
+            wrap-cols: root.d-cols;
             // Le nom de l'onglet (Saisons, Épisodes) suffit.
             title: root.d-tabs-on ? "" : root.detail.children-title;
             items: root.child-items;
@@ -9742,9 +9905,12 @@ export component AppWindow inherits Window {
             opacity: root.rev(4) * (1 - root.kids-out-p) * root.tab-e;
             y: root.d-extra-y - root.tab-lift + row.y-px * 1px + (1 - root.rev(4)) * 60px * root.k + root.po-down + root.tab-dy;
             width: parent.width;
-            height: row.h-px * 1px;
-            // Titre déjà donné par l'onglet : Distribution, et la première rangée de « Plus de ce genre ».
-            title: root.d-tab-eff == 1 || (root.d-tab-eff == 3 && ri == 0) ? "" : row.title;
+            height: root.d-tab-eff == 1 ? root.dcast-h : row.h-px * 1px;
+            wrap-cols: root.d-tab-eff == 1 ? root.d-cols : 0;
+            // Distribution : le nom de l'onglet suffit. « Plus de ce genre » : une seule rangée, pas de titre ;
+            // plusieurs, chacune le sien (celle de la bibliothèque : « Dans ta bibliothèque »).
+            title: root.d-tab-eff == 1 || (root.d-tab-eff == 3 && root.detail-rows.length == 1) ? ""
+                : row.title == Tr.t(Tr.k, "Plus de ce genre") ? Tr.t(Tr.k, "Dans ta bibliothèque") : row.title;
             items: row.items;
             card-w: root.card-w;
             ratio: 1.5;
@@ -9872,8 +10038,10 @@ export component AppWindow inherits Window {
         property <length> pad: 32px * root.k;
         // Marge du haut : la carte choisie, agrandie, n'est pas coupée par le bord.
         property <length> top-pad: 20px * root.k;
-        property <length> cw: root.card-w;
-        property <length> ch: root.card-w * 1.5 + 56px * root.k;
+        // Affiches réduites pour voir deux rangées entières et le haut de la suivante (avant : une rangée
+        // et demie en interface TV) ; jamais plus grandes que les cartes des rangées.
+        property <length> cw: min(root.card-w, max(110px * root.k, ((self.height - self.top-pad - 2 * self.gap) / 2.3 - 56px * root.k) / 1.5));
+        property <length> ch: self.cw * 1.5 + 56px * root.k;
         // Largeur laissée aux affiches : la bande de l'index A–Z, à droite, n'en fait pas partie (la
         // dernière colonne passait dessous).
         property <length> usable: self.width - root.az-band;
@@ -14161,14 +14329,22 @@ export component AppWindow inherits Window {
     in property <[FilterOpt]> sf-tokens;
     // Liste ouverte à choix unique (type, année, note, état) : pas de cases, pas d'index A–Z.
     in-out property <bool> sf-single;
-    // Mode TV, clavier à l'écran ouvert : la sélection est sur la ligne au-dessus du clavier (suggestions,
-    // puis « Recherche avancée »), au rang `s-chip`.
+    // Rangées de la page, de haut en bas : champ et « Recherche avancée » (`s-field`, `s-adv-sel`), filtres
+    // (`s-bar`, bouton `s-chip`), suggestions (`s-sug`, `s-sgi`), clavier à l'écran ouvert (`s-osk` seul),
+    // résultats (aucun de ces drapeaux).
     property <bool> s-sug;
+    property <int> s-sgi;
+    property <bool> s-adv-sel;
     changed sg-items => {
-        root.s-chip = min(root.s-chip, root.sg-items.length + (root.s-adv ? root.sf-chips.length + 1 : 0));
+        root.s-sgi = min(root.s-sgi, max(0, root.sg-items.length - 1));
+        if (root.s-sug && root.sg-items.length == 0) {
+            root.s-sug = false;
+            root.s-field = !root.s-osk;
+        }
     }
     property <bool> s-bar;
     property <int> s-chip;
+    callback search-token-remove(int);
     callback search-adv(bool);
     callback search-filter(int);
     callback search-filter-pick(int);

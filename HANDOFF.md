@@ -833,6 +833,15 @@ en portrait.
 - **Fiche** : défilement par `d-fit` (la rangée choisie, ou les onglets et la première rangée de leur contenu, entière si elle
   tient) ; molette bornée par `d-max` (onglet Détails compris ; avant, elle remontait la page). PAS VÉRIFIÉ À LA MOLETTE :
   la molette simulée (mouse_event, WM_MOUSEWHEEL) n'agit pas dans les essais automatisés.
+- **Recherche, rangées (14 novembre)** : de haut en bas, champ et « Recherche avancée » (→ depuis le champ), filtres,
+  suggestions (4 au plus, noms coupés), clavier à l'écran, résultats ; ↑ ↓ passent à la rangée voisine qui existe
+  (`row-now`, `go`, `move` de la page). Filtres rappelés dans le champ : Retour arrière sur un champ vide ou clic sur la
+  pastille les retire (`remove_token`, `filter_tokens`). Clavier à l'écran : ‹ › déplacent le curseur (`Osk.back`,
+  `cursor-keys`, `Str.tail`), deux appuis rapides sur Maj verrouillent les majuscules (`caps`, trait sous la flèche).
+- **Bibliothèque** : affiches réduites pour deux rangées entières (`lib.cw`). **Fiche** : saisons et distribution en grille
+  (`d-cols`, `d-pitch`, `kids-h`, `dcast-h`, ↑ ↓ de ligne en ligne), onglet Détails au moins aussi haut qu'une rangée ;
+  « Plus de ce genre » : chaque rangée a son titre quand il y en a plusieurs (« Dans ta bibliothèque », Similaires,
+  Recommandés).
 
 ## 7. Compiler, fabriquer les paquets, publier
 

@@ -4532,28 +4532,58 @@ fn filter_chips(app: &Arc<App>, u: &AppWindow) {
     ];
     u.set_sf_chips(ModelRc::new(VecModel::from(chips)));
     // Rappel dans le champ : ce qu'on cherche reste visible (« on » : exclusion).
-    let mut tokens: Vec<FilterOpt> = Vec::new();
-    if f.on {
-        if f.kind != 0 {
-            tokens.push(FilterOpt { name: kind_label(f.kind).into(), on: false });
-        }
-        for v in f.genres.iter().chain(f.tags.iter()).chain(f.studios.iter()) {
-            tokens.push(FilterOpt { name: v.into(), on: false });
-        }
-        for v in &f.exclude {
-            tokens.push(FilterOpt { name: format!("− {v}").into(), on: true });
-        }
-        if f.decade != 0 {
-            tokens.push(FilterOpt { name: decade_label(f.decade).into(), on: false });
-        }
-        if f.rating != 0 {
-            tokens.push(FilterOpt { name: format!("★ {}+", f.rating).into(), on: false });
-        }
-        if f.status != 0 {
-            tokens.push(FilterOpt { name: status_label(f.status).into(), on: false });
+    let tokens: Vec<FilterOpt> = filter_tokens(&f).into_iter().map(|(name, on, _, _)| FilterOpt { name: name.into(), on }).collect();
+    u.set_sf_tokens(ModelRc::new(VecModel::from(tokens)));
+}
+
+/// Filtres rappelés dans le champ, dans l'ordre affiché : (libellé, exclusion, sorte, valeur). Sorte :
+/// 0 type · 1 genre · 2 tag · 3 studio · 4 exclusion · 5 décennie · 6 note · 7 état.
+fn filter_tokens(f: &SearchFilter) -> Vec<(String, bool, u8, String)> {
+    let mut t: Vec<(String, bool, u8, String)> = Vec::new();
+    if !f.on {
+        return t;
+    }
+    if f.kind != 0 {
+        t.push((kind_label(f.kind).to_string(), false, 0, String::new()));
+    }
+    for (sort, list) in [(1u8, &f.genres), (2, &f.tags), (3, &f.studios)] {
+        for v in list {
+            t.push((v.clone(), false, sort, v.clone()));
         }
     }
-    u.set_sf_tokens(ModelRc::new(VecModel::from(tokens)));
+    for v in &f.exclude {
+        t.push((format!("− {v}"), true, 4, v.clone()));
+    }
+    if f.decade != 0 {
+        t.push((decade_label(f.decade), false, 5, String::new()));
+    }
+    if f.rating != 0 {
+        t.push((format!("★ {}+", f.rating), false, 6, String::new()));
+    }
+    if f.status != 0 {
+        t.push((status_label(f.status).to_string(), false, 7, String::new()));
+    }
+    t
+}
+
+/// Retire un filtre rappelé dans le champ (`i` : son rang ; -1 : le dernier). Retour arrière sur un
+/// champ vide, ou clic sur la pastille.
+fn remove_token(app: &Arc<App>, i: i32) {
+    let Some(u) = app.ui().upgrade() else { return };
+    {
+        let mut f = app.search_filter.lock().unwrap();
+        let tokens = filter_tokens(&f);
+        let Some((_, _, sort, value)) = (if i < 0 { tokens.last() } else { tokens.get(i as usize) }).cloned() else { return };
+        match sort {
+            0 => f.kind = 0,
+            5 => f.decade = 0,
+            6 => f.rating = 0,
+            7 => f.status = 0,
+            s => f.list(s as u64).retain(|v| *v != value),
+        }
+    }
+    filter_chips(app, &u);
+    search_changed(app, u.get_search_text().to_string());
 }
 
 thread_local! {
@@ -4772,11 +4802,11 @@ fn suggestions(text: &str, lists: &api::FilterLists) -> Vec<(u64, String, usize)
                 }
             }
         }
-        if out.len() >= 5 {
+        if out.len() >= 4 {
             break;
         }
     }
-    out.truncate(5);
+    out.truncate(4);
     out
 }
 
@@ -4796,7 +4826,9 @@ fn show_suggestions(app: &Arc<App>, u: &AppWindow, text: &str) {
                 3 => tr("Studio"),
                 _ => tr("Exclure"),
             };
-            FilterOpt { name: format!("{kind} : {name}").into(), on: *which == 4 }
+            // Nom long coupé : les suggestions tiennent sur une ligne, sans bouton à moitié caché.
+            let short: String = if name.chars().count() > 22 { name.chars().take(21).collect::<String>() + "…" } else { name.clone() };
+            FilterOpt { name: format!("{kind} : {short}").into(), on: *which == 4 }
         })
         .collect();
     SUGGEST.with(|s| *s.borrow_mut() = list);
@@ -10167,6 +10199,11 @@ pub(crate) fn main() -> anyhow::Result<()> {
             }
             c.as_str().into()
         });
+        st.on_tail(|s, n| {
+            let n = n.max(0) as usize;
+            let count = s.chars().count();
+            s.chars().skip(count.saturating_sub(n)).collect::<String>().into()
+        });
         st.on_at(|s, k| s.chars().rev().nth(k.max(0) as usize).map(|c| c.to_string()).unwrap_or_default().into());
         // Fiche qui change : le nouveau texte remplace l'ancien caractère par caractère.
         st.on_morph(|from, to, p| {
@@ -10550,6 +10587,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 filter_rows(&app, &u, q.as_str());
             }
         }
+    });
+    ui.on_search_token_remove({
+        let app = app.clone();
+        move |i| remove_token(&app, i)
     });
     ui.on_search_suggest_pick({
         let app = app.clone();
