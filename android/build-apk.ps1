@@ -36,7 +36,7 @@ $env:ANDROID_NDK_HOME = $ndk
 # armeabi-v7a : Skia n'a pas de binaires tout faits pour cette cible, il est compile depuis ses sources
 # (skia-bindings lit ANDROID_NDK, et bindgen a besoin de libclang : LLVM installe dans Program Files).
 $env:ANDROID_NDK = $ndk
-if (-not $env:LIBCLANG_PATH -and (Test-Path "$env:ProgramFiles\LLVMin\libclang.dll")) { $env:LIBCLANG_PATH = "$env:ProgramFiles\LLVMin" }
+if (-not $env:LIBCLANG_PATH -and (Test-Path "$env:ProgramFiles\LLVM\bin\libclang.dll")) { $env:LIBCLANG_PATH = "$env:ProgramFiles\LLVM\bin" }
 $env:ANDROID_JAR = $jar
 $env:ANDROID_BUILD_TOOLS_VERSION = Split-Path $tools -Leaf
 # Compilation hors du depot (place) ; pages de 16 Ko acceptees (Android 15 et plus).
