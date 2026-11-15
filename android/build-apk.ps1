@@ -46,6 +46,14 @@ New-Item -ItemType Directory -Force $WorkDir | Out-Null
 
 # 1. Turtlefin (une bibliotheque par architecture).
 $targets = @{ "arm64-v8a" = "aarch64-linux-android"; "armeabi-v7a" = "armv7-linux-androideabi"; "x86_64" = "x86_64-linux-android"; "x86" = "i686-linux-android" }
+# Skia (moteur de rendu de Slint sous Android) : android\skia-cache.py garde chaque Skia compilee dans
+# $WorkDir\skia-cache (rien a recompiler apres un "cargo clean") et prepare seul ses sources quand il faut
+# la compiler (armeabi-v7a : pas de binaires tout faits).
+$skiaCache = "$WorkDir\skia-cache"
+$triples = @($Abi | ForEach-Object { $targets[$_] })
+$skiaUrl = & python "$PSScriptRoot\skia-cache.py" prepare $env:CARGO_TARGET_DIR $skiaCache @triples
+if ($LASTEXITCODE -ne 0) { throw "Skia : preparation impossible" }
+if ($skiaUrl) { $env:SKIA_BINARIES_URL = "$skiaUrl".Trim() }
 Push-Location $PSScriptRoot
 try {
     $ndkArgs = @()
@@ -53,6 +61,7 @@ try {
     & cargo ndk @ndkArgs --platform 26 build --release
     if ($LASTEXITCODE -ne 0) { throw "echec de la compilation" }
 } finally { Pop-Location }
+& python "$PSScriptRoot\skia-cache.py" save $env:CARGO_TARGET_DIR $skiaCache
 
 # 2. libmpv pour Android (projet libmpv-android, Maven Central), empreinte verifiee.
 $mpvVer = "1.0.0"
