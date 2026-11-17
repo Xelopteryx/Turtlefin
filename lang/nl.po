@@ -3941,3 +3941,123 @@ msgstr "nov."
 
 msgid "déc."
 msgstr "dec."
+
+msgid "Affiche"
+msgstr "Poster"
+
+msgid "Année invalide."
+msgstr "Ongeldig jaar."
+
+msgid "Aucune image"
+msgstr "Geen afbeelding"
+
+msgid "Aucune image proposée par les fournisseurs du serveur."
+msgstr "De bronnen van de server bieden geen afbeeldingen."
+
+msgid "Bannière"
+msgstr "Banner"
+
+msgid "Classification (ex. : FR-12)"
+msgstr "Leeftijdsclassificatie (bijv. NL-12)"
+
+msgid "Ctrl+Entrée : valider · Échap : annuler"
+msgstr "Ctrl+Enter: bevestigen · Esc: annuleren"
+
+msgid "Date attendue sous la forme AAAA-MM-JJ."
+msgstr "Datum verwacht als JJJJ-MM-DD."
+
+msgid "Date de sortie (AAAA-MM-JJ)"
+msgstr "Releasedatum (JJJJ-MM-DD)"
+
+msgid "Depuis un fichier…"
+msgstr "Uit een bestand…"
+
+msgid "Enregistré."
+msgstr "Opgeslagen."
+
+msgid "Envoi au serveur…"
+msgstr "Verzenden naar de server…"
+
+msgid "Fin de diffusion (AAAA-MM-JJ)"
+msgstr "Laatst uitgezonden (JJJJ-MM-DD)"
+
+msgid "Fond"
+msgstr "Achtergrond"
+
+msgid "Image de l'épisode"
+msgstr "Afbeelding van de aflevering"
+
+msgid "Image remplacée."
+msgstr "Afbeelding vervangen."
+
+msgid "Image retirée."
+msgstr "Afbeelding verwijderd."
+
+msgid "Images"
+msgstr "Afbeeldingen"
+
+msgid "Le titre ne peut pas être vide."
+msgstr "De titel mag niet leeg zijn."
+
+msgid "Logo"
+msgstr "Logo"
+
+msgid "Modifier… (informations, images)"
+msgstr "Bewerken… (gegevens, afbeeldingen)"
+
+msgid "Nombre attendu."
+msgstr "Getal verwacht."
+
+msgid "Nombre entier attendu."
+msgstr "Geheel getal verwacht."
+
+msgid "Note des critiques (sur 100)"
+msgstr "Beoordeling critici (op 100)"
+
+msgid "Note du public (sur 10)"
+msgstr "Beoordeling publiek (op 10)"
+
+msgid "Première diffusion (AAAA-MM-JJ)"
+msgstr "Eerst uitgezonden (JJJJ-MM-DD)"
+
+msgid "Recherche des images…"
+msgstr "Afbeeldingen zoeken…"
+
+msgid "Retirer l'image"
+msgstr "Afbeelding verwijderen"
+
+msgid "Résumé"
+msgstr "Samenvatting"
+
+msgid "Saison n°"
+msgstr "Seizoen nr."
+
+msgid "Slogan"
+msgstr "Slogan"
+
+msgid "Titre original"
+msgstr "Oorspronkelijke titel"
+
+msgid "Titre pour le tri"
+msgstr "Sorteertitel"
+
+msgid "Tout verrouiller (le serveur ne change plus rien)"
+msgstr "Alles vergrendelen (de server wijzigt niets meer)"
+
+msgid "Vignette"
+msgstr "Miniatuur"
+
+msgid "format d'image non reconnu (JPEG, PNG, WebP ou GIF)"
+msgstr "afbeeldingsformaat niet herkend (JPEG, PNG, WebP of GIF)"
+
+msgid "image trop lourde (20 Mo au plus)"
+msgstr "afbeelding te groot (hoogstens 20 MB)"
+
+msgid "{} (séparés par des virgules)"
+msgstr "{} (gescheiden door komma’s)"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "Épisode n°"
+msgstr "Aflevering nr."

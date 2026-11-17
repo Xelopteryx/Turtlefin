@@ -3953,3 +3953,123 @@ msgstr "lis"
 
 msgid "déc."
 msgstr "gru"
+
+msgid "Affiche"
+msgstr "Plakat"
+
+msgid "Année invalide."
+msgstr "Nieprawidłowy rok."
+
+msgid "Aucune image"
+msgstr "Brak obrazu"
+
+msgid "Aucune image proposée par les fournisseurs du serveur."
+msgstr "Dostawcy serwera nie proponują żadnych obrazów."
+
+msgid "Bannière"
+msgstr "Baner"
+
+msgid "Classification (ex. : FR-12)"
+msgstr "Kategoria wiekowa (np. PL-12)"
+
+msgid "Ctrl+Entrée : valider · Échap : annuler"
+msgstr "Ctrl+Enter: zatwierdź · Esc: anuluj"
+
+msgid "Date attendue sous la forme AAAA-MM-JJ."
+msgstr "Oczekiwana data w formacie RRRR-MM-DD."
+
+msgid "Date de sortie (AAAA-MM-JJ)"
+msgstr "Data premiery (RRRR-MM-DD)"
+
+msgid "Depuis un fichier…"
+msgstr "Z pliku…"
+
+msgid "Enregistré."
+msgstr "Zapisano."
+
+msgid "Envoi au serveur…"
+msgstr "Wysyłanie na serwer…"
+
+msgid "Fin de diffusion (AAAA-MM-JJ)"
+msgstr "Koniec emisji (RRRR-MM-DD)"
+
+msgid "Fond"
+msgstr "Tło"
+
+msgid "Image de l'épisode"
+msgstr "Obraz odcinka"
+
+msgid "Image remplacée."
+msgstr "Obraz zastąpiony."
+
+msgid "Image retirée."
+msgstr "Obraz usunięty."
+
+msgid "Images"
+msgstr "Obrazy"
+
+msgid "Le titre ne peut pas être vide."
+msgstr "Tytuł nie może być pusty."
+
+msgid "Logo"
+msgstr "Logo"
+
+msgid "Modifier… (informations, images)"
+msgstr "Edytuj… (informacje, obrazy)"
+
+msgid "Nombre attendu."
+msgstr "Oczekiwano liczby."
+
+msgid "Nombre entier attendu."
+msgstr "Oczekiwano liczby całkowitej."
+
+msgid "Note des critiques (sur 100)"
+msgstr "Ocena krytyków (na 100)"
+
+msgid "Note du public (sur 10)"
+msgstr "Ocena widzów (na 10)"
+
+msgid "Première diffusion (AAAA-MM-JJ)"
+msgstr "Pierwsza emisja (RRRR-MM-DD)"
+
+msgid "Recherche des images…"
+msgstr "Wyszukiwanie obrazów…"
+
+msgid "Retirer l'image"
+msgstr "Usuń obraz"
+
+msgid "Résumé"
+msgstr "Opis"
+
+msgid "Saison n°"
+msgstr "Sezon nr"
+
+msgid "Slogan"
+msgstr "Hasło"
+
+msgid "Titre original"
+msgstr "Tytuł oryginalny"
+
+msgid "Titre pour le tri"
+msgstr "Tytuł do sortowania"
+
+msgid "Tout verrouiller (le serveur ne change plus rien)"
+msgstr "Zablokuj wszystko (serwer niczego już nie zmienia)"
+
+msgid "Vignette"
+msgstr "Miniatura"
+
+msgid "format d'image non reconnu (JPEG, PNG, WebP ou GIF)"
+msgstr "nierozpoznany format obrazu (JPEG, PNG, WebP lub GIF)"
+
+msgid "image trop lourde (20 Mo au plus)"
+msgstr "obraz za duży (maks. 20 MB)"
+
+msgid "{} (séparés par des virgules)"
+msgstr "{} (oddzielone przecinkami)"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "Épisode n°"
+msgstr "Odcinek nr"

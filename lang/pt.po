@@ -3941,3 +3941,123 @@ msgstr "nov."
 
 msgid "déc."
 msgstr "dez."
+
+msgid "Affiche"
+msgstr "Pôster"
+
+msgid "Année invalide."
+msgstr "Ano inválido."
+
+msgid "Aucune image"
+msgstr "Sem imagem"
+
+msgid "Aucune image proposée par les fournisseurs du serveur."
+msgstr "Os fornecedores do servidor não propõem imagens."
+
+msgid "Bannière"
+msgstr "Banner"
+
+msgid "Classification (ex. : FR-12)"
+msgstr "Classificação (ex.: M/12)"
+
+msgid "Ctrl+Entrée : valider · Échap : annuler"
+msgstr "Ctrl+Enter: confirmar · Esc: cancelar"
+
+msgid "Date attendue sous la forme AAAA-MM-JJ."
+msgstr "Data esperada no formato AAAA-MM-DD."
+
+msgid "Date de sortie (AAAA-MM-JJ)"
+msgstr "Data de estreia (AAAA-MM-DD)"
+
+msgid "Depuis un fichier…"
+msgstr "De um ficheiro…"
+
+msgid "Enregistré."
+msgstr "Guardado."
+
+msgid "Envoi au serveur…"
+msgstr "A enviar para o servidor…"
+
+msgid "Fin de diffusion (AAAA-MM-JJ)"
+msgstr "Fim de emissão (AAAA-MM-DD)"
+
+msgid "Fond"
+msgstr "Fundo"
+
+msgid "Image de l'épisode"
+msgstr "Imagem do episódio"
+
+msgid "Image remplacée."
+msgstr "Imagem substituída."
+
+msgid "Image retirée."
+msgstr "Imagem removida."
+
+msgid "Images"
+msgstr "Imagens"
+
+msgid "Le titre ne peut pas être vide."
+msgstr "O título não pode estar vazio."
+
+msgid "Logo"
+msgstr "Logótipo"
+
+msgid "Modifier… (informations, images)"
+msgstr "Editar… (informações, imagens)"
+
+msgid "Nombre attendu."
+msgstr "Número esperado."
+
+msgid "Nombre entier attendu."
+msgstr "Número inteiro esperado."
+
+msgid "Note des critiques (sur 100)"
+msgstr "Nota da crítica (em 100)"
+
+msgid "Note du public (sur 10)"
+msgstr "Nota do público (em 10)"
+
+msgid "Première diffusion (AAAA-MM-JJ)"
+msgstr "Primeira emissão (AAAA-MM-DD)"
+
+msgid "Recherche des images…"
+msgstr "A procurar imagens…"
+
+msgid "Retirer l'image"
+msgstr "Remover a imagem"
+
+msgid "Résumé"
+msgstr "Sinopse"
+
+msgid "Saison n°"
+msgstr "Temporada n.º"
+
+msgid "Slogan"
+msgstr "Slogan"
+
+msgid "Titre original"
+msgstr "Título original"
+
+msgid "Titre pour le tri"
+msgstr "Título para ordenar"
+
+msgid "Tout verrouiller (le serveur ne change plus rien)"
+msgstr "Bloquear tudo (o servidor deixa de alterar)"
+
+msgid "Vignette"
+msgstr "Miniatura"
+
+msgid "format d'image non reconnu (JPEG, PNG, WebP ou GIF)"
+msgstr "formato de imagem não reconhecido (JPEG, PNG, WebP ou GIF)"
+
+msgid "image trop lourde (20 Mo au plus)"
+msgstr "imagem demasiado pesada (20 MB no máximo)"
+
+msgid "{} (séparés par des virgules)"
+msgstr "{} (separados por vírgulas)"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "Épisode n°"
+msgstr "Episódio n.º"

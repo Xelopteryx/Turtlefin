@@ -3941,3 +3941,123 @@ msgstr "Nov"
 
 msgid "déc."
 msgstr "Dec"
+
+msgid "Affiche"
+msgstr "Poster"
+
+msgid "Année invalide."
+msgstr "Invalid year."
+
+msgid "Aucune image"
+msgstr "No image"
+
+msgid "Aucune image proposée par les fournisseurs du serveur."
+msgstr "The server's providers offer no images."
+
+msgid "Bannière"
+msgstr "Banner"
+
+msgid "Classification (ex. : FR-12)"
+msgstr "Rating (e.g. PG-13)"
+
+msgid "Ctrl+Entrée : valider · Échap : annuler"
+msgstr "Ctrl+Enter: confirm · Esc: cancel"
+
+msgid "Date attendue sous la forme AAAA-MM-JJ."
+msgstr "Date expected as YYYY-MM-DD."
+
+msgid "Date de sortie (AAAA-MM-JJ)"
+msgstr "Release date (YYYY-MM-DD)"
+
+msgid "Depuis un fichier…"
+msgstr "From a file…"
+
+msgid "Enregistré."
+msgstr "Saved."
+
+msgid "Envoi au serveur…"
+msgstr "Sending to the server…"
+
+msgid "Fin de diffusion (AAAA-MM-JJ)"
+msgstr "Last aired (YYYY-MM-DD)"
+
+msgid "Fond"
+msgstr "Backdrop"
+
+msgid "Image de l'épisode"
+msgstr "Episode image"
+
+msgid "Image remplacée."
+msgstr "Image replaced."
+
+msgid "Image retirée."
+msgstr "Image removed."
+
+msgid "Images"
+msgstr "Images"
+
+msgid "Le titre ne peut pas être vide."
+msgstr "The title cannot be empty."
+
+msgid "Logo"
+msgstr "Logo"
+
+msgid "Modifier… (informations, images)"
+msgstr "Edit… (details, images)"
+
+msgid "Nombre attendu."
+msgstr "Number expected."
+
+msgid "Nombre entier attendu."
+msgstr "Whole number expected."
+
+msgid "Note des critiques (sur 100)"
+msgstr "Critic rating (out of 100)"
+
+msgid "Note du public (sur 10)"
+msgstr "Community rating (out of 10)"
+
+msgid "Première diffusion (AAAA-MM-JJ)"
+msgstr "First aired (YYYY-MM-DD)"
+
+msgid "Recherche des images…"
+msgstr "Looking for images…"
+
+msgid "Retirer l'image"
+msgstr "Remove image"
+
+msgid "Résumé"
+msgstr "Overview"
+
+msgid "Saison n°"
+msgstr "Season no."
+
+msgid "Slogan"
+msgstr "Tagline"
+
+msgid "Titre original"
+msgstr "Original title"
+
+msgid "Titre pour le tri"
+msgstr "Sort title"
+
+msgid "Tout verrouiller (le serveur ne change plus rien)"
+msgstr "Lock everything (the server changes nothing more)"
+
+msgid "Vignette"
+msgstr "Thumbnail"
+
+msgid "format d'image non reconnu (JPEG, PNG, WebP ou GIF)"
+msgstr "unrecognised image format (JPEG, PNG, WebP or GIF)"
+
+msgid "image trop lourde (20 Mo au plus)"
+msgstr "image too large (20 MB at most)"
+
+msgid "{} (séparés par des virgules)"
+msgstr "{} (comma-separated)"
+
+msgid "{} · {}"
+msgstr "{} · {}"
+
+msgid "Épisode n°"
+msgstr "Episode no."

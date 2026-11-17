@@ -20,6 +20,7 @@ mod dashboard;
 mod discovery;
 mod downloads;
 mod dust;
+mod editor;
 mod i18n;
 mod lan;
 mod lock;
@@ -5618,8 +5619,8 @@ fn card_played(app: &Arc<App>, id: String, on: bool) {
 /// Menu d'une carte, actions des administrateurs : « refresh » relit les informations sur Internet,
 /// « identify » ouvre la fenêtre Identifier (films et séries).
 fn card_admin(app: &Arc<App>, action: String, id: String) {
-    if action == "rename" {
-        dashboard::ask(app, &format!("title:{id}"));
+    if action == "edit" {
+        editor::open(app, id, "");
         return;
     }
     let Some(client) = app.client() else { return };
@@ -8979,6 +8980,11 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         let at = buttons.iter().position(|b| b.1 == "download").or_else(|| buttons.iter().position(|b| b.1 == "played")).map_or(0, |i| i + 1);
         buttons.insert(at, (String::new(), "trailer".into(), "trailer".into(), false));
     }
+    // Administrateurs : « Modifier » (informations et images), au bout des icônes.
+    if app.admin.load(Ordering::SeqCst) && matches!(item.kind.as_str(), "Movie" | "Series" | "Season" | "Episode" | "BoxSet" | "MusicVideo" | "Video") {
+        let at = buttons.iter().rposition(|b| !b.2.is_empty()).map_or(0, |i| i + 1);
+        buttons.insert(at, (String::new(), "edit".into(), "edit".into(), false));
+    }
     *app.detail_streams.lock().unwrap() = (item.pref_key(), audio_streams, sub_streams);
     *app.detail_kind.lock().unwrap() = item.kind.clone();
     if downloads::exists(&item.id) {
@@ -9507,8 +9513,31 @@ async fn play_flow_with(
         if go_home_after {
             go_home(&app2);
         } else if let Some(id) = top {
-            // Recharge la fiche : l'état « Reprendre » / « vu » a pu changer.
-            start_detail(&app2, id);
+            // Recharge la fiche : l'état « Reprendre » / « vu » a pu changer. Épisode terminé : la fiche
+            // devient celle de l'épisode à suivre (comme la rangée « À suivre » de l'accueil).
+            match app2.client() {
+                Some(client) => {
+                    let a = app2.clone();
+                    app2.rt.spawn(async move {
+                        let next = next_after_played(&client, &id).await;
+                        let _ = a.ui().upgrade_in_event_loop(move |_| {
+                            let id = match next {
+                                Some(n) => {
+                                    if let Some(last) = a.stack.lock().unwrap().last_mut() {
+                                        if *last == id {
+                                            *last = n.clone();
+                                        }
+                                    }
+                                    n
+                                }
+                                None => id,
+                            };
+                            start_detail(&a, id);
+                        });
+                    });
+                }
+                None => start_detail(&app2, id),
+            }
         } else if u.get_screen().as_str() == "home" {
             // Lecture lancée depuis l'accueil (Reprendre, À suivre) : rangées à jour.
             go_home(&app2);
@@ -9517,6 +9546,17 @@ async fn play_flow_with(
             u.set_toast(m.into());
         }
     });
+}
+
+/// Fiche d'un épisode vu jusqu'au bout (marqué « vu » par le serveur) : l'épisode à suivre de sa série
+/// (en cours ou suivant), s'il y en a un autre.
+async fn next_after_played(client: &api::Client, id: &str) -> Option<String> {
+    let item = client.item(id).await.ok()?;
+    if item.kind != "Episode" || !item.user_data.as_ref().is_some_and(|u| u.played) {
+        return None;
+    }
+    let next = client.next_up_for(item.series_id.as_deref()?).await.ok()??;
+    (next.id != id).then_some(next.id)
 }
 
 // ---------------------------------------------------------------------------
@@ -10961,7 +11001,31 @@ pub(crate) fn main() -> anyhow::Result<()> {
 
     ui.on_prompt_ok({
         let app = app.clone();
-        move |what, text| dashboard::answer(&app, what.to_string(), text.to_string())
+        move |what, text| match what.strip_prefix("edit:") {
+            Some(key) => editor::answer(&app, key, text.as_str()),
+            None => dashboard::answer(&app, what.to_string(), text.to_string()),
+        }
+    });
+
+    ui.on_ed_img({
+        let app = app.clone();
+        move |i| editor::img(&app, i.max(0) as usize)
+    });
+    ui.on_ed_row({
+        let app = app.clone();
+        move |i| editor::row(&app, i.max(0) as usize)
+    });
+    ui.on_ed_quick({
+        let app = app.clone();
+        move |what| {
+            if let Some(id) = app.stack.lock().unwrap().last().cloned() {
+                editor::open(&app, id, what.as_str());
+            }
+        }
+    });
+    ui.on_pk_choose({
+        let app = app.clone();
+        move |i| editor::choose(&app, i.max(0) as usize)
     });
 
     ui.on_ident_search({
@@ -11251,6 +11315,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 toggle_watch(&app);
             } else if a == "trailer" {
                 play_trailer(&app);
+            } else if a == "edit" {
+                if let Some(id) = app.stack.lock().unwrap().last().cloned() {
+                    editor::open(&app, id, "");
+                }
             } else if a == "download" {
                 start_download(&app);
             } else if a == "seerr-missing" {

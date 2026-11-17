@@ -2100,6 +2100,54 @@ impl Client {
         Ok(())
     }
 
+    /// Administrateurs : fiche complète d'un élément telle que le serveur la garde (à modifier puis
+    /// renvoyer entière avec `item_save`).
+    pub async fn item_raw(&self, id: &str) -> Result<serde_json::Value> {
+        self.get(&format!("/Items/{}", seg(id)), &[("userId", &self.user_id)]).await
+    }
+
+    /// Administrateurs : enregistre les informations modifiées d'un élément (fiche entière).
+    pub async fn item_save(&self, id: &str, dto: &serde_json::Value) -> Result<()> {
+        self.admin_send(reqwest::Method::POST, &format!("/Items/{}", seg(id)), &[], Some(dto)).await
+    }
+
+    /// Administrateurs : images proposées par les fournisseurs (TMDB, Fanart…) pour un type d'image
+    /// (« Primary », « Backdrop », « Logo »…), les mieux notées d'abord.
+    pub async fn remote_images(&self, id: &str, kind: &str) -> Result<Vec<serde_json::Value>> {
+        let v: serde_json::Value = self
+            .get(&format!("/Items/{}/RemoteImages", seg(id)), &[("type", kind), ("includeAllLanguages", "true"), ("limit", "60")])
+            .await?;
+        Ok(v["Images"].as_array().cloned().unwrap_or_default())
+    }
+
+    /// Administrateurs : le serveur télécharge l'image choisie et la met à la place de l'actuelle.
+    pub async fn remote_image_apply(&self, id: &str, kind: &str, url: &str) -> Result<()> {
+        self.admin_send(reqwest::Method::POST, &format!("/Items/{}/RemoteImages/Download", seg(id)), &[("type", kind), ("imageUrl", url)], None).await
+    }
+
+    /// Administrateurs : envoie une image (fichier choisi sur cette machine) pour ce type d'image.
+    pub async fn image_upload(&self, id: &str, kind: &str, bytes: &[u8], mime: &str) -> Result<()> {
+        use base64::Engine;
+        let body = base64::engine::general_purpose::STANDARD.encode(bytes);
+        let resp = self
+            .http
+            .post(format!("{}/Items/{}/Images/{}", self.server, seg(id), seg(kind)))
+            .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
+            .header("Content-Type", mime)
+            .body(body)
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("{}", trf("Le serveur a répondu {}", &[&resp.status()])));
+        }
+        Ok(())
+    }
+
+    /// Administrateurs : retire une image (le n° `index` pour les fonds, sinon 0).
+    pub async fn image_delete(&self, id: &str, kind: &str, index: u32) -> Result<()> {
+        self.admin_send(reqwest::Method::DELETE, &format!("/Items/{}/Images/{}/{}", seg(id), seg(kind), index), &[], None).await
+    }
+
     async fn send_flag(&self, method: reqwest::Method, path: &str) -> Result<()> {
         let resp = self
             .http
@@ -2811,7 +2859,12 @@ impl Client {
     /// Type "Url" : `id` est une adresse complète hors Jellyfin (affiches TMDB des demandes Seerr).
     pub async fn image_any(&self, candidates: &[ImgCand], size: Size) -> Option<Vec<u8>> {
         for (id, kind, tag) in candidates {
-            let r = if *kind == "Url" { self.image_url(id).await } else { self.image(id, kind, tag.as_deref(), size).await };
+            let r = match *kind {
+                "Url" => self.image_url(id).await,
+                // Image d'un fournisseur (Fanart…) : adresse publique en HTTPS seulement.
+                "Pub" => self.public_image(id).await,
+                _ => self.image(id, kind, tag.as_deref(), size).await,
+            };
             if let Ok(b) = r {
                 return Some(b);
             }

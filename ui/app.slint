@@ -2790,6 +2790,21 @@ component DetailButton inherits Rectangle {
             }
         }
 
+        // Modifier (administrateurs) : crayon, qui pique vers le bas à l'appui.
+        if root.icon == "edit": Path {
+            x: (parent.width - self.width) / 2 - (root.kind == 1 ? root.hop * 2px * root.k : 0px);
+            y: (parent.height - self.height) / 2 + (root.kind == 1 ? root.hop * 3px * root.k : 0px);
+            width: 22px * root.k;
+            height: 22px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: face.ink;
+            stroke-width: 2px * root.k;
+            stroke-line-join: round;
+            commands: "M 4 20 L 4.8 15.8 L 15.6 5 C 16.4 4.2 17.6 4.2 18.4 5 L 19 5.6 C 19.8 6.4 19.8 7.6 19 8.4 L 8.2 19.2 Z M 13.6 7 L 17 10.4";
+        }
+
         // Supprimer (téléchargement) : corbeille, le couvercle se soulève à l'appui.
         if root.icon == "trash": Path {
             x: (parent.width - self.width) / 2;
@@ -3664,6 +3679,124 @@ component LoadSkeleton inherits Rectangle {
         Rectangle { x: parent.tx; y: 92px * root.k; width: min(parent.tw, 180px * root.k); height: 18px * root.k; border-radius: self.height / 2; background: root.ink; }
         for b in 4: Rectangle { x: parent.tx + b * 62px * root.k; y: 128px * root.k; width: 50px * root.k; height: 44px * root.k; border-radius: 10px * root.k; background: root.ink; }
         Rectangle { x: parent.tx; y: 192px * root.k; width: parent.tw; height: 120px * root.k; border-radius: Theme.radius; background: root.ink; }
+    }
+}
+
+// Modifier un média : une information (clé du serveur, libellé, valeur affichée, sorte : « text »,
+// « long », « list », « toggle »).
+export struct EdRow {
+    key: string,
+    label: string,
+    value: string,
+    kind: string,
+}
+
+// Modifier un média : une image (type du serveur ou action « file » / « remove »), sa vignette.
+export struct EdImg {
+    key: string,
+    label: string,
+    sub: string,
+    image: image,
+    has-image: bool,
+    wide: bool,
+}
+
+// Zone de la fiche modifiable (administrateurs) : clic droit, ou appui long au doigt.
+component EdHotspot inherits TouchArea {
+    callback fired();
+    property <bool> long-fired;
+    Timer {
+        interval: 550ms;
+        running: root.pressed && Nav.touch && !Nav.drag && !root.long-fired;
+        triggered => {
+            root.long-fired = true;
+            root.fired();
+        }
+    }
+    pointer-event(e) => {
+        if (e.kind == PointerEventKind.down) {
+            root.long-fired = false;
+            if (e.button == PointerEventButton.right) {
+                root.fired();
+            }
+        }
+    }
+}
+
+// Vignette d'une image (fenêtre Modifier, choix d'une image) : l'image entière, libellé dessous.
+component EdTile inherits Rectangle {
+    in property <EdImg> data;
+    in property <bool> focused;
+    in property <float> k: 1.0;
+    in property <length> art-h;
+    callback clicked();
+    property <bool> lit: Nav.kb ? root.focused : area.has-hover && !Nav.touch;
+    height: self.art-h + 48px * root.k;
+    art := Rectangle {
+        y: 0px;
+        height: root.art-h;
+        border-radius: 10px * root.k;
+        background: Theme.fg.with-alpha(0.07);
+        border-width: root.lit ? 3px : 1px;
+        border-color: root.lit ? Theme.accent2 : Theme.fg.with-alpha(0.18);
+        animate border-color { duration: Motion.select ? 160ms : 0ms; }
+        transform-scale: root.lit ? 1.04 : 1;
+        animate transform-scale { duration: Motion.select ? 180ms : 0ms; easing: ease-out; }
+        if root.data.has-image: Image {
+            x: 6px * root.k;
+            y: 6px * root.k;
+            width: parent.width - 12px * root.k;
+            height: parent.height - 12px * root.k;
+            source: root.data.image;
+            image-fit: contain;
+        }
+        // Actions : grand symbole au centre (fichier : flèche montante ; retirer : croix).
+        if root.data.key == "file" || root.data.key == "remove": Path {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 44px * root.k;
+            height: 44px * root.k;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            fill: transparent;
+            stroke: root.lit ? Theme.accent2 : Theme.muted;
+            stroke-width: 2px * root.k;
+            stroke-line-join: round;
+            commands: root.data.key == "file" ? "M 12 16 L 12 4.5 M 7 9.5 L 12 4.5 L 17 9.5 M 4.5 15 L 4.5 19.5 L 19.5 19.5 L 19.5 15" : "M 6 6 L 18 18 M 18 6 L 6 18";
+        }
+        if !root.data.has-image && root.data.key != "file" && root.data.key != "remove": Text {
+            text: Tr.t(Tr.k, "Aucune image");
+            color: Theme.muted;
+            font-size: 14px * root.k;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    Text {
+        y: root.art-h + 6px * root.k;
+        height: 22px * root.k;
+        width: parent.width;
+        text: root.data.label;
+        color: root.lit ? Theme.text : Theme.muted;
+        font-size: 15px * root.k;
+        font-weight: 600;
+        overflow: elide;
+        horizontal-alignment: center;
+    }
+    Text {
+        y: root.art-h + 27px * root.k;
+        height: 18px * root.k;
+        width: parent.width;
+        text: root.data.sub;
+        color: Theme.muted;
+        font-size: 12px * root.k;
+        overflow: elide;
+        horizontal-alignment: center;
+    }
+    area := TouchArea {
+        clicked => {
+            root.clicked();
+        }
     }
 }
 
@@ -5505,6 +5638,29 @@ export component AppWindow inherits Window {
     callback ident-search(string, string);
     callback ident-apply(int);
 
+    // Modifier un média (administrateurs, voir editor.rs) : images en haut (zone 0), informations
+    // dessous (zone 1). Entrée sur une image ouvre son choix (pk-), sur une information sa saisie.
+    in-out property <bool> ed-open;
+    in property <string> ed-title;
+    in property <[EdImg]> ed-imgs;
+    in property <[EdRow]> ed-rows;
+    in property <bool> ed-busy;
+    in-out property <int> ed-zone;
+    in-out property <int> ed-isel;
+    in-out property <int> ed-rsel;
+    callback ed-img(int);
+    callback ed-row(int);
+    // Clic droit sur la fiche (affiche, logo, titre, résumé, fond) : directement la bonne saisie.
+    callback ed-quick(string);
+    // Choix d'une image : depuis un fichier, retirer, puis celles des fournisseurs.
+    in-out property <bool> pk-open;
+    in property <string> pk-title;
+    in property <[EdImg]> pk-items;
+    in property <bool> pk-busy;
+    in property <bool> pk-wide;
+    in-out property <int> pk-sel;
+    callback pk-choose(int);
+
     // Saisie d'un texte (tableau de bord, titre d'un média...) : titre, libellé, valeur de départ ;
     // `prompt-ok` rend le texte avec la clé de l'action (voir dashboard.rs).
     in-out property <bool> prompt-open;
@@ -5515,6 +5671,8 @@ export component AppWindow inherits Window {
     in property <string> prompt-key;
     // Valeur de départ arrivée après l'ouverture : le curseur repasse au bout du texte.
     in property <int> prompt-seed;
+    // Texte sur plusieurs lignes (résumé d'un média) : Entrée va à la ligne, Ctrl+Entrée valide.
+    in-out property <bool> prompt-long;
     callback prompt-ok(string, string);
     // Code d'un compte (voir lock.rs) : 4 chiffres (« pin ») ou 6 flèches (« keys »). Rust tient le
     // code tapé ; l'interface n'envoie que les touches (lock-key : chiffre, up/down/left/right,
@@ -6584,7 +6742,7 @@ export component AppWindow inherits Window {
                 // Bureau, formulaire affiché : le clavier va au champ à remplir, pas à la page.
                 if (!root.tv-mode && root.login-mode == "form") {
                     root.login-focus-tick += 1;
-                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.lock-open) {
+                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open && !root.lock-open) {
                     self.focus();
                 }
             }
@@ -6592,7 +6750,7 @@ export component AppWindow inherits Window {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
                 if (!root.tv-mode && root.login-mode == "form") {
                     root.login-focus-tick += 1;
-                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.lock-open) {
+                } else if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open && !root.lock-open) {
                     self.focus();
                 }
             }
@@ -7278,14 +7436,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -7767,7 +7925,7 @@ export component AppWindow inherits Window {
             focus-on-click: root.tv-mode;
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.sf-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open && !root.sf-open) {
                     // Bureau : le clavier retourne au champ s'il l'avait (menu refermé, retour d'une fiche...).
                     if (!root.tv-mode && root.s-field && !root.h-focus) {
                         s-input.focus();
@@ -8674,13 +8832,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -8739,13 +8897,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -9139,14 +9297,14 @@ export component AppWindow inherits Window {
 
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
 
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -9339,6 +9497,12 @@ export component AppWindow inherits Window {
                 border-width: 1px;
                 border-color: Theme.card-border;
             }
+            // Administrateurs : clic droit (ou appui long) sur l'affiche -> choisir une autre affiche.
+            if root.is-admin: EdHotspot {
+                fired => {
+                    root.ed-quick("img:Primary");
+                }
+            }
         }
 
         // Chiffres à droite du titre : note dans un anneau coloré, durée, date de sortie, classification.
@@ -9408,6 +9572,20 @@ export component AppWindow inherits Window {
                 vertical-alignment: center;
                 active: true;
                 horizontal-alignment: TextHorizontalAlignment.left;
+            }
+            // Administrateurs : clic droit sur le logo -> autre logo ; sur le titre en texte -> le titre.
+            if root.is-admin && (dt.logo-wide || dt.logo-small): EdHotspot {
+                width: dt.logo-wide ? min(parent.width, 420px * root.k) : 60px * root.k;
+                fired => {
+                    root.ed-quick("img:Logo");
+                }
+            }
+            if root.is-admin && !dt.logo-wide: EdHotspot {
+                x: parent.text-x;
+                width: parent.width - parent.text-x;
+                fired => {
+                    root.ed-quick("row:Name");
+                }
             }
         }
 
@@ -9651,8 +9829,20 @@ export component AppWindow inherits Window {
 
             ov-ta := TouchArea {
                 clicked => {
-                    root.d-zone = 1;
-                    root.overview-open = true;
+                    if (!self.right-down) {
+                        root.d-zone = 1;
+                        root.overview-open = true;
+                    }
+                }
+                // Administrateurs : clic droit -> modifier le résumé.
+                property <bool> right-down;
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        self.right-down = e.button == PointerEventButton.right;
+                        if (self.right-down && root.is-admin) {
+                            root.ed-quick("row:Overview");
+                        }
+                    }
                 }
             }
         }
@@ -10177,13 +10367,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -10511,13 +10701,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -10803,7 +10993,7 @@ export component AppWindow inherits Window {
                 focus-on-click: root.tv-mode;
                 init => {
                     // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                         self.focus();
                     }
                 }
@@ -11101,7 +11291,7 @@ export component AppWindow inherits Window {
                 FocusScope {
                     init => {
                         // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                        if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                        if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                             self.focus();
                         }
                     }
@@ -11181,13 +11371,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -11520,13 +11710,13 @@ export component AppWindow inherits Window {
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -14589,7 +14779,7 @@ export component AppWindow inherits Window {
                         root.cancel-open();
                         return EventResult.accept;
                     }
-                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                    if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                         return EventResult.reject;
                     }
                     if ((event.text == Key.UpArrow || event.text == Key.DownArrow) && root.rep-wait(event.repeat)) {
@@ -15145,7 +15335,7 @@ export component AppWindow inherits Window {
             }
             init => {
                 // Menu ouvert : il garde le clavier (sa fermeture rend la main via refocus).
-                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open) {
+                if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
                     self.focus();
                 }
             }
@@ -16722,7 +16912,18 @@ export component AppWindow inherits Window {
     // est appliqué par le serveur (identifiants, informations, images).
     if root.ident-open: Rectangle {
         background: #000000a0;
-        TouchArea { }
+        TouchArea {
+            // Molette (verticale ou horizontale) : d'un résultat à l'autre ; jamais vers la page dessous.
+            scroll-event(e) => {
+                let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
+                if (d < 0) {
+                    root.ident-sel = min(root.ident-results.length - 1, root.ident-sel + 1);
+                } else if (d > 0) {
+                    root.ident-sel = max(0, root.ident-sel - 1);
+                }
+                return EventResult.accept;
+            }
+        }
         ident-box := Rectangle {
             width: min(parent.width - 32px, 980px * root.k);
             height: min(parent.height - 32px, 600px * root.k);
@@ -16844,6 +17045,335 @@ export component AppWindow inherits Window {
     }
 
 
+    // Modifier un média (administrateurs) : images en haut, informations dessous. Clavier : ← → entre
+    // les images, ↓ ↑ entre les informations (↑ depuis la première remonte aux images), Entrée modifie,
+    // Échap ferme. Souris : clic, molette sur la liste.
+    if root.ed-open: Rectangle {
+        background: #000000a0;
+        TouchArea {
+            scroll-event(e) => {
+                return EventResult.accept;
+            }
+        }
+        ed-box := Rectangle {
+            width: min(parent.width - 32px, 1000px * root.k);
+            height: min(parent.height - 32px, 680px * root.k);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 16px * root.k;
+            background: Theme.bg-mid;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 30px;
+            drop-shadow-color: #000000a0;
+            property <float> in-q: 0;
+            init => {
+                self.in-q = 1;
+            }
+            animate in-q { duration: Motion.panels ? 180ms : 0ms; easing: ease-out; }
+            opacity: self.in-q;
+            transform-scale: 0.96 + 0.04 * self.in-q;
+            property <length> pad: 24px * root.k;
+            property <length> tile-w: 150px * root.k;
+            property <length> art-h: 120px * root.k;
+            property <length> row-h: 52px * root.k;
+            ed-keys := FocusScope {
+                property <int> tick: root.refocus;
+                changed tick => {
+                    if (!root.prompt-open && !root.pk-open) {
+                        self.focus();
+                    }
+                }
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.ed-open = false;
+                        root.refocus += 1;
+                    } else if (root.ed-zone == 0) {
+                        if (event.text == Key.LeftArrow) {
+                            root.ed-isel = max(0, root.ed-isel - 1);
+                        } else if (event.text == Key.RightArrow) {
+                            root.ed-isel = min(root.ed-imgs.length - 1, root.ed-isel + 1);
+                        } else if (event.text == Key.DownArrow && root.ed-rows.length > 0) {
+                            root.ed-zone = 1;
+                        } else if (event.text == Key.Return && !event.repeat && root.ed-isel < root.ed-imgs.length) {
+                            root.ed-img(root.ed-isel);
+                        }
+                    } else {
+                        if (event.text == Key.UpArrow) {
+                            if (root.ed-rsel == 0) {
+                                if (root.ed-imgs.length > 0) {
+                                    root.ed-zone = 0;
+                                }
+                            } else {
+                                root.ed-rsel -= 1;
+                            }
+                        } else if (event.text == Key.DownArrow) {
+                            root.ed-rsel = min(root.ed-rows.length - 1, root.ed-rsel + 1);
+                        } else if (event.text == Key.Return && !event.repeat && root.ed-rsel < root.ed-rows.length) {
+                            root.ed-row(root.ed-rsel);
+                        }
+                    }
+                    return EventResult.accept;
+                }
+            }
+            Text {
+                x: ed-box.pad;
+                y: 18px * root.k;
+                width: parent.width - 2 * ed-box.pad - 40px * root.k;
+                height: 34px * root.k;
+                text: Tr.t(Tr.k, "Modifier") + " · " + root.ed-title;
+                color: Theme.text;
+                font-size: 22px * root.k;
+                font-weight: 700;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+            // Fermer (souris, doigt).
+            Rectangle {
+                x: parent.width - ed-box.pad - self.width + 8px * root.k;
+                y: 18px * root.k;
+                width: 34px * root.k;
+                height: 34px * root.k;
+                border-radius: self.width / 2;
+                background: ed-x.has-hover ? Theme.fg.with-alpha(0.14) : transparent;
+                Path {
+                    width: 14px * root.k;
+                    height: 14px * root.k;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    stroke: Theme.text;
+                    stroke-width: 2px * root.k;
+                    commands: "M 3 3 L 21 21 M 21 3 L 3 21";
+                }
+                ed-x := TouchArea {
+                    clicked => {
+                        root.ed-open = false;
+                        root.refocus += 1;
+                    }
+                }
+            }
+            // Images : rangée de vignettes.
+            ed-imgs-row := Rectangle {
+                x: ed-box.pad;
+                y: 64px * root.k;
+                width: parent.width - 2 * ed-box.pad;
+                height: ed-box.art-h + 56px * root.k;
+                clip: true;
+                property <length> step: ed-box.tile-w + 14px * root.k;
+                property <length> shift: max(0px, min(root.ed-isel * self.step - (self.width - ed-box.tile-w) / 2,
+                    root.ed-imgs.length * self.step - 14px * root.k - self.width));
+                animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                for img[i] in root.ed-imgs: EdTile {
+                    x: i * ed-imgs-row.step - ed-imgs-row.shift;
+                    y: 6px * root.k;
+                    width: ed-box.tile-w;
+                    art-h: ed-box.art-h;
+                    k: root.k;
+                    data: img;
+                    focused: root.ed-zone == 0 && root.ed-isel == i;
+                    clicked => {
+                        root.ed-zone = 0;
+                        root.ed-isel = i;
+                        root.ed-img(i);
+                    }
+                }
+            }
+            // Informations : une ligne par champ, la sélection reste visible (molette : d'une ligne à l'autre).
+            ed-list := Rectangle {
+                x: ed-box.pad;
+                y: ed-imgs-row.y + ed-imgs-row.height + 8px * root.k;
+                width: parent.width - 2 * ed-box.pad;
+                height: parent.height - self.y - ed-box.pad;
+                clip: true;
+                property <length> step: ed-box.row-h + 4px * root.k;
+                property <length> shift: max(0px, min(root.ed-rsel * self.step - (self.height - ed-box.row-h) / 2,
+                    root.ed-rows.length * self.step - 4px * root.k - self.height));
+                animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                TouchArea {
+                    scroll-event(e) => {
+                        if (e.delta-y < 0) {
+                            root.ed-rsel = min(root.ed-rows.length - 1, root.ed-rsel + 1);
+                        } else if (e.delta-y > 0) {
+                            root.ed-rsel = max(0, root.ed-rsel - 1);
+                        }
+                        root.ed-zone = 1;
+                        return EventResult.accept;
+                    }
+                }
+                if root.ed-busy && root.ed-rows.length == 0: Text {
+                    text: Tr.t(Tr.k, "Chargement…");
+                    color: Theme.muted;
+                    font-size: 16px * root.k;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                for r[i] in root.ed-rows: Rectangle {
+                    y: i * ed-list.step - ed-list.shift;
+                    height: ed-box.row-h;
+                    border-radius: 10px * root.k;
+                    property <bool> lit: Nav.kb ? root.ed-zone == 1 && root.ed-rsel == i : ed-row-area.has-hover && !Nav.touch;
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.05);
+                    animate background { duration: Motion.select ? 140ms : 0ms; }
+                    Text {
+                        x: 16px * root.k;
+                        width: 220px * root.k;
+                        text: r.label;
+                        color: parent.lit ? Theme.on-accent : Theme.muted;
+                        font-size: 15px * root.k;
+                        font-weight: 600;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        x: 248px * root.k;
+                        width: parent.width - self.x - 50px * root.k;
+                        text: r.value == "" ? "—" : r.value;
+                        color: parent.lit ? Theme.on-accent : Theme.text;
+                        font-size: 16px * root.k;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                    // Crayon à droite : la ligne se modifie.
+                    Path {
+                        x: parent.width - 36px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 18px * root.k;
+                        height: 18px * root.k;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        fill: transparent;
+                        stroke: parent.lit ? Theme.on-accent : Theme.muted;
+                        stroke-width: 2px * root.k;
+                        stroke-line-join: round;
+                        commands: r.kind == "toggle" ? "M 4 12.5 L 9.5 18 L 20 6.5" : "M 4 20 L 4.8 15.8 L 15.6 5 C 16.4 4.2 17.6 4.2 18.4 5 L 19 5.6 C 19.8 6.4 19.8 7.6 19 8.4 L 8.2 19.2 Z";
+                        opacity: r.kind == "toggle" && r.value != Tr.t(Tr.k, "Oui") ? 0 : 1;
+                    }
+                    ed-row-area := TouchArea {
+                        clicked => {
+                            root.ed-zone = 1;
+                            root.ed-rsel = i;
+                            root.ed-row(i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Choix d'une image (Modifier, ou clic droit sur la fiche) : fichier, retirer, puis les images
+    // proposées par les fournisseurs. ← → (et ↑ ↓ par rangée), Entrée choisit, Échap ferme.
+    if root.pk-open: Rectangle {
+        background: #000000b0;
+        TouchArea {
+            scroll-event(e) => {
+                let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
+                if (d < 0) {
+                    root.pk-sel = min(root.pk-items.length - 1, root.pk-sel + 1);
+                } else if (d > 0) {
+                    root.pk-sel = max(0, root.pk-sel - 1);
+                }
+                return EventResult.accept;
+            }
+        }
+        pk-box := Rectangle {
+            width: min(parent.width - 32px, 1100px * root.k);
+            height: min(parent.height - 32px, 700px * root.k);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 16px * root.k;
+            background: Theme.bg-mid;
+            border-width: 1px;
+            border-color: Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : 30px;
+            drop-shadow-color: #000000a0;
+            property <float> in-q: 0;
+            init => {
+                self.in-q = 1;
+            }
+            animate in-q { duration: Motion.panels ? 180ms : 0ms; easing: ease-out; }
+            opacity: self.in-q;
+            transform-scale: 0.96 + 0.04 * self.in-q;
+            property <length> pad: 24px * root.k;
+            property <length> tile-w: root.pk-wide ? 250px * root.k : 150px * root.k;
+            property <length> art-h: root.pk-wide ? 150px * root.k : 210px * root.k;
+            property <length> gap: 16px * root.k;
+            property <int> cols: max(1, floor((self.width - 2 * self.pad + self.gap) / (self.tile-w + self.gap)));
+            property <length> cell-h: self.art-h + 48px * root.k + self.gap;
+            FocusScope {
+                init => {
+                    self.focus();
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.pk-open = false;
+                        root.refocus += 1;
+                    } else if (event.text == Key.LeftArrow) {
+                        root.pk-sel = max(0, root.pk-sel - 1);
+                    } else if (event.text == Key.RightArrow) {
+                        root.pk-sel = min(root.pk-items.length - 1, root.pk-sel + 1);
+                    } else if (event.text == Key.UpArrow) {
+                        root.pk-sel = max(0, root.pk-sel - pk-box.cols);
+                    } else if (event.text == Key.DownArrow) {
+                        root.pk-sel = min(root.pk-items.length - 1, root.pk-sel + pk-box.cols);
+                    } else if (event.text == Key.Return && !event.repeat && root.pk-sel < root.pk-items.length) {
+                        root.pk-choose(root.pk-sel);
+                    }
+                    return EventResult.accept;
+                }
+            }
+            Text {
+                x: pk-box.pad;
+                y: 18px * root.k;
+                width: parent.width - 2 * pk-box.pad;
+                height: 34px * root.k;
+                text: root.pk-title;
+                color: Theme.text;
+                font-size: 22px * root.k;
+                font-weight: 700;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+            if root.pk-busy: Text {
+                x: pk-box.pad;
+                y: 50px * root.k;
+                height: 22px * root.k;
+                text: Tr.t(Tr.k, "Recherche des images…");
+                color: Theme.muted;
+                font-size: 14px * root.k;
+            }
+            pk-grid := Rectangle {
+                x: pk-box.pad;
+                y: 80px * root.k;
+                width: parent.width - 2 * pk-box.pad;
+                height: parent.height - self.y - pk-box.pad;
+                clip: true;
+                property <int> rows: ceil(root.pk-items.length / pk-box.cols);
+                property <length> shift: max(0px, min(floor(root.pk-sel / pk-box.cols) * pk-box.cell-h - (self.height - pk-box.cell-h) / 2,
+                    self.rows * pk-box.cell-h - pk-box.gap - self.height));
+                animate shift { duration: Motion.scroll ? 200ms : 0ms; easing: ease-out; }
+                property <length> left: (self.width - (pk-box.cols * (pk-box.tile-w + pk-box.gap) - pk-box.gap)) / 2;
+                for it[i] in root.pk-items: EdTile {
+                    x: pk-grid.left + mod(i, pk-box.cols) * (pk-box.tile-w + pk-box.gap);
+                    y: 8px * root.k + floor(i / pk-box.cols) * pk-box.cell-h - pk-grid.shift;
+                    width: pk-box.tile-w;
+                    art-h: pk-box.art-h;
+                    k: root.k;
+                    data: it;
+                    focused: root.pk-sel == i;
+                    clicked => {
+                        root.pk-sel = i;
+                        root.pk-choose(i);
+                    }
+                }
+            }
+        }
+    }
+
     // Code d'un compte : points, message, pavé (chiffres ou flèches), « Code oublié ? ».
     if root.lock-open: Rectangle {
         background: #000000b0;
@@ -16941,9 +17471,9 @@ export component AppWindow inherits Window {
                     self.focus();
                 }
                 // Une page derrière qui reprend le clavier (rechargement, retour du serveur) : il revient
-                // ici tant que la fenêtre est ouverte.
+                // ici tant que la fenêtre est ouverte (fermée : la page le garde, sinon plus rien ne l'a).
                 changed has-focus => {
-                    if (!self.has-focus) {
+                    if (!self.has-focus && root.lock-open) {
                         self.focus();
                     }
                 }
@@ -17194,7 +17724,7 @@ export component AppWindow inherits Window {
         background: #000000a0;
         TouchArea { }
         pr-box := Rectangle {
-            width: min(parent.width - 32px, 560px * root.k);
+            width: min(parent.width - 32px, (root.prompt-long ? 820px : 560px) * root.k);
             height: pr-col.preferred-height;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
@@ -17206,6 +17736,7 @@ export component AppWindow inherits Window {
             drop-shadow-color: #000000a0;
             function done(ok: bool) {
                 root.prompt-open = false;
+                root.prompt-long = false;
                 root.refocus += 1;
                 if (ok) {
                     root.prompt-ok(root.prompt-key, root.prompt-text);
@@ -17229,7 +17760,50 @@ export component AppWindow inherits Window {
                         font-weight: 700;
                         wrap: word-wrap;
                     }
-                    pr-field := Field {
+                    // Plusieurs lignes : Entrée va à la ligne, Ctrl+Entrée valide.
+                    if root.prompt-long: Text {
+                        text: root.prompt-label;
+                        color: Theme.fg;
+                        font-size: 13px * root.k;
+                        font-weight: 600;
+                    }
+                    if root.prompt-long: Rectangle {
+                        height: 240px * root.k;
+                        border-radius: 12px * root.k;
+                        background: Theme.fg.with-alpha(0.10);
+                        border-width: 2px;
+                        border-color: Theme.accent2;
+                        long-in := TextInput {
+                            x: 16px * root.k;
+                            y: 12px * root.k;
+                            width: parent.width - 32px * root.k;
+                            height: parent.height - 24px * root.k;
+                            text <=> root.prompt-text;
+                            single-line: false;
+                            wrap: word-wrap;
+                            color: Theme.text;
+                            font-size: 16px * root.k;
+                            selection-background-color: Theme.accent2;
+                            selection-foreground-color: Theme.on-accent;
+                            init => {
+                                self.focus();
+                                self.set-selection-offsets(1000000, 1000000);
+                            }
+                            key-pressed(event) => {
+                                if (event.text == Key.Return && event.modifiers.control) {
+                                    pr-box.done(true);
+                                    return EventResult.accept;
+                                }
+                                return EventResult.reject;
+                            }
+                        }
+                    }
+                    if root.prompt-long: Text {
+                        text: Tr.t(Tr.k, "Ctrl+Entrée : valider · Échap : annuler");
+                        color: Theme.muted;
+                        font-size: 13px * root.k;
+                    }
+                    if !root.prompt-long: Field {
                         k: root.k;
                         property <int> seed: root.prompt-seed;
                         changed seed => {
@@ -17282,13 +17856,13 @@ export component AppWindow inherits Window {
         }
         // Actions, dans l'ordre du menu.
         property <string> pl: root.cm-card.played ? "unplayed" : "played";
-        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh", "rename"] : ["open", self.pl];
+        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh", "edit"] : ["open", self.pl];
         property <[string]> labels: root.is-admin ? [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
             Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
             Tr.t(Tr.k, "Actualiser les informations"),
-            Tr.t(Tr.k, "Modifier le titre…"),
+            Tr.t(Tr.k, "Modifier… (informations, images)"),
         ] : [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
@@ -17300,7 +17874,7 @@ export component AppWindow inherits Window {
                 root.refocus += 1;
                 if (cm-layer.acts[i] == "open") {
                     root.open-hero(root.cm-card.id);
-                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh" || cm-layer.acts[i] == "rename") {
+                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh" || cm-layer.acts[i] == "edit") {
                     root.card-admin(cm-layer.acts[i], root.cm-card.id);
                 } else {
                     root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");
