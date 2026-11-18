@@ -17355,9 +17355,27 @@ export component AppWindow inherits Window {
                 height: ed-box.art-h + 56px * root.k;
                 clip: true;
                 property <length> step: ed-box.tile-w + 14px * root.k;
-                property <length> shift: max(0px, min(root.ed-isel * self.step - (self.width - ed-box.tile-w) / 2,
-                    root.ed-imgs.length * self.step - 14px * root.k - self.width));
-                animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
+                property <length> max-shift: max(0px, root.ed-imgs.length * self.step - 14px * root.k - self.width);
+                // Doigt, molette : défilement libre au pixel ; les flèches le rendent à la sélection.
+                property <bool> free;
+                property <length> free-x;
+                property <int> isel-now: root.ed-isel;
+                changed isel-now => {
+                    self.free = false;
+                }
+                property <length> shift: self.free ? self.free-x : max(0px, min(root.ed-isel * self.step - (self.width - ed-box.tile-w) / 2, self.max-shift));
+                animate shift { duration: Motion.scroll && !Nav.drag ? 180ms : 0ms; easing: ease-out; }
+                TouchArea {
+                    scroll-event(e) => {
+                        let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
+                        if (ed-imgs-row.max-shift <= 0px || d == 0px) {
+                            return EventResult.accept;
+                        }
+                        ed-imgs-row.free-x = clamp(ed-imgs-row.shift - d, 0px, ed-imgs-row.max-shift);
+                        ed-imgs-row.free = true;
+                        return EventResult.accept;
+                    }
+                }
                 for img[i] in root.ed-imgs: EdTile {
                     x: i * ed-imgs-row.step - ed-imgs-row.shift;
                     y: 6px * root.k;
@@ -17385,11 +17403,18 @@ export component AppWindow inherits Window {
                     root.ed-rows.length * self.step - 4px * root.k - self.height));
                 animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
                 TouchArea {
+                    // Un cran par ligne parcourue au doigt (un glissé envoie des dizaines d'événements),
+                    // un par cran de molette.
+                    property <length> acc;
                     scroll-event(e) => {
-                        if (e.delta-y < 0) {
-                            root.ed-rsel = min(root.ed-rows.length - 1, root.ed-rsel + 1);
-                        } else if (e.delta-y > 0) {
-                            root.ed-rsel = max(0, root.ed-rsel - 1);
+                        self.acc += e.delta-y;
+                        if (abs(self.acc) >= (Nav.drag ? ed-list.step : 40px)) {
+                            if (self.acc < 0) {
+                                root.ed-rsel = min(root.ed-rows.length - 1, root.ed-rsel + 1);
+                            } else {
+                                root.ed-rsel = max(0, root.ed-rsel - 1);
+                            }
+                            self.acc = 0px;
                         }
                         root.ed-zone = 1;
                         return EventResult.accept;
@@ -17464,12 +17489,19 @@ export component AppWindow inherits Window {
     if root.pk-open: Rectangle {
         background: #000000b0;
         TouchArea {
+            // Au doigt : une rangée de vignettes par hauteur de rangée parcourue ; molette : une vignette.
+            property <length> acc;
             scroll-event(e) => {
                 let d = abs(e.delta-x) > abs(e.delta-y) ? e.delta-x : e.delta-y;
-                if (d < 0) {
-                    root.pk-sel = min(root.pk-items.length - 1, root.pk-sel + 1);
-                } else if (d > 0) {
-                    root.pk-sel = max(0, root.pk-sel - 1);
+                self.acc += d;
+                if (Nav.drag) {
+                    if (abs(self.acc) >= pk-box.cell-h * 0.6) {
+                        root.pk-sel = self.acc < 0 ? min(root.pk-items.length - 1, root.pk-sel + pk-box.cols) : max(0, root.pk-sel - pk-box.cols);
+                        self.acc = 0px;
+                    }
+                } else if (abs(self.acc) >= 40px) {
+                    root.pk-sel = self.acc < 0 ? min(root.pk-items.length - 1, root.pk-sel + 1) : max(0, root.pk-sel - 1);
+                    self.acc = 0px;
                 }
                 return EventResult.accept;
             }
