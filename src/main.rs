@@ -11933,7 +11933,9 @@ fn refresh_downloads(app: &Arc<App>) {
             let left = eps.iter().filter(|x| !x.played).count();
             let all_played = local_flag(&e.series_id, false, left == 0);
             series.push((key, e.series_name.clone(), plural(eps.len(), tr("épisode"), tr("épisodes")), e.series_poster(), if all_played { 0 } else { left as i32 }, 0.0, all_played));
-        } else if e.kind != "Episode" {
+        } else if e.kind != "Episode" && !(e.position > 0.0 && !e.played) {
+            // Film commencé : seulement dans Reprendre (deux cartes identiques, la sélection retrouvée
+            // au retour pouvait tomber sur l'autre).
             movies.push((format!("dl:item:{}", e.id), e.title.clone(), e.year.map(|y| y.to_string()).unwrap_or_default(), e.poster_path(), 0, entry_progress(e), e.played));
         }
     }
@@ -11980,9 +11982,22 @@ fn refresh_downloads(app: &Arc<App>) {
             })
             .collect();
         let n = model.len() as i32;
+        // Carte choisie avant la mise à jour : retrouvée par son identité (une rangée « Reprendre » qui
+        // apparaît ou disparaît décale les positions), dans la même rangée si elle y est encore.
+        let old = u.get_dl_sections();
+        let (os, oi) = (u.get_dl_sec().max(0) as usize, u.get_dl_item().max(0) as usize);
+        let keep = old.row_data(os).and_then(|s| s.items.row_data(oi).map(|c| (s.title.to_string(), c.id.to_string())));
+        let found = keep.as_ref().and_then(|(title, id)| {
+            let hit = |si: usize, s: &Section| s.items.iter().position(|c| c.id.as_str() == id).map(|ci| (si, ci));
+            model.iter().enumerate().find(|(_, s)| s.title.as_str() == title).and_then(|(si, s)| hit(si, s))
+                .or_else(|| model.iter().enumerate().find_map(|(si, s)| hit(si, s)))
+        });
         u.set_dl_sections(ModelRc::new(VecModel::from(model)));
         u.set_dl_level(0);
-        if u.get_dl_sec() >= n {
+        if let Some((si, ci)) = found {
+            u.set_dl_sec(si as i32);
+            u.set_dl_item(ci as i32);
+        } else if u.get_dl_sec() >= n {
             u.set_dl_sec((n - 1).max(0));
             u.set_dl_item(0);
         }
