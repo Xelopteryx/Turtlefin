@@ -6920,7 +6920,7 @@ export component AppWindow inherits Window {
                 : Theme.dark ? Theme.accent2 : Theme.accent1;
             stroke: Theme.gloss > 0 ? Theme.accent1.darker(0.4) : transparent;
             stroke-width: Theme.gloss > 0 ? 1.5 * lg.u : 0px;
-            font-size: (44 * lg.u) * Theme.text-scale;
+            font-size: 44 * lg.u;
             font-weight: 800;
             horizontal-alignment: center;
         }
@@ -6931,7 +6931,7 @@ export component AppWindow inherits Window {
             width: parent.width;
             text: root.server-name != "" ? root.server-name + "  ·  " + root.server : root.server;
             color: Theme.muted;
-            font-size: (16 * lg.u) * Theme.text-scale;
+            font-size: 16 * lg.u;
             horizontal-alignment: center;
         }
 
@@ -6950,7 +6950,7 @@ export component AppWindow inherits Window {
                 text: lg.arm-id != "" ? Tr.t(Tr.k, "Encore une fois pour retirer ce compte et fermer sa session")
                     : root.login-edit ? Tr.t(Tr.k, "Choisis un compte à retirer de cet appareil") : Tr.t(Tr.k, "Qui regarde ?");
                 color: Theme.fg;
-                font-size: (30 * lg.u) * Theme.text-scale;
+                font-size: 30 * lg.u;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
@@ -7066,7 +7066,7 @@ export component AppWindow inherits Window {
                     if !t.has-image: Text {
                         text: t.id == "other" ? "+" : t.rating;
                         color: Theme.fg;
-                        font-size: ((t.id == "other" ? 64 : 40) * lg.u) * Theme.text-scale;
+                        font-size: (t.id == "other" ? 64 : 40) * lg.u;
                         font-weight: 700;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -7079,7 +7079,7 @@ export component AppWindow inherits Window {
                     text: t.title;
                     text-color: Theme.fg;
                     // Petites tuiles (beaucoup de comptes) : le nom rétrécit un peu avec elles.
-                    font-size: (max(14 * lg.u, 18 * lg.tile / 150)) * Theme.text-scale;
+                    font-size: max(14 * lg.u, 18 * lg.tile / 150);
                     font-weight: 600;
                     horizontal-alignment: center;
                     active: i == root.login-sel && Nav.kb;
@@ -7092,7 +7092,7 @@ export component AppWindow inherits Window {
                     // téléchargements (hors ligne) ; les autres ne peuvent rien ouvrir.
                     text: t.id == lg.arm-id ? Tr.t(Tr.k, "Confirmer ?") : root.offline-ok && tile.removable ? Tr.t(Tr.k, "Hors ligne") : t.subtitle;
                     color: Theme.accent-ink;
-                    font-size: (13 * lg.u) * Theme.text-scale;
+                    font-size: 13 * lg.u;
                     horizontal-alignment: center;
                 }
                 // Gestion : croix rouge sur les comptes que l'on peut retirer.
@@ -7142,7 +7142,7 @@ export component AppWindow inherits Window {
                 spacing: 16 * lg.u;
                 if !root.login-edit: ActionButton {
                     text: Tr.t(Tr.k, "Changer de serveur");
-                    font: (16 * lg.u) * Theme.text-scale;
+                    font: 16 * lg.u;
                     focused: root.login-sel == lg.n && Nav.kb;
                     clicked => {
                         root.menu-action("server");
@@ -7150,7 +7150,7 @@ export component AppWindow inherits Window {
                 }
                 if lg.saved-count > 0 || root.login-edit: ActionButton {
                     text: root.login-edit ? Tr.t(Tr.k, "Terminé") : Tr.t(Tr.k, "Gérer les comptes");
-                    font: (16 * lg.u) * Theme.text-scale;
+                    font: 16 * lg.u;
                     focused: (root.login-edit ? root.login-sel >= lg.n : root.login-sel == lg.manage-i) && Nav.kb;
                     clicked => {
                         root.login-edit = !root.login-edit;
@@ -7246,7 +7246,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.login-title;
                     color: Theme.fg;
-                    font-size: (24 * lg.u) * Theme.text-scale;
+                    font-size: 24 * lg.u;
                     font-weight: 700;
                 }
                 Text {
@@ -7255,7 +7255,7 @@ export component AppWindow inherits Window {
                     visible: !lg.one;
                     height: lg.one ? 0px : self.preferred-height;
                     color: Theme.muted;
-                    font-size: (13 * lg.u) * Theme.text-scale;
+                    font-size: 13 * lg.u;
                 }
                 Rectangle {
                     height: 6 * lg.u;
@@ -7335,7 +7335,7 @@ export component AppWindow inherits Window {
                     alignment: end;
                     ActionButton {
                         text: Tr.t(Tr.k, "Retour");
-                        font: (16 * lg.u) * Theme.text-scale;
+                        font: 16 * lg.u;
                         focused: root.tv-mode && !root.login-osk && root.login-field == 3;
                         clicked => {
                             root.login-mode = "pick";
@@ -7344,7 +7344,7 @@ export component AppWindow inherits Window {
                     }
                     ActionButton {
                         text: root.busy ? Tr.t(Tr.k, "Connexion…") : Tr.t(Tr.k, "Se connecter");
-                        font: (16 * lg.u) * Theme.text-scale;
+                        font: 16 * lg.u;
                         focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
                         clicked => {
                             lg.submit();

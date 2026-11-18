@@ -4067,3 +4067,45 @@ msgstr "Dimensione del testo"
 
 msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
 msgstr "Tutti i testi dell'interfaccia. Se la barra in alto è troppo piena, le schede diventano icone."
+
+msgid "Adresses du serveur"
+msgstr "Indirizzi del server"
+
+msgid "Affiches et fond"
+msgstr "Locandine e sfondo"
+
+msgid "Animations une par une"
+msgstr "Animazioni una per una"
+
+msgid "Bandes-annonces"
+msgstr "Trailer"
+
+msgid "Cet appareil"
+msgstr "Questo dispositivo"
+
+msgid "Démarrage et sécurité"
+msgstr "Avvio e sicurezza"
+
+msgid "Place"
+msgstr "Spazio"
+
+msgid "Presets"
+msgstr "Preimpostazioni"
+
+msgid "Profil"
+msgstr "Profilo"
+
+msgid "Qualité de l'image"
+msgstr "Qualità dell'immagine"
+
+msgid "Serveurs"
+msgstr "Server"
+
+msgid "Session"
+msgstr "Sessione"
+
+msgid "Texte et langue"
+msgstr "Testo e lingua"
+
+msgid "Écran"
+msgstr "Schermo"

@@ -4067,3 +4067,45 @@ msgstr "Tekstgrootte"
 
 msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
 msgstr "Alle tekst van de interface. Is de bovenbalk te vol, dan worden de tabbladen pictogrammen."
+
+msgid "Adresses du serveur"
+msgstr "Serveradressen"
+
+msgid "Affiches et fond"
+msgstr "Posters en achtergrond"
+
+msgid "Animations une par une"
+msgstr "Animaties een voor een"
+
+msgid "Bandes-annonces"
+msgstr "Trailers"
+
+msgid "Cet appareil"
+msgstr "Dit apparaat"
+
+msgid "Démarrage et sécurité"
+msgstr "Opstarten en beveiliging"
+
+msgid "Place"
+msgstr "Ruimte"
+
+msgid "Presets"
+msgstr "Voorinstellingen"
+
+msgid "Profil"
+msgstr "Profiel"
+
+msgid "Qualité de l'image"
+msgstr "Beeldkwaliteit"
+
+msgid "Serveurs"
+msgstr "Servers"
+
+msgid "Session"
+msgstr "Sessie"
+
+msgid "Texte et langue"
+msgstr "Tekst en taal"
+
+msgid "Écran"
+msgstr "Scherm"

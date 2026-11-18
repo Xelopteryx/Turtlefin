@@ -4079,3 +4079,45 @@ msgstr "Rozmiar tekstu"
 
 msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
 msgstr "Wszystkie teksty interfejsu. Gdy górny pasek jest zbyt pełny, karty zmieniają się w ikony."
+
+msgid "Adresses du serveur"
+msgstr "Adresy serwera"
+
+msgid "Affiches et fond"
+msgstr "Plakaty i tło"
+
+msgid "Animations une par une"
+msgstr "Animacje pojedynczo"
+
+msgid "Bandes-annonces"
+msgstr "Zwiastuny"
+
+msgid "Cet appareil"
+msgstr "To urządzenie"
+
+msgid "Démarrage et sécurité"
+msgstr "Uruchamianie i bezpieczeństwo"
+
+msgid "Place"
+msgstr "Miejsce"
+
+msgid "Presets"
+msgstr "Ustawienia wstępne"
+
+msgid "Profil"
+msgstr "Profil"
+
+msgid "Qualité de l'image"
+msgstr "Jakość obrazu"
+
+msgid "Serveurs"
+msgstr "Serwery"
+
+msgid "Session"
+msgstr "Sesja"
+
+msgid "Texte et langue"
+msgstr "Tekst i język"
+
+msgid "Écran"
+msgstr "Ekran"

@@ -4067,3 +4067,45 @@ msgstr "Tamaño del texto"
 
 msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
 msgstr "Todos los textos de la interfaz. Si la barra superior se llena, las pestañas pasan a iconos."
+
+msgid "Adresses du serveur"
+msgstr "Direcciones del servidor"
+
+msgid "Affiches et fond"
+msgstr "Pósteres y fondo"
+
+msgid "Animations une par une"
+msgstr "Animaciones una por una"
+
+msgid "Bandes-annonces"
+msgstr "Tráileres"
+
+msgid "Cet appareil"
+msgstr "Este dispositivo"
+
+msgid "Démarrage et sécurité"
+msgstr "Inicio y seguridad"
+
+msgid "Place"
+msgstr "Espacio"
+
+msgid "Presets"
+msgstr "Ajustes predefinidos"
+
+msgid "Profil"
+msgstr "Perfil"
+
+msgid "Qualité de l'image"
+msgstr "Calidad de imagen"
+
+msgid "Serveurs"
+msgstr "Servidores"
+
+msgid "Session"
+msgstr "Sesión"
+
+msgid "Texte et langue"
+msgstr "Texto e idioma"
+
+msgid "Écran"
+msgstr "Pantalla"

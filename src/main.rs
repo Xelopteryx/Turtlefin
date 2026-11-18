@@ -6020,7 +6020,7 @@ fn label_of(list: &[(&str, &'static str)], v: &str) -> &'static str {
 const SUB_SIZES: [(&str, &str); 5] = [("0.8", "Petite"), ("1", "Normale"), ("1.2", "Grande"), ("1.45", "Très grande"), ("1.7", "Énorme")];
 
 /// Taille des textes de l'interface (Paramètres → Affichage).
-const TEXT_SIZES: [(&str, &str); 5] = [("0.85", "Petite"), ("1", "Normale"), ("1.15", "Grande"), ("1.3", "Très grande"), ("1.5", "Énorme")];
+const TEXT_SIZES: [(&str, &str); 5] = [("0.85", "Petite"), ("1", "Normale"), ("1.12", "Grande"), ("1.25", "Très grande"), ("1.4", "Énorme")];
 
 fn text_size_label(v: f64) -> &'static str {
     TEXT_SIZES.iter().min_by(|a, b| (a.0.parse::<f64>().unwrap_or(1.0) - v).abs().total_cmp(&(b.0.parse::<f64>().unwrap_or(1.0) - v).abs())).map(|x| x.1).unwrap_or("Normale")
@@ -6200,6 +6200,12 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     if !app.ui().upgrade().is_some_and(|u| external_ok(&u)) {
         rows.retain(|r| r.key != "dldir" && r.key != "dldefault");
     }
+    let keep: Vec<bool> = (0..rows.len()).map(|i| rows[i].kind != "head" || rows.get(i + 1).is_some_and(|n| n.kind != "head")).collect();
+    let mut i = 0;
+    rows.retain(|_| {
+        i += 1;
+        keep[i - 1]
+    });
     rows
 }
 
@@ -6216,6 +6222,8 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         first: 0,
         count: 0,
     };
+    // Intertitre d'une sous-catégorie (sauté au clavier, voir settings_step).
+    let head = |t: &str| row("head", t, "", String::new(), "head", false);
     let prefs = config::ui_prefs();
     let c = app.user_cfg.lock().unwrap().clone();
     let s = |k: &str| c[k].as_str().unwrap_or("").to_string();
@@ -6229,7 +6237,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             };
             // Adresse du serveur plus rappelée ici (inutile) : seulement « Hors ligne ».
             let place = if srv.is_empty() { tr("Hors ligne").to_string() } else { String::new() };
-            let mut v = vec![row("profile", &who, &place, String::new(), "profile", false)];
+            let mut v = vec![row("profile", &who, &place, String::new(), "profile", false), head(tr("Profil"))];
             if n > 0 {
                 let hint = if groups > 1 {
                     trf("{} avatars proposés par le serveur, en {} catégories.", &[&n, &groups])
@@ -6252,6 +6260,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 };
                 v.push(row("password", tr("Changer le mot de passe"), hint, tr("Changer").into(), "action", false));
             }
+            v.push(head(tr("Démarrage et sécurité")));
             let p = config::ui_prefs();
             // Hors ligne (pas de client) : le compte de la session enregistrée.
             let me = app.client().map(|c| c.user_id).unwrap_or_else(|| saved.user_id.clone());
@@ -6267,13 +6276,16 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                     false,
                 ));
             }
+            v.push(head(tr("Session")));
             v.push(row("switch", tr("Changer de compte"), tr("Les comptes enregistrés restent disponibles."), String::new(), "action", false));
             v.push(row("logout", tr("Se déconnecter"), tr("Le compte est retiré de cet appareil."), String::new(), "action", false));
             v
         }
         1 => vec![
+            head(tr("Audio")),
             row("alang", tr("Langue audio préférée"), tr("Choisie à l'ouverture d'un film ou d'un épisode, si elle existe."), label_of(&LANGS, &s("AudioLanguagePreference")).into(), "choice", false),
             row("defaudio", tr("Piste audio par défaut du fichier"), tr("Sans langue préférée, la piste marquée « par défaut » est lue."), String::new(), "toggle", c["PlayDefaultAudioTrack"].as_bool().unwrap_or(true)),
+            head(tr("Pendant la lecture")),
             row("autonext", tr("Épisode suivant automatique"), tr("À la fin d'un épisode, le suivant démarre tout seul."), String::new(), "toggle", c["EnableNextEpisodeAutoPlay"].as_bool().unwrap_or(true)),
             row(
                 "pauseinfo",
@@ -6285,8 +6297,10 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             ),
             row("autoskip", tr("Passer l'intro automatiquement"), tr("Quand le serveur connaît l'intro (segments), elle est sautée sans demander."), String::new(), "toggle", prefs.auto_skip_intro),
             row("info", "", tr("Un choix fait sur la fiche d'un film ou d'une série reste prioritaire."), String::new(), "info", false),
+            head(tr("Qualité de l'image")),
             row("maxrate", tr("Débit maximal"), tr("Au-delà, le serveur convertit la vidéo en plus léger (il lui faut un processeur assez puissant). Aussi dans le lecteur."), player::bitrate_label(prefs.max_bitrate).into(), "choice", false),
             row("hwdec", tr("Décodage matériel"), tr("La carte graphique décode la vidéo. À couper si l'image a des lignes ou des parasites (le processeur travaille plus)."), String::new(), "toggle", !prefs.no_hwdec),
+            head(tr("Bandes-annonces")),
             match ytdlp() {
                 Some(_) => row("yttrailers", tr("Bandes-annonces YouTube"), tr("Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."), String::new(), "toggle", !prefs.no_yt_trailers),
                 None => row("info", "", tr("Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."), String::new(), "info", false),
@@ -6298,28 +6312,35 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("subsize", tr("Taille des sous-titres"), tr("Appliquée à la prochaine vidéo."), tr(sub_size_label(prefs.sub_scale)).into(), "choice", false),
         ],
         3 => vec![
+            head(tr("Texte et langue")),
             row("textsize", tr("Taille des textes"), tr("Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."), tr(text_size_label(prefs.text_scale)).into(), "choice", false),
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
             row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
+            head(tr("Écran")),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
+            row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
+            head(tr("Thème")),
             row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
             row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
+            row("music", tr("Musique de fond du thème"), tr("Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."), String::new(), "toggle", prefs.music),
+            row("music_volume", tr("Volume de la musique de fond"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.music_volume), "action", false),
+            head(tr("Affiches et fond")),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
-            row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
-            row("music", tr("Musique de fond du thème"), tr("Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."), String::new(), "toggle", prefs.music),
-            row("music_volume", tr("Volume de la musique de fond"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.music_volume), "action", false),
             row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
         ]
         .into_iter()
-        .chain(prefs.theme.starts_with("custom:").then(|| {
-            row("themedel", tr("Supprimer ce thème"), prefs.theme.trim_start_matches("custom:"), String::new(), "action", false)
-        }))
+        .flat_map(|r| {
+            // « Supprimer ce thème » juste après le choix du thème (thème personnel seulement).
+            let del = (r.key == "theme" && prefs.theme.starts_with("custom:"))
+                .then(|| row("themedel", tr("Supprimer ce thème"), prefs.theme.trim_start_matches("custom:"), String::new(), "action", false));
+            std::iter::once(r).chain(del)
+        })
         .collect(),
         4 => {
             let saved = config::load();
@@ -6331,6 +6352,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 trf("{} · essayée quand la principale ne répond pas", &[&saved.server_backup])
             };
             let mut v = vec![
+                head(tr("Adresses du serveur")),
                 row("addr_main", tr("Adresse principale"), &main, tr("Modifier").into(), "action", false),
                 row("addr_backup", tr("Adresse de secours"), &backup, tr("Modifier").into(), "action", false),
             ];
@@ -6339,6 +6361,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             }
             let now = if current.is_empty() { tr("Hors ligne : aucune adresse ne répond.").to_string() } else { trf("Connecté en ce moment par {}", &[&current]) };
             v.push(row("info", "", &now, String::new(), "info", false));
+            v.push(head(tr("Serveurs")));
             v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux."), String::new(), "action", false));
             // Serveurs déjà trouvés : un nom à soi pour s'y retrouver (deux serveurs au même nom…).
             for (id, k) in &prefs.known_servers {
@@ -6358,11 +6381,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             v
         }
         6 => {
-            let mut v = vec![row("animpreset", tr("Preset"), tr("Ensemble d'animations : intégré, ou créé ici."), anim_preset_name(&prefs), "choice", false)];
-            for k in config::AnimFlags::KEYS {
-                let (label, hint) = anim_label(k);
-                v.push(row(&format!("anim:{k}"), label, hint, String::new(), "toggle", prefs.anim.get(k)));
-            }
+            let mut v = vec![head(tr("Presets")), row("animpreset", tr("Preset"), tr("Ensemble d'animations : intégré, ou créé ici."), anim_preset_name(&prefs), "choice", false)];
             let custom = anim_preset_key(&prefs).is_some_and(|k| k.starts_with("custom:"));
             v.push(row("animsave", tr("Enregistrer comme preset"), tr("Garde ces réglages sous un nouveau nom."), String::new(), "action", false));
             if custom {
@@ -6370,12 +6389,17 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             }
             v.push(row("animexport", tr("Exporter les presets"), &trf("Un fichier par preset, dans le dossier « {} ».", &[&"Turtlefin Presets"]), String::new(), "action", false));
             v.push(row("animimport", tr("Importer un preset"), tr("Choisis un fichier de preset (.json) dans ce dossier."), String::new(), "action", false));
+            v.push(head(tr("Animations une par une")));
+            for k in config::AnimFlags::KEYS {
+                let (label, hint) = anim_label(k);
+                v.push(row(&format!("anim:{k}"), label, hint, String::new(), "toggle", prefs.anim.get(k)));
+            }
             v
         }
         7 => {
             let dir = downloads::root();
             let custom = !prefs.download_dir.is_empty();
-            let mut v = vec![row("dldir", tr("Dossier des téléchargements"), &dir.display().to_string(), tr("Changer").into(), "action", false)];
+            let mut v = vec![head(tr("Téléchargements")), row("dldir", tr("Dossier des téléchargements"), &dir.display().to_string(), tr("Changer").into(), "action", false)];
             if custom {
                 v.push(row("dldefault", tr("Revenir au dossier par défaut"), &downloads::default_root().display().to_string(), String::new(), "action", false));
             }
@@ -6383,6 +6407,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 Some((free, total)) => trf("Disque : {} libres sur {}", &[&fmt_size(free), &fmt_size(total)]),
                 None => tr("Disque : place libre inconnue").to_string(),
             };
+            v.push(head(tr("Place")));
             v.push(row("info", "", &disk, String::new(), "info", false));
             let used = downloads::used_bytes();
             v.push(row("info", "", &trf("Téléchargements : {}", &[&fmt_size(used)]), String::new(), "info", false));
@@ -6413,12 +6438,14 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             };
             let has_notes = up.starts_with("available:") && up.contains('|') && !up.ends_with('|');
             vec![
+                head(tr("Version")),
                 row("info", "", &trf("Turtlefin {} ({}) · client Jellyfin natif (Rust + Slint + mpv)", &[&env!("CARGO_PKG_VERSION"), &if short.is_empty() { "version locale" } else { short }]), String::new(), "info", false),
                 row("update", label, &hint, value, "action", false),
             ]
             .into_iter()
             .chain(has_notes.then(|| row("notes", tr("Voir les nouveautés"), tr("Ce que change la nouvelle version, en détail."), String::new(), "action", false)))
             .chain([
+                head(tr("Cet appareil")),
                 row("info", "", &trf("Serveur : {}", &[&srv]), String::new(), "info", false),
                 row("info", "", &trf("Appareil : {}", &[&app.device_id]), String::new(), "info", false),
                 row("tour", tr("Visite guidée"), tr("Revoir la présentation de Turtlefin."), String::new(), "action", false),
