@@ -4109,3 +4109,63 @@ msgstr "Text and language"
 
 msgid "Écran"
 msgstr "Screen"
+
+msgid "Animer les avatars"
+msgstr "Animate avatars"
+
+msgid "Aucun réglage ne correspond."
+msgstr "No setting matches."
+
+msgid "Avatars"
+msgstr "Avatars"
+
+msgid "Cherche quelque chose à voir"
+msgstr "Looking for something to watch"
+
+msgid "Dans Turtlefin"
+msgstr "In Turtlefin"
+
+msgid "Dans les paramètres"
+msgstr "In the settings"
+
+msgid "Dans ses téléchargements"
+msgstr "In their downloads"
+
+msgid "Les avatars GIF bougent. À couper si l'appareil est lent (ils restent sur leur première image)."
+msgstr "GIF avatars move. Turn off if the device is slow (they stay on their first frame)."
+
+msgid "Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
+msgstr "Shows the open page and what you are watching on your Discord profile (Discord open on this computer)."
+
+msgid "Parcourt une bibliothèque"
+msgstr "Browsing a library"
+
+msgid "Partage"
+msgstr "Sharing"
+
+msgid "Pas encore disponible : il manque l'identifiant de l'application Discord de Turtlefin."
+msgstr "Not available yet: Turtlefin's Discord application ID is missing."
+
+msgid "Rechercher un réglage"
+msgstr "Search settings"
+
+msgid "Rechercher un réglage (tape un mot)"
+msgstr "Search settings (type a word)"
+
+msgid "Regarde une fiche"
+msgstr "Looking at a title"
+
+msgid "Regarde {}"
+msgstr "Watching {}"
+
+msgid "Statut Discord"
+msgstr "Discord status"
+
+msgid "Sur l'accueil"
+msgstr "On the home page"
+
+msgid "{} · en pause"
+msgstr "{} · paused"
+
+msgid "← → ou glisser sur la barre."
+msgstr "← → or drag along the bar."

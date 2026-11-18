@@ -5952,7 +5952,12 @@ export component AppWindow inherits Window {
     }
     callback manual-choice(string);
     callback settings-activate(string);
+    // Glissière d'un réglage (volume…) : (clé, nouvelle valeur 0-100).
+    callback settings-slide(string, int);
     callback settings-category();
+    // Recherche d'un réglage (toutes catégories) : texte tapé, vide pour revenir à la catégorie.
+    in-out property <string> set-q;
+    callback settings-search(string);
     // Plein écran : bascule (bouton et touche « f » du lecteur ; F11 est pris en Rust).
     callback toggle-full();
     callback avatar-pick(string);
@@ -11715,7 +11720,7 @@ export component AppWindow inherits Window {
             sets.rows-in();
         }
 
-        FocusScope {
+        set-fs := FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
                 if (!root.menu-open && !root.tour-lock && !root.lx-open && !root.sr-open && !root.ed-open && !root.pk-open) {
@@ -11757,6 +11762,13 @@ export component AppWindow inherits Window {
                 // Saisie d'une adresse : la fenêtre a son propre clavier.
                 if (root.addr-edit > 0) {
                     return EventResult.reject;
+                }
+                // Une lettre tapée : recherche d'un réglage (le champ prend le clavier).
+                if (!root.set-dash && !root.av-open && root.ch-key == "" && !root.tv-mode && root.typing-key(event)) {
+                    root.set-q += event.text;
+                    root.settings-search(root.set-q);
+                    sets.sq-tick += 1;
+                    return EventResult.accept;
                 }
                 if (root.av-open) {
                     if (root.nav-key(event.text)) {
@@ -11935,8 +11947,18 @@ export component AppWindow inherits Window {
                         return EventResult.accept;
                     }
                 }
-                // Lignes : les lignes d'information sont sautées, quel que soit leur nombre.
-                if (event.text == Key.UpArrow) {
+                // Glissière : ← → la règlent (au lieu de revenir aux catégories).
+                if (root.set-sel < root.set-rows.length && root.set-rows[root.set-sel].kind == "slider"
+                    && (event.text == Key.LeftArrow || event.text == Key.RightArrow)) {
+                    let cur = root.set-rows[root.set-sel].value.to-float();
+                    root.settings-slide(root.set-rows[root.set-sel].key, clamp(cur + (event.text == Key.RightArrow ? 5 : -5), 0, 100));
+                    return EventResult.accept;
+                }
+                // Lignes : les lignes d'information sont sautées, quel que soit leur nombre. ↑ depuis la
+                // première : le champ de recherche.
+                if (event.text == Key.UpArrow && !root.set-dash && root.settings-step(root.set-sel, -1) == root.set-sel) {
+                    sets.sq-tick += 1;
+                } else if (event.text == Key.UpArrow) {
                     root.set-sel = root.settings-step(root.set-sel, -1);
                 } else if (event.text == Key.DownArrow) {
                     root.set-sel = root.settings-step(root.set-sel, 1);
@@ -12143,17 +12165,106 @@ export component AppWindow inherits Window {
                 sets.set-scroll = min(sets.set-max, top + h - sets.set-view-h + sets.pad * 2);
             }
         }
+        // Autre catégorie : la liste repart du haut d'un coup (animée, on la voyait remonter).
+        property <bool> set-jump;
+        set-jump-t := Timer {
+            interval: 80ms;
+            running: false;
+            triggered => {
+                sets.set-jump = false;
+                self.running = false;
+            }
+        }
+        function scroll-reset() {
+            sets.set-jump = true;
+            sets.set-scroll = 0px;
+            set-jump-t.running = true;
+        }
         property <int> set-cat-now: root.set-cat;
         changed set-cat-now => {
-            sets.set-scroll = 0px;
+            sets.scroll-reset();
         }
         property <int> set-top-now: root.set-top;
         changed set-top-now => {
-            sets.set-scroll = 0px;
+            sets.scroll-reset();
+        }
+        // Champ de recherche, au-dessus des lignes (pas dans le tableau de bord).
+        property <length> q-h: root.set-dash || root.av-open ? 0px : 52px * root.k;
+        // Incrémenté : le champ de recherche prend le clavier (curseur au bout).
+        property <int> sq-tick;
+        if !root.set-dash && !root.av-open: sq-box := Rectangle {
+            x: set-panel.x + sets.pad;
+            y: set-panel.y + sets.pad - sets.q-h;
+            width: set-panel.width - 2 * sets.pad - 8px * root.k;
+            height: 42px * root.k;
+            border-radius: (Theme.term ? 2px : Theme.win7 ? 4px : 21px) * root.k;
+            background: Theme.fg.with-alpha(sq-in.has-focus ? 0.14 : 0.07);
+            border-width: sq-in.has-focus ? 2px : 1px;
+            border-color: sq-in.has-focus ? Theme.accent2 : Theme.fg.with-alpha(0.15);
+            animate background, border-color { duration: Motion.select ? 160ms : 0ms; }
+            Path {
+                x: 14px * root.k;
+                y: (parent.height - self.height) / 2;
+                width: 18px * root.k;
+                height: 18px * root.k;
+                viewbox-width: 24;
+                viewbox-height: 24;
+                fill: transparent;
+                stroke: Theme.fg.with-alpha(0.7);
+                stroke-width: 2.2px * root.k;
+                commands: "M 10.5 3.5 C 14.4 3.5 17.5 6.6 17.5 10.5 C 17.5 14.4 14.4 17.5 10.5 17.5 C 6.6 17.5 3.5 14.4 3.5 10.5 C 3.5 6.6 6.6 3.5 10.5 3.5 Z M 15.5 15.5 L 21 21";
+            }
+            if root.set-q == "": Text {
+                x: 44px * root.k;
+                height: parent.height;
+                text: root.tv-mode ? Tr.t(Tr.k, "Rechercher un réglage") : Tr.t(Tr.k, "Rechercher un réglage (tape un mot)");
+                color: Theme.fg.with-alpha(0.45);
+                font-size: (15px * root.k) * Theme.text-scale;
+                vertical-alignment: center;
+            }
+            sq-in := TextInput {
+                property <int> tick: sets.sq-tick;
+                changed tick => {
+                    self.focus();
+                    self.set-selection-offsets(1000000, 1000000);
+                }
+                x: 44px * root.k;
+                width: parent.width - self.x - 16px * root.k;
+                height: parent.height;
+                text <=> root.set-q;
+                color: Theme.fg;
+                font-size: (15px * root.k) * Theme.text-scale;
+                vertical-alignment: center;
+                single-line: true;
+                selection-background-color: Theme.accent2;
+                selection-foreground-color: Theme.on-accent;
+                edited => {
+                    root.settings-search(self.text);
+                }
+                key-pressed(event) => {
+                    // ↓ ou Entrée : vers les résultats ; Échap : recherche effacée ; ↑ : barre du haut.
+                    if (event.text == Key.DownArrow || event.text == Key.Return) {
+                        set-fs.focus();
+                        let f = root.settings-step(-1, 1);
+                        if (f >= 0) {
+                            root.set-in = true;
+                            root.set-sel = f;
+                        }
+                        return EventResult.accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        root.set-q = "";
+                        root.settings-search("");
+                        set-fs.focus();
+                        return EventResult.accept;
+                    }
+                    return EventResult.reject;
+                }
+            }
         }
         set-panel := Rectangle {
             x: sets.one ? 16px * root.k - sets.pad + (1 - sets.one-p) * parent.width : sets.left-w + 32px * root.k - sets.pad;
-            y: (sets.one ? 64px : 16px) * root.k - sets.pad;
+            y: (sets.one ? 64px : 16px) * root.k - sets.pad + sets.q-h;
             visible: !sets.one || sets.one-p > 0.01;
             width: sets.one ? parent.width - 32px * root.k + 2 * sets.pad : parent.width - self.x - 32px * root.k + sets.pad;
             height: parent.height - self.y - 24px * root.k;
@@ -12174,7 +12285,7 @@ export component AppWindow inherits Window {
                 height: (parent.height - sets.pad * 2) * (sets.set-view-h / sets.set-list-h);
                 border-radius: 2px * root.k;
                 background: Theme.fg.with-alpha(0.25);
-                animate y { duration: Motion.scroll ? 220ms : 0ms; easing: ease-out; }
+                animate y { duration: Motion.scroll && !sets.set-jump ? 220ms : 0ms; easing: ease-out; }
             }
 
             TouchArea {
@@ -12187,7 +12298,7 @@ export component AppWindow inherits Window {
                 }
                 set-list := VerticalLayout {
                     y: -sets.set-scroll;
-                    animate y { duration: Motion.scroll && !Nav.drag ? 220ms : 0ms; easing: ease-out; }
+                    animate y { duration: Motion.scroll && !Nav.drag && !sets.set-jump ? 220ms : 0ms; easing: ease-out; }
                     width: parent.width - 8px * root.k;
                     height: self.preferred-height;
                     changed height => {
@@ -12539,7 +12650,7 @@ export component AppWindow inherits Window {
                             // Place à droite seulement pour une valeur, un choix ou un interrupteur (portrait :
                             // juste la place de l'interrupteur ou de la valeur, le choix est dessous).
                             width: parent.width - self.x - (set-row.still || (r.kind == "action" && r.value == "") || set-row-box.stack ? 20px * root.k
-                                : r.kind == "toggle" ? 90px * root.k : set-row-box.slim ? 130px * root.k : 280px * root.k);
+                                : r.kind == "toggle" ? 90px * root.k : r.kind == "slider" ? (set-row-box.slim ? 190px : 330px) * root.k : set-row-box.slim ? 130px * root.k : 280px * root.k);
                             alignment: center;
                             spacing: 3px * root.k;
                             // Titre sur deux lignes au plus (tablette en portrait : il était coupé).
@@ -12633,8 +12744,73 @@ export component AppWindow inherits Window {
                                 animate x { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
                             }
                         }
+                        // Glissière (0-100) : barre remplie et pourcentage ; ← → par pas de 5, clic ou glissé.
+                        if r.kind == "slider": sl-box := Rectangle {
+                            property <int> v: r.value.to-float();
+                            property <length> bar-w: (set-row-box.slim ? 110px : 240px) * root.k;
+                            x: parent.width - self.width - 20px * root.k;
+                            width: self.bar-w + 64px * root.k;
+                            height: parent.height;
+                            sl-bar := Rectangle {
+                                x: 0px;
+                                y: (parent.height - self.height) / 2;
+                                width: parent.bar-w;
+                                height: 8px * root.k;
+                                border-radius: self.height / 2;
+                                background: (set-row.sel ? Theme.on-accent : Theme.fg).with-alpha(0.25);
+                                Rectangle {
+                                    x: 0px;
+                                    width: parent.width * sl-box.v / 100;
+                                    animate width { duration: Motion.select ? 120ms : 0ms; }
+                                    border-radius: parent.border-radius;
+                                    background: set-row.sel ? Theme.on-accent : @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+                                }
+                                Rectangle {
+                                    x: parent.width * sl-box.v / 100 - self.width / 2;
+                                    animate x { duration: Motion.select ? 120ms : 0ms; }
+                                    y: (parent.height - self.height) / 2;
+                                    width: 18px * root.k;
+                                    height: self.width;
+                                    border-radius: self.width / 2;
+                                    background: Theme.on-accent;
+                                    border-width: 1px;
+                                    border-color: Theme.fg.with-alpha(0.3);
+                                }
+                            }
+                            Text {
+                                x: parent.width - self.width;
+                                width: 52px * root.k;
+                                height: parent.height;
+                                text: parent.v + " %";
+                                color: set-row.sel ? Theme.on-accent : Theme.fg;
+                                font-size: (15px * root.k) * Theme.text-scale;
+                                font-weight: 600;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+                            // Souris, doigt : la valeur suit le pointeur sur la barre.
+                            TouchArea {
+                                x: sl-bar.x - 9px * root.k;
+                                width: sl-bar.width + 18px * root.k;
+                                function at(px: length) {
+                                    root.set-in = true;
+                                    root.set-sel = i;
+                                    root.settings-slide(r.key, round(clamp((px - 9px * root.k) / sl-bar.width, 0, 1) * 20) * 5);
+                                }
+                                pointer-event(e) => {
+                                    if (e.kind == PointerEventKind.down) {
+                                        self.at(self.mouse-x);
+                                    }
+                                }
+                                moved => {
+                                    if (self.pressed) {
+                                        self.at(self.mouse-x);
+                                    }
+                                }
+                            }
+                        }
                         row-area := TouchArea {
-                            enabled: !set-row.still || r.kind == "line";
+                            enabled: (!set-row.still || r.kind == "line") && r.kind != "slider";
                             clicked => {
                                 root.set-in = true;
                                 root.set-sel = i;

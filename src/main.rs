@@ -19,6 +19,8 @@ mod demo;
 mod dashboard;
 mod discovery;
 mod downloads;
+#[cfg(not(target_os = "android"))]
+mod discord;
 mod dust;
 mod editor;
 mod i18n;
@@ -259,6 +261,8 @@ struct App {
     /// Identifier (administrateurs) : élément, type (« Movie », « Series ») et résultats de la dernière
     /// recherche (rendus tels quels au serveur pour le choix).
     ident: Mutex<Option<(String, String, Vec<serde_json::Value>)>>,
+    /// Paramètres : réglage cherché (vide : la catégorie choisie).
+    set_query: Mutex<String>,
     /// Dernier saut de l'index A–Z demandé (en glissant le long des lettres, les réponses arrivent
     /// dans le désordre : seule la dernière demande compte).
     lib_jump_seq: AtomicU64,
@@ -6046,6 +6050,8 @@ pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    #[cfg(not(target_os = "android"))]
+    discord::set_enabled(&u.as_weak(), p.discord);
     u.global::<Theme>().set_text_scale(p.text_scale.clamp(0.7, 2.0) as f32);
     music::configure(p.music, p.music_volume);
     update_chrome(u);
@@ -6175,6 +6181,60 @@ fn cache_size() -> u64 {
 /// « action » / « info » / « profile »). Les lignes « info » et « profile » ne se sélectionnent pas.
 /// Catégories : 0 Compte · 1 Lecture · 2 Sous-titres · 3 Affichage · 4 Réseau · 5 Diffusion · 6 Animations
 /// · 7 Stockage · 8 À propos.
+/// Statut Discord utilisable ici (bureau, identifiant de l'application connu).
+fn discord_ready() -> bool {
+    #[cfg(not(target_os = "android"))]
+    {
+        discord::available()
+    }
+    #[cfg(target_os = "android")]
+    false
+}
+
+/// Texte comparé par la recherche des réglages : minuscules, sans accents.
+fn fold(t: &str) -> String {
+    t.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' | 'í' => 'i',
+            'ô' | 'ö' | 'ó' | 'õ' => 'o',
+            'ù' | 'û' | 'ü' | 'ú' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            '’' => '\'',
+            c => c,
+        })
+        .collect()
+}
+
+/// Recherche d'un réglage : les lignes de toutes les catégories dont le nom ou l'aide contient chaque mot
+/// tapé, sous le nom de leur catégorie.
+fn settings_search(app: &Arc<App>, q: &str) -> Vec<SettingRow> {
+    const CATS: [&str; 10] = ["Compte", "Lecture", "Sous-titres", "Affichage", "Réseau", "Diffusion", "Animations", "Stockage", "À propos", "Mods"];
+    let words: Vec<String> = fold(q).split_whitespace().map(String::from).collect();
+    let mut out = Vec::new();
+    for (cat, name) in CATS.iter().enumerate() {
+        let hits: Vec<SettingRow> = settings_rows(app, cat as i32)
+            .into_iter()
+            .filter(|r| !matches!(r.kind.as_str(), "head" | "info" | "profile" | "stats" | "hero" | "cards"))
+            .filter(|r| {
+                let text = fold(&format!("{} {} {}", r.label, r.hint, r.value));
+                words.iter().all(|w| text.contains(w.as_str()))
+            })
+            .collect();
+        if !hits.is_empty() {
+            out.push(SettingRow { key: "head".into(), label: tr(name).into(), kind: "head".into(), img: -1, ..Default::default() });
+            out.extend(hits);
+        }
+    }
+    if out.is_empty() {
+        out.push(SettingRow { key: "info".into(), hint: tr("Aucun réglage ne correspond.").into(), kind: "info".into(), img: -1, ..Default::default() });
+    }
+    out
+}
+
 fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     let mut rows = settings_rows_all(app, cat);
     // Android : ni plein écran (une appli y est toujours en plein écran), ni dossiers de langues,
@@ -6183,7 +6243,7 @@ fn settings_rows(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
     // sur Android TV elle est imposée.
     if cfg!(target_os = "android") {
         let tv_box = android_tv();
-        rows.retain(|r| !matches!(r.key.as_str(), "fullscreen" | "addlang" | "themeimport" | "themeexport" | "animexport" | "animimport" | "quit" | "dldir" | "dldefault")
+        rows.retain(|r| !matches!(r.key.as_str(), "fullscreen" | "addlang" | "themeimport" | "themeexport" | "animexport" | "animimport" | "quit" | "dldir" | "dldefault" | "discord")
             && !(tv_box && r.key == "tvmode"));
         for r in rows.iter_mut().filter(|r| r.key == "tvmode") {
             r.label = tr("Mode tablette").into();
@@ -6326,13 +6386,27 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
             row("music", tr("Musique de fond du thème"), tr("Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."), String::new(), "toggle", prefs.music),
-            row("music_volume", tr("Volume de la musique de fond"), tr("Chaque appui passe au niveau suivant."), format!("{} %", prefs.music_volume), "action", false),
+            row("music_volume", tr("Volume de la musique de fond"), tr("← → ou glisser sur la barre."), prefs.music_volume.to_string(), "slider", false),
             head(tr("Affiches et fond")),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
             row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
-            row("still_gifs", tr("Avatars animés figés"), tr("Les avatars GIF restent sur leur première image (moins de calcul)."), String::new(), "toggle", STILL_GIFS.load(Ordering::Relaxed)),
+            head(tr("Partage")),
+            row(
+                "discord",
+                tr("Statut Discord"),
+                if cfg!(target_os = "android") || discord_ready() {
+                    tr("Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur).")
+                } else {
+                    tr("Pas encore disponible : il manque l'identifiant de l'application Discord de Turtlefin.")
+                },
+                String::new(),
+                "toggle",
+                prefs.discord,
+            ),
+            head(tr("Avatars")),
+            row("still_gifs", tr("Animer les avatars"), tr("Les avatars GIF bougent. À couper si l'appareil est lent (ils restent sur leur première image)."), String::new(), "toggle", !STILL_GIFS.load(Ordering::Relaxed)),
         ]
         .into_iter()
         .flat_map(|r| {
@@ -6952,7 +7026,14 @@ fn toggle_ui_pref(app: &Arc<App>, f: impl Fn(&mut config::UiPrefs)) {
 
 fn refresh_settings(app: &Arc<App>) {
     let Some(u) = app.ui().upgrade() else { return };
-    let rows = if u.get_set_dash() { dashboard::rows(app, u.get_set_cat()) } else { settings_rows(app, u.get_set_cat()) };
+    let query = app.set_query.lock().unwrap().trim().to_string();
+    let rows = if u.get_set_dash() {
+        dashboard::rows(app, u.get_set_cat())
+    } else if !query.is_empty() {
+        settings_search(app, &query)
+    } else {
+        settings_rows(app, u.get_set_cat())
+    };
     // Même liste (mêmes réglages) : rangées mises à jour sur place, les pastilles de valeur
     // changent de largeur en douceur au lieu d'être recréées.
     let cur = u.get_set_rows();
@@ -6970,7 +7051,9 @@ fn refresh_settings(app: &Arc<App>) {
 }
 
 fn open_settings(app: &Arc<App>) {
+    app.set_query.lock().unwrap().clear();
     if let Some(u) = app.ui().upgrade() {
+        u.set_set_q("".into());
         u.set_set_dash(false);
         u.set_set_cat(0);
         u.set_set_sel(0);
@@ -7422,17 +7505,6 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "marquee" => toggle_ui_pref(app, |p| p.marquee = !p.marquee),
         "clock" => toggle_ui_pref(app, |p| p.show_clock = !p.show_clock),
         "music" => toggle_ui_pref(app, |p| p.music = !p.music),
-        "music_volume" => toggle_ui_pref(app, |p| {
-            p.music_volume = match p.music_volume {
-                0..=9 => 10,
-                10..=24 => 25,
-                25..=39 => 40,
-                40..=59 => 60,
-                60..=79 => 80,
-                80..=99 => 100,
-                _ => 10,
-            }
-        }),
         "tvmode" => {
             let on = !app.tv();
             toggle_ui_pref(app, |p| p.tv = on);
@@ -7498,6 +7570,15 @@ fn settings_activate(app: &Arc<App>, key: &str) {
                 u.set_bg_show(!saved.no_backdrop);
             }
             refresh_settings(app);
+        }
+        "discord" => {
+            if !discord_ready() {
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_toast(tr("Pas encore disponible : il manque l'identifiant de l'application Discord de Turtlefin.").into());
+                }
+                return;
+            }
+            toggle_ui_pref(app, |p| p.discord = !p.discord);
         }
         "still_gifs" => {
             let mut saved = config::load();
@@ -10479,6 +10560,7 @@ pub(crate) fn main() -> anyhow::Result<()> {
         lib_dealt: Mutex::new(std::collections::HashSet::new()),
         lib_jump_seq: AtomicU64::new(0),
         ident: Mutex::new(None),
+        set_query: Mutex::new(String::new()),
         lib_return: Mutex::new(None),
         found: Mutex::new(Vec::new()),
         play_arg: Mutex::new(cli.play.clone()),
@@ -10846,9 +10928,23 @@ pub(crate) fn main() -> anyhow::Result<()> {
         move || dashboard::load(&app, 0)
     });
 
+    ui.on_settings_search({
+        let app = app.clone();
+        move |q| {
+            *app.set_query.lock().unwrap() = q.to_string();
+            refresh_settings(&app);
+        }
+    });
+
     ui.on_settings_category({
         let app = app.clone();
         move || {
+            if !app.set_query.lock().unwrap().is_empty() {
+                app.set_query.lock().unwrap().clear();
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_set_q("".into());
+                }
+            }
             // Tableau de bord : chaque catégorie ouverte est relue (lectures en cours, tâches...).
             if let Some(u) = app.ui().upgrade().filter(|u| u.get_set_dash()) {
                 app.dash_armed.lock().unwrap().clear();
@@ -10900,6 +10996,24 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_cancel_open({
         let app = app.clone();
         move || cancel_open(&app)
+    });
+
+    // Glissière d'un réglage (Paramètres) : nouvelle valeur 0-100.
+    ui.on_settings_slide({
+        let app = app.clone();
+        move |key, v| {
+            let v = v.clamp(0, 100) as u32;
+            if key.as_str() == "music_volume" {
+                let mut p = config::ui_prefs();
+                if p.music_volume == v {
+                    return;
+                }
+                p.music_volume = v;
+                config::save_ui_prefs(&p);
+                music::configure(p.music, p.music_volume);
+                refresh_settings(&app);
+            }
+        }
     });
 
     ui.on_settings_step({

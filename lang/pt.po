@@ -4109,3 +4109,63 @@ msgstr "Texto e idioma"
 
 msgid "Écran"
 msgstr "Ecrã"
+
+msgid "Animer les avatars"
+msgstr "Animar os avatares"
+
+msgid "Aucun réglage ne correspond."
+msgstr "Nenhuma definição corresponde."
+
+msgid "Avatars"
+msgstr "Avatares"
+
+msgid "Cherche quelque chose à voir"
+msgstr "Procura algo para ver"
+
+msgid "Dans Turtlefin"
+msgstr "No Turtlefin"
+
+msgid "Dans les paramètres"
+msgstr "Nas definições"
+
+msgid "Dans ses téléchargements"
+msgstr "Nas transferências"
+
+msgid "Les avatars GIF bougent. À couper si l'appareil est lent (ils restent sur leur première image)."
+msgstr "Os avatares GIF mexem-se. Desliga se o dispositivo for lento (ficam na primeira imagem)."
+
+msgid "Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
+msgstr "Mostra no teu perfil do Discord a página aberta e o que estás a ver (Discord aberto neste computador)."
+
+msgid "Parcourt une bibliothèque"
+msgstr "Explora uma biblioteca"
+
+msgid "Partage"
+msgstr "Partilha"
+
+msgid "Pas encore disponible : il manque l'identifiant de l'application Discord de Turtlefin."
+msgstr "Ainda não disponível: falta o identificador da aplicação Discord do Turtlefin."
+
+msgid "Rechercher un réglage"
+msgstr "Procurar uma definição"
+
+msgid "Rechercher un réglage (tape un mot)"
+msgstr "Procurar uma definição (escreve uma palavra)"
+
+msgid "Regarde une fiche"
+msgstr "Vê uma ficha"
+
+msgid "Regarde {}"
+msgstr "A ver {}"
+
+msgid "Statut Discord"
+msgstr "Estado do Discord"
+
+msgid "Sur l'accueil"
+msgstr "Na página inicial"
+
+msgid "{} · en pause"
+msgstr "{} · em pausa"
+
+msgid "← → ou glisser sur la barre."
+msgstr "← → ou arrasta na barra."
