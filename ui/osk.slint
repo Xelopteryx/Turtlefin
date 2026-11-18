@@ -272,7 +272,7 @@ export component Osk inherits Rectangle {
                 text: key == "␣" ? Tr.t(Tr.k, "espace") : key == "OK" ? root.ok-label
                     : key.character-count == 1 && (root.shift || root.caps) ? key.to-uppercase() : key;
                 color: parent.lit-ink;
-                font-size: (key.character-count > 1 ? 16px : 22px) * root.k;
+                font-size: ((key.character-count > 1 ? 16px : 22px) * root.k) * Theme.text-scale;
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;

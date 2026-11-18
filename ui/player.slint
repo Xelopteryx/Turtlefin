@@ -350,7 +350,7 @@ component EpisodeCard inherits Rectangle {
         text: root.data.title;
         active: root.lit;
         text-color: Theme.player-ink;
-        font-size: 13px * root.k;
+        font-size: (13px * root.k) * Theme.text-scale;
         font-weight: 600;
         horizontal-alignment: TextHorizontalAlignment.left;
     }
@@ -360,7 +360,7 @@ component EpisodeCard inherits Rectangle {
         width: parent.width - 16px * root.k;
         text: root.current ? Tr.t(Tr.k, "En cours") : root.data.subtitle;
         color: root.current ? Theme.accent2 : Theme.player-ink.with-alpha(0.62);
-        font-size: 11px * root.k;
+        font-size: (11px * root.k) * Theme.text-scale;
         overflow: elide;
     }
     ep-area := TouchArea {
@@ -404,7 +404,7 @@ component PickCard inherits Rectangle {
         width: parent.width - 16px * root.k;
         text: root.data.title;
         color: Theme.player-ink;
-        font-size: 14px * root.k;
+        font-size: (14px * root.k) * Theme.text-scale;
         font-weight: 600;
         horizontal-alignment: center;
         overflow: elide;
@@ -415,7 +415,7 @@ component PickCard inherits Rectangle {
         width: parent.width - 16px * root.k;
         text: root.data.subtitle;
         color: Theme.player-ink.with-alpha(0.62);
-        font-size: 12px * root.k;
+        font-size: (12px * root.k) * Theme.text-scale;
         horizontal-alignment: center;
         overflow: elide;
     }
@@ -873,7 +873,7 @@ export component PlayerView inherits Rectangle {
         opacity: root.load-a;
         text: Tr.t(Tr.k, "Chargement…");
         color: Theme.player-ink.with-alpha(0.62);
-        font-size: 22px * root.k;
+        font-size: (22px * root.k) * Theme.text-scale;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -907,7 +907,7 @@ export component PlayerView inherits Rectangle {
             height: parent.height;
             text: root.lost ? Tr.t(Tr.k, "Connexion au serveur perdue · reprise automatique dès son retour") : Tr.t(Tr.k, "Mise en mémoire…");
             color: Theme.player-ink;
-            font-size: 16px * root.k;
+            font-size: (16px * root.k) * Theme.text-scale;
             font-weight: 600;
             vertical-alignment: center;
         }
@@ -1067,7 +1067,7 @@ export component PlayerView inherits Rectangle {
                 transform-scale: 1 + 0.3 * (1 - self.pop) * (1 - self.pop);
                 text: (root.seek-total == 0 ? "" : root.seek-side < 0 ? "−" : "+") + root.seek-total + " s";
                 color: Theme.player-ink;
-                font-size: 26px * root.k;
+                font-size: (26px * root.k) * Theme.text-scale;
                 font-weight: 800;
                 horizontal-alignment: center;
             }
@@ -1364,7 +1364,7 @@ export component PlayerView inherits Rectangle {
                 Text {
                     text: Tr.f(Tr.k, "En lecture sur {}", root.remote-name, "");
                     color: Theme.player-ink;
-                    font-size: 20px * root.k;
+                    font-size: (20px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                     overflow: elide;
@@ -1374,7 +1374,7 @@ export component PlayerView inherits Rectangle {
                 text: root.remote-busy != "" ? root.remote-busy
                     : Tr.t(Tr.k, "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance.");
                 color: Theme.player-ink.with-alpha(0.7);
-                font-size: 13px * root.k;
+                font-size: (13px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
                 overflow: elide;
             }
@@ -1396,7 +1396,7 @@ export component PlayerView inherits Rectangle {
             PlayerButton {
                 size: pad.bs;
                 text: "−10";
-                font: pad.bs * 0.3;
+                font: (pad.bs * 0.3) * Theme.text-scale;
                 clicked => {
                     root.command("seek:-10");
                 }
@@ -1412,7 +1412,7 @@ export component PlayerView inherits Rectangle {
             PlayerButton {
                 size: pad.bs;
                 text: "+30";
-                font: pad.bs * 0.3;
+                font: (pad.bs * 0.3) * Theme.text-scale;
                 clicked => {
                     root.command("seek:30");
                 }
@@ -1451,7 +1451,7 @@ export component PlayerView inherits Rectangle {
             vminus := PlayerButton {
                 size: pad.row2-h;
                 text: "−";
-                font: pad.row2-h * 0.5;
+                font: (pad.row2-h * 0.5) * Theme.text-scale;
                 changed held => {
                     if (!self.held) {
                         parent.release(-1);
@@ -1474,14 +1474,14 @@ export component PlayerView inherits Rectangle {
                 width: 64px * root.k;
                 text: (parent.vol-shown >= 0 ? parent.vol-shown : root.volume) + " %";
                 color: Theme.player-ink.with-alpha(0.85);
-                font-size: 16px * root.k;
+                font-size: (16px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
             vplus := PlayerButton {
                 size: pad.row2-h;
                 text: "+";
-                font: pad.row2-h * 0.5;
+                font: (pad.row2-h * 0.5) * Theme.text-scale;
                 changed held => {
                     if (!self.held) {
                         parent.release(1);
@@ -1555,7 +1555,7 @@ export component PlayerView inherits Rectangle {
             height: parent.logo-h;
             text: root.pause-title;
             color: #ffffff;
-            font-size: 40px * root.k;
+            font-size: (40px * root.k) * Theme.text-scale;
             font-weight: 800;
             wrap: word-wrap;
             overflow: elide;
@@ -1567,7 +1567,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - parent.col-x - parent.m;
             text: root.pause-line;
             color: #ffffff;
-            font-size: 26px * root.k;
+            font-size: (26px * root.k) * Theme.text-scale;
             font-weight: 700;
             overflow: elide;
         }
@@ -1578,7 +1578,7 @@ export component PlayerView inherits Rectangle {
             height: max(parent.logo-h, 220px * root.k);
             text: root.pause-text;
             color: #ffffffd9;
-            font-size: 17px * root.k;
+            font-size: (17px * root.k) * Theme.text-scale;
             wrap: word-wrap;
             overflow: elide;
             vertical-alignment: top;
@@ -1589,7 +1589,7 @@ export component PlayerView inherits Rectangle {
             y: parent.height - parent.m;
             text: Tr.t(Tr.k, "En pause");
             color: #ffffffa0;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             font-weight: 600;
         }
     }
@@ -1642,7 +1642,7 @@ export component PlayerView inherits Rectangle {
                     width: parent.width - 28px * root.k;
                     text: c;
                     color: Theme.player-ink;
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     font-weight: 600;
                     vertical-alignment: center;
                     overflow: elide;
@@ -1677,7 +1677,7 @@ export component PlayerView inherits Rectangle {
             stroke: Theme.dark ? transparent : Theme.player-bar;
             stroke-width: Theme.dark ? 0px : 4px;
             stroke-style: outside;
-            font-size: 22px * root.k;
+            font-size: (22px * root.k) * Theme.text-scale;
             font-weight: 700;
             vertical-alignment: center;
             overflow: elide;
@@ -1690,7 +1690,7 @@ export component PlayerView inherits Rectangle {
             height: 24px * root.k;
             text: root.subtitle;
             color: Theme.accent2;
-            font-size: 16px * root.k;
+            font-size: (16px * root.k) * Theme.text-scale;
             font-weight: 600;
             vertical-alignment: center;
             overflow: elide;
@@ -1730,7 +1730,7 @@ export component PlayerView inherits Rectangle {
                 height: 24px * root.k;
                 text: root.pos-text;
                 color: Theme.player-ink.with-alpha(0.92);
-                font-size: 16px * root.k;
+                font-size: (16px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
 
@@ -1741,7 +1741,7 @@ export component PlayerView inherits Rectangle {
                 height: 24px * root.k;
                 text: root.dur-text;
                 color: Theme.player-ink.with-alpha(0.62);
-                font-size: 16px * root.k;
+                font-size: (16px * root.k) * Theme.text-scale;
                 horizontal-alignment: right;
                 vertical-alignment: center;
             }
@@ -1833,7 +1833,7 @@ export component PlayerView inherits Rectangle {
                         height: 24px * root.k;
                         text: root.clock(bar.tip-f * root.dur-secs);
                         color: Theme.player-ink;
-                        font-size: 15px * root.k;
+                        font-size: (15px * root.k) * Theme.text-scale;
                         font-weight: 600;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -1846,7 +1846,7 @@ export component PlayerView inherits Rectangle {
                         height: 22px * root.k;
                         text: root.tip-chapter;
                         color: Theme.player-ink.with-alpha(0.75);
-                        font-size: 12px * root.k;
+                        font-size: (12px * root.k) * Theme.text-scale;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                         overflow: elide;
@@ -1999,7 +1999,7 @@ export component PlayerView inherits Rectangle {
                 height: 24px * root.k;
                 text: root.end-text;
                 color: Theme.player-ink.with-alpha(0.62);
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -2049,7 +2049,7 @@ export component PlayerView inherits Rectangle {
                 height: 32px * root.k;
                 text: root.menu-last == "audio" ? Tr.t(Tr.k, "Piste audio") : root.menu-last == "sub" ? Tr.t(Tr.k, "Sous-titres") : Tr.t(Tr.k, "Qualité");
                 color: Theme.player-ink.with-alpha(0.92);
-                font-size: 22px * root.k;
+                font-size: (22px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
             }
@@ -2060,7 +2060,7 @@ export component PlayerView inherits Rectangle {
                 height: 42px * root.k;
                 text: Tr.t(Tr.k, "Aucune piste");
                 color: Theme.player-ink.with-alpha(0.62);
-                font-size: 17px * root.k;
+                font-size: (17px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
 
@@ -2087,7 +2087,7 @@ export component PlayerView inherits Rectangle {
                     width: parent.width - 48px * root.k;
                     text: t.label;
                     color: (i == root.menu-sel || row.has-hover) ? Theme.on-accent : Theme.player-ink;
-                    font-size: 17px * root.k;
+                    font-size: (17px * root.k) * Theme.text-scale;
                     font-weight: i == root.menu-sel ? 700 : 400;
                     vertical-alignment: center;
                     overflow: elide;
@@ -2133,7 +2133,7 @@ export component PlayerView inherits Rectangle {
             height: parent.height;
             text: Tr.t(Tr.k, "Épisodes");
             color: Theme.player-ink.with-alpha(0.8);
-            font-size: 13px * root.k;
+            font-size: (13px * root.k) * Theme.text-scale;
             font-weight: 600;
             vertical-alignment: center;
         }
@@ -2240,7 +2240,7 @@ export component PlayerView inherits Rectangle {
             height: parent.height;
             text: root.volume + " %";
             color: Theme.player-ink;
-            font-size: 17px * root.k;
+            font-size: (17px * root.k) * Theme.text-scale;
             font-weight: 600;
             horizontal-alignment: right;
             vertical-alignment: center;
@@ -2368,7 +2368,7 @@ export component PlayerView inherits Rectangle {
         PlayerButton {
             width: parent.width;
             size: 48px * root.k;
-            font: 16px * root.k;
+            font: (16px * root.k) * Theme.text-scale;
             text: Tr.t(Tr.k, "Passer l'intro");
             focused: !root.osd || root.zone == 0;
             clicked => {
@@ -2398,7 +2398,7 @@ export component PlayerView inherits Rectangle {
             y: 10px * root.k;
             text: root.up-title;
             color: Theme.accent2;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             font-weight: 700;
         }
         if root.up-auto: Text {
@@ -2407,7 +2407,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - 28px * root.k;
             text: Tr.f(Tr.k, "Dans {} s", "" + root.up-left, "");
             color: Theme.player-ink;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             font-weight: 700;
             horizontal-alignment: right;
         }
@@ -2440,7 +2440,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width - 28px * root.k;
             text: root.up-sub;
             color: Theme.player-ink.with-alpha(0.92);
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             font-weight: 600;
             overflow: elide;
         }
@@ -2453,7 +2453,7 @@ export component PlayerView inherits Rectangle {
 
             PlayerButton {
                 size: 37px * root.k;
-                font: 14px * root.k;
+                font: (14px * root.k) * Theme.text-scale;
                 text: root.up-button;
                 focused: root.up-sel == 0;
                 clicked => {
@@ -2462,7 +2462,7 @@ export component PlayerView inherits Rectangle {
             }
             PlayerButton {
                 size: 37px * root.k;
-                font: 14px * root.k;
+                font: (14px * root.k) * Theme.text-scale;
                 text: Tr.t(Tr.k, "Regarder la fin de celui-ci");
                 focused: root.up-sel == 1;
                 clicked => {
@@ -2522,7 +2522,7 @@ export component PlayerView inherits Rectangle {
             y: 32px * root.k + 225px * root.k + 10px * root.k;
             text: Tr.t(Tr.k, "Regarder la fin");
             color: root.up-sel == 0 ? Theme.player-ink : Theme.player-ink.with-alpha(0.62);
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             font-weight: 600;
         }
 
@@ -2532,7 +2532,7 @@ export component PlayerView inherits Rectangle {
             width: parent.width;
             text: root.up-mode == "pick" ? Tr.t(Tr.k, "À voir ensuite") : Tr.t(Tr.k, "C'est fini ! À voir ensuite");
             color: Theme.player-ink.with-alpha(0.92);
-            font-size: 26px * root.k;
+            font-size: (26px * root.k) * Theme.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -2562,7 +2562,7 @@ export component PlayerView inherits Rectangle {
 
             PlayerButton {
                 size: 48px * root.k;
-                font: 16px * root.k;
+                font: (16px * root.k) * Theme.text-scale;
                 text: Tr.t(Tr.k, "Retour à l'accueil");
                 focused: root.up-sel == 0;
                 clicked => {
@@ -2592,7 +2592,7 @@ export component PlayerView inherits Rectangle {
         party-txt := Text {
             text: Tr.f(Tr.k, "Watch party · {}", root.party, "");
             color: Theme.on-accent;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             font-weight: 600;
             horizontal-alignment: center;
             vertical-alignment: center;

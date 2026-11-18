@@ -286,7 +286,7 @@ component Field inherits Rectangle {
         height: 22px * root.k;
         text: root.label;
         color: root.error != "" ? Theme.danger-text : root.lit ? Theme.fg : Theme.muted;
-        font-size: 13px * root.k;
+        font-size: (13px * root.k) * Theme.text-scale;
         font-weight: 600;
         vertical-alignment: center;
     }
@@ -311,7 +311,7 @@ component Field inherits Rectangle {
             placeholder: root.hint;
             cursor: root.tv ? root.editing : input.has-focus;
             cursor-x: root.tv || root.password ? -1px : root.cur-x;
-            font-size: 18px * root.k;
+            font-size: (18px * root.k) * Theme.text-scale;
             k: root.k;
         }
         input := TextInput {
@@ -324,7 +324,7 @@ component Field inherits Rectangle {
             input-type: root.password ? InputType.password : InputType.text;
             color: self.anchor-position-byte-offset != self.cursor-position-byte-offset ? Theme.fg : transparent;
             text-cursor-width: 0px;
-            font-size: 18px * root.k;
+            font-size: (18px * root.k) * Theme.text-scale;
             vertical-alignment: center;
             single-line: true;
             selection-background-color: Theme.accent2;
@@ -359,7 +359,7 @@ component Field inherits Rectangle {
         height: 22px * root.k;
         text: root.error;
         color: Theme.danger-text;
-        font-size: 13px * root.k;
+        font-size: (13px * root.k) * Theme.text-scale;
         vertical-alignment: center;
     }
 }
@@ -382,7 +382,7 @@ component Bubble inherits Rectangle {
         height: parent.height;
         text: root.text;
         color: root.error ? Theme.danger-text : Theme.text;
-        font-size: 15px * root.k;
+        font-size: (15px * root.k) * Theme.text-scale;
         wrap: word-wrap;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -529,7 +529,7 @@ component CardArt inherits Rectangle {
         Text {
             text: "SEERR";
             color: white;
-            font-size: 10px * root.k;
+            font-size: (10px * root.k) * Theme.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -550,7 +550,7 @@ component CardArt inherits Rectangle {
         cnt := Text {
             text: root.data.count > 99 ? "+99" : root.data.count > 0 ? root.data.count : "";
             color: white;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -607,7 +607,7 @@ component CardArt inherits Rectangle {
                 text: root.data.status == 1 ? Tr.t(Tr.k, "En attente") : root.data.status == 2 ? Tr.t(Tr.k, "Acceptée")
                     : root.data.status == 3 ? Tr.t(Tr.k, "Refusée") : root.data.status == 4 ? Tr.t(Tr.k, "Disponible") : Tr.t(Tr.k, "Échec");
                 color: Theme.term ? Theme.req-color(root.data.status) : white;
-                font-size: 11px * root.k;
+                font-size: (11px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
             }
@@ -631,13 +631,13 @@ component CardArt inherits Rectangle {
             Text {
                 text: "★";
                 color: #f5c518;
-                font-size: 11px * root.k;
+                font-size: (11px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             Text {
                 text: root.data.rating;
                 color: white;
-                font-size: 11px * root.k;
+                font-size: (11px * root.k) * Theme.text-scale;
                 font-weight: 600;
                 vertical-alignment: center;
             }
@@ -676,7 +676,7 @@ component EmptyTile inherits Rectangle {
                 Text {
                     text: "i";
                     color: white;
-                    font-size: 19px * root.k;
+                    font-size: (19px * root.k) * Theme.text-scale;
                     font-weight: 700;
                 }
             }
@@ -698,7 +698,7 @@ component EmptyTile inherits Rectangle {
         Text {
             text: Theme.term ? "Error " + root.code : Theme.win7 ? Tr.t(Tr.k, "Ce dossier est vide.") : Tr.t(Tr.k, "Rien par ici");
             color: Theme.term ? Theme.accent2 : Theme.fg;
-            font-size: (Theme.term ? 20px : 15px) * root.k;
+            font-size: ((Theme.term ? 20px : 15px) * root.k) * Theme.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             wrap: word-wrap;
@@ -706,7 +706,7 @@ component EmptyTile inherits Rectangle {
         Text {
             text: root.message;
             color: Theme.muted;
-            font-size: 12px * root.k;
+            font-size: (12px * root.k) * Theme.text-scale;
             horizontal-alignment: center;
             wrap: word-wrap;
         }
@@ -914,7 +914,7 @@ component Card inherits Rectangle {
             height: parent.height - self.y - 6px * root.k;
             text: root.shown.overview;
             color: white;
-            font-size: 11px * root.k;
+            font-size: (11px * root.k) * Theme.text-scale;
             wrap: word-wrap;
             overflow: elide;
         }
@@ -931,7 +931,7 @@ component Card inherits Rectangle {
             height: ov.two ? 26px * root.k : parent.height;
             text: root.shown.title;
             color: white;
-            font-size: (ov.two ? 17px : 15px) * root.k;
+            font-size: ((ov.two ? 17px : 15px) * root.k) * Theme.text-scale;
             font-weight: ov.two ? 700 : 600;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -943,7 +943,7 @@ component Card inherits Rectangle {
             height: 20px * root.k;
             text: root.shown.subtitle;
             color: #ffffffd0;
-            font-size: 12px * root.k;
+            font-size: (12px * root.k) * Theme.text-scale;
             horizontal-alignment: center;
             vertical-alignment: center;
             overflow: elide;
@@ -960,7 +960,7 @@ component Card inherits Rectangle {
         active: root.lit;
         opacity: root.text-a;
         text-color: Theme.text;
-        font-size: 15px * root.k;
+        font-size: (15px * root.k) * Theme.text-scale;
         font-weight: 500;
     }
 
@@ -973,7 +973,7 @@ component Card inherits Rectangle {
         active: root.lit;
         opacity: root.text-a;
         text-color: Theme.muted;
-        font-size: 12px * root.k;
+        font-size: (12px * root.k) * Theme.text-scale;
         font-weight: 400;
     }
     }
@@ -1188,7 +1188,7 @@ component SectionRow inherits Rectangle {
         height: root.title-h;
         text: root.title;
         color: Theme.fg;
-        font-size: 22px * root.k;
+        font-size: (22px * root.k) * Theme.text-scale;
         font-weight: 500;
         vertical-alignment: center;
     }
@@ -1544,21 +1544,29 @@ component Tab inherits Rectangle {
     property <color> ink: (root.active || (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch)) ? Theme.fg : Theme.fg.with-alpha(0.65);
     preferred-width: root.compact ? 44px * root.k : label.preferred-width + 8px * root.k;
 
+    // Passage texte <-> icône (intitulés qui ne tiennent plus : fenêtre étroite, grands textes) : le nom
+    // s'efface en rétrécissant pendant que l'icône arrive en grossissant, et inversement.
+    property <float> cq: root.compact ? 1 : 0;
+    animate cq { duration: Motion.select ? 320ms : 0ms; easing: ease-in-out; }
     label := Text {
         width: parent.width;
         height: parent.height;
         // Vide en icône : un texte masqué impose encore sa largeur à l'onglet.
-        text: root.compact ? "" : root.text;
+        text: root.cq > 0.99 ? "" : root.text;
         color: root.ink;
-        font-size: 18px * root.k;
+        opacity: 1 - root.cq;
+        transform-scale: 1 - 0.3 * root.cq;
+        font-size: (18px * root.k) * Theme.text-scale;
         font-weight: root.active ? 700 : 600;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
-    if root.compact: NavIcon {
+    if root.cq > 0.01: NavIcon {
         width: (root.active ? 25px : 23px) * root.k;
         height: self.width;
         animate width { duration: Motion.select ? 200ms : 0ms; easing: ease-out; }
+        opacity: root.cq;
+        transform-scale: 0.5 + 0.5 * root.cq;
         name: root.icon;
         tint: root.active ? Theme.accent2 : root.ink;
     }
@@ -1577,7 +1585,7 @@ component Tab inherits Rectangle {
         tip := Text {
             text: root.text;
             color: Theme.text;
-            font-size: 13px * root.k;
+            font-size: (13px * root.k) * Theme.text-scale;
             font-weight: 600;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -1645,7 +1653,7 @@ component AlertBadge inherits Rectangle {
         text: "!";
         color: white;
         font-family: Theme.font-name;
-        font-size: 13px * root.k;
+        font-size: (13px * root.k) * Theme.text-scale;
         font-weight: 800;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -2036,7 +2044,7 @@ component WinCaption inherits Rectangle {
         text: "Turtlefin";
         color: #000000;
         font-family: "Selawik";
-        font-size: 12px;
+        font-size: (12px) * Theme.text-scale;
         vertical-alignment: center;
     }
     // Poignées : côtés et coins.
@@ -2278,7 +2286,7 @@ component PadButton inherits Rectangle {
     if root.label != "": Text {
         text: root.label;
         color: root.ink;
-        font-size: 15px * root.k;
+        font-size: (15px * root.k) * Theme.text-scale;
         font-weight: 700;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -2383,14 +2391,14 @@ component RemotePad inherits Rectangle {
         Text {
             text: Tr.f(Tr.k, "Télécommande · {}", root.name, "");
             color: Theme.fg;
-            font-size: 20px * root.k;
+            font-size: (20px * root.k) * Theme.text-scale;
             font-weight: 700;
             overflow: elide;
         }
         Text {
             text: root.now == "" ? Tr.t(Tr.k, "Rien en lecture") : root.now;
             color: Theme.muted;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             overflow: elide;
         }
         // Avancement de la lecture sur l'appareil.
@@ -2414,7 +2422,7 @@ component RemotePad inherits Rectangle {
                 width: parent.width;
                 text: root.time;
                 color: Theme.muted;
-                font-size: 12px * root.k;
+                font-size: (12px * root.k) * Theme.text-scale;
                 horizontal-alignment: right;
             }
         }
@@ -2464,7 +2472,7 @@ component RemotePad inherits Rectangle {
                 height: 42px * root.k;
                 width: self.preferred-width;
                 text: Tr.t(Tr.k, "Fermer");
-                font: 15px * root.k;
+                font: (15px * root.k) * Theme.text-scale;
                 focused: Nav.kb && root.sel == 15;
                 clicked => {
                     root.close();
@@ -2491,7 +2499,7 @@ component DetailTab inherits Rectangle {
     bold-w := Text {
         visible: false;
         text: root.text;
-        font-size: 17px * root.k;
+        font-size: (17px * root.k) * Theme.text-scale;
         font-weight: 700;
     }
     Rectangle {
@@ -2509,7 +2517,7 @@ component DetailTab inherits Rectangle {
         text: root.text;
         color: root.lp > 0.5 ? Theme.on-accent : root.on || root.hot ? Theme.text : Theme.muted;
         animate color { duration: Motion.select ? 180ms : 0ms; }
-        font-size: 17px * root.k;
+        font-size: (17px * root.k) * Theme.text-scale;
         font-weight: root.on ? 700 : 500;
         vertical-alignment: center;
     }
@@ -2566,7 +2574,7 @@ component ScoreRing inherits Rectangle {
     Text {
         text: round(root.score * 10) / 10;
         color: Theme.text;
-        font-size: 21px * root.k;
+        font-size: (21px * root.k) * Theme.text-scale;
         font-weight: 800;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -2583,13 +2591,13 @@ component StatBox inherits VerticalLayout {
     Text {
         text: root.value;
         color: Theme.text;
-        font-size: 22px * root.k;
+        font-size: (22px * root.k) * Theme.text-scale;
         font-weight: 700;
     }
     Text {
         text: root.label;
         color: Theme.muted;
-        font-size: 11px * root.k;
+        font-size: (11px * root.k) * Theme.text-scale;
         font-weight: 700;
         letter-spacing: 1px;
     }
@@ -2838,7 +2846,7 @@ component DetailButton inherits Rectangle {
             height: root.two ? 18px * root.k : parent.height;
             text: root.is-icon ? "" : root.text;
             color: face.ink;
-            font-size: (root.chip ? 13px : root.icon == "label" ? 15px : root.two ? 14px : 16px) * root.k;
+            font-size: ((root.chip ? 13px : root.icon == "label" ? 15px : root.two ? 14px : 16px) * root.k) * Theme.text-scale;
             font-weight: 600;
             horizontal-alignment: root.two ? left : center;
             vertical-alignment: center;
@@ -2852,7 +2860,7 @@ component DetailButton inherits Rectangle {
             height: 13px * root.k;
             text: root.sub;
             color: face.ink.with-alpha(0.85);
-            font-size: 11px * root.k;
+            font-size: (11px * root.k) * Theme.text-scale;
             overflow: elide;
             vertical-alignment: center;
         }
@@ -2963,7 +2971,7 @@ component OverviewPanel inherits Rectangle {
             height: 44px * root.k;
             text: Tr.t(Tr.k, "Échap pour fermer  ·  ↑ ↓ pour défiler");
             color: Theme.muted;
-            font-size: 13px * root.k;
+            font-size: (13px * root.k) * Theme.text-scale;
             vertical-alignment: center;
         }
         ActionButton {
@@ -2972,7 +2980,7 @@ component OverviewPanel inherits Rectangle {
             height: 44px * root.k;
             width: self.preferred-width;
             text: Tr.t(Tr.k, "Retour");
-            font: 16px * root.k;
+            font: (16px * root.k) * Theme.text-scale;
             focused: true;
             clicked => {
                 root.close();
@@ -3063,7 +3071,7 @@ component NavBar inherits Rectangle {
         height: root.height;
         text: root.title;
         color: root.title-color;
-        font-size: 26px * root.k;
+        font-size: (26px * root.k) * Theme.text-scale;
         font-weight: 700;
         vertical-alignment: center;
         overflow: elide;
@@ -3073,7 +3081,7 @@ component NavBar inherits Rectangle {
     // Titre de la page : en fondu à l'arrivée de la page (sans glisser). Trop long pour sa place : il
     // défile (réduit, un long titre ne se lirait plus).
     // Un peu trop long : il rétrécit d'abord (jusqu'à 20 px) ; bien trop long : il défile.
-    title-m := Text { visible: false; text: root.title; font-size: 26px; font-weight: 700; }
+    title-m := Text { visible: false; text: root.title; font-size: (26px) * Theme.text-scale; font-weight: 700; }
     property <float> title-fit: (root.width - root.x0 - root.n * root.step - 12px * root.k) / max(1px, title-m.preferred-width * root.k);
     if !root.logo-on: Marquee {
         x: root.x0 + root.n * root.step + 4px * root.k;
@@ -3082,7 +3090,7 @@ component NavBar inherits Rectangle {
         opacity: root.enter;
         text: root.title;
         text-color: root.title-color;
-        font-size: max(20px, min(26px, 26px * root.title-fit)) * root.k;
+        font-size: (max(20px, min(26px, 26px * root.title-fit)) * root.k) * Theme.text-scale;
         font-weight: 700;
         active: true;
         horizontal-alignment: TextHorizontalAlignment.left;
@@ -3192,7 +3200,7 @@ component HeaderRight inherits Rectangle {
                 dl-label := Text {
                     text: root.dl-text;
                     color: root.dl-paused ? Theme.warn : Theme.fg;
-                    font-size: 14px * root.k;
+                    font-size: (14px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
@@ -3213,13 +3221,13 @@ component HeaderRight inherits Rectangle {
                 Text {
                     text: "●";
                     color: #fbbf24;
-                    font-size: 11px * root.k;
+                    font-size: (11px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
                 offline-label := Text {
                     text: Tr.t(Tr.k, "Hors ligne");
                     color: #fde68a;
-                    font-size: 15px * root.k;
+                    font-size: (15px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
@@ -3273,7 +3281,7 @@ component HeaderRight inherits Rectangle {
                 cnt-t := Text {
                     text: root.party-count;
                     color: Theme.on-accent;
-                    font-size: 11px * root.k;
+                    font-size: (11px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -3343,7 +3351,7 @@ component HeaderRight inherits Rectangle {
             // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
             font-family: Theme.font-name;
             color: Theme.text;
-            font-size: 18px * root.k;
+            font-size: (18px * root.k) * Theme.text-scale;
             font-weight: 500;
             vertical-alignment: center;
         }
@@ -3606,7 +3614,7 @@ component LoadMark inherits Rectangle {
             // L'annulation n'a de sens qu'en ouvrant une page depuis une autre, pas pour l'accueil.
             text: root.can-cancel ? Tr.t(Tr.k, "Chargement… (Échap pour annuler)") : Tr.t(Tr.k, "Chargement…");
             color: Theme.text;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             horizontal-alignment: center;
         }
     }
@@ -3767,7 +3775,7 @@ component EdTile inherits Rectangle {
         if !root.data.has-image && root.data.key != "file" && root.data.key != "remove": Text {
             text: Tr.t(Tr.k, "Aucune image");
             color: Theme.muted;
-            font-size: 14px * root.k;
+            font-size: (14px * root.k) * Theme.text-scale;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
@@ -3778,7 +3786,7 @@ component EdTile inherits Rectangle {
         width: parent.width;
         text: root.data.label;
         color: root.lit ? Theme.text : Theme.muted;
-        font-size: 15px * root.k;
+        font-size: (15px * root.k) * Theme.text-scale;
         font-weight: 600;
         overflow: elide;
         horizontal-alignment: center;
@@ -3789,7 +3797,7 @@ component EdTile inherits Rectangle {
         width: parent.width;
         text: root.data.sub;
         color: Theme.muted;
-        font-size: 12px * root.k;
+        font-size: (12px * root.k) * Theme.text-scale;
         overflow: elide;
         horizontal-alignment: center;
     }
@@ -6912,7 +6920,7 @@ export component AppWindow inherits Window {
                 : Theme.dark ? Theme.accent2 : Theme.accent1;
             stroke: Theme.gloss > 0 ? Theme.accent1.darker(0.4) : transparent;
             stroke-width: Theme.gloss > 0 ? 1.5 * lg.u : 0px;
-            font-size: 44 * lg.u;
+            font-size: (44 * lg.u) * Theme.text-scale;
             font-weight: 800;
             horizontal-alignment: center;
         }
@@ -6923,7 +6931,7 @@ export component AppWindow inherits Window {
             width: parent.width;
             text: root.server-name != "" ? root.server-name + "  ·  " + root.server : root.server;
             color: Theme.muted;
-            font-size: 16 * lg.u;
+            font-size: (16 * lg.u) * Theme.text-scale;
             horizontal-alignment: center;
         }
 
@@ -6942,7 +6950,7 @@ export component AppWindow inherits Window {
                 text: lg.arm-id != "" ? Tr.t(Tr.k, "Encore une fois pour retirer ce compte et fermer sa session")
                     : root.login-edit ? Tr.t(Tr.k, "Choisis un compte à retirer de cet appareil") : Tr.t(Tr.k, "Qui regarde ?");
                 color: Theme.fg;
-                font-size: 30 * lg.u;
+                font-size: (30 * lg.u) * Theme.text-scale;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
@@ -7058,7 +7066,7 @@ export component AppWindow inherits Window {
                     if !t.has-image: Text {
                         text: t.id == "other" ? "+" : t.rating;
                         color: Theme.fg;
-                        font-size: (t.id == "other" ? 64 : 40) * lg.u;
+                        font-size: ((t.id == "other" ? 64 : 40) * lg.u) * Theme.text-scale;
                         font-weight: 700;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -7071,7 +7079,7 @@ export component AppWindow inherits Window {
                     text: t.title;
                     text-color: Theme.fg;
                     // Petites tuiles (beaucoup de comptes) : le nom rétrécit un peu avec elles.
-                    font-size: max(14 * lg.u, 18 * lg.tile / 150);
+                    font-size: (max(14 * lg.u, 18 * lg.tile / 150)) * Theme.text-scale;
                     font-weight: 600;
                     horizontal-alignment: center;
                     active: i == root.login-sel && Nav.kb;
@@ -7084,7 +7092,7 @@ export component AppWindow inherits Window {
                     // téléchargements (hors ligne) ; les autres ne peuvent rien ouvrir.
                     text: t.id == lg.arm-id ? Tr.t(Tr.k, "Confirmer ?") : root.offline-ok && tile.removable ? Tr.t(Tr.k, "Hors ligne") : t.subtitle;
                     color: Theme.accent-ink;
-                    font-size: 13 * lg.u;
+                    font-size: (13 * lg.u) * Theme.text-scale;
                     horizontal-alignment: center;
                 }
                 // Gestion : croix rouge sur les comptes que l'on peut retirer.
@@ -7134,7 +7142,7 @@ export component AppWindow inherits Window {
                 spacing: 16 * lg.u;
                 if !root.login-edit: ActionButton {
                     text: Tr.t(Tr.k, "Changer de serveur");
-                    font: 16 * lg.u;
+                    font: (16 * lg.u) * Theme.text-scale;
                     focused: root.login-sel == lg.n && Nav.kb;
                     clicked => {
                         root.menu-action("server");
@@ -7142,7 +7150,7 @@ export component AppWindow inherits Window {
                 }
                 if lg.saved-count > 0 || root.login-edit: ActionButton {
                     text: root.login-edit ? Tr.t(Tr.k, "Terminé") : Tr.t(Tr.k, "Gérer les comptes");
-                    font: 16 * lg.u;
+                    font: (16 * lg.u) * Theme.text-scale;
                     focused: (root.login-edit ? root.login-sel >= lg.n : root.login-sel == lg.manage-i) && Nav.kb;
                     clicked => {
                         root.login-edit = !root.login-edit;
@@ -7238,7 +7246,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.login-title;
                     color: Theme.fg;
-                    font-size: 24 * lg.u;
+                    font-size: (24 * lg.u) * Theme.text-scale;
                     font-weight: 700;
                 }
                 Text {
@@ -7247,7 +7255,7 @@ export component AppWindow inherits Window {
                     visible: !lg.one;
                     height: lg.one ? 0px : self.preferred-height;
                     color: Theme.muted;
-                    font-size: 13 * lg.u;
+                    font-size: (13 * lg.u) * Theme.text-scale;
                 }
                 Rectangle {
                     height: 6 * lg.u;
@@ -7327,7 +7335,7 @@ export component AppWindow inherits Window {
                     alignment: end;
                     ActionButton {
                         text: Tr.t(Tr.k, "Retour");
-                        font: 16 * lg.u;
+                        font: (16 * lg.u) * Theme.text-scale;
                         focused: root.tv-mode && !root.login-osk && root.login-field == 3;
                         clicked => {
                             root.login-mode = "pick";
@@ -7336,7 +7344,7 @@ export component AppWindow inherits Window {
                     }
                     ActionButton {
                         text: root.busy ? Tr.t(Tr.k, "Connexion…") : Tr.t(Tr.k, "Se connecter");
-                        font: 16 * lg.u;
+                        font: (16 * lg.u) * Theme.text-scale;
                         focused: root.tv-mode ? !root.login-osk && root.login-field == 2 : true;
                         clicked => {
                             lg.submit();
@@ -7646,7 +7654,7 @@ export component AppWindow inherits Window {
 
             if root.sections.length == 0: EmptyNote {
                 k: root.k;
-                font: 20px * root.k;
+                font: (20px * root.k) * Theme.text-scale;
                 text: root.tab-failed ? Tr.t(Tr.k, "Le serveur met trop de temps à répondre. Réessaie dans un instant.")
                     : root.tab == "favorites" ? Tr.t(Tr.k, "Aucun favori pour l'instant.")
                     : root.tab == "watchlist" ? Tr.t(Tr.k, "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série.")
@@ -7717,14 +7725,14 @@ export component AppWindow inherits Window {
                             if !root.banner.has-logo: Text {
                                 text: root.banner.title;
                                 color: white;
-                                font-size: 30px * root.k;
+                                font-size: (30px * root.k) * Theme.text-scale;
                                 font-weight: 700;
                                 overflow: elide;
                             }
                             Text {
                                 text: root.banner.subtitle;
                                 color: Theme.accent2;
-                                font-size: 15px * root.k;
+                                font-size: (15px * root.k) * Theme.text-scale;
                                 font-weight: 600;
                                 overflow: elide;
                             }
@@ -7732,7 +7740,7 @@ export component AppWindow inherits Window {
                                 height: 56px * root.k;
                                 text: root.banner.overview;
                                 color: #ffffffd9;
-                                font-size: 14px * root.k;
+                                font-size: (14px * root.k) * Theme.text-scale;
                                 wrap: word-wrap;
                                 overflow: elide;
                             }
@@ -8203,7 +8211,7 @@ export component AppWindow inherits Window {
             y: 16px * root.k - srch.lift;
             width: self.preferred-width;
             height: parent.box-h;
-            font: 15px * root.k;
+            font: (15px * root.k) * Theme.text-scale;
             text: Tr.t(Tr.k, "Recherche avancée");
             on: root.s-adv;
             focused: root.s-adv-sel && !root.h-focus;
@@ -8271,7 +8279,7 @@ export component AppWindow inherits Window {
                         t-txt := Text {
                             text: t.name;
                             color: parent.lit ? Theme.on-accent : Theme.text;
-                            font-size: 14px * root.k;
+                            font-size: (14px * root.k) * Theme.text-scale;
                             font-weight: 600;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -8292,7 +8300,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: "…";
                         color: Theme.text;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 700;
                     }
                 }
@@ -8301,7 +8309,7 @@ export component AppWindow inherits Window {
             s-head := Text {
                 visible: false;
                 text: Str.head(root.search-text, osk.back);
-                font-size: 18px * root.k;
+                font-size: (18px * root.k) * Theme.text-scale;
             }
             // Texte tapé (animé, curseur qui clignote) : clavier à l'écran en mode TV, champ
             // classique au bureau (son texte et son curseur sont masqués, celui-ci les dessine).
@@ -8315,7 +8323,7 @@ export component AppWindow inherits Window {
                 opacity: s-input.anchor-position-byte-offset != s-input.cursor-position-byte-offset ? 0 : 1;
                 cursor: root.tv-mode ? root.s-osk : s-input.has-focus;
                 cursor-x: root.tv-mode ? (osk.back == 0 ? -1px : s-head.preferred-width) : root.s-cur-x;
-                font-size: 18px * root.k;
+                font-size: (18px * root.k) * Theme.text-scale;
                 k: root.k;
             }
             s-input := TextInput {
@@ -8329,7 +8337,7 @@ export component AppWindow inherits Window {
                 selection-background-color: Theme.accent2;
                 selection-foreground-color: Theme.on-accent;
                 text-cursor-width: 0px;
-                font-size: 18px * root.k;
+                font-size: (18px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
                 single-line: true;
                 cursor-position-changed(pos) => {
@@ -8419,13 +8427,13 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.tv-mode ? Tr.t(Tr.k, "Suggestions") : Tr.t(Tr.k, "Tab :");
                     color: Theme.muted;
-                    font-size: 14px * root.k;
+                    font-size: (14px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
                 for g[i] in root.sg-items: ActionButton {
                     height: 36px * root.k;
                     width: self.preferred-width;
-                    font: 15px * root.k;
+                    font: (15px * root.k) * Theme.text-scale;
                     text: g.name;
                     on: i == 0 && !root.s-sug && !root.tv-mode;
                     focused: (root.s-sug && !root.h-focus && root.s-sgi == i) || self.hovered;
@@ -8448,7 +8456,7 @@ export component AppWindow inherits Window {
                     height: 36px * root.k;
                     // Type, année, note, état : menus à choix unique.
                     drop: i == 0 || i >= 5;
-                    font: 14px * root.k;
+                    font: (14px * root.k) * Theme.text-scale;
                     text: c.name;
                     on: c.on;
                     focused: root.s-bar && !root.h-focus && root.s-chip == i;
@@ -8459,7 +8467,7 @@ export component AppWindow inherits Window {
                 }
                 if root.s-adv: ActionButton {
                     height: 36px * root.k;
-                    font: 14px * root.k;
+                    font: (14px * root.k) * Theme.text-scale;
                     text: Tr.t(Tr.k, "Effacer");
                     focused: root.s-bar && !root.h-focus && root.s-chip == root.sf-chips.length;
                     clicked => {
@@ -8520,7 +8528,7 @@ export component AppWindow inherits Window {
 
             if root.search-sections.length == 0: EmptyNote {
                 k: root.k;
-                font: 18px * root.k;
+                font: (18px * root.k) * Theme.text-scale;
                 text: root.search-busy ? Tr.t(Tr.k, "Recherche…") : root.search-text.character-count >= 2 ? Tr.t(Tr.k, "Aucun résultat.") : "";
             }
 
@@ -8583,7 +8591,7 @@ export component AppWindow inherits Window {
             cnt := Text {
                 text: root.s-counts;
                 color: Theme.muted;
-                font-size: 13px * root.k;
+                font-size: (13px * root.k) * Theme.text-scale;
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -8630,7 +8638,7 @@ export component AppWindow inherits Window {
                     y: 14px * root.k;
                     text: root.sf-title;
                     color: Theme.text;
-                    font-size: 20px * root.k;
+                    font-size: (20px * root.k) * Theme.text-scale;
                     font-weight: 700;
                 }
                 Text {
@@ -8642,7 +8650,7 @@ export component AppWindow inherits Window {
                         : Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.")
                         : root.tv-mode ? Tr.t(Tr.k, "Plusieurs choix · → : index A–Z") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
                     color: Theme.muted;
-                    font-size: 12px * root.k;
+                    font-size: (12px * root.k) * Theme.text-scale;
                 }
                 // Texte tapé : la liste ne garde que les noms qui le contiennent. Interface TV : pas de clavier à
                 // l'écran ici, le champ n'apparaît que si l'on tape au vrai clavier.
@@ -8661,7 +8669,7 @@ export component AppWindow inherits Window {
                         height: parent.height;
                         text: root.sf-query != "" ? root.sf-query + "▏" : Tr.t(Tr.k, "Filtrer… (ex. : surv)");
                         color: root.sf-query != "" ? Theme.text : Theme.muted;
-                        font-size: 14px * root.k;
+                        font-size: (14px * root.k) * Theme.text-scale;
                         vertical-alignment: center;
                         overflow: elide;
                     }
@@ -8671,7 +8679,7 @@ export component AppWindow inherits Window {
                     y: 100px * root.k;
                     text: Tr.t(Tr.k, "Aucun nom ne contient ce texte.");
                     color: Theme.muted;
-                    font-size: 14px * root.k;
+                    font-size: (14px * root.k) * Theme.text-scale;
                 }
                 // Index A–Z (comme celui des bibliothèques) : une lettre amène au premier nom qui commence ainsi.
                 if !root.sf-single: Rectangle {
@@ -8689,7 +8697,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: root.sf-letter(n).to-uppercase();
                             color: parent.lit ? Theme.on-accent : Theme.muted;
-                            font-size: min(13px * root.k, parent.height * 0.8);
+                            font-size: (min(13px * root.k, parent.height * 0.8)) * Theme.text-scale;
                             font-weight: 700;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -8746,7 +8754,7 @@ export component AppWindow inherits Window {
                             height: parent.height;
                             text: o.name;
                             color: sf-row.lit ? Theme.on-accent : Theme.text;
-                            font-size: 15px * root.k;
+                            font-size: (15px * root.k) * Theme.text-scale;
                             font-weight: o.on ? 700 : 500;
                             vertical-alignment: center;
                             overflow: elide;
@@ -8871,20 +8879,20 @@ export component AppWindow inherits Window {
             Text {
                 text: root.soon-title;
                 color: Theme.text;
-                font-size: 34px * root.k;
+                font-size: (34px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
             Text {
                 text: Tr.t(Tr.k, "Bientôt disponible.");
                 color: Theme.muted;
-                font-size: 18px * root.k;
+                font-size: (18px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
             }
             Text {
                 text: Tr.t(Tr.k, "Échap ou Retour arrière pour revenir");
                 color: Theme.muted;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
             }
         }
@@ -8942,7 +8950,7 @@ export component AppWindow inherits Window {
             Text {
                 text: root.user-name;
                 color: Theme.text;
-                font-size: 34px * root.k;
+                font-size: (34px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
@@ -8954,7 +8962,7 @@ export component AppWindow inherits Window {
 
                 ActionButton {
                     text: Tr.t(Tr.k, "Réglages · bientôt");
-                    font: 16px * root.k;
+                    font: (16px * root.k) * Theme.text-scale;
                     focused: root.prof-sel == 0;
                     clicked => {
                         root.prof-sel = 0;
@@ -8962,7 +8970,7 @@ export component AppWindow inherits Window {
                 }
                 ActionButton {
                     text: Tr.t(Tr.k, "Déconnexion");
-                    font: 16px * root.k;
+                    font: (16px * root.k) * Theme.text-scale;
                     focused: root.prof-sel == 1;
                     clicked => {
                         root.logout();
@@ -8973,7 +8981,7 @@ export component AppWindow inherits Window {
             Text {
                 text: Tr.t(Tr.k, "Échap ou Retour arrière pour revenir");
                 color: Theme.muted;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
             }
         }
@@ -9558,7 +9566,7 @@ export component AppWindow inherits Window {
                 to: root.detail.title;
                 p: root.wipe-p;
                 ink: Theme.text;
-                font-size: 34px * root.k;
+                font-size: (34px * root.k) * Theme.text-scale;
                 font-weight: 800;
             }
             if !dt.logo-wide && !(root.detail.expect-logo && !root.detail.has-logo) && !root.wiping(root.mt-title, root.detail.title): Marquee {
@@ -9567,7 +9575,7 @@ export component AppWindow inherits Window {
                 height: parent.height;
                 text: root.detail.title;
                 text-color: Theme.text;
-                font-size: 34px * root.k;
+                font-size: (34px * root.k) * Theme.text-scale;
                 font-weight: 800;
                 vertical-alignment: center;
                 active: true;
@@ -9598,7 +9606,7 @@ export component AppWindow inherits Window {
             to: root.detail.subtitle;
             p: root.wipe-p;
             ink: Theme.accent2;
-            font-size: 18px * root.k;
+            font-size: (18px * root.k) * Theme.text-scale;
             font-weight: 600;
         }
         if !root.wiping(root.mt-sub, root.detail.subtitle): Marquee {
@@ -9609,7 +9617,7 @@ export component AppWindow inherits Window {
             opacity: root.rev(0) * (1 - root.top-out-p);
             text: root.detail.subtitle;
             text-color: Theme.accent-ink;
-            font-size: 18px * root.k;
+            font-size: (18px * root.k) * Theme.text-scale;
             font-weight: 600;
             vertical-alignment: center;
             active: true;
@@ -9699,7 +9707,7 @@ export component AppWindow inherits Window {
             to: dt.stats-on ? root.detail.misc-short : root.detail.misc;
             p: root.wipe-p;
             ink: Theme.muted;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
         }
         if !root.wiping(root.mt-misc, root.detail.misc): Text {
             x: root.col-x + root.po-right;
@@ -9709,7 +9717,7 @@ export component AppWindow inherits Window {
             height: 24px * root.k;
             text: dt.stats-on ? root.detail.misc-short : root.detail.misc;
             color: Theme.muted;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -9740,7 +9748,7 @@ export component AppWindow inherits Window {
                     x: 10px * root.k;
                     y: -4px * root.k;
                     text: "“";
-                    font-size: 58px * root.k;
+                    font-size: (58px * root.k) * Theme.text-scale;
                     font-weight: 800;
                     color: Theme.accent2.with-alpha(0.5 + 0.5 * ov-bub.lq);
                 }
@@ -9780,7 +9788,7 @@ export component AppWindow inherits Window {
                     x: 14px * root.k;
                     y: 7px * root.k;
                     text: "$ cat synopsis.txt";
-                    font-size: 12px * root.k;
+                    font-size: (12px * root.k) * Theme.text-scale;
                     color: Theme.accent2.with-alpha(0.65 + 0.35 * ov-bub.lq);
                 }
                 Rectangle {
@@ -9813,7 +9821,7 @@ export component AppWindow inherits Window {
                 wrap: true;
                 valign: TextVerticalAlignment.top;
                 ink: parent.ink;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
             }
             if !root.wiping(root.mt-ov, root.detail.overview): Text {
                 x: parent.pad-x;
@@ -9824,7 +9832,7 @@ export component AppWindow inherits Window {
                 wrap: word-wrap;
                 overflow: elide;
                 color: parent.ink;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
             }
 
             ov-ta := TouchArea {
@@ -9864,7 +9872,7 @@ export component AppWindow inherits Window {
                 height: 20px * root.k;
                 text: Tr.t(Tr.k, "À SUIVRE");
                 color: Theme.muted;
-                font-size: 12px * root.k;
+                font-size: (12px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
             }
@@ -9911,7 +9919,7 @@ export component AppWindow inherits Window {
                 height: 22px * root.k;
                 text: root.detail.next-title;
                 text-color: Theme.text;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 font-weight: 600;
                 active: parent.nlit;
                 horizontal-alignment: TextHorizontalAlignment.left;
@@ -9924,7 +9932,7 @@ export component AppWindow inherits Window {
                 height: 18px * root.k;
                 text: root.detail.next-subtitle;
                 text-color: Theme.muted;
-                font-size: 12px * root.k;
+                font-size: (12px * root.k) * Theme.text-scale;
                 active: parent.nlit;
                 horizontal-alignment: TextHorizontalAlignment.left;
             }
@@ -9967,7 +9975,7 @@ export component AppWindow inherits Window {
             text: root.d-rows-loading ? Tr.t(Tr.k, "Chargement…")
                 : root.d-tab-eff == 1 ? Tr.t(Tr.k, "Aucune distribution connue pour ce titre.") : Tr.t(Tr.k, "Rien de semblable pour l'instant.");
             color: Theme.muted;
-            font-size: 17px * root.k;
+            font-size: (17px * root.k) * Theme.text-scale;
         }
         // Onglet Détails : toutes les informations, en deux colonnes (intitulé, valeur).
         if root.d-tabs-on && root.d-tab-eff == 2: VerticalLayout {
@@ -9998,7 +10006,7 @@ export component AppWindow inherits Window {
                     width: (root.narrow ? 110px : 170px) * root.k;
                     text: f.label;
                     color: Theme.muted;
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     // En haut : une valeur longue (tags) tient sur plusieurs lignes.
                     y: 3px * root.k;
@@ -10008,7 +10016,7 @@ export component AppWindow inherits Window {
                     horizontal-stretch: 1;
                     text: f.value;
                     color: Theme.text;
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
                 }
             }
@@ -10034,7 +10042,7 @@ export component AppWindow inherits Window {
                 to: "— " + root.detail.children-title;
                 p: root.wipe-p;
                 ink: Theme.text;
-                font-size: 22px * root.k;
+                font-size: (22px * root.k) * Theme.text-scale;
             }
             if !root.d-tabs-on && !root.wiping(root.mt-ctitle, root.detail.children-title): Text {
                 x: 0px;
@@ -10042,7 +10050,7 @@ export component AppWindow inherits Window {
                 height: root.ep-head-h - 12px * root.k;
                 text: "— " + root.detail.children-title;
                 color: Theme.text;
-                font-size: 22px * root.k;
+                font-size: (22px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             for ep[i] in root.child-items: ep-row := Rectangle {
@@ -10103,7 +10111,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: "✓";
                             color: Theme.on-accent;
-                            font-size: 13px * root.k;
+                            font-size: (13px * root.k) * Theme.text-scale;
                             font-weight: 800;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -10121,14 +10129,14 @@ export component AppWindow inherits Window {
                     Text {
                         text: ep.title;
                         color: ep-row.lit ? Theme.on-accent : Theme.fg;
-                        font-size: 17px * root.k;
+                        font-size: (17px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         overflow: elide;
                     }
                     if ep.subtitle != "": Text {
                         text: ep.subtitle;
                         color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         overflow: elide;
                     }
                     // Résumé : ce qui tient dans la ligne (3 lignes, 1 en portrait), puis « … » ; le reste
@@ -10136,7 +10144,7 @@ export component AppWindow inherits Window {
                     if ep.overview != "": Text {
                         text: ep.overview;
                         color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.8);
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         wrap: word-wrap;
                         overflow: elide;
                         height: min(self.preferred-height, (root.narrow ? 17px : 51px) * root.k);
@@ -10252,7 +10260,7 @@ export component AppWindow inherits Window {
                     y: 16px * root.k;
                     text: root.tp-kind == "audio" ? Tr.t(Tr.k, "Langue audio") : Tr.t(Tr.k, "Sous-titres");
                     color: Theme.text;
-                    font-size: 20px * root.k;
+                    font-size: (20px * root.k) * Theme.text-scale;
                     font-weight: 700;
                 }
                 Text {
@@ -10260,7 +10268,7 @@ export component AppWindow inherits Window {
                     y: 42px * root.k;
                     text: root.tp-hint;
                     color: Theme.muted;
-                    font-size: 12px * root.k;
+                    font-size: (12px * root.k) * Theme.text-scale;
                 }
                 for t[i] in root.tp-items: Rectangle {
                     x: 12px * root.k;
@@ -10285,7 +10293,7 @@ export component AppWindow inherits Window {
                         height: parent.height;
                         text: t.label;
                         color: ((Nav.kb ? (i == root.tp-sel) : tp-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
-                        font-size: 15px * root.k;
+                        font-size: (15px * root.k) * Theme.text-scale;
                         vertical-alignment: center;
                         overflow: elide;
                     }
@@ -10305,7 +10313,7 @@ export component AppWindow inherits Window {
             open: root.overview-open;
             k: root.k;
             text: root.detail.overview;
-            font: 20px * root.k;
+            font: (20px * root.k) * Theme.text-scale;
             close => {
                 root.overview-open = false;
             }
@@ -10515,7 +10523,7 @@ export component AppWindow inherits Window {
             text: root.lib-filter != "" && root.lib-done ? Tr.t(Tr.k, "Aucun titre ne commence ainsi.")
                 : root.lib-total == 0 ? Tr.t(Tr.k, "Chargement…") : "";
             color: Theme.muted;
-            font-size: 20px * root.k;
+            font-size: (20px * root.k) * Theme.text-scale;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
@@ -10599,13 +10607,13 @@ export component AppWindow inherits Window {
                 Text {
                     text: Tr.t(Tr.k, "Titres commençant par") + " « " + root.lib-filter + " »";
                     color: Theme.text;
-                    font-size: 15px * root.k;
+                    font-size: (15px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
                 Text {
                     text: Tr.t(Tr.k, "Échap : effacer");
                     color: Theme.muted;
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
             }
@@ -10657,7 +10665,7 @@ export component AppWindow inherits Window {
                 width: az.width;
                 height: az.step;
                 text: l;
-                font-size: min(13px * root.k, az.step * 0.8);
+                font-size: (min(13px * root.k, az.step * 0.8)) * Theme.text-scale;
                 font-weight: 600;
                 color: root.az-on && Nav.kb && j == root.az-sel ? Theme.on-accent : az-area.has-hover ? Theme.text : Theme.muted;
                 horizontal-alignment: center;
@@ -10779,7 +10787,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: Tr.t(Tr.k, "Choisir un serveur");
                     color: Theme.text;
-                    font-size: 30px * root.k;
+                    font-size: (30px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
@@ -10794,7 +10802,7 @@ export component AppWindow inherits Window {
                         : root.servers.length == 0 ? Tr.t(Tr.k, "Aucun serveur trouvé : saisis son adresse.")
                         : Tr.p(Tr.k, "{n} serveur trouvé sur tes réseaux", "{n} serveurs trouvés sur tes réseaux", root.servers.length);
                     color: Theme.muted;
-                    font-size: 15px * root.k;
+                    font-size: (15px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
                 for d[di] in (root.srv-searching ? [0, 1, 2] : []): Rectangle {
@@ -10889,7 +10897,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: s.name;
                             color: (srv-card.sel ? Theme.on-accent : Theme.fg);
-                            font-size: 20px * root.k;
+                            font-size: (20px * root.k) * Theme.text-scale;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
@@ -10900,7 +10908,7 @@ export component AppWindow inherits Window {
                             ver := Text {
                                 text: "Jellyfin " + s.version;
                                 color: ((srv-card.sel ? Theme.on-accent : (srv-card.sel ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
-                                font-size: 11px * root.k;
+                                font-size: (11px * root.k) * Theme.text-scale;
                                 font-weight: 600;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -10913,7 +10921,7 @@ export component AppWindow inherits Window {
                             cur := Text {
                                 text: Tr.t(Tr.k, "Actuel");
                                 color: white;
-                                font-size: 11px * root.k;
+                                font-size: (11px * root.k) * Theme.text-scale;
                                 font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -10923,7 +10931,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: Tr.f(Tr.k, "Principale : {}      Secours : {}", s.main != "" ? s.main : "—", s.backup != "" ? s.backup : "—");
                         color: Theme.fg.with-alpha(0.8);
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         overflow: elide;
                     }
                 }
@@ -10943,7 +10951,7 @@ export component AppWindow inherits Window {
 
                 ActionButton {
                     text: root.srv-searching ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Rechercher à nouveau");
-                    font: 16px * root.k;
+                    font: (16px * root.k) * Theme.text-scale;
                     focused: !root.h-focus && root.srv-sel == root.servers.length && Nav.kb;
                     clicked => {
                         root.servers-search();
@@ -10951,7 +10959,7 @@ export component AppWindow inherits Window {
                 }
                 ActionButton {
                     text: Tr.t(Tr.k, "Saisir une adresse");
-                    font: 16px * root.k;
+                    font: (16px * root.k) * Theme.text-scale;
                     focused: !root.h-focus && root.srv-sel == root.servers.length + 1 && Nav.kb;
                     clicked => {
                         root.open-manual();
@@ -11078,7 +11086,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: Tr.t(Tr.k, "Adresse du serveur");
                         color: Theme.fg;
-                        font-size: 22px * root.k;
+                        font-size: (22px * root.k) * Theme.text-scale;
                         font-weight: 700;
                     }
                     Text {
@@ -11086,7 +11094,7 @@ export component AppWindow inherits Window {
                         visible: !mbox.one;
                         height: mbox.one ? 0px : self.preferred-height;
                         color: Theme.muted;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                     }
                     Rectangle {
                         height: 4px * root.k;
@@ -11149,7 +11157,7 @@ export component AppWindow inherits Window {
 
                         ActionButton {
                             text: Tr.t(Tr.k, "Annuler");
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: root.tv-mode && !root.manual-osk && root.manual-field == 3;
                             clicked => {
                                 root.close-manual();
@@ -11157,7 +11165,7 @@ export component AppWindow inherits Window {
                         }
                         ActionButton {
                             text: root.manual-busy ? Tr.t(Tr.k, "Vérification…") : Tr.t(Tr.k, "Valider");
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: root.tv-mode ? !root.manual-osk && root.manual-field == 2 : true;
                             clicked => {
                                 root.manual-go();
@@ -11247,7 +11255,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: Tr.f(Tr.k, "Serveur trouvé : {}", root.manual-ok, "");
                         color: Theme.fg;
-                        font-size: 20px * root.k;
+                        font-size: (20px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         horizontal-alignment: center;
                     }
@@ -11325,7 +11333,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: Tr.t(Tr.k, "Deux adresses répondent. Laquelle utiliser ?");
                         color: Theme.text;
-                        font-size: 18px * root.k;
+                        font-size: (18px * root.k) * Theme.text-scale;
                         font-weight: 700;
                     }
                     HorizontalLayout {
@@ -11335,7 +11343,7 @@ export component AppWindow inherits Window {
 
                         ActionButton {
                             text: root.choice-a;
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: choice.pick == 0;
                             clicked => {
                                 root.manual-choice(root.choice-a);
@@ -11343,7 +11351,7 @@ export component AppWindow inherits Window {
                         }
                         ActionButton {
                             text: root.choice-b;
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: choice.pick == 1;
                             clicked => {
                                 root.manual-choice(root.choice-b);
@@ -11475,7 +11483,7 @@ export component AppWindow inherits Window {
             height: 32px * root.k;
             text: root.dl-status;
             color: Theme.accent-ink;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             font-weight: 600;
             vertical-alignment: center;
         }
@@ -11485,7 +11493,7 @@ export component AppWindow inherits Window {
         // « Aucun téléchargement »).
         if root.dl-sections.length == 0 && root.dl-status == "": EmptyNote {
             k: root.k;
-            font: 18px * root.k;
+            font: (18px * root.k) * Theme.text-scale;
             text: root.offline ? Tr.t(Tr.k, "Aucun téléchargement : rien à regarder hors ligne.")
                 : Tr.t(Tr.k, "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne.");
         }
@@ -12063,7 +12071,7 @@ export component AppWindow inherits Window {
                     text: i == 0 ? Tr.t(Tr.k, "Serveur") : i == 4 ? Tr.t(Tr.k, "Bibliothèques") : i == 8 ? Tr.t(Tr.k, "Lecture")
                         : i == 12 ? Tr.t(Tr.k, "Appareils") : i == 14 ? Tr.t(Tr.k, "Avancé") : Tr.t(Tr.k, "Extensions");
                     color: Theme.muted;
-                    font-size: 11px * root.k;
+                    font-size: (11px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
@@ -12081,7 +12089,7 @@ export component AppWindow inherits Window {
                     height: parent.height;
                     text: c;
                     color: (i == root.set-cat && !root.set-in && !root.h-focus && Nav.kb ? Theme.on-accent : Theme.fg);
-                    font-size: 17px * root.k;
+                    font-size: (17px * root.k) * Theme.text-scale;
                     font-weight: i == root.set-cat ? 700 : 500;
                     vertical-alignment: center;
                 }
@@ -12115,7 +12123,7 @@ export component AppWindow inherits Window {
             height: 44px * root.k;
             text: sets.cats[root.set-cat];
             color: Theme.text;
-            font-size: 28px * root.k;
+            font-size: (28px * root.k) * Theme.text-scale;
             font-weight: 700;
             vertical-alignment: center;
         }
@@ -12307,7 +12315,7 @@ export component AppWindow inherits Window {
                                     Text {
                                         text: st.value;
                                         color: Theme.accent-ink;
-                                        font-size: 30px * root.k;
+                                        font-size: (30px * root.k) * Theme.text-scale;
                                         font-weight: 700;
                                         horizontal-alignment: center;
                                     }
@@ -12315,7 +12323,7 @@ export component AppWindow inherits Window {
                                     Text {
                                         text: st.label;
                                         color: Theme.muted;
-                                        font-size: 12px * root.k;
+                                        font-size: (12px * root.k) * Theme.text-scale;
                                         horizontal-alignment: center;
                                         wrap: word-wrap;
                                     }
@@ -12338,7 +12346,7 @@ export component AppWindow inherits Window {
                                 width: parent.width - self.x;
                                 text: r.label;
                                 color: Theme.fg;
-                                font-size: 17px * root.k;
+                                font-size: (17px * root.k) * Theme.text-scale;
                                 font-weight: 600;
                                 vertical-alignment: bottom;
                                 overflow: elide;
@@ -12372,7 +12380,7 @@ export component AppWindow inherits Window {
                                     Text {
                                         text: r.value;
                                         color: Theme.fg.with-alpha(0.85);
-                                        font-size: 44px * root.k;
+                                        font-size: (44px * root.k) * Theme.text-scale;
                                         font-weight: 700;
                                     }
                                 }
@@ -12385,14 +12393,14 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: r.label;
                                     color: Theme.fg;
-                                    font-size: 24px * root.k;
+                                    font-size: (24px * root.k) * Theme.text-scale;
                                     font-weight: 700;
                                     overflow: elide;
                                 }
                                 if r.hint != "": Text {
                                     text: r.hint;
                                     color: Theme.muted;
-                                    font-size: 13px * root.k;
+                                    font-size: (13px * root.k) * Theme.text-scale;
                                     wrap: word-wrap;
                                     height: min(self.preferred-height, 70px * root.k);
                                     overflow: elide;
@@ -12434,7 +12442,7 @@ export component AppWindow inherits Window {
                                         height: parent.height;
                                         text: c.letter;
                                         color: Theme.fg.with-alpha(0.8);
-                                        font-size: (c.round ? 38px : 44px) * root.k;
+                                        font-size: ((c.round ? 38px : 44px) * root.k) * Theme.text-scale;
                                         font-weight: 700;
                                         horizontal-alignment: center;
                                         vertical-alignment: center;
@@ -12469,7 +12477,7 @@ export component AppWindow inherits Window {
                                         height: parent.height;
                                         text: c.badge;
                                         color: white;
-                                        font-size: 11px * root.k;
+                                        font-size: (11px * root.k) * Theme.text-scale;
                                         font-weight: 600;
                                         vertical-alignment: center;
                                         horizontal-alignment: center;
@@ -12484,7 +12492,7 @@ export component AppWindow inherits Window {
                                     text: c.title;
                                     active: parent.lit;
                                     text-color: Theme.text;
-                                    font-size: 14px * root.k;
+                                    font-size: (14px * root.k) * Theme.text-scale;
                                     font-weight: 700;
                                 }
                                 if c.sub != "": Marquee {
@@ -12495,7 +12503,7 @@ export component AppWindow inherits Window {
                                     text: c.sub;
                                     active: parent.lit;
                                     text-color: Theme.muted;
-                                    font-size: 12px * root.k;
+                                    font-size: (12px * root.k) * Theme.text-scale;
                                     font-weight: 400;
                                 }
                                 card-ta := TouchArea {
@@ -12538,7 +12546,7 @@ export component AppWindow inherits Window {
                             if r.label != "": Text {
                                 text: r.label;
                                 color: (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg);
-                                font-size: r.kind == "profile" ? 21px * root.k : 16px * root.k;
+                                font-size: (r.kind == "profile" ? 21px * root.k : 16px * root.k) * Theme.text-scale;
                                 font-weight: r.kind == "action" || r.kind == "profile" ? 700 : 600;
                                 wrap: word-wrap;
                                 height: min(self.preferred-height, 44px * root.k);
@@ -12547,7 +12555,7 @@ export component AppWindow inherits Window {
                             if r.hint != "": Text {
                                 text: r.hint;
                                 color: set-row.alert && !set-row.sel && !(row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.danger-text : set-row.still ? Theme.muted : (r.kind == "action" && (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch)) ? Theme.on-accent : Theme.fg).with-alpha(r.kind == "action" && set-row.sel ? 0.85 : 0.6);
-                                font-size: 13px * root.k;
+                                font-size: (13px * root.k) * Theme.text-scale;
                                 wrap: word-wrap;
                                 // Trois lignes au plus : un texte trop long finit par « … » au lieu de déborder.
                                 height: min(self.preferred-height, 54px * root.k);
@@ -12578,7 +12586,7 @@ export component AppWindow inherits Window {
                                 height: parent.height;
                                 text: r.value;
                                 color: (set-row.sel ? Theme.on-accent : Theme.fg);
-                                font-size: 15px * root.k;
+                                font-size: (15px * root.k) * Theme.text-scale;
                                 font-weight: 600;
                                 vertical-alignment: center;
                             }
@@ -12602,7 +12610,7 @@ export component AppWindow inherits Window {
                             height: parent.height;
                             text: r.value;
                             color: ((set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : (set-row.sel || (row-area.has-hover && !Nav.kb && !Nav.touch) ? Theme.on-accent : Theme.fg))).with-alpha(0.85);
-                            font-size: 15px * root.k;
+                            font-size: (15px * root.k) * Theme.text-scale;
                             font-weight: 600;
                             horizontal-alignment: right;
                             vertical-alignment: center;
@@ -12720,8 +12728,8 @@ export component AppWindow inherits Window {
                     property <length> pad: 4px * root.k;
                     property <length> th: 22px * root.k;
                     // Mesures seulement (invisibles).
-                    old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
-                    new-t := Text { visible: false; text: root.ch-title; font-family: Theme.font-name; font-size: 18px * root.k; font-weight: 700; }
+                    old-t := Text { visible: false; text: root.ch-title-old; font-family: Theme.font-name; font-size: (18px * root.k) * Theme.text-scale; font-weight: 700; }
+                    new-t := Text { visible: false; text: root.ch-title; font-family: Theme.font-name; font-size: (18px * root.k) * Theme.text-scale; font-weight: 700; }
                     Text {
                         x: ch-head.bx;
                         height: parent.height;
@@ -12729,7 +12737,7 @@ export component AppWindow inherits Window {
                         text: ch-head.live && ch-head.p1 < 1 ? root.ch-title-old : root.ch-title;
                         font-family: Theme.font-name; // reste lisible pendant l'effet de langue (police vide ailleurs)
                         color: Theme.fg;
-                        font-size: 18px * root.k;
+                        font-size: (18px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         vertical-alignment: center;
                     }
@@ -12773,7 +12781,7 @@ export component AppWindow inherits Window {
                             text: t.label;
                             font-family: Theme.font-name;
                             color: parent.on ? Theme.on-accent : Theme.fg;
-                            font-size: 16px * root.k;
+                            font-size: (16px * root.k) * Theme.text-scale;
                             font-weight: t.current ? 700 : 500;
                             vertical-alignment: center;
                             overflow: elide;
@@ -12858,7 +12866,7 @@ export component AppWindow inherits Window {
                 overflow: elide;
                 text: Tr.t(Tr.k, "Photo de profil");
                 color: Theme.text;
-                font-size: 28px * root.k;
+                font-size: (28px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
             }
@@ -12876,7 +12884,7 @@ export component AppWindow inherits Window {
                     : root.av-groups.length > 1 ? Tr.f(Tr.k, "{} avatars en {} catégories · Entrée pour choisir, Échap pour revenir", root.av-total, root.av-groups.length)
                     : Tr.f(Tr.k, "{} avatars · Entrée pour choisir, Échap pour revenir", root.av-total, "");
                 color: Theme.muted;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             // Avatar actuel, en haut à droite
@@ -12886,7 +12894,7 @@ export component AppWindow inherits Window {
                 height: 56px * root.k;
                 text: Tr.t(Tr.k, "Actuelle");
                 color: Theme.muted;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             Rectangle {
@@ -12964,7 +12972,7 @@ export component AppWindow inherits Window {
                         height: parent.height;
                         text: g.title;
                         color: (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg);
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: i == root.av-group ? 700 : 500;
                         vertical-alignment: center;
                         overflow: elide;
@@ -12975,7 +12983,7 @@ export component AppWindow inherits Window {
                         height: parent.height;
                         text: g.count;
                         color: ((i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : (i == root.av-group && !root.h-focus && root.av-zone == 0 && Nav.kb ? Theme.on-accent : Theme.fg))).with-alpha(0.7);
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         horizontal-alignment: right;
                         vertical-alignment: center;
                     }
@@ -13105,7 +13113,7 @@ export component AppWindow inherits Window {
                             width: parent.width - 8px * root.k;
                             text: a.title;
                             text-color: cell.lit ? Theme.fg : Theme.muted;
-                            font-size: 13px * root.k;
+                            font-size: (13px * root.k) * Theme.text-scale;
                             horizontal-alignment: center;
                             active: cell.sel;
                             height: self.preferred-height;
@@ -13293,7 +13301,7 @@ export component AppWindow inherits Window {
                             : root.ad-mode >= 4 ? Tr.t(Tr.k, "Changer le mot de passe")
                             : Tr.t(Tr.k, "Adresse de secours");
                         color: Theme.fg;
-                        font-size: 22px * root.k;
+                        font-size: (22px * root.k) * Theme.text-scale;
                         font-weight: 700;
                     }
                     Text {
@@ -13307,7 +13315,7 @@ export component AppWindow inherits Window {
                             : root.ad-mode == 9 ? Tr.t(Tr.k, "Créé dans le dossier affiché, puis choisi dans la liste.")
                             : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
                         color: Theme.muted;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         wrap: word-wrap;
                     }
                     Rectangle {
@@ -13359,7 +13367,7 @@ export component AppWindow inherits Window {
                             text: adlg.score < 0 ? "" : adlg.score == 0 ? Tr.t(Tr.k, "Trop simple") : adlg.score == 1 ? Tr.t(Tr.k, "Faible")
                                 : adlg.score == 2 ? Tr.t(Tr.k, "Correct") : adlg.score == 3 ? Tr.t(Tr.k, "Bon") : Tr.t(Tr.k, "Solide");
                             color: parent.gauge;
-                            font-size: 14px * root.k;
+                            font-size: (14px * root.k) * Theme.text-scale;
                             font-weight: 700;
                             horizontal-alignment: right;
                             vertical-alignment: center;
@@ -13396,7 +13404,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: parent.same ? Tr.t(Tr.k, "Identiques") : Tr.t(Tr.k, "Pas encore identiques");
                             color: parent.same ? Theme.ok : Theme.muted;
-                            font-size: 14px * root.k;
+                            font-size: (14px * root.k) * Theme.text-scale;
                             font-weight: 600;
                             vertical-alignment: center;
                         }
@@ -13408,7 +13416,7 @@ export component AppWindow inherits Window {
 
                         ActionButton {
                             text: Tr.t(Tr.k, "Annuler");
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: root.tv-mode && !root.addr-osk && root.addr-field == 2;
                             clicked => {
                                 root.addr-close();
@@ -13418,7 +13426,7 @@ export component AppWindow inherits Window {
                             text: root.addr-busy ? (root.ad-mode == 6 ? Tr.t(Tr.k, "Changement…") : Tr.t(Tr.k, "Vérification…"))
                                 : root.ad-mode == 3 ? Tr.t(Tr.k, "Installer") : root.ad-mode == 4 || root.ad-mode == 5 ? Tr.t(Tr.k, "Suivant")
                                 : root.ad-mode == 6 ? Tr.t(Tr.k, "Changer") : root.ad-mode == 9 ? Tr.t(Tr.k, "Créer") : Tr.t(Tr.k, "Enregistrer");
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             focused: root.tv-mode ? !root.addr-osk && root.addr-field == 1 : true;
                             clicked => {
                                 root.addr-save(root.ad-mode, root.addr-text);
@@ -13472,7 +13480,7 @@ export component AppWindow inherits Window {
             open: root.notes-open;
             k: root.k;
             text: root.notes-text;
-            font: 17px * root.k;
+            font: (17px * root.k) * Theme.text-scale;
             close => {
                 root.notes-open = false;
             }
@@ -13764,7 +13772,7 @@ export component AppWindow inherits Window {
                     opacity: srp.blk(0);
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
                     color: Theme.fg;
-                    font-size: 38 * srp.u;
+                    font-size: (38 * srp.u) * Theme.text-scale;
                     font-weight: 700;
                     wrap: word-wrap;
                     max-height: 2 * 48 * srp.u;
@@ -13784,7 +13792,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres;
                         color: Theme.fg.with-alpha(0.82);
-                        font-size: 18 * srp.u;
+                        font-size: (18 * srp.u) * Theme.text-scale;
                         vertical-alignment: center;
                         overflow: elide;
                     }
@@ -13794,7 +13802,7 @@ export component AppWindow inherits Window {
                     opacity: srp.blk(0);
                     text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
                     color: Theme.fg;
-                    font-size: 40 * srp.u;
+                    font-size: (40 * srp.u) * Theme.text-scale;
                     font-weight: 700;
                     wrap: word-wrap;
                     max-height: 3 * 52 * srp.u;
@@ -13807,7 +13815,7 @@ export component AppWindow inherits Window {
                     visible: root.sr.rating == "";
                     text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres;
                     color: Theme.fg.with-alpha(0.82);
-                    font-size: (srp.tall ? 22 : 18) * srp.u;
+                    font-size: ((srp.tall ? 22 : 18) * srp.u) * Theme.text-scale;
                     wrap: srp.tall ? word-wrap : no-wrap;
                     overflow: elide;
                 }
@@ -13824,7 +13832,7 @@ export component AppWindow inherits Window {
                         fact-t := Text {
                             text: f.label + " : " + f.value;
                             color: Theme.fg.with-alpha(0.88);
-                            font-size: 13 * srp.u;
+                            font-size: (13 * srp.u) * Theme.text-scale;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -13836,7 +13844,7 @@ export component AppWindow inherits Window {
                     for f in root.sr.facts: Text {
                         text: f.label + " : " + f.value;
                         color: Theme.fg.with-alpha(0.82);
-                        font-size: 20 * srp.u;
+                        font-size: (20 * srp.u) * Theme.text-scale;
                         overflow: elide;
                     }
                 }
@@ -13844,7 +13852,7 @@ export component AppWindow inherits Window {
                     opacity: srp.blk(1);
                     text: root.sr.status;
                     color: root.sr.state > 0 ? Theme.req-color(root.sr.state) : Theme.accent-ink;
-                    font-size: (srp.tall ? 22 : 18) * srp.u;
+                    font-size: ((srp.tall ? 22 : 18) * srp.u) * Theme.text-scale;
                     font-weight: 700;
                     wrap: word-wrap;
                 }
@@ -13855,7 +13863,7 @@ export component AppWindow inherits Window {
                     height: 50 * srp.u;
                     if root.sr.can-request || root.sr.on-server: ActionButton {
                         text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
-                        font: 18 * srp.u;
+                        font: (18 * srp.u) * Theme.text-scale;
                         focused: !root.h-focus && (root.sr-sel == 0);
                         clicked => {
                             root.seerr-action();
@@ -13863,7 +13871,7 @@ export component AppWindow inherits Window {
                     }
                     if root.sr-trailers: ActionButton {
                         text: Tr.t(Tr.k, "Bande-annonce");
-                        font: 18 * srp.u;
+                        font: (18 * srp.u) * Theme.text-scale;
                         focused: !root.h-focus && (root.sr-sel == 4);
                         clicked => {
                             root.sr-sel = 4;
@@ -13872,7 +13880,7 @@ export component AppWindow inherits Window {
                     }
                     ActionButton {
                         text: Tr.t(Tr.k, "Fermer");
-                        font: 18 * srp.u;
+                        font: (18 * srp.u) * Theme.text-scale;
                         focused: !root.h-focus && (root.sr-sel == 1 || (root.sr-sel == 0 && !(root.sr.can-request || root.sr.on-server)));
                         clicked => {
                             root.seerr-close();
@@ -13892,7 +13900,7 @@ export component AppWindow inherits Window {
                 opacity: srp.blk(2);
                 if root.sr.can-request || root.sr.on-server: ActionButton {
                     text: root.sr.on-server ? Tr.t(Tr.k, "Voir sur le serveur") : Tr.t(Tr.k, "Demander");
-                    font: 24 * srp.u;
+                    font: (24 * srp.u) * Theme.text-scale;
                     focused: !root.h-focus && (root.sr-sel == 0);
                     clicked => {
                         root.seerr-action();
@@ -13900,7 +13908,7 @@ export component AppWindow inherits Window {
                 }
                 if root.sr-trailers: ActionButton {
                     text: Tr.t(Tr.k, "Bande-annonce");
-                    font: 24 * srp.u;
+                    font: (24 * srp.u) * Theme.text-scale;
                     focused: !root.h-focus && (root.sr-sel == 4);
                     clicked => {
                         root.sr-sel = 4;
@@ -13909,7 +13917,7 @@ export component AppWindow inherits Window {
                 }
                 ActionButton {
                     text: Tr.t(Tr.k, "Fermer");
-                    font: 24 * srp.u;
+                    font: (24 * srp.u) * Theme.text-scale;
                     focused: !root.h-focus && (root.sr-sel == 1 || (root.sr-sel == 0 && !(root.sr.can-request || root.sr.on-server)));
                     clicked => {
                         root.seerr-close();
@@ -13958,7 +13966,7 @@ export component AppWindow inherits Window {
                 visible: false;
                 width: content.width - 2 * srp.pad;
                 text: root.sr.overview;
-                font-size: (srp.tall ? 24 : 17) * srp.u;
+                font-size: ((srp.tall ? 24 : 17) * srp.u) * Theme.text-scale;
                 wrap: word-wrap;
             }
             property <bool> ov-cut: ovm.preferred-height > content.ov-room + 1px;
@@ -13973,7 +13981,7 @@ export component AppWindow inherits Window {
                 height: max(0px, content.ov-room - content.link-h);
                 text: root.sr.overview;
                 color: Theme.fg.with-alpha(0.85);
-                font-size: (srp.tall ? 24 : 17) * srp.u;
+                font-size: ((srp.tall ? 24 : 17) * srp.u) * Theme.text-scale;
                 wrap: word-wrap;
                 overflow: elide;
             }
@@ -13990,7 +13998,7 @@ export component AppWindow inherits Window {
                 more-t := Text {
                     text: Tr.t(Tr.k, "Lire la suite") + "  ›";
                     color: parent.lit ? Theme.on-accent : Theme.accent2;
-                    font-size: (srp.tall ? 20 : 14) * srp.u;
+                    font-size: ((srp.tall ? 20 : 14) * srp.u) * Theme.text-scale;
                     font-weight: 700;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -14081,7 +14089,7 @@ export component AppWindow inherits Window {
                         width: parent.width;
                         text: c.title;
                         color: parent.picked ? Theme.accent2 : Theme.fg;
-                        font-size: (srp.tall ? 18 : 12) * srp.u;
+                        font-size: ((srp.tall ? 18 : 12) * srp.u) * Theme.text-scale;
                         font-weight: 600;
                         horizontal-alignment: center;
                         overflow: elide;
@@ -14091,7 +14099,7 @@ export component AppWindow inherits Window {
                         width: parent.width;
                         text: c.subtitle;
                         color: Theme.muted;
-                        font-size: (srp.tall ? 16 : 11) * srp.u;
+                        font-size: ((srp.tall ? 16 : 11) * srp.u) * Theme.text-scale;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -14185,7 +14193,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.sr.title + (root.sr.year != "" ? "  (" + root.sr.year + ")" : "");
                         color: Theme.fg;
-                        font-size: (srp.tall ? 36 : 28) * srp.u;
+                        font-size: ((srp.tall ? 36 : 28) * srp.u) * Theme.text-scale;
                         font-weight: 700;
                         wrap: word-wrap;
                     }
@@ -14193,31 +14201,31 @@ export component AppWindow inherits Window {
                         text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
                             + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
                         color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 22 : 16) * srp.u;
+                        font-size: ((srp.tall ? 22 : 16) * srp.u) * Theme.text-scale;
                         wrap: word-wrap;
                     }
                     for f in root.sr.facts: Text {
                         text: f.label + " : " + f.value;
                         color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        font-size: ((srp.tall ? 20 : 15) * srp.u) * Theme.text-scale;
                         wrap: word-wrap;
                     }
                     Text {
                         text: root.sr.overview;
                         color: Theme.fg.with-alpha(0.9);
-                        font-size: (srp.tall ? 24 : 17) * srp.u;
+                        font-size: ((srp.tall ? 24 : 17) * srp.u) * Theme.text-scale;
                         wrap: word-wrap;
                     }
                     if root.sr-cast.length > 0: Text {
                         text: Tr.t(Tr.k, "Distribution");
                         color: Theme.fg;
-                        font-size: (srp.tall ? 26 : 19) * srp.u;
+                        font-size: ((srp.tall ? 26 : 19) * srp.u) * Theme.text-scale;
                         font-weight: 700;
                     }
                     for c in root.sr-cast: Text {
                         text: c.subtitle != "" ? c.title + "  ·  " + c.subtitle : c.title;
                         color: Theme.fg.with-alpha(0.82);
-                        font-size: (srp.tall ? 20 : 15) * srp.u;
+                        font-size: ((srp.tall ? 20 : 15) * srp.u) * Theme.text-scale;
                         wrap: word-wrap;
                     }
                     Rectangle {
@@ -14383,13 +14391,13 @@ export component AppWindow inherits Window {
     Rectangle {
         width: 0px;
         height: 0px;
-        tab-m0 := Text { visible: false; text: Tr.t(Tr.k, "Accueil"); font-size: 18px; font-weight: 700; }
-        tab-m1 := Text { visible: false; text: Tr.t(Tr.k, "Favoris"); font-size: 18px; font-weight: 700; }
-        tab-m2 := Text { visible: false; text: Tr.t(Tr.k, "À regarder"); font-size: 18px; font-weight: 700; }
-        tab-m3 := Text { visible: false; text: Tr.t(Tr.k, "Demandes"); font-size: 18px; font-weight: 700; }
-        tab-m4 := Text { visible: false; text: root.coll-name; font-size: 18px; font-weight: 700; }
-        tab-m5 := Text { visible: false; text: root.play-name; font-size: 18px; font-weight: 700; }
-        tab-mb := Text { visible: false; text: "Turtlefin"; font-size: 26px; font-weight: 700; }
+        tab-m0 := Text { visible: false; text: Tr.t(Tr.k, "Accueil"); font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-m1 := Text { visible: false; text: Tr.t(Tr.k, "Favoris"); font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-m2 := Text { visible: false; text: Tr.t(Tr.k, "À regarder"); font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-m3 := Text { visible: false; text: Tr.t(Tr.k, "Demandes"); font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-m4 := Text { visible: false; text: root.coll-name; font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-m5 := Text { visible: false; text: root.play-name; font-size: (18px) * Theme.text-scale; font-weight: 700; }
+        tab-mb := Text { visible: false; text: "Turtlefin"; font-size: (26px) * Theme.text-scale; font-weight: 700; }
     }
     if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): HeaderRight {
         // Téléphone tenu droit : la moitié de l'écran ne suffit pas aux cinq icônes (alignées à droite).
@@ -14490,7 +14498,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: Tr.t(Tr.k, "Télécommande");
                     color: Theme.fg;
-                    font-size: 20px * root.k;
+                    font-size: (20px * root.k) * Theme.text-scale;
                     font-weight: 700;
                 }
                 Text {
@@ -14498,7 +14506,7 @@ export component AppWindow inherits Window {
                         : root.remote-items.length == 0 ? Tr.t(Tr.k, "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici.")
                         : Tr.t(Tr.k, "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande.");
                     color: Theme.muted;
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
                 }
                 for c[i] in root.remote-items: Rectangle {
@@ -14512,7 +14520,7 @@ export component AppWindow inherits Window {
                         width: parent.width - 32px * root.k;
                         text: c.name;
                         color: parent.lit ? Theme.on-accent : Theme.fg;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         overflow: elide;
                     }
@@ -14522,7 +14530,7 @@ export component AppWindow inherits Window {
                         width: parent.width - 32px * root.k;
                         text: c.sub;
                         color: (parent.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
-                        font-size: 12px * root.k;
+                        font-size: (12px * root.k) * Theme.text-scale;
                         overflow: elide;
                     }
                     r-area := TouchArea {
@@ -14538,7 +14546,7 @@ export component AppWindow inherits Window {
                         height: 42px * root.k;
                         width: self.preferred-width;
                         text: Tr.t(Tr.k, "Fermer");
-                        font: 15px * root.k;
+                        font: (15px * root.k) * Theme.text-scale;
                         focused: Nav.kb && root.remote-pick-sel == root.remote-items.length;
                         clicked => {
                             root.close-remote();
@@ -14808,7 +14816,7 @@ export component AppWindow inherits Window {
                 height: parent.top;
                 text: "Turtlefin";
                 color: Theme.dark ? Theme.accent2 : Theme.accent1;
-                font-size: 26px * root.k;
+                font-size: (26px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
             }
@@ -14865,7 +14873,7 @@ export component AppWindow inherits Window {
                         width: parent.width - (e.header ? 28px : 62px) * root.k;
                         text: e.header ? e.label.to-uppercase() : e.label;
                         text-color: e.header ? Theme.muted : parent.on ? Theme.on-accent : Theme.fg;
-                        font-size: (e.header ? 12px : 17px) * root.k;
+                        font-size: ((e.header ? 12px : 17px) * root.k) * Theme.text-scale;
                         font-weight: e.header ? 700 : (parent.on ? 600 : 500);
                         vertical-alignment: e.header ? TextVerticalAlignment.bottom : TextVerticalAlignment.center;
                         active: !e.header && parent.on;
@@ -15107,7 +15115,7 @@ export component AppWindow inherits Window {
                     width: parent.width - self.x - 10px * root.k;
                     text: i == 0 ? Tr.t(Tr.k, "Diffuser") : i == 1 ? Tr.t(Tr.k, "Watch party") : i == 2 ? Tr.t(Tr.k, "Au hasard") : Tr.t(Tr.k, "Recherche");
                     color: parent.lit ? Theme.on-accent : Theme.fg;
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     font-weight: 600;
                     vertical-alignment: center;
                     overflow: elide;
@@ -15200,7 +15208,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: Tr.t(Tr.k, "Diffuser");
                     color: Theme.fg;
-                    font-size: 20px * root.k;
+                    font-size: (20px * root.k) * Theme.text-scale;
                     font-weight: 700;
                 }
                 Text {
@@ -15209,7 +15217,7 @@ export component AppWindow inherits Window {
                         : root.cast-on ? Tr.t(Tr.k, "Le bouton Lecture envoie les vidéos sur cet écran.")
                         : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra.");
                     color: Theme.muted;
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
                 }
                 for c[i] in root.cast-items: Rectangle {
@@ -15227,7 +15235,7 @@ export component AppWindow inherits Window {
                         width: parent.width - 32px * root.k;
                         text: (c.kind != "jf" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
                         color: parent.lit ? Theme.on-accent : Theme.fg;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         overflow: elide;
                     }
@@ -15237,7 +15245,7 @@ export component AppWindow inherits Window {
                         width: parent.width - 32px * root.k;
                         text: c.sub;
                         color: (parent.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
-                        font-size: 12px * root.k;
+                        font-size: (12px * root.k) * Theme.text-scale;
                         overflow: elide;
                     }
                     c-area := TouchArea {
@@ -15251,7 +15259,7 @@ export component AppWindow inherits Window {
                 if root.cast-on && root.cast-now != "": ActionButton {
                     height: 42px * root.k;
                     text: Tr.f(Tr.k, "Voir la lecture · {}", root.cast-now, "");
-                    font: 15px * root.k;
+                    font: (15px * root.k) * Theme.text-scale;
                     focused: Nav.kb && root.cast-sel == cast-panel.n;
                     clicked => {
                         root.cast-reopen();
@@ -15260,7 +15268,7 @@ export component AppWindow inherits Window {
                 if root.cast-on: ActionButton {
                     height: 42px * root.k;
                     text: Tr.f(Tr.k, "Ne plus diffuser sur {}", root.cast-target, "");
-                    font: 15px * root.k;
+                    font: (15px * root.k) * Theme.text-scale;
                     focused: Nav.kb && root.cast-sel == cast-panel.n + 1;
                     clicked => {
                         root.cast-stop();
@@ -15382,7 +15390,7 @@ export component AppWindow inherits Window {
             Text {
                 text: Tr.t(Tr.k, "Watch party");
                 color: Theme.fg;
-                font-size: 20px * root.k;
+                font-size: (20px * root.k) * Theme.text-scale;
                 font-weight: 700;
             }
             Text {
@@ -15391,7 +15399,7 @@ export component AppWindow inherits Window {
                     ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
                     : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
                 color: Theme.muted;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
                 wrap: word-wrap;
             }
             // Le groupe : état, ce qu'il regarde, participants.
@@ -15418,7 +15426,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: root.sp-state;
                             color: Theme.fg;
-                            font-size: 16px * root.k;
+                            font-size: (16px * root.k) * Theme.text-scale;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
@@ -15426,14 +15434,14 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
                         color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 600;
                         wrap: word-wrap;
                     }
                     Text {
                         text: Tr.p(Tr.k, "{n} participant", "{n} participants", root.sp-count);
                         color: Theme.muted;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         font-weight: 700;
                     }
                     HorizontalLayout {
@@ -15455,7 +15463,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: wi < root.sp-initials.length ? root.sp-initials[wi] : "?";
                                     color: Theme.on-accent;
-                                    font-size: 12px * root.k;
+                                    font-size: (12px * root.k) * Theme.text-scale;
                                     font-weight: 700;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
@@ -15465,7 +15473,7 @@ export component AppWindow inherits Window {
                                 x: parent.height + 2px * root.k;
                                 text: who;
                                 color: Theme.fg;
-                                font-size: 14px * root.k;
+                                font-size: (14px * root.k) * Theme.text-scale;
                                 vertical-alignment: center;
                             }
                         }
@@ -15476,7 +15484,7 @@ export component AppWindow inherits Window {
                 opacity: party.step(1);
                 text: Tr.t(Tr.k, "REJOINDRE");
                 color: Theme.muted;
-                font-size: 12px * root.k;
+                font-size: (12px * root.k) * Theme.text-scale;
                 font-weight: 700;
             }
             for g[i] in root.sp-active ? [] : root.sp-groups: Rectangle {
@@ -15490,7 +15498,7 @@ export component AppWindow inherits Window {
                     height: parent.height;
                     text: g.label;
                     color: ((Nav.kb ? (!root.h-focus && i == root.sp-sel) : g-area.has-hover && !Nav.touch) ? Theme.on-accent : Theme.fg);
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
                 }
                 g-area := TouchArea {
@@ -15505,7 +15513,7 @@ export component AppWindow inherits Window {
                 opacity: party.step(root.sp-active ? 2 : 2 + root.sp-groups.length);
                 ActionButton {
                     text: root.sp-active ? Tr.t(Tr.k, "Quitter la watch party") : Tr.t(Tr.k, "Créer une watch party");
-                    font: 16px * root.k;
+                    font: (16px * root.k) * Theme.text-scale;
                     focused: !root.h-focus && (root.sp-active ? root.sp-sel == 0 : root.sp-sel == root.sp-groups.length);
                     clicked => {
                         root.party-action(root.sp-active ? "leave" : "create");
@@ -15859,13 +15867,13 @@ export component AppWindow inherits Window {
             Text {
                 text: "▶";
                 color: Theme.on-accent;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             Text {
                 text: Tr.f(Tr.k, "En lecture sur {}", root.cast-target, "") + " · " + root.cast-now;
                 color: Theme.on-accent;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 vertical-alignment: center;
                 overflow: elide;
@@ -15923,7 +15931,7 @@ export component AppWindow inherits Window {
             horizontal-alignment: center;
             text: Srv.core == 2 ? Tr.t(Tr.k, "Hors ligne : médias téléchargés") : Tr.t(Tr.k, "Serveur de nouveau joignable");
             color: Theme.text;
-            font-size: 20px * root.k;
+            font-size: (20px * root.k) * Theme.text-scale;
             font-weight: 600;
         }
     }
@@ -15961,7 +15969,7 @@ export component AppWindow inherits Window {
             width: parent.width - 40px * root.k;
             text: root.toast;
             color: Theme.text;
-            font-size: 15px * root.k;
+            font-size: (15px * root.k) * Theme.text-scale;
             wrap: word-wrap;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -16204,7 +16212,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Revenir") : root.tour-last == 9 ? Tr.t(Tr.k, "Pendant la lecture")
                     : Tr.t(Tr.k, "C'est parti !");
                 color: Theme.fg;
-                font-size: 24px * root.k;
+                font-size: (24px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 wrap: word-wrap;
             }
@@ -16248,7 +16256,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 9 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture.")
                     : Tr.t(Tr.k, "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos.");
                 color: Theme.fg.with-alpha(0.85);
-                font-size: 17px * root.k;
+                font-size: (17px * root.k) * Theme.text-scale;
             }
 
             // Télécommande : croix (flèches) avec OK au centre, et le bouton Retour ; les touches
@@ -16279,7 +16287,7 @@ export component AppWindow inherits Window {
                         height: 28px * root.k;
                         text: a;
                         color: pad.lit == i ? Theme.accent2 : Theme.fg.with-alpha(0.69);
-                        font-size: (pad.lit == i ? 24px : 20px) * root.k;
+                        font-size: ((pad.lit == i ? 24px : 20px) * root.k) * Theme.text-scale;
                         font-weight: 700;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -16292,7 +16300,7 @@ export component AppWindow inherits Window {
                         border-radius: self.width / 2;
                         background: pad.lit == 4 ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.15);
                         Gloss { r: parent.border-radius; strength: 0.8; }
-                        Text { text: "OK"; color: pad.lit == 4 ? Theme.on-accent : Theme.fg; font-size: 15px * root.k; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                        Text { text: "OK"; color: pad.lit == 4 ? Theme.on-accent : Theme.fg; font-size: (15px * root.k) * Theme.text-scale; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
                     }
                 }
                 Rectangle {
@@ -16324,7 +16332,7 @@ export component AppWindow inherits Window {
                     width: 160px * root.k;
                     text: Tr.t(Tr.k, "Flèches et OK");
                     color: Theme.fg.with-alpha(0.63);
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     horizontal-alignment: center;
                 }
                 Text {
@@ -16333,7 +16341,7 @@ export component AppWindow inherits Window {
                     width: 120px * root.k;
                     text: Tr.t(Tr.k, "Retour");
                     color: Theme.fg.with-alpha(0.63);
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     horizontal-alignment: center;
                 }
                 Text {
@@ -16342,7 +16350,7 @@ export component AppWindow inherits Window {
                     wrap: word-wrap;
                     text: Tr.t(Tr.k, "Au clavier : Entrée = OK, Échap = Retour. La souris et le tactile marchent aussi.");
                     color: Theme.fg.with-alpha(0.5);
-                    font-size: 13px * root.k;
+                    font-size: (13px * root.k) * Theme.text-scale;
                     horizontal-alignment: center;
                 }
             }
@@ -16370,7 +16378,7 @@ export component AppWindow inherits Window {
                         text: it.text;
                         wrap: word-wrap;
                         color: parent.on ? Theme.fg : Theme.fg.with-alpha(0.66);
-                        font-size: 15px * root.k;
+                        font-size: (15px * root.k) * Theme.text-scale;
                         vertical-alignment: center;
                     }
                 }
@@ -16425,7 +16433,7 @@ export component AppWindow inherits Window {
                     y: 112px * root.k - parent.up * 30px * root.k;
                     text: "↓";
                     color: Theme.accent2;
-                    font-size: 26px * root.k;
+                    font-size: (26px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     opacity: 1 - parent.up;
                 }
@@ -16448,7 +16456,7 @@ export component AppWindow inherits Window {
                 height: 24px * root.k;
                 text: root.tour-esc ? Tr.t(Tr.k, "Retour : quitter la visite") : "";
                 color: Theme.fg.with-alpha(0.5);
-                font-size: 13px * root.k;
+                font-size: (13px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
             }
             // Boutons (le bouton choisi prend le dégradé, comme partout).
@@ -16471,7 +16479,7 @@ export component AppWindow inherits Window {
                             : root.tour-last == 0 ? Tr.t(Tr.k, "Commencer")
                             : root.tour-last < root.tour-count - 1 ? Tr.t(Tr.k, "Suivant") : Tr.t(Tr.k, "Terminer");
                         color: parent.on ? Theme.on-accent : Theme.fg.with-alpha(0.8);
-                        font-size: 15px * root.k;
+                        font-size: (15px * root.k) * Theme.text-scale;
                         font-weight: parent.on ? 700 : 400;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -16963,14 +16971,14 @@ export component AppWindow inherits Window {
                 Text {
                     text: Tr.t(Tr.k, "Identifier") + " · " + root.ident-title;
                     color: Theme.text;
-                    font-size: 22px * root.k;
+                    font-size: (22px * root.k) * Theme.text-scale;
                     font-weight: 700;
                     overflow: elide;
                 }
                 Text {
                     text: Tr.t(Tr.k, "Choisis le bon titre : le serveur reprendra ses informations et ses images.");
                     color: Theme.muted;
-                    font-size: 14px * root.k;
+                    font-size: (14px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
                 }
                 HorizontalLayout {
@@ -17004,7 +17012,7 @@ export component AppWindow inherits Window {
                         ActionButton {
                             height: 52px * root.k;
                             text: Tr.t(Tr.k, "Rechercher");
-                            font: 16px * root.k;
+                            font: (16px * root.k) * Theme.text-scale;
                             clicked => {
                                 root.ident-search(root.ident-name, root.ident-year);
                                 ident-keys.focus();
@@ -17022,7 +17030,7 @@ export component AppWindow inherits Window {
                     if root.ident-results.length == 0: Text {
                         text: root.ident-busy ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Aucun résultat : modifie le titre ou l'année.");
                         color: Theme.muted;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -17128,7 +17136,7 @@ export component AppWindow inherits Window {
                 height: 34px * root.k;
                 text: Tr.t(Tr.k, "Modifier") + " · " + root.ed-title;
                 color: Theme.text;
-                font-size: 22px * root.k;
+                font-size: (22px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 overflow: elide;
                 vertical-alignment: center;
@@ -17210,7 +17218,7 @@ export component AppWindow inherits Window {
                 if root.ed-busy && root.ed-rows.length == 0: Text {
                     text: Tr.t(Tr.k, "Chargement…");
                     color: Theme.muted;
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -17228,7 +17236,7 @@ export component AppWindow inherits Window {
                         width: ed-box.narrow ? parent.width - 66px * root.k : 220px * root.k;
                         text: r.label;
                         color: parent.lit ? Theme.on-accent : Theme.muted;
-                        font-size: (ed-box.narrow ? 13px : 15px) * root.k;
+                        font-size: ((ed-box.narrow ? 13px : 15px) * root.k) * Theme.text-scale;
                         font-weight: 600;
                         overflow: elide;
                         vertical-alignment: center;
@@ -17240,7 +17248,7 @@ export component AppWindow inherits Window {
                         width: parent.width - self.x - 50px * root.k;
                         text: r.value == "" ? "—" : r.value;
                         color: parent.lit ? Theme.on-accent : Theme.text;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         overflow: elide;
                         vertical-alignment: center;
                     }
@@ -17339,7 +17347,7 @@ export component AppWindow inherits Window {
                 height: 34px * root.k;
                 text: root.pk-title;
                 color: Theme.text;
-                font-size: 22px * root.k;
+                font-size: (22px * root.k) * Theme.text-scale;
                 font-weight: 700;
                 overflow: elide;
                 vertical-alignment: center;
@@ -17350,7 +17358,7 @@ export component AppWindow inherits Window {
                 height: 22px * root.k;
                 text: Tr.t(Tr.k, "Recherche des images…");
                 color: Theme.muted;
-                font-size: 14px * root.k;
+                font-size: (14px * root.k) * Theme.text-scale;
             }
             pk-grid := Rectangle {
                 x: pk-box.pad;
@@ -17557,7 +17565,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.lock-title;
                         color: Theme.text;
-                        font-size: 22px * root.k;
+                        font-size: (22px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         horizontal-alignment: center;
                         wrap: word-wrap;
@@ -17584,7 +17592,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.lock-msg;
                         color: root.lock-error ? Theme.danger-text : Theme.muted;
-                        font-size: 15px * root.k;
+                        font-size: (15px * root.k) * Theme.text-scale;
                         horizontal-alignment: center;
                         wrap: word-wrap;
                         min-height: 20px * root.k;
@@ -17600,7 +17608,7 @@ export component AppWindow inherits Window {
                             preferred-width: 100px * root.k;
                             horizontal-stretch: 1;
                             text: key == "back" ? "" : lk-box.label(key);
-                            font: (key == "cancel" ? 15px : 22px) * root.k;
+                            font: ((key == "cancel" ? 15px : 22px) * root.k) * Theme.text-scale;
                             focused: root.lock-sel == i;
                             clicked => {
                                 // Chiffre touché : pas laissé en surbrillance (quelqu'un qui regarde l'écran
@@ -17654,7 +17662,7 @@ export component AppWindow inherits Window {
                             preferred-width: 100px * root.k;
                             horizontal-stretch: 1;
                             text: i < 4 || key == "back" ? "" : lk-box.label(key);
-                            font: 15px * root.k;
+                            font: (15px * root.k) * Theme.text-scale;
                             // Effacer allumé tant que sa touche est appuyée (ou un instant au toucher). Les
                             // flèches jamais : l'écran ne dit pas laquelle a été tapée.
                             focused: (i >= 4 && (lk-box.down == key || lk-box.tap == key))
@@ -17688,7 +17696,7 @@ export component AppWindow inherits Window {
                     if root.lock-kind == "keys": Text {
                         text: Tr.t(Tr.k, "OK : boutons du bas");
                         color: Theme.muted;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         horizontal-alignment: center;
                         wrap: word-wrap;
                     }
@@ -17708,7 +17716,7 @@ export component AppWindow inherits Window {
                             y: (parent.height - self.height) / 2;
                             text: Tr.t(Tr.k, "Code oublié ? Entre le mot de passe du compte");
                             color: parent.lit ? Theme.on-accent : Theme.text;
-                            font-size: 15px * root.k;
+                            font-size: (15px * root.k) * Theme.text-scale;
                             font-weight: 600;
                             horizontal-alignment: center;
                             wrap: word-wrap;
@@ -17762,7 +17770,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.prompt-title;
                         color: Theme.text;
-                        font-size: 22px * root.k;
+                        font-size: (22px * root.k) * Theme.text-scale;
                         font-weight: 700;
                         wrap: word-wrap;
                     }
@@ -17770,7 +17778,7 @@ export component AppWindow inherits Window {
                     if root.prompt-long: Text {
                         text: root.prompt-label;
                         color: Theme.fg;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                         font-weight: 600;
                     }
                     if root.prompt-long: Rectangle {
@@ -17788,7 +17796,7 @@ export component AppWindow inherits Window {
                             single-line: false;
                             wrap: word-wrap;
                             color: Theme.text;
-                            font-size: 16px * root.k;
+                            font-size: (16px * root.k) * Theme.text-scale;
                             selection-background-color: Theme.accent2;
                             selection-foreground-color: Theme.on-accent;
                             init => {
@@ -17807,7 +17815,7 @@ export component AppWindow inherits Window {
                     if root.prompt-long: Text {
                         text: Tr.t(Tr.k, "Ctrl+Entrée : valider · Échap : annuler");
                         color: Theme.muted;
-                        font-size: 13px * root.k;
+                        font-size: (13px * root.k) * Theme.text-scale;
                     }
                     if !root.prompt-long: Field {
                         k: root.k;
@@ -17832,7 +17840,7 @@ export component AppWindow inherits Window {
                         ActionButton {
                             height: 48px * root.k;
                             text: Tr.t(Tr.k, "Annuler");
-                            font: 16px * root.k;
+                            font: (16px * root.k) * Theme.text-scale;
                             clicked => {
                                 pr-box.done(false);
                             }
@@ -17840,7 +17848,7 @@ export component AppWindow inherits Window {
                         ActionButton {
                             height: 48px * root.k;
                             text: Tr.t(Tr.k, "Valider");
-                            font: 16px * root.k;
+                            font: (16px * root.k) * Theme.text-scale;
                             clicked => {
                                 pr-box.done(true);
                             }
@@ -17933,7 +17941,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.cm-card.title;
                     color: Theme.muted;
-                    font-size: 14px * root.k;
+                    font-size: (14px * root.k) * Theme.text-scale;
                     overflow: elide;
                     height: 30px * root.k;
                     vertical-alignment: center;
@@ -17949,7 +17957,7 @@ export component AppWindow inherits Window {
                         width: parent.width - 28px * root.k;
                         text: label;
                         color: parent.lit ? Theme.on-accent : Theme.text;
-                        font-size: 16px * root.k;
+                        font-size: (16px * root.k) * Theme.text-scale;
                         overflow: elide;
                         vertical-alignment: center;
                     }

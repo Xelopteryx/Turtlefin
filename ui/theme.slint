@@ -2,6 +2,8 @@
 // par défaut : le thème Turtlefin. Les surfaces translucides s'écrivent `Theme.fg.with-alpha(…)` :
 // blanc translucide sur un thème sombre, encre translucide sur un thème clair.
 export global Theme {
+    // Taille des textes (Paramètres → Affichage) : facteur appliqué aux tailles écrites en dur.
+    in-out property <float> text-scale: 1;
     // Fond de la fenêtre : dégradé vertical à trois arrêts (identiques : fond uni).
     in-out property <color> bg: #010e18;
     in-out property <color> bg-mid: #010e18;

@@ -676,6 +676,8 @@ pub struct UiPrefs {
     pub auto_skip_intro: bool,
     /// Taille des sous-titres (mpv `sub-scale`).
     pub sub_scale: f64,
+    /// Taille des textes de l'interface (facteur, 1 = normale ; Theme.text-scale).
+    pub text_scale: f64,
     /// Interface TV (grands éléments, plein écran) ; les options --tv / --desktop priment.
     pub tv: bool,
     /// Plein écran hors interface TV (Paramètres → Affichage, F11).
@@ -877,6 +879,7 @@ impl Default for UiPrefs {
         UiPrefs {
             auto_skip_intro: false,
             sub_scale: 1.0,
+            text_scale: 1.0,
             tv: false,
             fullscreen: false,
             show_ratings: true,

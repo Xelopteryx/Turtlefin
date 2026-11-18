@@ -4061,3 +4061,9 @@ msgstr "{} · {}"
 
 msgid "Épisode n°"
 msgstr "Episodio n.º"
+
+msgid "Taille des textes"
+msgstr "Tamaño del texto"
+
+msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
+msgstr "Todos los textos de la interfaz. Si la barra superior se llena, las pestañas pasan a iconos."

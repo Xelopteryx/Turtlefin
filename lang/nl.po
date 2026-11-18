@@ -4061,3 +4061,9 @@ msgstr "{} · {}"
 
 msgid "Épisode n°"
 msgstr "Aflevering nr."
+
+msgid "Taille des textes"
+msgstr "Tekstgrootte"
+
+msgid "Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."
+msgstr "Alle tekst van de interface. Is de bovenbalk te vol, dan worden de tabbladen pictogrammen."

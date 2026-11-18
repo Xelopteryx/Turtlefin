@@ -158,7 +158,7 @@ export component LangExplorer inherits Rectangle {
             y: 24px * root.k;
             text: root.title;
             color: Theme.fg;
-            font-size: 26px * root.k;
+            font-size: (26px * root.k) * Theme.text-scale;
             font-weight: 700;
         }
         // Chemin
@@ -183,7 +183,7 @@ export component LangExplorer inherits Rectangle {
                 height: parent.height;
                 text: root.place;
                 color: Theme.fg.with-alpha(0.8);
-                font-size: 13px * root.k;
+                font-size: (13px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
                 overflow: elide;
             }
@@ -194,7 +194,7 @@ export component LangExplorer inherits Rectangle {
             width: parent.width - 60px * root.k;
             text: root.hint;
             color: Theme.muted;
-            font-size: 13px * root.k;
+            font-size: (13px * root.k) * Theme.text-scale;
             wrap: word-wrap;
         }
 
@@ -223,7 +223,7 @@ export component LangExplorer inherits Rectangle {
                 height: list.height;
                 text: Tr.t(Tr.k, "Ce dossier est vide.");
                 color: Theme.muted;
-                font-size: 15px * root.k;
+                font-size: (15px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -254,7 +254,7 @@ export component LangExplorer inherits Rectangle {
                     width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
                     text: it.name;
                     color: row.on ? Theme.on-accent : Theme.fg;
-                    font-size: 16px * root.k;
+                    font-size: (16px * root.k) * Theme.text-scale;
                     font-weight: 600;
                     overflow: elide;
                 }
@@ -264,7 +264,7 @@ export component LangExplorer inherits Rectangle {
                     width: parent.width - 54px * root.k - (it.kind == "lang" ? 150px : 16px) * root.k;
                     text: it.detail;
                     color: row.on ? Theme.on-accent.with-alpha(0.85) : Theme.muted;
-                    font-size: 12px * root.k;
+                    font-size: (12px * root.k) * Theme.text-scale;
                     overflow: elide;
                 }
                 // Part traduite.
@@ -292,7 +292,7 @@ export component LangExplorer inherits Rectangle {
                         height: 14px * root.k;
                         text: it.current ? Tr.t(Tr.k, "Langue actuelle") : round(it.done * 100) + " %";
                         color: row.on ? Theme.on-accent : Theme.fg.with-alpha(0.69);
-                        font-size: 12px * root.k;
+                        font-size: (12px * root.k) * Theme.text-scale;
                         font-weight: 600;
                         horizontal-alignment: right;
                     }
@@ -322,7 +322,7 @@ export component LangExplorer inherits Rectangle {
                 bt := Text {
                     text: b == "pick" ? Tr.t(Tr.k, "Choisir ce dossier") : b == "mkdir" ? Tr.t(Tr.k, "Nouveau dossier") : b == "template" ? Tr.t(Tr.k, "Créer le modèle") : b == "folder" ? Tr.t(Tr.k, "Ouvrir le dossier") : Tr.t(Tr.k, "Fermer");
                     color: parent.on ? Theme.on-accent : Theme.fg;
-                    font-size: 15px * root.k;
+                    font-size: (15px * root.k) * Theme.text-scale;
                     font-weight: parent.on ? 700 : 500;
                     horizontal-alignment: center;
                     vertical-alignment: center;

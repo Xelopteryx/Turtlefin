@@ -6019,6 +6019,13 @@ fn label_of(list: &[(&str, &'static str)], v: &str) -> &'static str {
 /// Tailles de sous-titres proposées (mpv `sub-scale`).
 const SUB_SIZES: [(&str, &str); 5] = [("0.8", "Petite"), ("1", "Normale"), ("1.2", "Grande"), ("1.45", "Très grande"), ("1.7", "Énorme")];
 
+/// Taille des textes de l'interface (Paramètres → Affichage).
+const TEXT_SIZES: [(&str, &str); 5] = [("0.85", "Petite"), ("1", "Normale"), ("1.15", "Grande"), ("1.3", "Très grande"), ("1.5", "Énorme")];
+
+fn text_size_label(v: f64) -> &'static str {
+    TEXT_SIZES.iter().min_by(|a, b| (a.0.parse::<f64>().unwrap_or(1.0) - v).abs().total_cmp(&(b.0.parse::<f64>().unwrap_or(1.0) - v).abs())).map(|x| x.1).unwrap_or("Normale")
+}
+
 fn sub_size_label(v: f64) -> &'static str {
     SUB_SIZES.iter().min_by(|a, b| (a.0.parse::<f64>().unwrap_or(1.0) - v).abs().total_cmp(&(b.0.parse::<f64>().unwrap_or(1.0) - v).abs())).map(|x| x.1).unwrap_or("Normale")
 }
@@ -6039,6 +6046,7 @@ pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    u.global::<Theme>().set_text_scale(p.text_scale.clamp(0.7, 2.0) as f32);
     music::configure(p.music, p.music_volume);
     update_chrome(u);
     // Raccourcis (bureau, menu, barre des tâches) : seulement quand le thème change.
@@ -6290,6 +6298,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("subsize", tr("Taille des sous-titres"), tr("Appliquée à la prochaine vidéo."), tr(sub_size_label(prefs.sub_scale)).into(), "choice", false),
         ],
         3 => vec![
+            row("textsize", tr("Taille des textes"), tr("Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."), tr(text_size_label(prefs.text_scale)).into(), "choice", false),
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
             row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
@@ -6647,6 +6656,11 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             let (list, cur) = lock::choices(&session_user(app));
             Some((tr("Code pour ouvrir ce compte").into(), list, cur))
         }
+        "textsize" => {
+            let cur = config::ui_prefs().text_scale;
+            let v = TEXT_SIZES.iter().find(|x| text_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
+            Some((tr("Taille des textes").into(), own(&TEXT_SIZES), v.into()))
+        }
         "subsize" => {
             let cur = config::ui_prefs().sub_scale;
             let v = SUB_SIZES.iter().find(|x| sub_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
@@ -6767,6 +6781,16 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         config::save_ui_prefs(&p);
         if let Some(u) = app.ui().upgrade() {
             switch_theme(&u, p);
+        }
+        refresh_settings(app);
+        return;
+    }
+    if key == "textsize" {
+        let mut p = config::ui_prefs();
+        p.text_scale = value.parse().unwrap_or(1.0);
+        config::save_ui_prefs(&p);
+        if let Some(u) = app.ui().upgrade() {
+            u.global::<Theme>().set_text_scale(p.text_scale.clamp(0.7, 2.0) as f32);
         }
         refresh_settings(app);
         return;
@@ -7214,7 +7238,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         return;
     }
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "textsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();
