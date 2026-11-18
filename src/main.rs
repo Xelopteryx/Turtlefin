@@ -79,7 +79,8 @@ fn android_tv() -> bool {
     #[cfg(target_os = "android")]
     {
         static TV: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        *TV.get_or_init(android_entry::is_tv)
+        // TURTLEFIN_FORCE_TV=1 (essais, émulateur) : interface TV comme sur une vraie télé.
+        *TV.get_or_init(|| std::env::var_os("TURTLEFIN_FORCE_TV").is_some() || android_entry::is_tv())
     }
     #[cfg(not(target_os = "android"))]
     false

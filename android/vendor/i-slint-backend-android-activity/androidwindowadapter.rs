@@ -708,9 +708,21 @@ fn button_for_event(
 /// la même échelle dans les deux sens), lisible un téléphone en main, sans jamais agrandir au-delà de
 /// la densité d'Android (ni sous x1). Tablettes : leur densité (plus de place).
 fn ui_scale(app: &AndroidApp, size: PhysicalSize) -> f32 {
-    let density = app.config().density().map(|dpi| dpi as f32 / 160.0).unwrap_or(1.0);
+    use android_activity::ndk::configuration::{Touchscreen, UiModeType};
+    let config = app.config();
+    let density = config.density().map(|dpi| dpi as f32 / 160.0).unwrap_or(1.0);
     if size.width == 0 || size.height == 0 {
         return density;
+    }
+    // Télé (mode « télévision » d'Android, écran non tactile, ou TURTLEFIN_FORCE_TV=1 pour les essais) :
+    // l'écran vaut 1920 points de large, comme Turtlefin en mode TV sur un ordinateur. Avec la densité
+    // d'Android (souvent x2 en 1080p), l'interface d'une télé 1080p se croyait sur un écran de 960 x 540
+    // et tout était trop gros.
+    let tv = matches!(config.ui_mode_type(), UiModeType::Television)
+        || matches!(config.touchscreen(), Touchscreen::NoTouch)
+        || std::env::var_os("TURTLEFIN_FORCE_TV").is_some();
+    if tv {
+        return (size.width.max(size.height) as f32 / 1920.0).max(1.0);
     }
     let (long, short) = (size.width.max(size.height) as f32, size.width.min(size.height) as f32);
     let fit = (long / 960.0).min(short / 432.0);
