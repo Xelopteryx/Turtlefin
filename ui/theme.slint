@@ -107,6 +107,9 @@ export global Theme {
 // coût. 0 en usage normal.
 export global Perf {
     in-out property <int> off;
+    // Contexte graphique recréé (Android : rotation, écran rallumé) : les images gardées en cache par le
+    // moteur de rendu sont perdues, les éléments en cache se redessinent (voir AeroSky).
+    in-out property <int> gl-epoch;
     pure public function hide(bit: int) -> bool {
         return Math.mod(floor(self.off / bit), 2) == 1;
     }

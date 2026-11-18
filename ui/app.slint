@@ -17076,7 +17076,9 @@ export component AppWindow inherits Window {
             property <length> pad: 24px * root.k;
             property <length> tile-w: 150px * root.k;
             property <length> art-h: 120px * root.k;
-            property <length> row-h: 52px * root.k;
+            // Écran étroit (téléphone) : libellé au-dessus de la valeur.
+            property <bool> narrow: self.width < 640px * root.k;
+            property <length> row-h: self.narrow ? 64px * root.k : 52px * root.k;
             ed-keys := FocusScope {
                 property <int> tick: root.refocus;
                 changed tick => {
@@ -17221,16 +17223,20 @@ export component AppWindow inherits Window {
                     animate background { duration: Motion.select ? 140ms : 0ms; }
                     Text {
                         x: 16px * root.k;
-                        width: 220px * root.k;
+                        y: ed-box.narrow ? 7px * root.k : 0px;
+                        height: ed-box.narrow ? 20px * root.k : parent.height;
+                        width: ed-box.narrow ? parent.width - 66px * root.k : 220px * root.k;
                         text: r.label;
                         color: parent.lit ? Theme.on-accent : Theme.muted;
-                        font-size: 15px * root.k;
+                        font-size: (ed-box.narrow ? 13px : 15px) * root.k;
                         font-weight: 600;
                         overflow: elide;
                         vertical-alignment: center;
                     }
                     Text {
-                        x: 248px * root.k;
+                        x: ed-box.narrow ? 16px * root.k : 248px * root.k;
+                        y: ed-box.narrow ? 28px * root.k : 0px;
+                        height: ed-box.narrow ? 28px * root.k : parent.height;
                         width: parent.width - self.x - 50px * root.k;
                         text: r.value == "" ? "—" : r.value;
                         color: parent.lit ? Theme.on-accent : Theme.text;

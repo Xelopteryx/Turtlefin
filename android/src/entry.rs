@@ -94,12 +94,17 @@ static APP: std::sync::OnceLock<slint::android::AndroidApp> = std::sync::OnceLoc
 /// sortie du lecteur.
 pub fn keep_screen_on(on: bool) {
     use slint::android::android_activity::WindowManagerFlags as F;
-    if let Some(a) = APP.get() {
-        if on {
-            a.set_window_flags(F::KEEP_SCREEN_ON, F::empty());
-        } else {
-            a.set_window_flags(F::empty(), F::KEEP_SCREEN_ON);
-        }
+    // Depuis un autre fil : set_window_flags prend le verrou de l'activité, que la boucle d'événements
+    // peut tenir pendant qu'elle nous appelle (rotation en paysage au début d'une lecture) ; appelé
+    // ici, le fil de l'interface s'attendait lui-même et l'appli ne répondait plus.
+    if let Some(a) = APP.get().cloned() {
+        std::thread::spawn(move || {
+            if on {
+                a.set_window_flags(F::KEEP_SCREEN_ON, F::empty());
+            } else {
+                a.set_window_flags(F::empty(), F::KEEP_SCREEN_ON);
+            }
+        });
     }
 }
 

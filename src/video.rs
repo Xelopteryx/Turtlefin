@@ -225,6 +225,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 };
                 let _ = GL_INFO.set(info);
                 state = Some(State { gl, render: None, target: None });
+                gl_epoch(&weak);
             }
             slint::RenderingState::BeforeRendering => {
                 // Rendu recréé sans nouveau « RenderingSetup » (Skia sous Android, après une fenêtre
@@ -233,6 +234,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                     // SAFETY : le contexte OpenGL de la fenêtre est courant pendant ce rappel.
                     let gl = unsafe { glow::Context::from_loader_function_cstr(|s| get_proc_address(s)) };
                     state = Some(State { gl, render: None, target: None });
+                    gl_epoch(&weak);
                 }
                 if let (Some(st), Some(ui)) = (state.as_mut(), weak.upgrade()) {
                     before_rendering(st, &ui, *get_proc_address);
@@ -247,6 +249,14 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
             _ => {}
         }
     })
+}
+
+/// Nouveau contexte graphique : les éléments gardés en cache par le moteur de rendu se redessinent.
+fn gl_epoch(weak: &slint::Weak<AppWindow>) {
+    if let Some(u) = weak.upgrade() {
+        let p = u.global::<crate::Perf>();
+        p.set_gl_epoch(p.get_gl_epoch() + 1);
+    }
 }
 
 fn free_target(gl: &glow::Context, target: &mut Option<Target>) {
@@ -309,6 +319,12 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
             free_target(&st.gl, &mut st.target);
             ui.set_video_frame(slint::Image::default());
         }
+    } else if cur_id.is_none() && ui.get_video_frame().size().width > 0 {
+        // Plus de lecteur, mais une image vidéo encore posée : rendu recréé entre-temps (Android, l'écran
+        // tourne à la sortie du lecteur), l'état neuf ne savait pas qu'il y avait eu une vidéo. Sans ça,
+        // la dernière image (noire, sa texture n'existant plus) masquait le fond du thème.
+        free_target(&st.gl, &mut st.target);
+        ui.set_video_frame(slint::Image::default());
     }
 
     drop(guard);

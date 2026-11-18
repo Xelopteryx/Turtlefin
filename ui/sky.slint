@@ -4,7 +4,7 @@
 // de fond et sous les pages ; ce qui bouge (HexDrift, AeroDrift, CircuitDrift) est à part, si « Fond animé »
 // est actif.
 import { Srv } from "logo.slint";
-import { Theme } from "theme.slint";
+import { Theme, Perf } from "theme.slint";
 
 // Une bulle : corps presque transparent au bord plus clair, reflet en haut à gauche, petit éclat
 // en bas à droite.
@@ -1438,7 +1438,27 @@ export component AeroSky inherits Rectangle {
     in property <bool> no-server;
     // Décor fixe : dessiné une fois dans une image gardée par le moteur de rendu, puis recopié tel
     // quel à chaque image (bulles, dégradés et courbes coûtent sinon à chaque rafraîchissement).
-    cache-rendering-hint: true;
+    // Cache refait (coupé un instant puis remis) quand le contexte graphique change ou que la fenêtre
+    // change de taille : sous Android, l'ancien cache devenait une image noire après une rotation.
+    property <bool> fresh: true;
+    property <int> epoch: Perf.gl-epoch;
+    changed epoch => {
+        root.fresh = false;
+        refresh.running = true;
+    }
+    changed width => {
+        root.fresh = false;
+        refresh.running = true;
+    }
+    refresh := Timer {
+        interval: 250ms;
+        running: false;
+        triggered => {
+            root.fresh = true;
+            self.running = false;
+        }
+    }
+    cache-rendering-hint: root.fresh;
     if Theme.scenery == 1: SkyScene { }
     if Theme.scenery == 2: HarmonyScene { }
     if Theme.scenery == 3: CircuitEchoes { }
