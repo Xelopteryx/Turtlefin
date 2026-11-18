@@ -10333,13 +10333,17 @@ export component AppWindow inherits Window {
         y: root.header-h + (root.lib-wave ? 0px : (1 - root.page-e) * 28px * root.k);
         height: parent.height - root.header-h;
 
-        property <length> gap: 18px * root.k;
-        property <length> pad: 32px * root.k;
+        // Écran étroit (téléphone en portrait) : marges et écarts réduits, au moins deux colonnes.
+        property <bool> slim: self.width < 600px * root.k;
+        property <length> gap: (self.slim ? 10px : 18px) * root.k;
+        property <length> pad: (self.slim ? 12px : 32px) * root.k;
         // Marge du haut : la carte choisie, agrandie, n'est pas coupée par le bord.
         property <length> top-pad: 20px * root.k;
         // Affiches réduites pour voir deux rangées entières et le haut de la suivante (avant : une rangée
-        // et demie en interface TV) ; jamais plus grandes que les cartes des rangées.
-        property <length> cw: min(root.card-w, max(110px * root.k, ((self.height - self.top-pad - 2 * self.gap) / 2.3 - 56px * root.k) / 1.5));
+        // et demie en interface TV) ; jamais plus grandes que les cartes des rangées ; écran étroit : deux
+        // colonnes au moins (avant : une seule sur un téléphone tenu droit).
+        property <length> cw-big: min(root.card-w, max(110px * root.k, ((self.height - self.top-pad - 2 * self.gap) / 2.3 - 56px * root.k) / 1.5));
+        property <length> cw: self.slim ? min(self.cw-big, (self.width - root.az-band - 2 * self.pad - self.gap) / 2) : self.cw-big;
         property <length> ch: self.cw * 1.5 + 56px * root.k;
         // Largeur laissée aux affiches : la bande de l'index A–Z, à droite, n'en fait pas partie (la
         // dernière colonne passait dessous).
