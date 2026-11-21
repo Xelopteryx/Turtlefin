@@ -10951,6 +10951,7 @@ export component AppWindow inherits Window {
 
         property <int> n: root.servers.length;
         property <length> col-w: min(self.width - 64px * root.k, 680px * root.k);
+        property <bool> tight: self.col-w < 560px * root.k;
 
         FocusScope {
             property <int> tick: root.refocus;
@@ -11194,7 +11195,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            HorizontalLayout {
+            if !srv.tight: HorizontalLayout {
                 alignment: start;
                 spacing: 16px * root.k;
                 height: 46px * root.k;
@@ -11209,6 +11210,29 @@ export component AppWindow inherits Window {
                     }
                 }
                 ActionButton {
+                    text: Tr.t(Tr.k, "Saisir une adresse");
+                    font: (16px * root.k) * Theme.text-scale;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length + 1 && Nav.kb;
+                    clicked => {
+                        root.open-manual();
+                    }
+                }
+            }
+            // Écran étroit (téléphone tenu droit) : un bouton par ligne, sinon leurs noms étaient coupés.
+            if srv.tight: VerticalLayout {
+                spacing: 14px * root.k;
+                padding-top: 4px * root.k;
+                ActionButton {
+                    height: 46px * root.k;
+                    text: root.srv-searching ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Rechercher à nouveau");
+                    font: (16px * root.k) * Theme.text-scale;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length && Nav.kb;
+                    clicked => {
+                        root.servers-search();
+                    }
+                }
+                ActionButton {
+                    height: 46px * root.k;
                     text: Tr.t(Tr.k, "Saisir une adresse");
                     font: (16px * root.k) * Theme.text-scale;
                     focused: !root.h-focus && root.srv-sel == root.servers.length + 1 && Nav.kb;
