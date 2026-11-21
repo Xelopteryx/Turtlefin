@@ -926,7 +926,9 @@ fn set_backdrop(app: &Arc<App>, id: String) {
         if !same_backdrop(&a, &bytes) {
             // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
             // pouvait rester cachée, après un changement de compte par exemple).
-            let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+            if a.bg_gen.load(Ordering::SeqCst) == my {
+                let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+            }
             return;
         }
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
@@ -1832,6 +1834,9 @@ fn end_session(app: &Arc<App>, forget: bool) {
     }
     app.bg_hash.store(0, Ordering::SeqCst);
     app.bg_id.lock().unwrap().clear();
+    // Fond d'une carte encore en chargement : il n'arrivera pas après la session (il restait derrière
+    // le choix du serveur à la fin de la démonstration).
+    app.bg_gen.fetch_add(1, Ordering::SeqCst);
     *app.tab.lock().unwrap() = "home".to_string();
     app.stack.lock().unwrap().clear();
     *app.library.lock().unwrap() = None;
@@ -12677,7 +12682,9 @@ fn set_local_backdrop(app: &Arc<App>, key: String, path: std::path::PathBuf) {
         if !same_backdrop(&a, &bytes) {
             // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
             // pouvait rester cachée, après un changement de compte par exemple).
-            let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+            if a.bg_gen.load(Ordering::SeqCst) == my {
+                let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+            }
             return;
         }
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };

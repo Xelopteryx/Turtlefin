@@ -16821,7 +16821,9 @@ export component AppWindow inherits Window {
                 y: tour-body.y + tour-body.preferred-height + 12px * root.k;
                 width: parent.width - 56px * root.k;
                 spacing: 6px * root.k;
+                // Même ordre que les icônes de la barre (right-base + i).
                 for it[i] in [
+                    { icon: "cast", text: Tr.t(Tr.k, "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil.") },
                     { icon: "party", text: Tr.t(Tr.k, "Watch party : regarder la même chose, en même temps, sur plusieurs appareils.") },
                     { icon: "dice", text: Tr.t(Tr.k, "Au hasard : Turtlefin choisit un média pour toi.") },
                     { icon: "search", text: Tr.t(Tr.k, "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque.") },

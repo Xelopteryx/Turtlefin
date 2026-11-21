@@ -2648,9 +2648,6 @@ msgstr "No failed request yet"
 msgid "Pas encore de média dans {}"
 msgstr "No media in {} yet"
 
-msgid "Ce dossier est vide."
-msgstr "This folder is empty."
-
 msgid "Rien par ici"
 msgstr "Nothing here"
 
@@ -4331,3 +4328,6 @@ msgstr "Full"
 
 msgid "Automatique ({})"
 msgstr "Automatic ({})"
+
+msgid "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil."
+msgstr "Cast: send the video to a TV, or control another device."
