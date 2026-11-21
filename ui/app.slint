@@ -29,7 +29,7 @@ import "fonts/TurtlefinBlankAero-SemiBold.ttf";
 import "fonts/TurtlefinBlankAero-Bold.ttf";
 import { PlayerView, TrackData } from "player.slint";
 import { Theme, Prefs, Tr, Motion, Gloss, Sheen, Nav, Kb, Alert, Placeholder, Perf, Win7Glass, TermGlass } from "theme.slint";
-import { AeroSky, HexDrift, AeroDrift, CircuitDrift } from "sky.slint";
+import { AeroSky, AeroDrift, Sky, Nappes, Schematic, Pcb, PcbLabel, PcbDot, PcbBox, TtyRow, Lagon, Lagoon, LagoonJelly, LagoonAnemone, LagoonFish, LagoonDot, LagoonSpeck, LagoonBubble } from "sky.slint";
 import { DustLine, DustLines } from "dust.slint";
 import { Str, TypedText } from "typed.slint";
 import { LxItem, LangExplorer } from "langx.slint";
@@ -40,7 +40,7 @@ import { Marquee } from "marquee.slint";
 import { BootLogo } from "boot.slint";
 import { ThemeLogo, Srv } from "logo.slint";
 
-export { CardData, Prefs, Tr, Motion, Theme, Nav, Alert, Perf, Srv }
+export { CardData, Prefs, Tr, Motion, Theme, Nav, Alert, Perf, Srv, Sky, Pcb, PcbLabel, PcbDot, PcbBox, TtyRow, Lagoon, LagoonJelly, LagoonAnemone, LagoonFish, LagoonDot, LagoonSpeck, LagoonBubble }
 
 export { TrackData, DustLine, Str, LxItem }
 
@@ -1115,6 +1115,8 @@ component SectionRow inherits Rectangle {
     // Rangées d'une fiche : cartes l'une après l'autre, titre qui glisse vers la droite en arrivant ;
     // `leaving` : la rangée s'en va (titre vers la gauche, cartes en fondu).
     in property <bool> cascade;
+    // Départ de la cascade après la création de la rangée (entrée de l'accueil : une rangée après l'autre).
+    in property <duration> delay;
     in property <bool> leaving;
     in property <bool> tiles;
     // Plus de 0 : grille de wrap-cols colonnes au lieu d'une rangée (portrait, voir home-wrap).
@@ -1127,13 +1129,13 @@ component SectionRow inherits Rectangle {
         self.t-t0 = animation-tick();
     }
     Timer {
-        interval: 600ms;
+        interval: 600ms + root.delay;
         running: root.t-live;
         triggered => {
             root.t-live = false;
         }
     }
-    property <float> t-x: root.t-live && Motion.pages ? clamp((animation-tick() - root.t-t0) / 420ms, 0, 1) : 1;
+    property <float> t-x: root.t-live && Motion.pages ? clamp((animation-tick() - root.t-t0 - root.delay) / 420ms, 0, 1) : 1;
     property <float> out: root.leaving ? 1 : 0;
     animate out { duration: Motion.pages ? 300ms : 0ms; easing: ease-in; }
     property <float> te: (1 - (1 - root.t-x) * (1 - root.t-x)) * (1 - root.out);
@@ -1235,7 +1237,7 @@ component SectionRow inherits Rectangle {
                 ratio: root.ratio;
                 k: root.k;
                 cascade: root.cascade;
-                in-delay: min(i, 10) * 60ms;
+                in-delay: root.delay + (root.delay > 0ms ? 160ms : 0ms) + min(i, 10) * 60ms;
                 focused: root.active && i == root.focus-index;
                 bare: root.tiles;
                 dim: !Nav.touch && (Nav.kb ? root.active && i != root.focus-index : root.hover-i >= 0 && i != root.hover-i);
@@ -1252,14 +1254,54 @@ component SectionRow inherits Rectangle {
                 touched => {
                     root.touched(i);
                 }
+                // Tuiles (« Mes médias ») comprises : menu de bibliothèque (ouvrir, actualiser).
                 menu-requested => {
-                    if (!root.tiles) {
-                        root.touched(i);
-                        root.card-menu(card, self.absolute-position.x + root.card-w / 2, self.absolute-position.y + root.card-w * root.ratio * 0.4);
-                    }
+                    root.touched(i);
+                    root.card-menu(card, self.absolute-position.x + root.card-w / 2, self.absolute-position.y + root.card-w * root.ratio * 0.4);
                 }
             }
         }
+    }
+}
+
+// Icônes du menu des cartes (clic droit) : tracées, grille 24 x 24 (les signes « ⟳ » ou « ✎ » ne sont pas
+// dans les polices des thèmes : carré vide ou rien). Une action par nom, voir `cm-layer` ; « box-on » /
+// « box-off » : case cochée ou non.
+component MenuIcon inherits Rectangle {
+    in property <string> name;
+    in property <color> tint: Theme.fg;
+    property <string> d: root.name == "open" ? "M 9 5 L 16 12 L 9 19"
+        : root.name == "back" ? "M 15 5 L 8 12 L 15 19"
+        : root.name == "played" ? "M 4 12.5 L 9.5 18 L 20 6.5"
+        // Recommencer : flèche qui tourne vers l'arrière.
+        : root.name == "unplayed" ? "M 5.2 14.5 A 7.5 7.5 0 1 0 6.8 6.6 M 6.8 2.8 L 6.8 6.6 L 10.6 6.6"
+        // Identifier : loupe et point d'interrogation.
+        : root.name == "identify" ? "M 10.5 3.5 A 7 7 0 1 0 10.5 17.5 A 7 7 0 1 0 10.5 3.5 M 15.6 15.6 L 21 21 M 8.6 8.6 A 1.9 1.9 0 1 1 10.5 10.6 L 10.5 11.8 M 10.5 14.2 L 10.5 14.3"
+        // Actualiser : deux flèches en cercle.
+        : root.name == "refresh" || root.name == "scanall-one" ? "M 19.5 12 A 7.5 7.5 0 0 1 6.7 17.3 M 4.5 12 A 7.5 7.5 0 0 1 17.3 6.7 M 17.3 2.9 L 17.3 6.7 L 13.5 6.7 M 6.7 21.1 L 6.7 17.3 L 10.5 17.3"
+        : root.name == "edit" ? "M 4 20 L 4.8 15.8 L 15.4 5.2 A 2.4 2.4 0 0 1 18.8 8.6 L 8.2 19.2 Z M 13.6 7 L 17 10.4"
+        // Fichiers nouveaux : dossier et « + ».
+        : root.name == "scan" ? "M 3 6 L 9.5 6 L 11.5 8.5 L 21 8.5 L 21 19 L 3 19 Z M 12 11 L 12 16.5 M 9.25 13.75 L 14.75 13.75"
+        // Métadonnées manquantes : loupe et « + ».
+        : root.name == "missing" ? "M 10.5 3.5 A 7 7 0 1 0 10.5 17.5 A 7 7 0 1 0 10.5 3.5 M 15.6 15.6 L 21 21 M 10.5 7.5 L 10.5 13.5 M 7.5 10.5 L 13.5 10.5"
+        // Tout remplacer : deux flèches opposées.
+        : root.name == "all" ? "M 4 8 L 19 8 M 15.5 4.5 L 19 8 L 15.5 11.5 M 20 16 L 5 16 M 8.5 12.5 L 5 16 L 8.5 19.5"
+        // Toutes les bibliothèques : rayonnage.
+        : root.name == "scanall" ? "M 3.5 4 L 7.5 4 L 7.5 20 L 3.5 20 Z M 10 4 L 14 4 L 14 20 L 10 20 Z M 16.2 5.2 L 19.6 4.2 L 22 19 L 18.6 20 Z"
+        : root.name == "box-on" ? "M 4 4 L 20 4 L 20 20 L 4 20 Z M 7.5 12.5 L 10.8 15.8 L 16.8 8.5"
+        : root.name == "box-off" ? "M 4 4 L 20 4 L 20 20 L 4 20 Z"
+        : "";
+    if root.d != "": Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: max(1.5px, root.height / 12);
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        commands: root.d;
     }
 }
 
@@ -1539,6 +1581,10 @@ component Tab inherits Rectangle {
     in property <bool> active;
     in property <bool> focused;
     in property <float> k: 1.0;
+    // Entrée après la connexion : apparition élastique (0 -> 1).
+    in property <float> pop: 1;
+    transform-scale: root.pop;
+    opacity: clamp(root.pop * 2, 0, 1);
     callback clicked();
 
     property <color> ink: (root.active || (Nav.kb ? (root.focused) : area.has-hover && !Nav.touch)) ? Theme.fg : Theme.fg.with-alpha(0.65);
@@ -3013,6 +3059,17 @@ component NavBar inherits Rectangle {
     in property <float> enter: 1; // arrivée de la page (0 -> 1)
     in property <bool> logo-on;   // accueil : logo du thème devant le nom
     callback activate(int);
+    // Entrée après la connexion (temps écoulé, voir intro-ms d'AppWindow ; au repos : bien au-delà).
+    in property <float> intro-ms: 100000;
+    // Apparition élastique d'un élément qui part à `start` ms : 0 -> 1 (dépasse un peu, puis se pose).
+    pure function pop-at(start: float) -> float {
+        let q = clamp((root.intro-ms - start) / 600, 0, 1);
+        return q >= 1 ? 1 : 1 - pow(2, -9 * q) * cos(q * 440deg);
+    }
+    pure function fade-at(start: float, len: float) -> float {
+        let q = clamp((root.intro-ms - start) / len, 0, 1);
+        return 1 - (1 - q) * (1 - q) * (1 - q);
+    }
 
     property <int> n: 1 + (root.can-back ? 1 : 0) + (root.show-home ? 1 : 0);
     property <length> x0: 24px * root.k;
@@ -3025,6 +3082,7 @@ component NavBar inherits Rectangle {
         y: root.iy;
         icon: "menu";
         k: root.k;
+        pop: root.pop-at(150);
         focused: root.sel == 0;
         clicked => {
             root.activate(0);
@@ -3058,7 +3116,8 @@ component NavBar inherits Rectangle {
             }
         }
     }
-    if root.logo-on: ThemeLogo {
+    // Entrée : le logo n'est créé qu'à son tour, pour y jouer son animation d'apparition.
+    if root.logo-on && root.intro-ms >= 240: ThemeLogo {
         x: root.x0 + root.n * root.step + 4px * root.k;
         y: (root.height - self.height) / 2;
         width: 34px * root.k;
@@ -3066,7 +3125,8 @@ component NavBar inherits Rectangle {
     }
     // Le nom de l'appli ne change pas d'une page à l'autre : il reste en place.
     if root.logo-on: Text {
-        x: root.x0 + root.n * root.step + 4px * root.k + 44px * root.k;
+        x: root.x0 + root.n * root.step + 4px * root.k + 44px * root.k - (1 - root.fade-at(300, 520)) * 28px * root.k;
+        opacity: root.fade-at(300, 520);
         width: root.width - self.x - 8px * root.k;
         height: root.height;
         text: root.title;
@@ -3161,6 +3221,19 @@ component HeaderRight inherits Rectangle {
     out property <length> used-w: hr-lay.preferred-width;
     // Photo du compte : apparition élastique après la connexion (0 -> 1).
     in property <float> me-pop: 1;
+    // Entrée après la connexion (temps écoulé, voir intro-ms d'AppWindow ; au repos : bien au-delà).
+    in property <float> intro-ms: 100000;
+    // Apparition élastique d'un élément qui part à `start` ms : 0 -> 1 (dépasse un peu, puis se pose).
+    pure function pop-at(start: float) -> float {
+        let q = clamp((root.intro-ms - start) / 600, 0, 1);
+        return q >= 1 ? 1 : 1 - pow(2, -9 * q) * cos(q * 440deg);
+    }
+    pure function fade-at(start: float, len: float) -> float {
+        let q = clamp((root.intro-ms - start) / len, 0, 1);
+        return 1 - (1 - q) * (1 - q) * (1 - q);
+    }
+    // Icônes de gauche à droite (la photo du compte en dernier, un peu après).
+    property <float> r0: 560;
     hr-lay := HorizontalLayout {
         alignment: end;
         spacing: (root.narrow ? 6px : 12px) * root.k;
@@ -3170,6 +3243,7 @@ component HeaderRight inherits Rectangle {
 
         if root.dl-text != "": Rectangle {
             width: dl-label.preferred-width + 52px * root.k;
+            opacity: root.fade-at(root.r0 - 100, 400);
             border-radius: self.height / 2;
             background: Theme.fg.with-alpha(0.08);
             border-width: 1px;
@@ -3210,6 +3284,7 @@ component HeaderRight inherits Rectangle {
         // demandent le serveur.
         if root.offline: Rectangle {
             width: offline-label.preferred-width + 48px * root.k;
+            opacity: root.fade-at(root.r0 - 100, 400);
             border-radius: self.height / 2;
             background: #4a2c05;
             border-width: 1px;
@@ -3236,6 +3311,7 @@ component HeaderRight inherits Rectangle {
         if !root.offline && root.collapsed: HeaderIcon {
             icon: "more";
             k: root.k;
+            pop: root.pop-at(root.r0);
             on: root.cast-on || root.party-on;
             focused: root.sel >= 0 && root.sel < 4;
             clicked => {
@@ -3246,6 +3322,7 @@ component HeaderRight inherits Rectangle {
         if !root.offline && !root.collapsed: HeaderIcon {
             icon: "cast";
             k: root.k;
+            pop: root.pop-at(root.r0 + 0 * 70);
             on: root.cast-on;
             focused: root.sel == 0;
             clicked => {
@@ -3255,6 +3332,7 @@ component HeaderRight inherits Rectangle {
         if !root.offline && !root.collapsed: HeaderIcon {
             icon: "party";
             k: root.k;
+            pop: root.pop-at(root.r0 + 1 * 70);
             on: root.party-on;
             focused: root.sel == 1;
             clicked => {
@@ -3291,6 +3369,7 @@ component HeaderRight inherits Rectangle {
         if !root.offline && !root.collapsed: HeaderIcon {
             icon: "dice";
             k: root.k;
+            pop: root.pop-at(root.r0 + 2 * 70);
             focused: root.sel == 2;
             clicked => {
                 root.activate(2);
@@ -3299,6 +3378,7 @@ component HeaderRight inherits Rectangle {
         if !root.offline && !root.collapsed: HeaderIcon {
             icon: "search";
             k: root.k;
+            pop: root.pop-at(root.r0 + 3 * 70);
             focused: root.sel == 3;
             clicked => {
                 root.activate(3);
@@ -3309,7 +3389,7 @@ component HeaderRight inherits Rectangle {
             k: root.k;
             focused: root.sel == 4;
             // Connexion : la photo apparaît en zoomant (élastique) après le départ de celle du compte.
-            pop: root.me-pop;
+            pop: root.me-pop * root.pop-at(root.r0 + 380);
             clicked => {
                 root.activate(4);
             }
@@ -3347,6 +3427,7 @@ component HeaderRight inherits Rectangle {
         }
         if Prefs.clock && !root.narrow: Text {
             text: root.clock;
+            opacity: root.fade-at(root.r0 + 480, 420);
             // Police nommée : l'heure ne dépend pas de la langue, l'effet de changement de langue
             // ne la recouvre pas (il repère les textes avec une police vide, voir dust.rs).
             font-family: Theme.font-name;
@@ -3373,9 +3454,11 @@ component Backdrop inherits Rectangle {
     in property <bool> on-detail;
     in property <float> k: 1.0;
     in property <bool> glass;
+    // Entrée après la connexion : la barre de verre glisse depuis la gauche (0 -> 1, dépasse un peu).
+    in property <float> bar-in: 1;
     in property <length> header-h;
     in property <bool> no-server;
-    // Fond sous les pages (pas le voile) : c'est lui qui fait bouger le décor (voir HexDrift).
+    // Fond sous les pages (pas le voile) : c'est lui qui fait bouger le décor (voir Nappes).
     in property <bool> ticking;
     // Décor en retrait (1 : plein), pour que les textes des pages restent lisibles par-dessus.
     in property <float> decor: 1.0;
@@ -3453,14 +3536,20 @@ component Backdrop inherits Rectangle {
         no-server: root.no-server;
         opacity: root.a * root.decor;
     }
-    if Theme.bubbles && Theme.scenery == 4 && !Perf.hide(4): HexDrift {
+    // Turtlefin : nappes de couleur qui suivent l'heure (daynight.rs).
+    if Theme.bubbles && Theme.scenery == 4 && !Perf.hide(4): Nappes {
         live: Motion.scenery;
         ticking: root.ticking;
-        no-server: root.no-server || Srv.core == 3;
-        opacity: root.a;
+        opacity: root.a * root.decor;
     }
     // Aero et Nerd ont aussi leur fond animé (même réglage) : l'énergie part du serveur, au centre
     // (bulles et anneau de lumière ; courant dans toutes les pistes).
+    // Aero : le lagon, dont la lumière suit l'heure (lagoon.rs, daynight.rs).
+    if Theme.bubbles && Theme.scenery == 5 && !Perf.hide(4): Lagon {
+        live: Motion.scenery;
+        ticking: root.ticking;
+        opacity: root.a * root.decor;
+    }
     if Theme.bubbles && (Theme.scenery == 1 || Theme.scenery == 2) && !Perf.hide(4): AeroDrift {
         live: Motion.scenery;
         ticking: root.ticking;
@@ -3468,19 +3557,19 @@ component Backdrop inherits Rectangle {
         k: root.k;
         opacity: root.a;
     }
-    if Theme.bubbles && Theme.scenery == 3 && !Perf.hide(4): CircuitDrift {
+    // Nerd : schéma de la carte, vert le jour, en veille ambrée la nuit (board.rs, daynight.rs).
+    if Theme.bubbles && Theme.scenery == 3 && !Perf.hide(4): Schematic {
         live: Motion.scenery;
         ticking: root.ticking;
-        k: root.k;
-        no-server: root.no-server || Srv.core == 3;
-        offline: Srv.core == 2;
-        dim: root.decor;
-        opacity: root.a;
+        opacity: root.a * root.decor;
     }
     // Barre de verre derrière l'en-tête (thèmes à `Theme.header-glass`, façon barre des tâches de
     // Windows 7) : moitié haute claire, moitié basse plus sombre, liserés clairs.
     if Theme.header-glass && root.glass && !Perf.hide(8): Rectangle {
         y: 0px;
+        // Bord d'attaque à droite : son dépassement sort de la fenêtre, la barre se pose en ralentissant.
+        x: min(0px, (root.bar-in - 1) * root.width);
+        width: root.width;
         height: root.header-h;
         opacity: root.a;
         // Windows 7 : verre fumé plus sombre, comme la barre des tâches.
@@ -3497,6 +3586,9 @@ component Backdrop inherits Rectangle {
     // s'efface vers les bords (aucune animation : rien à redessiner).
     if Theme.header-style == 2 && root.glass && !Perf.hide(8): Rectangle {
         y: 0px;
+        // Bord d'attaque à droite : son dépassement sort de la fenêtre, la barre se pose en ralentissant.
+        x: min(0px, (root.bar-in - 1) * root.width);
+        width: root.width;
         height: root.header-h;
         opacity: root.a;
         background: @linear-gradient(180deg, Theme.bg.with-alpha(0.86) 0%, Theme.bg.with-alpha(0.62) 100%);
@@ -3517,6 +3609,9 @@ component Backdrop inherits Rectangle {
     // ligne de balayage en haut.
     if Theme.header-style == 3 && root.glass && !Perf.hide(8): Rectangle {
         y: 0px;
+        // Bord d'attaque à droite : son dépassement sort de la fenêtre, la barre se pose en ralentissant.
+        x: min(0px, (root.bar-in - 1) * root.width);
+        width: root.width;
         height: root.header-h;
         opacity: root.a;
         background: #020d08eb;
@@ -3860,6 +3955,8 @@ export component AppWindow inherits Window {
     callback boot-continue();
     callback boot-lang(string);
     callback boot-linked();
+    // Touche ou appui pendant le démarrage : animation passée (boot.rs, skip).
+    callback boot-skip();
     in-out property <string> screen: "boot"; // "login" | "loading" | "home" | "detail" | "search" | "profile"
     in-out property <string> server;
     in-out property <string> user-name;
@@ -4857,6 +4954,10 @@ export component AppWindow inherits Window {
     }
     // Arrivée en cascade : décalage vertical de l'élément n° i (rangées, lignes de grille).
     pure function stagger(i: int) -> length {
+        // Entrée après la connexion : les rangées arrivent à leur façon (intro-row).
+        if (root.intro-live) {
+            return 0px;
+        }
         return (1 - clamp(root.page-lin * 1.9 - min(i, 5) * 0.18, 0, 1)) * 70px * root.k;
     }
     Timer {
@@ -4886,7 +4987,10 @@ export component AppWindow inherits Window {
         root.drop-keyboard();
         root.tour-ev(6);
         if (root.fly-phase == 1 || root.fly-phase == 2) {
-            if (root.screen == "home") {
+            if (root.screen == "home" && root.fly-phase == 1) {
+                // Connexion rapide : la photo finit d'abord d'arriver au centre (sinon elle y sautait).
+                root.fly-home = true;
+            } else if (root.screen == "home") {
                 root.fly-start(3);
             } else if (root.screen != "login" && root.screen != "loading") {
                 root.fly-phase = 0;
@@ -4899,6 +5003,10 @@ export component AppWindow inherits Window {
             root.d-t0 = animation-tick();
         }
         root.loading = false;
+        // Entrée de l'accueil en attente : quitté pour une autre page, il n'y a plus rien à attendre.
+        if (root.screen != "home" && root.screen != "loading" && root.screen != "login") {
+            root.intro-wait = false;
+        }
         if (root.screen != "login") {
             root.page-enter();
         }
@@ -5194,6 +5302,7 @@ export component AppWindow inherits Window {
     in-out property <bool> h-focus: false;   // la sélection est dans l'en-tête
     in-out property <int> h-sel: 0;          // onglets (Accueil, Favoris, [Demandes]), puis Recherche, Profil
     in property <string> clock;              // « 16:52 »
+    in property <int> clock-min;             // minutes depuis minuit (« finit à » des épisodes)
     in-out property <int> prof-sel: 1;      // écran Profil : 0 Réglages · 1 Déconnexion
 
     // Navigation commune : bouton Retour (si l'on a navigué), menu latéral
@@ -5630,10 +5739,16 @@ export component AppWindow inherits Window {
     property <length> cm-x;
     property <length> cm-y;
     in-out property <int> cm-sel;
+    // Page du menu (0 actions · 1 options d'actualisation) et cases de cette page (gardées d'une fois sur l'autre).
+    property <int> cm-page;
+    property <bool> cm-img;
+    property <bool> cm-trick;
+    // La carte est une bibliothèque (« Mes médias ») : menu de bibliothèque.
+    pure callback card-is-lib(string) -> bool;
     callback card-played(string, bool);
     // Compte administrateur du serveur : actions de plus dans le menu des cartes (identifier, actualiser).
     in property <bool> is-admin;
-    callback card-admin(string, string);    // (action « identify » | « refresh », id)
+    callback card-admin(string, string);    // (action « identify » | « edit » | « scanall » | « refresh:mode:images:trickplay », id)
 
     // Identifier un film ou une série mal reconnus (administrateurs) : recherche sur Internet, choix.
     in-out property <bool> ident-open;
@@ -5709,6 +5824,7 @@ export component AppWindow inherits Window {
         }
     }
     public function open-card-menu(card: CardData, x: length, y: length) {
+        root.cm-page = 0;
         root.cm-card = card;
         root.cm-x = x;
         root.cm-y = y;
@@ -5832,6 +5948,7 @@ export component AppWindow inherits Window {
     in property <[CardData]> p-picks;       // 3 suggestions
     in property <string> p-up-button;       // « Passer à l'épisode suivant » / « … à la saison suivante »
     in-out property <bool> p-skip-intro;    // bouton « Passer l'intro »
+    in property <bool> p-intro-auto;        // intros passées automatiquement (pastille « Arrêter »)
     in property <image> p-bg;               // fond de l'écran de fin (image du média, floutée)
     in property <bool> p-has-bg;
     // Écran de pause (voir PlayerView).
@@ -6421,8 +6538,25 @@ export component AppWindow inherits Window {
     property <bool> ep-in-view: root.screen == "detail" && root.ep-many && !root.ep-anim && root.kids-on
         && root.d-children-y + root.ep-head-h <= root.d-view-y + root.d-view-h * 0.25
         && root.d-children-y + root.ep-block-h - root.ep-row-h >= root.d-view-y + root.d-view-h * 0.5;
-    property <length> ep-thumb-w: (root.narrow ? 132px : 192px) * root.k;
+    // Liste d'épisodes : vignettes et textes suivent la largeur de la fenêtre (1 jusqu'à 1500 px,
+    // 1,28 en 1920, au plus 1,6) ; pas en portrait (téléphone).
+    property <float> ep-z: root.narrow ? 1 : clamp(root.width / root.k / 1500px, 1, 1.6);
+    property <length> ep-thumb-w: (root.narrow ? 132px : 256px * root.ep-z) * root.k;
     property <length> ep-row-h: root.ep-thumb-w * 0.5625 + 16px * root.k;
+    // Épisode sélectionné (clavier) ou survolé ; après un instant dessus, son résumé complet s'affiche
+    // sous la ligne (ep-dwell).
+    property <int> ep-hot: -1;
+    property <bool> ep-dwell;
+    changed ep-hot => {
+        self.ep-dwell = false;
+    }
+    ep-dwell-timer := Timer {
+        interval: 1200ms;
+        running: root.ep-hot >= 0 && !root.ep-dwell;
+        triggered => {
+            root.ep-dwell = true;
+        }
+    }
     property <length> ep-gap: 8px * root.k;
     // En-tête de la liste d'épisodes : rien quand les onglets le nomment déjà (Épisodes).
     property <length> ep-head-h: root.d-tabs-on ? 10px * root.k : 56px * root.k;
@@ -6506,7 +6640,8 @@ export component AppWindow inherits Window {
         d-fade: root.header-h + 24px + 316px * root.k + root.d-low - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
-        glass: root.signed-in && root.screen != "login" && root.screen != "loading";
+        glass: root.signed-in && root.screen != "login" && root.screen != "loading" && !root.intro-hold;
+        bar-in: root.intro-bar;
         decor: root.decor-dim;
         // Le fond commence sous la barre de titre de Windows 7 (chrome-top) : la barre de verre a la
         // hauteur de l'en-tête seul.
@@ -7059,14 +7194,13 @@ export component AppWindow inherits Window {
                         source: t.image;
                         image-fit: fill;
                     }
-                    // Thèmes brillants : reflet de bulle en haut de la photo.
-                    if Theme.gloss > 0: Rectangle {
-                        x: parent.width * 0.16;
-                        y: parent.height * 0.05;
-                        width: parent.width * 0.68;
-                        height: parent.height * 0.42;
-                        border-radius: self.height / 2;
-                        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.55 * Theme.gloss) 0%, rgba(255, 255, 255, 0) 100%);
+                    // Thèmes brillants : le reflet du logo en orbe sur la photo (il s'efface avant le bord,
+                    // voir ThemeLogo et tools/logo-station/orb.py).
+                    if Theme.gloss > 0: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: @image-url("logo/orb_gloss.png");
+                        opacity: min(1, Theme.gloss);
                     }
                     if !t.has-image: Text {
                         text: t.id == "other" ? "+" : t.rating;
@@ -7438,7 +7572,8 @@ export component AppWindow inherits Window {
     }
 
     // ------------------------------------------------------------ Accueil / Favoris
-    if root.screen == "home" && !root.playing && !Perf.hide(16): Rectangle {
+    // Après la connexion, créé seulement quand la photo du compte est partie (voir intro-hold).
+    if root.screen == "home" && !root.playing && !Perf.hide(16) && !root.intro-hold: Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
         transform-scale: 0.96 + 0.04 * root.page-e;
         // En-tête (nom, onglets, icônes) : la barre commune à toutes les pages (plus bas), jamais recréée.
@@ -7676,9 +7811,13 @@ export component AppWindow inherits Window {
                         : root.home-y(root.sel-section);
                     animate y { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: cubic-bezier(0.3, 1.22, 0.5, 1); }
 
-                    if root.banner-h > 0px: Rectangle {
+                    if root.banner-h > 0px: bnr := Rectangle {
                         x: 32px * root.k;
-                        y: 8px * root.k;
+                        // Entrée après la connexion : la bannière monte en fondu (voir intro-ms).
+                        property <float> ie: root.intro-e(520, 620);
+                        property <float> it: root.intro-e(760, 520);
+                        y: 8px * root.k + (1 - self.ie) * 40px * root.k;
+                        opacity: self.ie;
                         width: parent.width - 64px * root.k;
                         height: root.banner-h - 20px * root.k;
                         visible: home-view.y > -root.banner-h;
@@ -7693,6 +7832,8 @@ export component AppWindow inherits Window {
                             height: parent.height;
                             source: root.banner.image;
                             image-fit: cover;
+                            // Entrée : l'image se pose (léger dézoom) pendant que le cadre arrive.
+                            transform-scale: 1.08 - 0.08 * root.intro-e(520, 1100);
                         }
                         // Toute la bannière ouvre la fiche ; ses boutons, par-dessus, gardent leur action.
                         TouchArea {
@@ -7715,62 +7856,66 @@ export component AppWindow inherits Window {
                                 background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
                             }
                         }
-                        VerticalLayout {
-                            alignment: end;
-                            spacing: 6px * root.k;
-                            padding-left: 26px * root.k;
-                            padding-right: parent.tall ? 26px * root.k : parent.width * 0.42;
-                            padding-bottom: 22px * root.k;
-                            if root.banner.has-logo: Image {
-                                height: 64px * root.k;
-                                source: root.banner.logo;
-                                image-fit: contain;
-                                horizontal-alignment: left;
-                            }
-                            if !root.banner.has-logo: Text {
-                                text: root.banner.title;
-                                color: white;
-                                font-size: (30px * root.k) * Theme.text-scale;
-                                font-weight: 700;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: root.banner.subtitle;
-                                color: Theme.accent2;
-                                font-size: (15px * root.k) * Theme.text-scale;
-                                font-weight: 600;
-                                overflow: elide;
-                            }
-                            if root.banner.overview != "": Text {
-                                height: 56px * root.k;
-                                text: root.banner.overview;
-                                color: #ffffffd9;
-                                font-size: (14px * root.k) * Theme.text-scale;
-                                wrap: word-wrap;
-                                overflow: elide;
-                            }
-                            HorizontalLayout {
-                                height: 40px * root.k;
-                                spacing: 14px * root.k;
-                                alignment: start;
-                                DetailButton {
-                                    text: root.banner.play-label;
-                                    icon: "play";
-                                    k: root.k;
-                                    focused: root.banner-now && !root.h-focus && root.banner-btn == 0;
-                                    clicked => {
-                                        root.banner-sel = true;
-                                        root.banner-play(root.banner.id);
-                                    }
+                        // Entrée : les textes et les boutons glissent depuis la gauche, après le cadre.
+                        Rectangle {
+                            opacity: bnr.it;
+                            VerticalLayout {
+                                alignment: end;
+                                spacing: 6px * root.k;
+                                padding-left: 26px * root.k + (1 - bnr.it) * 36px * root.k;
+                                padding-right: bnr.tall ? 26px * root.k : bnr.width * 0.42;
+                                padding-bottom: 22px * root.k;
+                                if root.banner.has-logo: Image {
+                                    height: 64px * root.k;
+                                    source: root.banner.logo;
+                                    image-fit: contain;
+                                    horizontal-alignment: left;
                                 }
-                                DetailButton {
-                                    text: Tr.t(Tr.k, "Voir la fiche");
-                                    icon: "label";
-                                    k: root.k;
-                                    focused: root.banner-now && !root.h-focus && root.banner-btn == 1;
-                                    clicked => {
-                                        root.banner-sel = true;
-                                        root.open-item(root.banner.id);
+                                if !root.banner.has-logo: Text {
+                                    text: root.banner.title;
+                                    color: white;
+                                    font-size: (30px * root.k) * Theme.text-scale;
+                                    font-weight: 700;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: root.banner.subtitle;
+                                    color: Theme.accent2;
+                                    font-size: (15px * root.k) * Theme.text-scale;
+                                    font-weight: 600;
+                                    overflow: elide;
+                                }
+                                if root.banner.overview != "": Text {
+                                    height: 56px * root.k;
+                                    text: root.banner.overview;
+                                    color: #ffffffd9;
+                                    font-size: (14px * root.k) * Theme.text-scale;
+                                    wrap: word-wrap;
+                                    overflow: elide;
+                                }
+                                HorizontalLayout {
+                                    height: 40px * root.k;
+                                    spacing: 14px * root.k;
+                                    alignment: start;
+                                    DetailButton {
+                                        text: root.banner.play-label;
+                                        icon: "play";
+                                        k: root.k;
+                                        focused: root.banner-now && !root.h-focus && root.banner-btn == 0;
+                                        clicked => {
+                                            root.banner-sel = true;
+                                            root.banner-play(root.banner.id);
+                                        }
+                                    }
+                                    DetailButton {
+                                        text: Tr.t(Tr.k, "Voir la fiche");
+                                        icon: "label";
+                                        k: root.k;
+                                        focused: root.banner-now && !root.h-focus && root.banner-btn == 1;
+                                        clicked => {
+                                            root.banner-sel = true;
+                                            root.open-item(root.banner.id);
+                                        }
                                     }
                                 }
                             }
@@ -7784,6 +7929,9 @@ export component AppWindow inherits Window {
                         y: section.y-px * 1px + root.banner-h + root.stagger(si);
                         width: parent.width;
                         height: root.sec-h(si);
+                        // Entrée après la connexion : le nom de la rangée, puis ses cartes en chaîne.
+                        cascade: root.intro-live;
+                        delay: root.intro-row(si);
                         title: section.title;
                         items: section.items;
                         card-w: root.home-wrap ? root.wrap-cw : section.landscape ? root.card-w * 1.5 : root.card-w;
@@ -10032,7 +10180,7 @@ export component AppWindow inherits Window {
             // Fondu seulement pendant une apparition (opacité coûteuse le reste du temps).
             opacity: (root.sw-kids && !root.ep-anim ? root.sw-e : 1) * root.rev(3) * (1 - root.kids-out-p) * root.tab-e;
             // Place laissée de chaque côté aux boutons flottants d'une longue saison (liste toujours centrée).
-            width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 50px * root.k : 0px)), 1200px * root.k);
+            width: min(parent.width - 2 * ((root.narrow ? 16px : 32px) + (root.ep-many ? 50px * root.k : 0px)), 1640px * root.ep-z * root.k);
             // Centrée dans la fenêtre.
             x: (parent.width - self.width) / 2 + root.po-right;
             y: root.d-children-y + (root.sw-kids ? (1 - root.sw-e) * 40px * root.k : 0px) + (1 - root.rev(3)) * 60px * root.k + root.po-down;
@@ -10060,6 +10208,13 @@ export component AppWindow inherits Window {
             }
             for ep[i] in root.child-items: ep-row := Rectangle {
                 property <bool> lit: (!root.h-focus && root.d-zone == 2 && root.d-child == i && Nav.kb) || (ep-area.has-hover && !Nav.touch);
+                changed lit => {
+                    if (self.lit) {
+                        root.ep-hot = i;
+                    } else if (root.ep-hot == i) {
+                        root.ep-hot = -1;
+                    }
+                }
                 // Hors de l'écran : pas dessiné (saisons de plus de 100 épisodes).
                 property <length> top: root.ep-head-h + i * (root.ep-row-h + root.ep-gap);
                 // Hors de l'écran : pas dessiné ; marge d'un écran de chaque côté (la page glisse encore
@@ -10099,6 +10254,27 @@ export component AppWindow inherits Window {
                         source: ep.image;
                         image-fit: cover;
                     }
+                    // Déjà vu : l'image reste assombrie, même sélectionnée (l'épisode à voir ressort).
+                    if ep.played: Rectangle {
+                        background: #00000073;
+                    }
+                    // Prochain épisode à regarder.
+                    if ep.next: Rectangle {
+                        x: 6px * root.k;
+                        y: 6px * root.k;
+                        width: nx-t.preferred-width + 16px * root.k;
+                        height: nx-t.preferred-height + 6px * root.k;
+                        border-radius: Theme.term ? 1px : self.height / 2;
+                        background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                        nx-t := Text {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            text: Tr.t(Tr.k, "À suivre");
+                            color: Theme.on-accent;
+                            font-size: ((root.narrow ? 11px : 12px * root.ep-z) * root.k) * Theme.text-scale;
+                            font-weight: 800;
+                        }
+                    }
                     if ep.progress > 0 && !ep.played: Rectangle {
                         x: 0px;
                         y: parent.height - self.height;
@@ -10133,26 +10309,35 @@ export component AppWindow inherits Window {
                     alignment: start;
                     Text {
                         text: ep.title;
-                        color: ep-row.lit ? Theme.on-accent : Theme.fg;
-                        font-size: (17px * root.k) * Theme.text-scale;
+                        color: ep-row.lit ? Theme.on-accent : Theme.fg.with-alpha(ep.played ? 0.6 : 1);
+                        font-size: ((root.narrow ? 17px : 20px * root.ep-z) * root.k) * Theme.text-scale;
                         font-weight: 700;
                         overflow: elide;
                     }
-                    if ep.subtitle != "": Text {
-                        text: ep.subtitle;
-                        color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
-                        font-size: (13px * root.k) * Theme.text-scale;
-                        overflow: elide;
+                    // Durée, date de diffusion, heure de fin si on le lance maintenant.
+                    if ep.subtitle != "": HorizontalLayout {
+                        alignment: start;
+                        Text {
+                            property <int> end: mod(root.clock-min + ep.minutes, 1440);
+                            property <string> end-hm: floor(self.end / 60) + ":" + (mod(self.end, 60) < 10 ? "0" : "") + mod(self.end, 60);
+                            text: ep.subtitle + (ep.minutes > 0 && !ep.played && !root.narrow
+                                ? (ep.subtitle != "" ? " · " : "") + Tr.f(Tr.k, "finit à {}", self.end-hm, "") : "");
+                            color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.7);
+                            font-size: ((root.narrow ? 13px : 15px * root.ep-z) * root.k) * Theme.text-scale;
+                            overflow: elide;
+                            vertical-alignment: center;
+                            horizontal-stretch: 0;
+                        }
                     }
-                    // Résumé : ce qui tient dans la ligne (3 lignes, 1 en portrait), puis « … » ; le reste
+                    // Résumé : ce qui tient dans la ligne (4 lignes, 1 en portrait), puis « … » ; le reste
                     // est sur la fiche de l'épisode.
                     if ep.overview != "": Text {
                         text: ep.overview;
-                        color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(0.8);
-                        font-size: (13px * root.k) * Theme.text-scale;
+                        color: (ep-row.lit ? Theme.on-accent : Theme.fg).with-alpha(ep.played && !ep-row.lit ? 0.55 : 0.8);
+                        font-size: ((root.narrow ? 13px : 15px * root.ep-z) * root.k) * Theme.text-scale;
                         wrap: word-wrap;
                         overflow: elide;
-                        height: min(self.preferred-height, (root.narrow ? 17px : 51px) * root.k);
+                        height: min(self.preferred-height, (root.narrow ? 17px : 80px * root.ep-z) * root.k * Theme.text-scale);
                     }
                 }
                 ep-area := TouchArea {
@@ -10161,6 +10346,31 @@ export component AppWindow inherits Window {
                         root.d-child = i;
                         root.open-hero(ep.id);
                     }
+                }
+            }
+            // Résumé complet de l'épisode visé, sous sa ligne, quand celle-ci le coupe.
+            if root.ep-dwell && !root.narrow && root.ep-hot >= 0 && root.ep-hot < root.child-items.length: Rectangle {
+                property <length> pad: 14px * root.k;
+                x: root.ep-thumb-w + 16px * root.k;
+                y: root.ep-head-h + root.ep-hot * (root.ep-row-h + root.ep-gap) + root.ep-row-h - 4px * root.k;
+                width: parent.width - self.x - 8px * root.k;
+                height: full-ov.preferred-height + 2 * self.pad;
+                // Seulement quand le texte dépasse ce que la ligne en montre (4 lignes).
+                visible: root.child-items[root.ep-hot].overview != "" && full-ov.preferred-height > 80px * root.ep-z * root.k * Theme.text-scale + 2px;
+                border-radius: Theme.win7 ? 4px : Theme.term ? 2px : 10px * root.k;
+                background: Theme.bg-mid;
+                border-width: 1px;
+                border-color: Theme.accent2.with-alpha(0.6);
+                drop-shadow-blur: 18px * root.k;
+                drop-shadow-color: #00000080;
+                full-ov := Text {
+                    x: parent.pad;
+                    y: parent.pad;
+                    width: parent.width - 2 * parent.pad;
+                    text: root.child-items[root.ep-hot].overview;
+                    color: Theme.fg.with-alpha(0.9);
+                    font-size: (15px * root.ep-z * root.k) * Theme.text-scale;
+                    wrap: word-wrap;
                 }
             }
         }
@@ -14449,8 +14659,10 @@ export component AppWindow inherits Window {
     property <bool> off-home: root.offline && root.screen == "downloads" && root.dl-level == 0;
     // Collections, Playlists (à leur racine) : des onglets comme les autres, même barre que l'accueil.
     property <bool> home-bar: root.on-home || root.off-home || root.lib-tab-root;
-    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): NavBar {
+    // Après la connexion : rien avant que la photo du compte soit partie (intro-hold), puis entrée (intro-ms).
+    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline) && !root.intro-hold: NavBar {
         y: root.chrome-top;
+        intro-ms: root.intro-ms;
         // Le titre s'arrête avant les icônes de droite (fenêtre étroite, portrait) ; à l'accueil, avant
         // les onglets.
         x: 0px;
@@ -14474,7 +14686,7 @@ export component AppWindow inherits Window {
     // Onglets (Accueil, Favoris, Demandes) : sur toutes les pages, au centre de la barre, jamais sur le
     // titre ni sur les icônes de droite ; seconde ligne quand la place manque (portrait). Hors de
     // l'accueil, aucun n'est en avant, et en choisir un y ramène, sur cet onglet.
-    if root.tabs-on: HorizontalLayout {
+    if root.tabs-on && !root.intro-hold: HorizontalLayout {
         width: self.preferred-width;
         y: root.two-line ? root.header-row - 10px * root.k : root.chrome-top;
         height: root.two-line ? 54px * root.k : 72px * root.k;
@@ -14496,6 +14708,7 @@ export component AppWindow inherits Window {
             text: Tr.t(Tr.k, "Accueil");
             icon: "home";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 0 * 70);
             k: root.tab-k;
             active: (root.on-home && root.tab == "home") || root.off-home;
             focused: root.h-focus && root.h-sel == root.nav-n + 0;
@@ -14508,6 +14721,7 @@ export component AppWindow inherits Window {
             text: Tr.t(Tr.k, "Favoris");
             icon: "heart";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 1 * 70);
             k: root.tab-k;
             active: root.on-home && root.tab == "favorites";
             focused: root.h-focus && root.h-sel == root.nav-n + 1;
@@ -14520,6 +14734,7 @@ export component AppWindow inherits Window {
             text: Tr.t(Tr.k, "À regarder");
             icon: "bookmark";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 2 * 70);
             k: root.tab-k;
             active: root.on-home && root.tab == "watchlist";
             focused: root.h-focus && root.h-sel == root.nav-n + root.tab-watch;
@@ -14532,6 +14747,7 @@ export component AppWindow inherits Window {
             text: Tr.t(Tr.k, "Demandes");
             icon: "requests";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 3 * 70);
             k: root.tab-k;
             active: root.on-home && root.tab == "requests";
             focused: root.h-focus && root.h-sel == root.nav-n + root.tab-req;
@@ -14544,6 +14760,7 @@ export component AppWindow inherits Window {
             text: root.coll-name;
             icon: "library";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 4 * 70);
             k: root.tab-k;
             active: (root.screen == "library" || root.screen == "detail") && root.here-lib == "lib:" + root.coll-id;
             focused: root.h-focus && root.h-sel == root.nav-n + root.tab-coll;
@@ -14556,6 +14773,7 @@ export component AppWindow inherits Window {
             text: root.play-name;
             icon: "playlist";
             compact: root.tab-icons;
+            pop: root.intro-pop(380 + 5 * 70);
             k: root.tab-k;
             active: (root.screen == "library" || root.screen == "detail") && root.here-lib == "lib:" + root.play-id;
             focused: root.h-focus && root.h-sel == root.nav-n + root.tab-play;
@@ -14579,7 +14797,8 @@ export component AppWindow inherits Window {
         tab-m5 := Text { visible: false; text: root.play-name; font-size: (18px) * Theme.text-scale; font-weight: 700; }
         tab-mb := Text { visible: false; text: "Turtlefin"; font-size: (26px) * Theme.text-scale; font-weight: 700; }
     }
-    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline): HeaderRight {
+    if (root.bar-screen || root.on-home) && !root.playing && (root.signed-in || root.offline) && !root.intro-hold: HeaderRight {
+        intro-ms: root.intro-ms;
         // Téléphone tenu droit : la moitié de l'écran ne suffit pas aux cinq icônes (alignées à droite).
         // Toujours la largeur entière (icônes alignées à droite) : la barre ne bouge pas d'une page à l'autre.
         x: 0px;
@@ -15195,6 +15414,7 @@ export component AppWindow inherits Window {
         has-up-image: root.p-has-up-image;
         picks: root.p-picks;
         up-button: root.p-up-button;
+        intro-auto: root.p-intro-auto;
         skip-intro: root.p-skip-intro;
         bg: root.p-bg;
         has-bg: root.p-has-bg;
@@ -15737,7 +15957,8 @@ export component AppWindow inherits Window {
         d-fade: root.header-h + 24px + 316px * root.k + root.d-low - root.d-view-y;
         on-detail: root.screen == "detail";
         k: root.k;
-        glass: root.signed-in && root.screen != "login" && root.screen != "loading";
+        glass: root.signed-in && root.screen != "login" && root.screen != "loading" && !root.intro-hold;
+        bar-in: root.intro-bar;
         decor: root.decor-dim;
         // Le fond commence sous la barre de titre de Windows 7 (chrome-top) : la barre de verre a la
         // hauteur de l'en-tête seul.
@@ -16756,9 +16977,9 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Connexion : la photo du compte
     // 1 : la photo du compte choisi quitte sa tuile pour le centre (élastique), le reste s'efface ;
     // 2 : elle y attend la connexion, une barre de chargement en dessous ;
-    // 3 : connecté : elle part au loin (léger élan puis dézoom), sur un fond qui cache l'accueil ;
-    // 4 : le fond s'efface, l'accueil arrive et l'avatar en haut à droite apparaît en zoomant
-    //     (élastique) ;
+    // 3 : connecté : elle part au loin (léger élan puis dézoom, en s'effaçant) pendant que l'accueil
+    //     arrive dessous (page-enter, rangées en cascade) ; le décor du thème reste ;
+    // 4 : l'avatar en haut à droite apparaît en zoomant (élastique) ;
     // 0 : rien (échec de la connexion : la page « Qui regarde ? » revient).
     in-out property <int> fly-phase;
     in-out property <image> fly-img;
@@ -16781,6 +17002,10 @@ export component AppWindow inherits Window {
     }
     function fly-start(phase: int) {
         if (phase <= 2) {
+            root.fly-home = false;
+        }
+        // Vol vers la barre (3) : la photo revient si la forme de l'accueil l'avait remplacée.
+        if (phase <= 3) {
             root.fly-faded = false;
         }
         root.fly-phase = phase;
@@ -16793,11 +17018,18 @@ export component AppWindow inherits Window {
         root.fly-sy = root.fly-cy;
         root.fly-start(2);
     }
+    // Accueil arrivé pendant que la photo allait au centre : elle part vers la barre une fois posée.
+    property <bool> fly-home;
     Timer {
         interval: 480ms;
         running: root.fly-phase == 1;
         triggered => {
-            root.fly-phase = 2;
+            if (root.fly-home) {
+                root.fly-home = false;
+                root.fly-start(3);
+            } else {
+                root.fly-phase = 2;
+            }
         }
     }
     Timer {
@@ -16805,7 +17037,6 @@ export component AppWindow inherits Window {
         running: root.fly-phase == 3;
         triggered => {
             root.fly-start(4);
-            root.page-enter();
         }
     }
     Timer {
@@ -16831,21 +17062,79 @@ export component AppWindow inherits Window {
     // Avatar en haut à droite : apparition élastique (phase 4), caché avant.
     property <float> fly-pq: root.fly-phase == 4 ? clamp((animation-tick() - root.fly-t0) / 700ms, 0, 1) : 1;
     out property <float> me-pop: root.fly-phase == 3 ? 0
+        : root.intro-live ? 1
         : root.fly-pq >= 1 ? 1 : 1 - pow(2, -9 * root.fly-pq) * cos(root.fly-pq * 440deg);
+
+    // ------------------------------------------------------------ Entrée de l'accueil après la connexion
+    // Session ouverte : l'accueil et la barre du haut attendent que la photo du compte ait fini de partir
+    // (phase 3), puis arrivent morceau par morceau (`intro-ms`, temps écoulé depuis le départ) :
+    //   0 ms     la barre glisse depuis la gauche, comme poussée (intro-bar) ;
+    //   150 ms   ses icônes apparaissent l'une après l'autre, de gauche à droite (élastique), le logo
+    //            joue son animation d'apparition (créé à ce moment-là), la photo du compte en dernier ;
+    //   520 ms   la bannière monte en fondu, son image se pose (léger dézoom), puis ses textes ;
+    //   900 ms   chaque rangée : son nom d'abord, puis ses cartes en chaîne ; rangée suivante 150 ms après.
+    // Une seule fois par session (la barre reste ensuite d'une page à l'autre) ; recharger l'accueil
+    // garde l'arrivée habituelle (page-enter). Sans Motion.pages : l'attente seule (pas de chevauchement).
+    property <bool> intro-wait;
+    property <bool> intro-live;
+    property <duration> intro-t0;
+    property <bool> si-now: root.signed-in;
+    changed si-now => {
+        // Session ouverte ailleurs (retour du serveur sur les téléchargements...) : la barre est déjà là.
+        root.intro-wait = root.signed-in && (root.screen == "boot" || root.screen == "login" || root.screen == "loading" || root.screen == "home");
+        if (!root.signed-in) {
+            root.intro-live = false;
+        }
+    }
+    // Ce qui attend : barre et accueil pas encore créés (le logo et les cartes jouent leur arrivée à
+    // leur création). Ailleurs qu'à l'accueil (fiche ouverte au démarrage...), plus rien n'attend.
+    out property <bool> intro-hold: root.intro-wait && (root.screen == "home" || root.screen == "loading" || root.screen == "login");
+    property <bool> intro-ready: root.intro-wait && root.screen == "home" && root.fly-phase != 1 && root.fly-phase != 2 && root.fly-phase != 3;
+    changed intro-ready => {
+        if (root.intro-ready) {
+            root.intro-wait = false;
+            if (Motion.pages) {
+                root.page-anim = false;
+                root.intro-t0 = animation-tick();
+                root.intro-live = true;
+            }
+        }
+    }
+    Timer {
+        interval: 3400ms;
+        running: root.intro-live;
+        triggered => {
+            root.intro-live = false;
+        }
+    }
+    out property <float> intro-ms: root.intro-live ? (animation-tick() - root.intro-t0) / 1ms : 100000;
+    // Morceau qui commence à `start` ms et dure `len` ms : 0 -> 1, courbe qui ralentit.
+    pure function intro-e(start: float, len: float) -> float {
+        let x = clamp((root.intro-ms - start) / len, 0, 1);
+        return 1 - (1 - x) * (1 - x) * (1 - x);
+    }
+    // Barre du haut : glisse depuis la gauche avec un léger dépassement (poussée), 0 -> 1.
+    property <float> intro-bq: clamp(root.intro-ms / 560, 0, 1);
+    out property <float> intro-bar: root.intro-bq >= 1 ? 1 : 1 + 1.6 * pow(root.intro-bq - 1, 3) + 0.6 * pow(root.intro-bq - 1, 2);
+    // Apparition élastique d'un élément de la barre qui part à `start` ms (onglets).
+    pure function intro-pop(start: float) -> float {
+        let q = clamp((root.intro-ms - start) / 600, 0, 1);
+        return q >= 1 ? 1 : 1 - pow(2, -9 * q) * cos(q * 440deg);
+    }
+    // Rangée n° si de l'accueil : son départ (nom), ses cartes suivent.
+    pure function intro-row(si: int) -> duration {
+        return (900 + min(si, 6) * 150) * 1ms;
+    }
     property <length> fly-cs: 190px * root.k;
     property <length> fly-cx: (root.width - self.fly-cs) / 2;
     property <length> fly-cy: (root.height - self.fly-cs) / 2 - 20px * root.k;
     if root.fly-phase > 0: Rectangle {
         property <float> t: (animation-tick() - root.fly-t0) / 1ms;
-        // Fond : cache l'écran de chargement puis l'accueil jusqu'à la fin du départ de la photo.
-        Rectangle {
-            background: @linear-gradient(180deg, Theme.bg 0%, Theme.bg-mid 55%, Theme.bg-end 100%);
-            opacity: root.fly-phase < 4 ? 1 : 1 - clamp(parent.t / 300, 0, 1);
-            TouchArea {
-                // La molette ne fait pas défiler la page dessous.
-                scroll-event(e) => {
-                    return EventResult.accept;
-                }
+        // Pas de fond : le décor du thème reste visible (la page « Qui regarde ? » s'est effacée, l'écran
+        // de chargement n'est pas affiché pendant le vol). Clics et molette ne passent pas dessous.
+        if root.fly-phase < 4: TouchArea {
+            scroll-event(e) => {
+                return EventResult.accept;
             }
         }
         if (root.fly-phase == 2 || root.fly-phase == 3) && root.fly-fa > 0.01: LoadSkeleton {
@@ -16859,7 +17148,7 @@ export component AppWindow inherits Window {
         // Phase 1 : vers le centre (élastique).
         property <float> a: root.fly-phase == 1 ? clamp(self.t / 460, 0, 1) : 1;
         property <float> ae: 1 - pow(2, -9 * self.a) * cos(self.a * 330deg * 1.35);
-        // Phase 3 : petit élan, puis la photo part au loin (rétrécit et s'efface).
+        // Phase 3 : petit élan, puis la photo part au loin (rétrécit et s'efface), sur place.
         property <float> v: root.fly-phase == 3 ? clamp(self.t / 440, 0, 1) : root.fly-phase == 4 ? 1 : 0;
         property <float> vs: self.v < 0.25 ? 1 + 0.12 * self.v / 0.25 : 1.12 * (1 - pow((self.v - 0.25) / 0.75, 2));
         property <length> s: (root.fly-ss + (root.fly-cs - root.fly-ss) * self.ae) * (root.fly-phase >= 3 ? self.vs : 1);
@@ -17015,6 +17304,9 @@ export component AppWindow inherits Window {
         }
         linked => {
             root.boot-linked();
+        }
+        skip => {
+            root.boot-skip();
         }
         finished => {
             root.boot-on = false;
@@ -18071,7 +18363,11 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Menu d'une carte (grille et rangées) : ouvrir, marquer comme vu ou non vu (remise à zéro).
+    // Menu d'une carte (grille et rangées) : ouvrir, marquer comme vu ou non vu (remise à zéro) ;
+    // administrateurs : identifier, actualiser (page d'options, comme le client officiel), modifier.
+    // Bibliothèque (« Mes médias ») : l'ouvrir ; administrateurs : l'actualiser, ou les analyser toutes.
+    // Habillage du thème : Turtlefin (verre arrondi), Aero (fenêtre de Windows 7, sélection en verre
+    // bleu), Nerd (console : cadre net, « > » et barre d'afficheur devant la ligne choisie).
     if root.cm-open: cm-layer := Rectangle {
         // Clic à côté : fermé.
         TouchArea {
@@ -18080,44 +18376,84 @@ export component AppWindow inherits Window {
                 root.refocus += 1;
             }
         }
-        // Actions, dans l'ordre du menu.
+        property <bool> lib: root.card-is-lib(root.cm-card.id);
+        // Page 0 : actions ; page 1 : options d'actualisation.
+        property <bool> opts: root.cm-page == 1;
         property <string> pl: root.cm-card.played ? "unplayed" : "played";
-        property <[string]> acts: root.is-admin ? ["open", self.pl, "identify", "refresh", "edit"] : ["open", self.pl];
-        property <[string]> labels: root.is-admin ? [
+        property <[string]> acts: self.opts ? ["scan", "missing", "all", "t-img", "t-trick", "back"]
+            : self.lib ? (root.is-admin ? ["open", "refresh", "scanall"] : ["open"])
+            : root.is-admin ? ["open", self.pl, "identify", "refresh", "edit"] : ["open", self.pl];
+        property <[string]> labels: self.opts ? [
+            Tr.t(Tr.k, "Rechercher les fichiers nouveaux et mis à jour"),
+            Tr.t(Tr.k, "Rechercher les métadonnées manquantes"),
+            Tr.t(Tr.k, "Remplacer toutes les métadonnées"),
+            Tr.t(Tr.k, "Remplacer les images existantes"),
+            Tr.t(Tr.k, "Remplacer les images d'aperçu (trickplay)"),
+            Tr.t(Tr.k, "Retour"),
+        ] : self.lib ? (root.is-admin ? [
+            Tr.t(Tr.k, "Ouvrir la bibliothèque"),
+            Tr.t(Tr.k, "Actualiser la bibliothèque…"),
+            Tr.t(Tr.k, "Analyser toutes les bibliothèques"),
+        ] : [Tr.t(Tr.k, "Ouvrir la bibliothèque")]) : root.is-admin ? [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
             Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
-            Tr.t(Tr.k, "Actualiser les informations"),
+            Tr.t(Tr.k, "Actualiser…"),
             Tr.t(Tr.k, "Modifier… (informations, images)"),
         ] : [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
         ];
+        // Icône devant chaque action (MenuIcon) ; cases à cocher pour les options.
+        pure function glyph(a: string) -> string {
+            return a == "t-img" ? (root.cm-img ? "box-on" : "box-off") : a == "t-trick" ? (root.cm-trick ? "box-on" : "box-off") : a;
+        }
+        // Séparateur au-dessus de ces actions (administration ; cases ; retour).
+        pure function sep(a: string) -> bool {
+            return a == "identify" || a == "t-img" || a == "back" || (a == "refresh" && cm-layer.lib);
+        }
         cm-box := Rectangle {
             callback run(int);
             run(i) => {
-                root.cm-open = false;
-                root.refocus += 1;
-                if (cm-layer.acts[i] == "open") {
-                    root.open-hero(root.cm-card.id);
-                } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "refresh" || cm-layer.acts[i] == "edit") {
-                    root.card-admin(cm-layer.acts[i], root.cm-card.id);
+                if (cm-layer.acts[i] == "refresh") {
+                    root.cm-page = 1;
+                    root.cm-sel = 0;
+                } else if (cm-layer.acts[i] == "back") {
+                    root.cm-page = 0;
+                    root.cm-sel = 0;
+                } else if (cm-layer.acts[i] == "t-img") {
+                    root.cm-img = !root.cm-img;
+                } else if (cm-layer.acts[i] == "t-trick") {
+                    root.cm-trick = !root.cm-trick;
                 } else {
-                    root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");
+                    root.cm-open = false;
+                    root.refocus += 1;
+                    if (cm-layer.acts[i] == "open") {
+                        root.open-hero(root.cm-card.id);
+                    } else if (cm-layer.acts[i] == "scan" || cm-layer.acts[i] == "missing" || cm-layer.acts[i] == "all") {
+                        root.card-admin("refresh:" + cm-layer.acts[i] + ":" + (root.cm-img ? "1" : "0") + ":" + (root.cm-trick ? "1" : "0"), root.cm-card.id);
+                    } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "edit" || cm-layer.acts[i] == "scanall") {
+                        root.card-admin(cm-layer.acts[i], root.cm-card.id);
+                    } else {
+                        root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");
+                    }
                 }
             }
-            width: 400px * root.k;
+            property <length> pad: Theme.win7 ? 10px * root.k : 8px * root.k;
+            width: min(parent.width - 16px, (cm-layer.opts ? 480px : 400px) * root.k);
             height: cm-col.preferred-height;
             // Clavier (cm-x < 0) : au centre ; souris, doigt : sur la carte, sans sortir de la fenêtre.
             x: root.cm-x < 0 ? (parent.width - self.width) / 2 : clamp(root.cm-x - self.width / 2, 8px, parent.width - self.width - 8px);
             y: root.cm-y < 0 ? (parent.height - self.height) / 2 : clamp(root.cm-y, 8px, parent.height - self.height - 8px);
-            border-radius: 14px * root.k;
+            border-radius: Theme.win7 ? 8px : Theme.term ? 2px : 14px * root.k;
             // Opaque, quel que soit le thème (les cartes dessous ne doivent pas se voir à travers).
-            background: Theme.bg-mid;
-            border-width: 1px;
-            border-color: Theme.glass-border;
-            drop-shadow-blur: Nav.no-shadow ? 0px : 24px;
-            drop-shadow-color: #00000080;
+            background: Theme.win7 ? transparent : Theme.term ? #020d08 : Theme.bg-mid;
+            border-width: Theme.win7 ? 0px : 1px;
+            border-color: Theme.term ? Theme.accent2.with-alpha(0.8) : Theme.glass-border;
+            drop-shadow-blur: Nav.no-shadow ? 0px : Theme.term ? 14px : 24px;
+            drop-shadow-color: Theme.term ? Theme.accent2.with-alpha(0.25) : #00000080;
+            Gloss { r: parent.border-radius; strength: 0.45; visible: Theme.gloss > 0 && !Theme.win7 && !Theme.term; }
+            WinFrame { r: parent.border-radius; k: root.k; }
             property <float> in-q: 0;
             init => {
                 self.in-q = 1;
@@ -18125,7 +18461,7 @@ export component AppWindow inherits Window {
             animate in-q { duration: Motion.panels ? 160ms : 0ms; easing: ease-out; }
             opacity: self.in-q;
             transform-scale: 0.94 + 0.06 * self.in-q;
-            // Le menu prend le clavier : ↑ ↓, Entrée, Échap.
+            // Le menu prend le clavier : ↑ ↓, Entrée, Échap (page d'options : ← ou Échap revient).
             cm-keys := FocusScope {
                 init => {
                     self.focus();
@@ -18138,8 +18474,11 @@ export component AppWindow inherits Window {
                         root.cm-sel = max(0, root.cm-sel - 1);
                     } else if (event.text == Key.DownArrow) {
                         root.cm-sel = min(cm-layer.acts.length - 1, root.cm-sel + 1);
-                    } else if (event.text == Key.Return) {
+                    } else if (event.text == Key.Return || (event.text == " " && cm-layer.opts)) {
                         cm-box.run(root.cm-sel);
+                    } else if (cm-layer.opts && (event.text == Key.LeftArrow || event.text == Key.Escape || event.text == Key.Backspace)) {
+                        root.cm-page = 0;
+                        root.cm-sel = 0;
                     } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Menu) {
                         root.cm-open = false;
                         root.refocus += 1;
@@ -18148,36 +18487,95 @@ export component AppWindow inherits Window {
                 }
             }
             cm-col := VerticalLayout {
-                padding: 8px * root.k;
+                padding: cm-box.pad;
                 spacing: 2px * root.k;
-                Text {
-                    text: root.cm-card.title;
-                    color: Theme.muted;
-                    font-size: (14px * root.k) * Theme.text-scale;
-                    overflow: elide;
-                    height: 30px * root.k;
-                    vertical-alignment: center;
-                    horizontal-alignment: center;
-                }
-                for label[i] in cm-layer.labels: Rectangle {
-                    height: 44px * root.k;
-                    border-radius: 10px * root.k;
-                    property <bool> lit: Nav.kb ? root.cm-sel == i : cm-row-area.has-hover && !Nav.touch;
-                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : transparent;
+                // En-tête : titre de la carte (Nerd : « [ titre ] ») ; page d'options : ce qui est actualisé.
+                Rectangle {
+                    height: 34px * root.k;
                     Text {
-                        x: 14px * root.k;
-                        width: parent.width - 28px * root.k;
-                        text: label;
-                        color: parent.lit ? Theme.on-accent : Theme.text;
-                        font-size: (16px * root.k) * Theme.text-scale;
+                        x: Theme.term || Theme.win7 ? 10px * root.k : 0px;
+                        width: parent.width - 2 * self.x;
+                        height: parent.height;
+                        text: (Theme.term ? "[ " : "") + (cm-layer.opts ? Tr.f(Tr.k, "Actualiser : {}", root.cm-card.title, "") : root.cm-card.title) + (Theme.term ? " ]" : "");
+                        color: Theme.term ? Theme.accent2 : Theme.win7 ? #ffffff : Theme.muted;
+                        font-size: (14px * root.k) * Theme.text-scale;
+                        font-weight: Theme.win7 || Theme.term ? 600 : 400;
                         overflow: elide;
                         vertical-alignment: center;
+                        horizontal-alignment: Theme.term || Theme.win7 ? left : center;
+                    }
+                    // Trait sous l'en-tête.
+                    Rectangle {
+                        y: parent.height - 1px;
+                        height: 1px;
+                        background: Theme.term ? Theme.accent2.with-alpha(0.35) : Theme.win7 ? #ffffff26 : Theme.fg.with-alpha(0.08);
+                    }
+                }
+                for label[i] in cm-layer.labels: cm-row := Rectangle {
+                    property <string> a: cm-layer.acts[i];
+                    // Séparateur au-dessus du groupe.
+                    property <length> gap: cm-layer.sep(self.a) ? 9px * root.k : 0px;
+                    property <bool> lit: Nav.kb ? root.cm-sel == i : cm-row-area.has-hover && !Nav.touch;
+                    height: 44px * root.k + self.gap;
+                    if cm-row.gap > 0: Rectangle {
+                        x: 10px * root.k;
+                        y: 4px * root.k;
+                        width: cm-row.width - 20px * root.k;
+                        height: 1px;
+                        background: Theme.term ? Theme.accent2.with-alpha(0.25) : Theme.win7 ? #ffffff26 : Theme.fg.with-alpha(0.1);
+                    }
+                    Rectangle {
+                        y: cm-row.gap;
+                        height: cm-row.height - cm-row.gap;
+                        border-radius: Theme.win7 ? 3px : Theme.term ? 0px : 10px * root.k;
+                        background: !cm-row.lit || Theme.win7 ? transparent
+                            : Theme.term ? Theme.accent2.with-alpha(0.14)
+                            : @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                        if Theme.win7 && cm-row.lit: Win7Glass {
+                            lit: true;
+                            border-radius: 3px;
+                        }
+                        // Nerd : barre d'afficheur à gauche de la ligne choisie.
+                        if Theme.term && cm-row.lit: Rectangle {
+                            x: 0px;
+                            width: 3px;
+                            background: Theme.accent2;
+                        }
+                        MenuIcon {
+                            x: 14px * root.k;
+                            y: (parent.height - self.height) / 2;
+                            width: 20px * root.k;
+                            height: self.width;
+                            name: cm-layer.glyph(cm-row.a);
+                            tint: Theme.term ? (cm-row.lit ? Theme.accent2 : Theme.accent2.with-alpha(0.75))
+                                : cm-row.lit ? (Theme.win7 ? white : Theme.on-accent) : Theme.accent2;
+                        }
+                        Text {
+                            x: 42px * root.k;
+                            width: parent.width - 54px * root.k;
+                            height: parent.height;
+                            text: label;
+                            color: Theme.term ? (cm-row.lit ? Theme.accent2 : Theme.accent2.with-alpha(0.75))
+                                : cm-row.lit ? (Theme.win7 ? white : Theme.on-accent) : Theme.text;
+                            font-size: (16px * root.k) * Theme.text-scale;
+                            overflow: elide;
+                            vertical-alignment: center;
+                        }
                     }
                     cm-row-area := TouchArea {
                         clicked => {
+                            root.cm-sel = i;
                             cm-box.run(i);
                         }
                     }
+                }
+                // Page d'options : à quoi servent les cases.
+                if cm-layer.opts: Text {
+                    text: Tr.t(Tr.k, "Les cases valent pour les métadonnées manquantes et pour tout remplacer.");
+                    color: Theme.term ? Theme.accent2.with-alpha(0.6) : Theme.win7 ? #ffffffb0 : Theme.muted;
+                    font-size: (12px * root.k) * Theme.text-scale;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
                 }
             }
         }

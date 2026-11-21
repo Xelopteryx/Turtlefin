@@ -62,10 +62,31 @@ pub type Waiter = std::sync::Mutex<Option<tokio::sync::oneshot::Sender<String>>>
 async fn wait(app: &Arc<App>, timeout: Option<Duration>) -> String {
     let (tx, rx) = tokio::sync::oneshot::channel();
     *app.boot_wait.lock().unwrap() = Some(tx);
+    // Attente qu'une touche peut passer (échec, liaison ; pas une question, sans délai) : animation
+    // déjà passée, la touche arrivée avant l'attente compte.
+    if timeout.is_some() && skipped() {
+        app.boot_wait.lock().unwrap().take();
+        return String::new();
+    }
     match timeout {
         Some(t) => tokio::time::timeout(t, rx).await.ok().and_then(|r| r.ok()).unwrap_or_default(),
         None => rx.await.unwrap_or_default(),
     }
+}
+
+/// Animation passée (touche ou appui, voir `skip`) : les vérifications finissent sans attendre, puis
+/// la première page s'ouvre directement.
+static SKIP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn skipped() -> bool {
+    SKIP.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Touche ou appui pendant le démarrage (pas pendant une question : l'interface ne l'envoie pas).
+/// Réveille aussi l'attente en cours (échec à confirmer, fin de la liaison).
+pub fn skip(app: &Arc<App>) {
+    SKIP.store(true, std::sync::atomic::Ordering::Relaxed);
+    answer(app, String::new());
 }
 
 /// Réponse de l'interface (rappels boot-lang, boot-continue, boot-linked).
@@ -255,6 +276,9 @@ async fn check_point(i: usize, start: &Start) -> Result<bool, String> {
 /// Déroulement complet (dans le runtime tokio).
 pub async fn run(app: Arc<App>, mut start: Start) {
     let animate = !start.no_intro && config::ui_prefs().anim.boot;
+    SKIP.store(false, std::sync::atomic::Ordering::Relaxed);
+    // Animé et pas passé.
+    let anim = || animate && !skipped();
     let step = Duration::from_millis(if animate { 200 } else { 0 });
     let labels = labels();
     // Tout premier lancement (aucune langue choisie) : la langue, puis le thème sont proposés.
@@ -268,7 +292,9 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         set_state(&app, i, 1);
         let txt = format!("{}…", tr(NAMES[i]));
         ui(&app, move |u| u.set_boot_text(txt.into()));
-        tokio::time::sleep(step).await;
+        if anim() {
+            tokio::time::sleep(step).await;
+        }
 
         // Langue : demandée au premier lancement (choix gardé dans prefs.json).
         if i == 0 && config::ui_prefs().language.is_empty() {
@@ -379,14 +405,14 @@ pub async fn run(app: Arc<App>, mut start: Start) {
                 // Point orange et explication ; la suite ne s'arrête pas.
                 set_state(&app, i, if offline { 5 } else { 4 });
                 ui(&app, move |u| u.set_boot_text(txt.into()));
-                if animate {
+                if anim() {
                     tokio::time::sleep(Duration::from_millis(1400)).await;
                 }
             }
             Outcome::Fail(msg) => {
                 eprintln!("turtlefin : démarrage : {msg}");
                 set_state(&app, i, 3);
-                if animate {
+                if anim() {
                     let hint = tr("Continuer");
                     ui(&app, move |u| {
                         u.set_boot_fail(msg.into());
@@ -401,26 +427,33 @@ pub async fn run(app: Arc<App>, mut start: Start) {
     }
     ui(&app, |u| u.set_boot_text("".into()));
 
-    if animate {
+    if anim() {
         // Les points se relient (liaison animée), puis on zoome dans le centre vers la page suivante.
         // Petite pause d'abord : le dernier point (le serveur) a le temps de passer au vert.
         tokio::time::sleep(Duration::from_millis(500)).await;
         ui(&app, |u| u.set_boot_phase(1));
         wait(&app, Some(Duration::from_secs(3))).await;
         // Serveur muet : le logo formé joue son cœur qui se fend ou se débranche avant de partir.
-        if start.unreachable {
+        if start.unreachable && !skipped() {
             tokio::time::sleep(Duration::from_millis(1300)).await;
         }
         let a = app.clone();
+        let jump = skipped();
         ui(&app, move |u| {
             route(&a, &start, u);
-            u.set_boot_phase(2);
+            if jump {
+                u.set_boot_on(false);
+                u.set_refocus(u.get_refocus() + 1);
+            } else {
+                u.set_boot_phase(2);
+            }
         });
     } else {
         let a = app.clone();
         ui(&app, move |u| {
             route(&a, &start, u);
             u.set_boot_on(false);
+            u.set_refocus(u.get_refocus() + 1);
         });
     }
 }

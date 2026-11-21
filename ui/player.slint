@@ -480,6 +480,8 @@ export component PlayerView inherits Rectangle {
     in property <[CardData]> picks;
     in property <string> up-button;
     in property <bool> skip-intro;
+    // Intros passées automatiquement (3 passées d'affilée dans cette série) : pastille avec « Arrêter ».
+    in property <bool> intro-auto;
     in property <image> bg;
     in property <bool> has-bg;
     in property <string> party; // watch party en cours (nom), vide sinon
@@ -2373,6 +2375,39 @@ export component PlayerView inherits Rectangle {
             focused: !root.osd || root.zone == 0;
             clicked => {
                 root.command("skip-intro");
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ Intros passées automatiquement
+    // Avec les commandes, là où apparaît « Passer l'intro » : rappel et bouton pour revenir au choix.
+    if root.intro-auto && root.osd-p > 0.01 && root.skip-p < 0.01 && root.next-p < 0.01: Rectangle {
+        x: parent.width - self.width - root.m;
+        y: parent.height - self.height - root.m - root.osd-p * (160px * root.k + root.m);
+        opacity: root.osd-p;
+        width: ia-text.preferred-width + ia-btn.width + 34px * root.k;
+        height: 44px * root.k;
+        border-radius: Theme.term ? 2px : Theme.win7 ? 4px : self.height / 2;
+        background: Theme.player-bar;
+        border-width: 1px;
+        border-color: Theme.player-ink.with-alpha(0.2);
+        ia-text := Text {
+            x: 18px * root.k;
+            height: parent.height;
+            text: "⏭ " + Tr.t(Tr.k, "Intros passées automatiquement");
+            color: Theme.player-ink.with-alpha(0.9);
+            font-size: (14px * root.k) * Theme.text-scale;
+            vertical-alignment: center;
+        }
+        ia-btn := PlayerButton {
+            x: parent.width - self.width - 4px * root.k;
+            y: 4px * root.k;
+            width: 96px * root.k;
+            size: 36px * root.k;
+            font: (14px * root.k) * Theme.text-scale;
+            text: Tr.t(Tr.k, "Arrêter");
+            clicked => {
+                root.command("intro-auto-off");
             }
         }
     }

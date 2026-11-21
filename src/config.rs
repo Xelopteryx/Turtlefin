@@ -678,6 +678,13 @@ pub struct UiPrefs {
     pub sub_scale: f64,
     /// Taille des textes de l'interface (facteur, 1 = normale ; Theme.text-scale).
     pub text_scale: f64,
+    /// Décor jour et nuit (daynight.rs) : "" selon l'heure, "day" toujours le jour, "night" toujours la nuit.
+    pub daynight_mode: String,
+    /// Passage au jour et à la nuit (minutes de la journée, milieu de l'aube et du crépuscule).
+    pub day_at: u32,
+    pub night_at: u32,
+    /// Durée de l'aube et du crépuscule, en minutes.
+    pub daynight_span: u32,
     /// Statut Discord (page ouverte, média regardé), bureau seulement.
     pub discord: bool,
     /// Interface TV (grands éléments, plein écran) ; les options --tv / --desktop priment.
@@ -882,6 +889,10 @@ impl Default for UiPrefs {
             auto_skip_intro: false,
             sub_scale: 1.0,
             text_scale: 1.0,
+            daynight_mode: String::new(),
+            day_at: 420,
+            night_at: 1140,
+            daynight_span: 60,
             discord: false,
             tv: false,
             fullscreen: false,

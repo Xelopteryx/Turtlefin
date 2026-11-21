@@ -52,6 +52,13 @@ export global Win7Ink {
     }
 }
 
+// Nerd : soudures des plots (rayon 3,5) et pattes de la puce (entre les rayons qui y arrivent), repère
+// 256. Partagées avec l'animation de démarrage (boot.slint), qui les fait apparaître avant le relais.
+export global NerdArt {
+    out property <string> vias: "M 124.5 60 A 3.5 3.5 0 1 0 131.5 60 A 3.5 3.5 0 1 0 124.5 60 Z M 183.5 94 A 3.5 3.5 0 1 0 190.5 94 A 3.5 3.5 0 1 0 183.5 94 Z M 183.5 162 A 3.5 3.5 0 1 0 190.5 162 A 3.5 3.5 0 1 0 183.5 162 Z M 124.5 196 A 3.5 3.5 0 1 0 131.5 196 A 3.5 3.5 0 1 0 124.5 196 Z M 65.5 162 A 3.5 3.5 0 1 0 72.5 162 A 3.5 3.5 0 1 0 65.5 162 Z M 65.5 94 A 3.5 3.5 0 1 0 72.5 94 A 3.5 3.5 0 1 0 65.5 94 Z";
+    out property <string> pins: "M 106 88 L 106 96 M 116 88 L 116 96 M 140 88 L 140 96 M 150 88 L 150 96 M 106 160 L 106 168 M 116 160 L 116 168 M 140 160 L 140 168 M 150 160 L 150 168 M 88 121 L 96 121 M 88 135 L 96 135 M 160 121 L 168 121 M 160 135 L 168 135";
+}
+
 export component Win7Shell inherits Rectangle {
     in property <length> u;
     in property <float> amber;
@@ -377,14 +384,15 @@ component DrawnLogo inherits Rectangle {
         opacity: root.crack;
         commands: "M 58 70 L 92 98 L 84 118 L 112 132 M 92 98 L 104 84 M 150 140 L 174 150 L 168 176 L 196 192 M 174 150 L 190 136";
     }
-    // Aero : grand reflet blanc par-dessus la carapace.
-    if root.orb && !root.hollow: Rectangle {
-        x: (28 + 200 * 0.13) * root.u;
-        y: (28 + 200 * 0.04) * root.u;
-        width: 200 * 0.74 * root.u;
-        height: 200 * 0.44 * root.u;
-        border-radius: self.height / 2;
-        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.06) 100%);
+    // Aero : grand reflet blanc par-dessus la carapace, qui s'efface avant le bord de l'orbe (collé au
+    // bord, il semblait en sortir). Image du carré de l'orbe, faite par tools/logo-station/orb.py
+    // (variante 3, même dessin que l'icône).
+    if root.orb && !root.hollow: Image {
+        x: 28 * root.u;
+        y: 28 * root.u;
+        width: 200 * root.u;
+        height: self.width;
+        source: @image-url("logo/orb_gloss.png");
     }
 
     // Nerd : pistes de circuit. Contour et rayons fins, plots en anneau aux sommets, puce au centre.
@@ -412,6 +420,17 @@ component DrawnLogo inherits Rectangle {
         stroke: Theme.accent2;
         stroke-width: 6 * root.u;
         commands: "M 117 60 A 11 11 0 1 0 139 60 A 11 11 0 1 0 117 60 Z M 176 94 A 11 11 0 1 0 198 94 A 11 11 0 1 0 176 94 Z M 176 162 A 11 11 0 1 0 198 162 A 11 11 0 1 0 176 162 Z M 117 196 A 11 11 0 1 0 139 196 A 11 11 0 1 0 117 196 Z M 58 162 A 11 11 0 1 0 80 162 A 11 11 0 1 0 58 162 Z M 58 94 A 11 11 0 1 0 80 94 A 11 11 0 1 0 58 94 Z";
+    }
+    // Soudure au milieu de chaque plot (pastille d'accent).
+    if root.chip: Path {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        fill: Theme.accent1;
+        commands: NerdArt.vias;
     }
     // Hors ligne : les pistes passent à l'ambre (par-dessus, en fondu).
     if root.chip && root.amber > 0.01: Path {
@@ -450,6 +469,22 @@ component DrawnLogo inherits Rectangle {
         stroke-line-join: round;
         commands: side == 0 ? "M 98 98 L 125 98 L 119 115 L 132 128 L 121 142 L 127 158 L 98 158 Z"
             : "M 125 98 L 158 98 L 158 158 L 127 158 L 121 142 L 132 128 L 119 115 Z";
+    }
+    // Pattes de la puce : elles partent avec elle (éjectée, débranchée), restent en place si elle se fend.
+    if root.chip && !root.hollow && root.eject < 0.999 && root.gone < 0.999: Path {
+        x: 0px;
+        y: (-110 * root.eject - 52 * root.gone) * root.u;
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 256;
+        viewbox-height: 256;
+        transform-rotation: -40deg * root.eject + root.wob;
+        transform-scale: 1 + 0.18 * root.gone;
+        opacity: (1 - root.eject) * (1 - root.gone);
+        fill: transparent;
+        stroke: Theme.accent2;
+        stroke-width: 4 * root.u;
+        commands: NerdArt.pins;
     }
     // Contour de la puce entière (d'un seul tenant, sans la fêlure).
     if root.chip && !root.hollow && root.split <= 0.01 && root.eject < 0.999 && root.gone < 0.999: Path {

@@ -1087,6 +1087,9 @@ msgstr "Track {}"
 msgid "Intro passée"
 msgstr "Intro skipped"
 
+msgid "Les prochaines intros de cette série seront passées automatiquement"
+msgstr "The next intros of this series will be skipped automatically"
+
 msgid "mpv n'a pas pu lire ce média ({})"
 msgstr "mpv could not play this media ({})"
 
@@ -4169,3 +4172,105 @@ msgstr "{} · paused"
 
 msgid "← → ou glisser sur la barre."
 msgstr "← → or drag along the bar."
+
+msgid "finit à {}"
+msgstr "ends at {}"
+
+msgid "Intros passées automatiquement"
+msgstr "Intros skipped automatically"
+
+msgid "Rechercher les fichiers nouveaux et mis à jour"
+msgstr "Scan for new and updated files"
+
+msgid "Rechercher les métadonnées manquantes"
+msgstr "Search for missing metadata"
+
+msgid "Remplacer toutes les métadonnées"
+msgstr "Replace all metadata"
+
+msgid "Remplacer les images existantes"
+msgstr "Replace existing images"
+
+msgid "Remplacer les images d'aperçu (trickplay)"
+msgstr "Replace preview images (trickplay)"
+
+msgid "Ouvrir la bibliothèque"
+msgstr "Open library"
+
+msgid "Actualiser la bibliothèque…"
+msgstr "Refresh library…"
+
+msgid "Actualiser…"
+msgstr "Refresh…"
+
+msgid "Actualiser : {}"
+msgstr "Refresh: {}"
+
+msgid "Les cases valent pour les métadonnées manquantes et pour tout remplacer."
+msgstr "The checkboxes apply to missing metadata and to replace all."
+
+msgid "Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour."
+msgstr "Scan started: the server is looking for new and updated files."
+
+msgid "Décor jour et nuit"
+msgstr "Day and night scenery"
+
+msgid "Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."
+msgstr "The theme's scenery follows the time: day, dusk, night, dawn."
+
+msgid "Passage au jour"
+msgstr "Switch to day"
+
+msgid "Milieu de l'aube."
+msgstr "Middle of dawn."
+
+msgid "Passage à la nuit"
+msgstr "Switch to night"
+
+msgid "Milieu du crépuscule."
+msgstr "Middle of dusk."
+
+msgid "Durée de l'aube et du crépuscule"
+msgstr "Length of dawn and dusk"
+
+msgid "Le temps que met le décor à passer du jour à la nuit, et inversement."
+msgstr "How long the scenery takes to go from day to night, and back."
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "Toujours le jour"
+msgstr "Always day"
+
+msgid "Toujours la nuit"
+msgstr "Always night"
+
+msgid "Selon l'heure"
+msgstr "By the time of day"
+
+msgid "veille"
+msgstr "standby"
+
+msgid "actif"
+msgstr "active"
+
+msgid "serveur"
+msgstr "server"
+
+msgid "connexion"
+msgstr "link"
+
+msgid "en ligne"
+msgstr "online"
+
+msgid "hors ligne"
+msgstr "offline"
+
+msgid "mémoire"
+msgstr "memory"
+
+msgid "cache"
+msgstr "cache"
+
+msgid "lancé depuis"
+msgstr "uptime"

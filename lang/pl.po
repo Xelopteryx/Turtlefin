@@ -1089,6 +1089,9 @@ msgstr "Ścieżka {}"
 msgid "Intro passée"
 msgstr "Pominięto intro"
 
+msgid "Les prochaines intros de cette série seront passées automatiquement"
+msgstr "Kolejne intro tego serialu będą pomijane automatycznie"
+
 msgid "mpv n'a pas pu lire ce média ({})"
 msgstr "mpv nie mógł odtworzyć tego materiału ({})"
 
@@ -4181,3 +4184,105 @@ msgstr "{} · wstrzymane"
 
 msgid "← → ou glisser sur la barre."
 msgstr "← → lub przeciągnij po pasku."
+
+msgid "finit à {}"
+msgstr "koniec o {}"
+
+msgid "Intros passées automatiquement"
+msgstr "Intro pomijane automatycznie"
+
+msgid "Rechercher les fichiers nouveaux et mis à jour"
+msgstr "Szukaj nowych i zaktualizowanych plików"
+
+msgid "Rechercher les métadonnées manquantes"
+msgstr "Szukaj brakujących metadanych"
+
+msgid "Remplacer toutes les métadonnées"
+msgstr "Zastąp wszystkie metadane"
+
+msgid "Remplacer les images existantes"
+msgstr "Zastąp istniejące obrazy"
+
+msgid "Remplacer les images d'aperçu (trickplay)"
+msgstr "Zastąp obrazy podglądu (trickplay)"
+
+msgid "Ouvrir la bibliothèque"
+msgstr "Otwórz bibliotekę"
+
+msgid "Actualiser la bibliothèque…"
+msgstr "Odśwież bibliotekę…"
+
+msgid "Actualiser…"
+msgstr "Odśwież…"
+
+msgid "Actualiser : {}"
+msgstr "Odśwież: {}"
+
+msgid "Les cases valent pour les métadonnées manquantes et pour tout remplacer."
+msgstr "Pola dotyczą brakujących metadanych i zastąpienia wszystkiego."
+
+msgid "Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour."
+msgstr "Wyszukiwanie rozpoczęte: serwer szuka nowych i zaktualizowanych plików."
+
+msgid "Décor jour et nuit"
+msgstr "Tło dzień i noc"
+
+msgid "Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."
+msgstr "Tło motywu podąża za porą dnia: dzień, zmierzch, noc, świt."
+
+msgid "Passage au jour"
+msgstr "Przejście w dzień"
+
+msgid "Milieu de l'aube."
+msgstr "Środek świtu."
+
+msgid "Passage à la nuit"
+msgstr "Przejście w noc"
+
+msgid "Milieu du crépuscule."
+msgstr "Środek zmierzchu."
+
+msgid "Durée de l'aube et du crépuscule"
+msgstr "Długość świtu i zmierzchu"
+
+msgid "Le temps que met le décor à passer du jour à la nuit, et inversement."
+msgstr "Ile czasu tło przechodzi z dnia w noc i z powrotem."
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "Toujours le jour"
+msgstr "Zawsze dzień"
+
+msgid "Toujours la nuit"
+msgstr "Zawsze noc"
+
+msgid "Selon l'heure"
+msgstr "Według pory dnia"
+
+msgid "veille"
+msgstr "uśpienie"
+
+msgid "actif"
+msgstr "aktywny"
+
+msgid "serveur"
+msgstr "serwer"
+
+msgid "connexion"
+msgstr "połączenie"
+
+msgid "en ligne"
+msgstr "online"
+
+msgid "hors ligne"
+msgstr "offline"
+
+msgid "mémoire"
+msgstr "pamięć"
+
+msgid "cache"
+msgstr "pamięć podręczna"
+
+msgid "lancé depuis"
+msgstr "działa od"

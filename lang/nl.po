@@ -1087,6 +1087,9 @@ msgstr "Spoor {}"
 msgid "Intro passée"
 msgstr "Intro overgeslagen"
 
+msgid "Les prochaines intros de cette série seront passées automatiquement"
+msgstr "De volgende intro's van deze serie worden automatisch overgeslagen"
+
 msgid "mpv n'a pas pu lire ce média ({})"
 msgstr "mpv kon dit item niet afspelen ({})"
 
@@ -4169,3 +4172,105 @@ msgstr "{} · gepauzeerd"
 
 msgid "← → ou glisser sur la barre."
 msgstr "← → of sleep over de balk."
+
+msgid "finit à {}"
+msgstr "eindigt om {}"
+
+msgid "Intros passées automatiquement"
+msgstr "Intro's automatisch overgeslagen"
+
+msgid "Rechercher les fichiers nouveaux et mis à jour"
+msgstr "Zoeken naar nieuwe en bijgewerkte bestanden"
+
+msgid "Rechercher les métadonnées manquantes"
+msgstr "Zoeken naar ontbrekende metadata"
+
+msgid "Remplacer toutes les métadonnées"
+msgstr "Alle metadata vervangen"
+
+msgid "Remplacer les images existantes"
+msgstr "Bestaande afbeeldingen vervangen"
+
+msgid "Remplacer les images d'aperçu (trickplay)"
+msgstr "Voorbeeldafbeeldingen vervangen (trickplay)"
+
+msgid "Ouvrir la bibliothèque"
+msgstr "Bibliotheek openen"
+
+msgid "Actualiser la bibliothèque…"
+msgstr "Bibliotheek vernieuwen…"
+
+msgid "Actualiser…"
+msgstr "Vernieuwen…"
+
+msgid "Actualiser : {}"
+msgstr "Vernieuwen: {}"
+
+msgid "Les cases valent pour les métadonnées manquantes et pour tout remplacer."
+msgstr "De vakjes gelden voor ontbrekende metadata en voor alles vervangen."
+
+msgid "Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour."
+msgstr "Zoeken gestart: de server zoekt naar nieuwe en bijgewerkte bestanden."
+
+msgid "Décor jour et nuit"
+msgstr "Dag- en nachtdecor"
+
+msgid "Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."
+msgstr "Het decor van het thema volgt de tijd: dag, schemering, nacht, dageraad."
+
+msgid "Passage au jour"
+msgstr "Overgang naar dag"
+
+msgid "Milieu de l'aube."
+msgstr "Midden van de dageraad."
+
+msgid "Passage à la nuit"
+msgstr "Overgang naar nacht"
+
+msgid "Milieu du crépuscule."
+msgstr "Midden van de schemering."
+
+msgid "Durée de l'aube et du crépuscule"
+msgstr "Duur van dageraad en schemering"
+
+msgid "Le temps que met le décor à passer du jour à la nuit, et inversement."
+msgstr "Hoe lang het decor nodig heeft om van dag naar nacht te gaan, en terug."
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "Toujours le jour"
+msgstr "Altijd dag"
+
+msgid "Toujours la nuit"
+msgstr "Altijd nacht"
+
+msgid "Selon l'heure"
+msgstr "Volgens de tijd"
+
+msgid "veille"
+msgstr "stand-by"
+
+msgid "actif"
+msgstr "actief"
+
+msgid "serveur"
+msgstr "server"
+
+msgid "connexion"
+msgstr "verbinding"
+
+msgid "en ligne"
+msgstr "online"
+
+msgid "hors ligne"
+msgstr "offline"
+
+msgid "mémoire"
+msgstr "geheugen"
+
+msgid "cache"
+msgstr "cache"
+
+msgid "lancé depuis"
+msgstr "actief sinds"

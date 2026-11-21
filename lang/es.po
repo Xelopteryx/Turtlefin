@@ -1087,6 +1087,9 @@ msgstr "Pista {}"
 msgid "Intro passée"
 msgstr "Intro saltada"
 
+msgid "Les prochaines intros de cette série seront passées automatiquement"
+msgstr "Las próximas intros de esta serie se saltarán automáticamente"
+
 msgid "mpv n'a pas pu lire ce média ({})"
 msgstr "mpv no pudo reproducir este contenido ({})"
 
@@ -4169,3 +4172,105 @@ msgstr "{} · en pausa"
 
 msgid "← → ou glisser sur la barre."
 msgstr "← → o arrastra sobre la barra."
+
+msgid "finit à {}"
+msgstr "termina a las {}"
+
+msgid "Intros passées automatiquement"
+msgstr "Intros saltadas automáticamente"
+
+msgid "Rechercher les fichiers nouveaux et mis à jour"
+msgstr "Buscar archivos nuevos y actualizados"
+
+msgid "Rechercher les métadonnées manquantes"
+msgstr "Buscar metadatos faltantes"
+
+msgid "Remplacer toutes les métadonnées"
+msgstr "Reemplazar todos los metadatos"
+
+msgid "Remplacer les images existantes"
+msgstr "Reemplazar imágenes existentes"
+
+msgid "Remplacer les images d'aperçu (trickplay)"
+msgstr "Reemplazar imágenes de vista previa (trickplay)"
+
+msgid "Ouvrir la bibliothèque"
+msgstr "Abrir biblioteca"
+
+msgid "Actualiser la bibliothèque…"
+msgstr "Actualizar biblioteca…"
+
+msgid "Actualiser…"
+msgstr "Actualizar…"
+
+msgid "Actualiser : {}"
+msgstr "Actualizar: {}"
+
+msgid "Les cases valent pour les métadonnées manquantes et pour tout remplacer."
+msgstr "Las casillas se aplican a metadatos faltantes y a reemplazar todo."
+
+msgid "Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour."
+msgstr "Búsqueda iniciada: el servidor busca archivos nuevos y actualizados."
+
+msgid "Décor jour et nuit"
+msgstr "Decorado de día y noche"
+
+msgid "Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."
+msgstr "El decorado del tema sigue la hora: día, atardecer, noche, amanecer."
+
+msgid "Passage au jour"
+msgstr "Paso al día"
+
+msgid "Milieu de l'aube."
+msgstr "Mitad del amanecer."
+
+msgid "Passage à la nuit"
+msgstr "Paso a la noche"
+
+msgid "Milieu du crépuscule."
+msgstr "Mitad del atardecer."
+
+msgid "Durée de l'aube et du crépuscule"
+msgstr "Duración del amanecer y del atardecer"
+
+msgid "Le temps que met le décor à passer du jour à la nuit, et inversement."
+msgstr "Lo que tarda el decorado en pasar del día a la noche, y al revés."
+
+msgid "{} min"
+msgstr "{} min"
+
+msgid "Toujours le jour"
+msgstr "Siempre de día"
+
+msgid "Toujours la nuit"
+msgstr "Siempre de noche"
+
+msgid "Selon l'heure"
+msgstr "Según la hora"
+
+msgid "veille"
+msgstr "en espera"
+
+msgid "actif"
+msgstr "activo"
+
+msgid "serveur"
+msgstr "servidor"
+
+msgid "connexion"
+msgstr "conexión"
+
+msgid "en ligne"
+msgstr "en línea"
+
+msgid "hors ligne"
+msgstr "sin conexión"
+
+msgid "mémoire"
+msgstr "memoria"
+
+msgid "cache"
+msgstr "caché"
+
+msgid "lancé depuis"
+msgstr "activo desde"

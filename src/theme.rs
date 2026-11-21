@@ -208,7 +208,7 @@ fn aero() -> ThemeDef {
         veil: 1.5,
         radius: 8.0,
         gloss: 1.0,
-        scenery: s("harmony"),
+        scenery: s("aqua"),
         header_glass: true,
         header: s("glass"),
         edge: s("#ffffff73"),
@@ -534,6 +534,7 @@ pub fn apply_tokens(th: &crate::Theme<'_>, t: &ThemeDef) {
         "harmony" => 2,
         "circuit" => 3,
         "abyss" => 4,
+        "aqua" => 5,
         _ if t.bubbles => 1,
         _ => 0,
     };
@@ -578,12 +579,13 @@ pub fn apply_tokens(th: &crate::Theme<'_>, t: &ThemeDef) {
     });
 }
 
-/// Logo de Turtlefin aux couleurs d'un thème (même dessin que packaging/turtlefin.svg) : carré
-/// arrondi du fond du thème, carapace en dégradé d'accent, reflet brillant pour les thèmes à reflet.
-/// Sert d'icône à la fenêtre (barre des tâches). Dessiné 4x plus grand puis réduit (moyenne de
-/// 16 points par pixel) : les traits fins (liserés de l'orbe) ne crénèlent pas en petite taille.
+/// Logo de Turtlefin aux couleurs d'un thème (même dessin que packaging/turtlefin.svg), seul sur
+/// fond transparent (plus de carré arrondi : sur le bureau, il faisait icône de téléphone) ; l'orbe
+/// d'Aero est sa propre forme. Sert d'icône à la fenêtre, à la barre des tâches et aux raccourcis.
+/// Dessiné 4x plus grand puis réduit (moyenne de 16 points par pixel) : les traits fins (liserés de
+/// l'orbe) ne crénèlent pas en petite taille.
 pub fn icon(t: &ThemeDef, n: u32) -> slint::SharedPixelBuffer<slint::Rgba8Pixel> {
-    icon_ss(t, n, true)
+    icon_ss(t, n, false)
 }
 
 /// Icône rendue à 4x puis réduite (bords lisses) ; `with_bg` faux : logo seul, fond transparent.
@@ -762,7 +764,7 @@ fn trace_icon(
         let mut d = f32::MAX;
         for k6 in 0..6 {
             d = d.min(seg(l, outer[k6], outer[(k6 + 1) % 6]) - if gate { 7.0 } else { 4.5 });
-            d = d.min(seg(l, outer[k6], inner[k6]) - if gate { 4.0 } else { 3.0 });
+            d = d.min(seg(l, outer[k6], inner[k6]) - if gate { 4.0 } else { 4.5 });
         }
         let ink = |pt: (f32, f32)| if gate { mix(white, a2, (((pt.0 - 53.0) + (pt.1 - 53.0)) / 300.0).clamp(0.0, 1.0)) } else { mix(a1, a2, (((pt.0 - 53.0) + (pt.1 - 53.0)) / 300.0).clamp(0.0, 1.0)) };
         put(ink(l), cov(d * 1.4 * k), &mut c, &mut a);
@@ -783,17 +785,30 @@ fn trace_icon(
             }
             put(ink(l), if inside { 1.0 } else { cov(di * 1.4 * k) }, &mut c, &mut a);
         } else {
-            // Plots ronds aux sommets (anneau) et puce carrée au centre.
+            // Même dessin que ThemeLogo (ui/logo.slint) : plots ronds aux sommets (anneau de rayon 11,
+            // trait 6, soudure au milieu), puce carrée de 60 au centre, ses pattes et son cœur.
             for o in outer.iter() {
                 let dd = ((l.0 - o.0).powi(2) + (l.1 - o.1).powi(2)).sqrt();
-                put(bg1, cov((dd - 8.0) * 1.4), &mut c, &mut a);
-                put(a2, cov(((dd - 8.0).abs() - 3.0) * 1.4), &mut c, &mut a);
+                put(bg1, cov((dd - 11.0) * 1.4), &mut c, &mut a);
+                put(a2, cov(((dd - 11.0).abs() - 3.0) * 1.4), &mut c, &mut a);
+                put(a1, cov((dd - 3.5) * 1.4), &mut c, &mut a);
             }
-            let (qx, qy) = ((l.0 - 128.0).abs() - 22.0, (l.1 - 128.0).abs() - 22.0);
+            // Pattes (NerdArt.pins) : 4 en haut, 4 en bas, 2 de chaque côté.
+            let mut dp = f32::MAX;
+            for x in [106.0, 116.0, 140.0, 150.0] {
+                dp = dp.min(seg(l, (x, 88.0), (x, 96.0)).max((l.1 - 92.0).abs() - 4.0));
+                dp = dp.min(seg(l, (x, 160.0), (x, 168.0)).max((l.1 - 164.0).abs() - 4.0));
+            }
+            for y in [121.0, 135.0] {
+                dp = dp.min(seg(l, (88.0, y), (96.0, y)).max((l.0 - 92.0).abs() - 4.0));
+                dp = dp.min(seg(l, (160.0, y), (168.0, y)).max((l.0 - 164.0).abs() - 4.0));
+            }
+            put(a2, cov((dp - 2.0) * 1.4), &mut c, &mut a);
+            let (qx, qy) = ((l.0 - 128.0).abs() - 30.0, (l.1 - 128.0).abs() - 30.0);
             let sq = qx.max(qy);
-            put([10.0, 40.0, 26.0], cov(sq * 1.4), &mut c, &mut a);
+            put(mix(bg1, a1, 0.25), cov(sq * 1.4), &mut c, &mut a);
             put(a2, cov((sq.abs() - 2.5) * 1.4), &mut c, &mut a);
-            let (qx, qy) = ((l.0 - 128.0).abs() - 9.0, (l.1 - 128.0).abs() - 9.0);
+            let (qx, qy) = ((l.0 - 128.0).abs() - 12.0, (l.1 - 128.0).abs() - 12.0);
             put(a1, cov(qx.max(qy) * 1.4), &mut c, &mut a);
         }
         *p = slint::Rgba8Pixel { r: c[0].round() as u8, g: c[1].round() as u8, b: c[2].round() as u8, a: (a.clamp(0.0, 1.0) * 255.0) as u8 };
@@ -806,8 +821,14 @@ fn trace_icon(
 /// (voir le test `android_icons`), une par thème intégré.
 #[cfg(test)]
 pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rgba8Pixel>, String, String) {
-    // Logo : 168 / 256 de son image ; orbe : 244 / 256. Zone sûre : 66 / 108 du canevas.
-    let (span, target) = if t.logo == "orb" { (244.0, 0.60) } else { (168.0, 0.56) };
+    // Hauteur du dessin dans son image : carapace 210 / 256 (pointes comprises), orbe 244 / 256,
+    // pistes (Nerd) 230 / 256 (plots compris). Les pointes et les plots dépassaient du masque rond du
+    // lanceur. Zone sûre : 66 / 108 du canevas.
+    let (span, target) = match t.logo.as_str() {
+        "orb" => (244.0, 0.60),
+        "chip" => (230.0, 0.58),
+        _ => (210.0, 0.58),
+    };
     let m = ((n as f32 * target * 256.0 / span).round() as u32).min(n);
     let part = icon_ss(t, m, false);
     let mut out = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(n, n);
@@ -823,6 +844,11 @@ pub fn android_icon(t: &ThemeDef, n: u32) -> (slint::SharedPixelBuffer<slint::Rg
     let bg = if t.bg.is_empty() { d.bg.clone() } else { t.bg.clone() };
     let end = if t.bg_end.is_empty() { bg.clone() } else { t.bg_end.clone() };
     let hex = |c: &str| parse(c).map(|c| format!("#{:02x}{:02x}{:02x}", c.red(), c.green(), c.blue())).unwrap_or_else(|| "#010e18".into());
+    // Orbe : ciel clair (accent clair vers le bleu du milieu du fond), pour que le verre sombre ressorte.
+    if t.logo == "orb" {
+        let mid = if t.bg_mid.is_empty() { end.clone() } else { t.bg_mid.clone() };
+        return (out, hex(&t.accent2), hex(&mid));
+    }
     (out, hex(&bg), hex(&end))
 }
 
@@ -918,11 +944,14 @@ fn orb_icon(n: u32, px: f32, bg: Color, a1: Color, a2: Color, outer: &[(f32, f32
         }
         let g = mix(white, [205.0, 230.0, 255.0], ((l.1 - 98.0) / 60.0).clamp(0.0, 1.0));
         c = mix(c, g, cov(dc * 1.12));
-        // Grand reflet blanc en haut (ellipse), par-dessus tout.
+        // Grand reflet blanc en haut (ellipse), par-dessus tout ; il s'efface avant le bord de l'orbe
+        // (collé au bord, il semblait en sortir). Variante 3 de tools/logo-station/orb.py, la même
+        // que ui/logo/orb_gloss.png (ThemeLogo).
         let (ex, ey) = ((sx - 128.0) / 96.0, (sy - 66.0) / 54.0);
         let e = ex * ex + ey * ey;
         if e < 1.0 {
-            let w = (1.0 - e).sqrt().min(1.0) * (0.62 - 0.5 * ((sy - 12.0) / 108.0).clamp(0.0, 1.0));
+            let fade = ((r - 104.0) / 12.0).clamp(0.0, 1.0);
+            let w = (1.0 - e).sqrt().min(1.0) * (0.62 - 0.5 * ((sy - 12.0) / 108.0).clamp(0.0, 1.0)) * (1.0 - fade * fade * (3.0 - 2.0 * fade));
             c = mix(c, white, w.max(0.0));
         }
         *p = slint::Rgba8Pixel { r: c[0] as u8, g: c[1] as u8, b: c[2] as u8, a: (a * 255.0) as u8 };
@@ -1161,19 +1190,8 @@ mod tests {
             let (fg, top, bottom) = super::android_icon(&t, 432);
             let img = image::RgbaImage::from_raw(fg.width(), fg.height(), fg.as_bytes().to_vec()).unwrap();
             img.save(dir.join("drawable-nodpi").join(format!("ic_fg_{k}.png"))).unwrap();
-            // Aero : l'orbe seule, sans fond (transparent autour).
-            if t.logo == "orb" {
-                std::fs::write(
-                    dir.join("drawable").join(format!("ic_bg_{k}.xml")),
-                    format!("<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<!-- Fond de l'icône du thème « {k} » : transparent (généré : theme.rs, test android_icons). -->
-<shape xmlns:android=\"http://schemas.android.com/apk/res/android\">
-    <solid android:color=\"@android:color/transparent\" />
-</shape>
-"),
-                )
-                .unwrap();
-            } else {
+            // Fond en dégradé pour tous (Aero : ciel clair, voir android_icon). Un fond transparent
+            // s'affichait en noir sur beaucoup de lanceurs.
             std::fs::write(
                 dir.join("drawable").join(format!("ic_bg_{k}.xml")),
                 format!(
@@ -1186,7 +1204,6 @@ mod tests {
                 ),
             )
             .unwrap();
-            }
             std::fs::write(
                 dir.join("mipmap-anydpi-v26").join(format!("ic_{k}.xml")),
                 format!(

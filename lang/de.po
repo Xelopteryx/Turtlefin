@@ -1087,6 +1087,9 @@ msgstr "Spur {}"
 msgid "Intro passée"
 msgstr "Intro übersprungen"
 
+msgid "Les prochaines intros de cette série seront passées automatiquement"
+msgstr "Die nächsten Intros dieser Serie werden automatisch übersprungen"
+
 msgid "mpv n'a pas pu lire ce média ({})"
 msgstr "mpv konnte dieses Medium nicht abspielen ({})"
 
@@ -4169,3 +4172,105 @@ msgstr "{} · pausiert"
 
 msgid "← → ou glisser sur la barre."
 msgstr "← → oder auf dem Balken ziehen."
+
+msgid "finit à {}"
+msgstr "endet um {}"
+
+msgid "Intros passées automatiquement"
+msgstr "Intros werden automatisch übersprungen"
+
+msgid "Rechercher les fichiers nouveaux et mis à jour"
+msgstr "Nach neuen und aktualisierten Dateien suchen"
+
+msgid "Rechercher les métadonnées manquantes"
+msgstr "Nach fehlenden Metadaten suchen"
+
+msgid "Remplacer toutes les métadonnées"
+msgstr "Alle Metadaten ersetzen"
+
+msgid "Remplacer les images existantes"
+msgstr "Vorhandene Bilder ersetzen"
+
+msgid "Remplacer les images d'aperçu (trickplay)"
+msgstr "Vorschaubilder ersetzen (Trickplay)"
+
+msgid "Ouvrir la bibliothèque"
+msgstr "Bibliothek öffnen"
+
+msgid "Actualiser la bibliothèque…"
+msgstr "Bibliothek aktualisieren…"
+
+msgid "Actualiser…"
+msgstr "Aktualisieren…"
+
+msgid "Actualiser : {}"
+msgstr "Aktualisieren: {}"
+
+msgid "Les cases valent pour les métadonnées manquantes et pour tout remplacer."
+msgstr "Die Kästchen gelten für fehlende Metadaten und für „Alle ersetzen“."
+
+msgid "Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour."
+msgstr "Suche gestartet: Der Server sucht nach neuen und aktualisierten Dateien."
+
+msgid "Décor jour et nuit"
+msgstr "Tag- und Nachtkulisse"
+
+msgid "Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."
+msgstr "Die Kulisse des Themas folgt der Uhrzeit: Tag, Dämmerung, Nacht, Morgengrauen."
+
+msgid "Passage au jour"
+msgstr "Wechsel zum Tag"
+
+msgid "Milieu de l'aube."
+msgstr "Mitte der Morgendämmerung."
+
+msgid "Passage à la nuit"
+msgstr "Wechsel zur Nacht"
+
+msgid "Milieu du crépuscule."
+msgstr "Mitte der Abenddämmerung."
+
+msgid "Durée de l'aube et du crépuscule"
+msgstr "Dauer von Morgen- und Abenddämmerung"
+
+msgid "Le temps que met le décor à passer du jour à la nuit, et inversement."
+msgstr "Wie lange die Kulisse vom Tag zur Nacht braucht, und zurück."
+
+msgid "{} min"
+msgstr "{} Min."
+
+msgid "Toujours le jour"
+msgstr "Immer Tag"
+
+msgid "Toujours la nuit"
+msgstr "Immer Nacht"
+
+msgid "Selon l'heure"
+msgstr "Nach der Uhrzeit"
+
+msgid "veille"
+msgstr "Bereitschaft"
+
+msgid "actif"
+msgstr "aktiv"
+
+msgid "serveur"
+msgstr "server"
+
+msgid "connexion"
+msgstr "verbindung"
+
+msgid "en ligne"
+msgstr "online"
+
+msgid "hors ligne"
+msgstr "offline"
+
+msgid "mémoire"
+msgstr "speicher"
+
+msgid "cache"
+msgstr "cache"
+
+msgid "lancé depuis"
+msgstr "läuft seit"

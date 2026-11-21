@@ -14,4 +14,6 @@ export struct CardData {
     deck: bool,      // collection : ouverte en distribuant ses films comme des cartes
     group: string,   // série d'un épisode (retour de l'image partagée, voir Hero)
     overview: string, // résumé (épisodes d'une saison, en liste), vide sinon
+    minutes: int,     // épisode d'une saison : durée restante (« finit à »), 0 sinon
+    next: bool,       // épisode d'une saison : le prochain à regarder (« À suivre »)
 }

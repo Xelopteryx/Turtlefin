@@ -72,6 +72,10 @@ fn find_lines(u: &AppWindow) -> Option<Vec<Line>> {
     let a = snap(u);
     u.set_dust_blank(true);
     let b = snap(u);
+    // Troisième capture, de nouveau en vraie police : ce qui a changé entre la première et elle n'est
+    // pas du texte (décor animé, photo animée…) et ne doit pas devenir une barre.
+    u.set_dust_blank(false);
+    let c = snap(u);
     u.set_dust_blank(blank);
     u.set_dust_snap(false);
     u.set_dust_on(on);
@@ -80,11 +84,10 @@ fn find_lines(u: &AppWindow) -> Option<Vec<Line>> {
     if b.w != w || b.h != h {
         return None;
     }
-    let mask: Vec<bool> = a
-        .px
-        .iter()
-        .zip(&b.px)
-        .map(|(p, q)| (p[0] as i32 - q[0] as i32).abs() + (p[1] as i32 - q[1] as i32).abs() + (p[2] as i32 - q[2] as i32).abs() > 6)
+    let differ = |p: &[u8; 3], q: &[u8; 3]| (p[0] as i32 - q[0] as i32).abs() + (p[1] as i32 - q[1] as i32).abs() + (p[2] as i32 - q[2] as i32).abs() > 6;
+    let c = c.filter(|c| c.w == w && c.h == h);
+    let mask: Vec<bool> = (0..a.px.len())
+        .map(|i| differ(&a.px[i], &b.px[i]) && !c.as_ref().is_some_and(|c| differ(&a.px[i], &c.px[i])))
         .collect();
     let s = u.window().scale_factor();
     let lines = group_lines(&mask, w, h, s);
@@ -163,6 +166,9 @@ fn group_lines(mask: &[bool], w: usize, h: usize, s: f32) -> Vec<Line> {
     let mut lines: Vec<Line> = merged
         .into_values()
         .filter(|&(x0, y0, x1, y1)| (x1 - x0) * (y1 - y0) >= 3 && ((y1 - y0) as f32) < 90.0 * s)
+        // Fine tranche verticale : le bord d'une icône décalée d'une fraction de pixel entre deux
+        // captures (l'icône de « Lecture » dans les Paramètres), pas un mot.
+        .filter(|&(x0, y0, x1, y1)| !((x1 - x0) as f32 <= 6.0 * s && ((x1 - x0) as f32) < 0.3 * (y1 - y0) as f32))
         .map(|(x0, y0, x1, y1)| Line { x: x0 as f32 / s, y: y0 as f32 / s, w: (x1 - x0) as f32 / s, h: (y1 - y0) as f32 / s })
         .collect();
     // Ordre de lecture : de haut en bas, puis de gauche à droite (lignes à peu près alignées).

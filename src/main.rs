@@ -3,6 +3,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod api;
+mod board;
 mod boot;
 mod chromecast;
 #[cfg(windows)]
@@ -17,6 +18,7 @@ mod creator;
 #[cfg(not(target_os = "android"))]
 mod demo;
 mod dashboard;
+mod daynight;
 mod discovery;
 mod downloads;
 #[cfg(not(target_os = "android"))]
@@ -24,6 +26,7 @@ mod discord;
 mod dust;
 mod editor;
 mod i18n;
+mod lagoon;
 mod lan;
 mod lock;
 mod mpv;
@@ -5631,12 +5634,28 @@ fn card_admin(app: &Arc<App>, action: String, id: String) {
     let Some(client) = app.client() else { return };
     let app2 = app.clone();
     app.rt.spawn(async move {
-        if action == "refresh" {
-            let r = client.refresh_item(&id).await;
+        // « refresh:mode:images:trickplay » (voir le menu des cartes) ; « scanall » : toutes les bibliothèques.
+        if let Some(opts) = action.strip_prefix("refresh") {
+            let mut it = opts.trim_start_matches(':').split(':');
+            let mode = it.next().filter(|m| !m.is_empty()).unwrap_or("missing").to_string();
+            let images = it.next() == Some("1");
+            let trick = it.next() == Some("1");
+            let r = client.refresh_item(&id, &mode, images, trick).await;
             app2.home_stale.store(true, Ordering::SeqCst);
             let _ = app2.ui().upgrade_in_event_loop(move |u| {
                 u.set_toast(match r {
+                    Ok(()) if mode == "scan" => tr("Recherche lancée : le serveur cherche les fichiers nouveaux et mis à jour.").into(),
                     Ok(()) => tr("Actualisation demandée : le serveur relit les informations.").into(),
+                    Err(e) => trf("Action impossible : {}", &[&human_err(&e)]).into(),
+                })
+            });
+            return;
+        }
+        if action == "scanall" {
+            let r = client.admin_send(reqwest::Method::POST, "/Library/Refresh", &[], None).await;
+            let _ = app2.ui().upgrade_in_event_loop(move |u| {
+                u.set_toast(match r {
+                    Ok(()) => tr("Analyse des bibliothèques lancée.").into(),
                     Err(e) => trf("Action impossible : {}", &[&human_err(&e)]).into(),
                 })
             });
@@ -6382,6 +6401,10 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("clock", tr("Afficher l'heure"), tr("En haut à droite de l'écran."), String::new(), "toggle", prefs.show_clock),
             head(tr("Thème")),
             row("theme", tr("Thème"), tr("Couleurs et style de l'interface."), theme_label(&prefs), "choice", false),
+            row("daynight", tr("Décor jour et nuit"), tr("Le décor du thème suit l'heure : jour, crépuscule, nuit, aube."), daynight_label(&prefs.daynight_mode), "choice", false),
+            row("dayat", tr("Passage au jour"), tr("Milieu de l'aube."), daynight::hm(prefs.day_at), "choice", false),
+            row("nightat", tr("Passage à la nuit"), tr("Milieu du crépuscule."), daynight::hm(prefs.night_at), "choice", false),
+            row("dnspan", tr("Durée de l'aube et du crépuscule"), tr("Le temps que met le décor à passer du jour à la nuit, et inversement."), trf("{} min", &[&prefs.daynight_span]), "choice", false),
             row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
@@ -6757,6 +6780,22 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             let (list, cur) = lock::choices(&session_user(app));
             Some((tr("Code pour ouvrir ce compte").into(), list, cur))
         }
+        "daynight" => {
+            let list = DAYNIGHT_MODES.iter().map(|k| (k.to_string(), daynight_label(k))).collect();
+            Some((tr("Décor jour et nuit").into(), list, config::ui_prefs().daynight_mode))
+        }
+        "dayat" => {
+            let list = (8..=22).map(|h| (h * 30).to_string()).map(|k| { let m: u32 = k.parse().unwrap_or(0); (k, daynight::hm(m)) }).collect();
+            Some((tr("Passage au jour").into(), list, config::ui_prefs().day_at.to_string()))
+        }
+        "nightat" => {
+            let list = (32..=47).map(|h| (h * 30).to_string()).map(|k| { let m: u32 = k.parse().unwrap_or(0); (k, daynight::hm(m)) }).collect();
+            Some((tr("Passage à la nuit").into(), list, config::ui_prefs().night_at.to_string()))
+        }
+        "dnspan" => {
+            let list = [15u32, 30, 45, 60, 90, 120].iter().map(|m| (m.to_string(), trf("{} min", &[m]))).collect();
+            Some((tr("Durée de l'aube et du crépuscule").into(), list, config::ui_prefs().daynight_span.to_string()))
+        }
         "textsize" => {
             let cur = config::ui_prefs().text_scale;
             let v = TEXT_SIZES.iter().find(|x| text_size_label(cur) == x.1).map(|x| x.0).unwrap_or("1");
@@ -6774,6 +6813,17 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
 /// Compte de la session (hors ligne : celui de la session enregistrée).
 fn session_user(app: &Arc<App>) -> String {
     app.client().map(|c| c.user_id).unwrap_or_else(|| config::load().user_id)
+}
+
+/// Décor jour et nuit : selon l'heure (""), toujours le jour, toujours la nuit.
+const DAYNIGHT_MODES: [&str; 3] = ["", "day", "night"];
+
+fn daynight_label(mode: &str) -> String {
+    match mode {
+        "day" => tr("Toujours le jour").to_string(),
+        "night" => tr("Toujours la nuit").to_string(),
+        _ => tr("Selon l'heure").to_string(),
+    }
 }
 
 /// Limites de place des téléchargements proposées, en Go (0 : sans limite).
@@ -6883,6 +6933,18 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         if let Some(u) = app.ui().upgrade() {
             switch_theme(&u, p);
         }
+        refresh_settings(app);
+        return;
+    }
+    if matches!(key, "daynight" | "dayat" | "nightat" | "dnspan") {
+        let mut p = config::ui_prefs();
+        match key {
+            "daynight" => p.daynight_mode = if DAYNIGHT_MODES.contains(&value) { value.to_string() } else { String::new() },
+            "dayat" => p.day_at = value.parse().unwrap_or(p.day_at).min(1439),
+            "nightat" => p.night_at = value.parse().unwrap_or(p.night_at).min(1439),
+            _ => p.daynight_span = value.parse().unwrap_or(p.daynight_span).clamp(5, 240),
+        }
+        config::save_ui_prefs(&p);
         refresh_settings(app);
         return;
     }
@@ -7348,7 +7410,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         return;
     }
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "textsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "textsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" | "daynight" | "dayat" | "nightat" | "dnspan" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();
@@ -8867,6 +8929,28 @@ fn cache_current_page(app: &Arc<App>, u: &AppWindow) {
     });
 }
 
+/// Épisode d'une saison : minutes restantes (« finit à »), 0 pour le reste.
+fn episode_minutes_left(it: &api::Item) -> i32 {
+    if it.kind != "Episode" {
+        return 0;
+    }
+    (it.minutes().unwrap_or(0) as f32 * (1.0 - it.progress())).round() as i32
+}
+
+/// Épisode à regarder ensuite dans une saison : celui qui est commencé, sinon le premier non vu après
+/// le dernier vu ; rien si rien n'est vu (on commence au début) ou si tout l'est.
+fn next_in_season(children: &[api::Item]) -> Option<usize> {
+    if children.is_empty() || children.iter().any(|c| c.kind != "Episode") {
+        return None;
+    }
+    let played = |c: &api::Item| c.user_data.as_ref().map(|u| u.played).unwrap_or(false);
+    if let Some(i) = children.iter().position(|c| !played(c) && c.progress() > 0.0) {
+        return Some(i);
+    }
+    let last = children.iter().rposition(played)?;
+    children.iter().enumerate().skip(last + 1).find(|(_, c)| !played(c)).map(|(i, _)| i)
+}
+
 /// Réaffiche une page gardée ; false si elle n'est pas (ou plus) en mémoire.
 fn restore_page(app: &Arc<App>, id: &str) -> bool {
     let Some(page) = PAGES.with_borrow_mut(|p| p.remove(id)) else { return false };
@@ -9051,6 +9135,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let (title, subtitle) = item.titles();
     let landscape = !children.is_empty() && children.iter().all(|c| c.kind == "Episode");
     let child_cards: Vec<api::CardInfo> = children.iter().map(|c| c.child_card()).collect();
+    let ep_extras: Vec<i32> = children.iter().map(episode_minutes_left).collect();
+    let ep_next = next_in_season(&children);
     let children_title = match item.kind.as_str() {
         "Series" => tr("Saisons").to_string(),
         "Season" => tr("Épisodes").to_string(),
@@ -9211,7 +9297,9 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
         };
         let cards: Vec<CardData> = child_cards
             .iter()
-            .map(|c| CardData {
+            .zip(ep_extras.iter())
+            .enumerate()
+            .map(|(i, (c, minutes))| CardData {
                 id: c.id.clone().into(),
                 title: c.title.clone().into(),
                 subtitle: c.subtitle.clone().into(),
@@ -9223,6 +9311,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
                                 played: c.played,
                                 deck: c.deck,
                 overview: c.overview.clone().into(),
+                minutes: *minutes,
+                next: ep_next == Some(i),
                 ..Default::default()
             })
             .collect();
@@ -10735,13 +10825,19 @@ pub(crate) fn main() -> anyhow::Result<()> {
         api::trim_resp_cache(RESP_CACHE_MAX);
     });
 
+    // Ciel des décors (jour, crépuscule, nuit, aube).
+    let _sky = daynight::start(&ui);
+    let _board = board::start(&app, &ui);
+    let _lagoon = lagoon::start(&ui);
     let clock = slint::Timer::default();
     {
         let tick = {
             let ui = ui.as_weak();
             move || {
                 if let Some(u) = ui.upgrade() {
-                    u.set_clock(chrono::Local::now().format("%H:%M").to_string().into());
+                    let now = chrono::Local::now();
+                    u.set_clock(now.format("%H:%M").to_string().into());
+                    u.set_clock_min((chrono::Timelike::hour(&now) * 60 + chrono::Timelike::minute(&now)) as i32);
                 }
             }
         };
@@ -11212,6 +11308,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
     // Le menu (vu, non vu…) ne vaut que pour un média du serveur.
     ui.on_card_menu_ok(|id| !(id.starts_with("person:") || id.starts_with("jfperson:") || id.starts_with("seerrcol:") || id.starts_with("seerr:") || id.starts_with("group:") || id.starts_with("empty:")));
     ui.on_is_empty_card(|id| id.starts_with("empty:"));
+    ui.on_card_is_lib({
+        let app = app.clone();
+        move |id| app.views.lock().unwrap().iter().any(|v| v.id == id.as_str())
+    });
 
     ui.on_card_played({
         let app = app.clone();
@@ -11559,6 +11659,10 @@ pub(crate) fn main() -> anyhow::Result<()> {
             1 => ui.on_boot_continue(move || f(name.to_string())),
             _ => ui.on_boot_linked(move || f(name.to_string())),
         }
+    }
+    {
+        let a = app.clone();
+        ui.on_boot_skip(move || boot::skip(&a));
     }
     let start = boot::Start {
         user: cli.user.clone(),

@@ -21,7 +21,7 @@ use crate::AppWindow;
 
 /// Identifiant de l'application Discord « Turtlefin » (portail des développeurs de Discord). Vide : le
 /// statut reste coupé. `TURTLEFIN_DISCORD_ID` le remplace (essais).
-const APP_ID: &str = "";
+const APP_ID: &str = "1573772885674168492";
 
 static ON: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);

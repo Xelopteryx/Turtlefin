@@ -1,0 +1,763 @@
+<title>Aero jour et nuit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Mise en page : l'écran de l'appli en grand (16:9), le tableau de bord de l'horloge dessous, en une bande. */
+:root {
+  --bg: #050c18;
+  --panel: #0b1628;
+  --line: #1f3456;
+  --fg: #e8f1ff;
+  --muted: #9db3d4;
+  --accent: #6cc6ff;
+  --night: #8affe0;
+  --dusk: #ffb070;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 18px; }
+h1 { font-family: var(--display); font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 0; text-wrap: balance; }
+.lead { color: var(--muted); margin: 0; max-width: 75ch; }
+.stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+body.no-ui #ui { display: none; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.time { font-family: var(--display); font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 4.2ch; }
+.phase { font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.phase.night { color: var(--night); }
+.phase.dusk { color: var(--dusk); }
+input[type=range] { flex: 1 1 320px; min-width: 0; accent-color: var(--accent); }
+.ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; padding-inline: 2px; }
+button, select { font: inherit; color: var(--fg); background: #13243f; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.on { background: #1d3d6b; border-color: var(--accent); }
+label.chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; color: var(--fg); }
+label.chk input { width: 17px; height: 17px; accent-color: var(--accent); }
+.sep { width: 1px; align-self: stretch; background: var(--line); }
+.notes { color: var(--muted); font-size: .92rem; margin: 0; max-width: 80ch; display: flex; flex-direction: column; gap: 6px; }
+.notes p { margin: 0; }
+.notes b { color: var(--fg); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <h1>Aero jour et nuit</h1>
+  <p class="lead">Un seul décor, le lagon, vu toujours du même endroit. Seule la lumière change avec l'heure : le soleil de midi, l'or puis le rose du soir, la nuit sous la lune avec le plancton qui s'illumine et des méduses, puis le rose de l'aube. L'horloge de l'appli (en haut à droite de l'écran) suit l'heure choisie ici.</p>
+
+  <div class="stage" id="stage"><canvas id="scene" width="1600" height="900"></canvas><canvas id="ui" width="1600" height="900"></canvas></div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="time" id="clock">18:10</span>
+      <span class="phase" id="phase">Jour</span>
+      <input type="range" id="hour" min="0" max="1439" step="1" value="1090" aria-label="Heure de la journée">
+    </div>
+    <div class="ticks" aria-hidden="true"><span>0 h</span><span>3 h</span><span>6 h</span><span>9 h</span><span>12 h</span><span>15 h</span><span>18 h</span><span>21 h</span><span>24 h</span></div>
+    <div class="row">
+      <button id="play" type="button" class="on">⏸ Pause</button>
+      <label for="speed" class="chk">Vitesse
+        <select id="speed">
+          <option value="1">temps réel</option>
+          <option value="60" selected>× 60 (1 min = 1 s)</option>
+          <option value="600">× 600</option>
+        </select>
+      </label>
+      <span class="sep"></span>
+      <button type="button" data-go="720">Midi</button>
+      <button type="button" data-go="1090">Avant le coucher</button>
+      <button type="button" data-go="1175">Arrivée de l'aurore boréale</button>
+      <button type="button" data-go="0">Minuit</button>
+      <button type="button" data-go="310">Avant l'aube</button>
+      <span class="sep"></span>
+      <label class="chk" for="anim"><input type="checkbox" id="anim" checked> Animer le décor</label>
+      <label class="chk" for="showui"><input type="checkbox" id="showui" checked> Interface</label>
+    </div>
+  </div>
+
+  <div class="notes">
+    <p><b>Soleil et lune :</b> ils traversent la surface au fil de la journée. Le soleil entre par le bord droit au lever (6 h 40), passe au-dessus vers midi et sort par le bord gauche au coucher (19 h 05). Plus il est bas, plus son reflet est petit et rouge et ses rayons courts et rasants. La lune fait la même traversée la nuit (19 h 20 à 6 h 20).</p>
+    <p><b>Couleur de l'eau :</b> bleue le jour, dorée puis orange et rose au coucher, violette au crépuscule, bleu nuit, lavande puis rose à l'aube.</p>
+    <p><b>La nuit :</b> le plancton s'allume grain par grain, les méduses arrivent par les côtés et repartent par le même côté à l'aube. Vers 19 h 50, l'aurore boréale s'allume dans la surface : ses rubans poussent et s'embrasent par vagues ; elle s'éteint de même vers 5 h 20, avant l'aube. Les méduses nagent par petites poussées, comme les vraies : au crépuscule, chacune arrive à la nage par son côté ; à l'aube, elle se tourne et repart de ce côté.</p>
+    <p><b>« Animer le décor » décoché</b> correspond au réglage Animations → Décor coupé (par défaut sur le Pi) : rien ne bouge, mais le soleil, la lune et les couleurs suivent quand même l'heure.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var W = 1600, H = 900;
+
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function smooth(x) { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+  function rgba(c, a) { return "rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + a + ")"; }
+  function mixc(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
+  function mk(w, h) { var c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+  function soft(ctx, w, h, scale, draw, mode, alpha) {
+    var o = mk(Math.ceil(w / scale), Math.ceil(h / scale)), g = o.getContext("2d"); g.scale(1 / scale, 1 / scale); draw(g);
+    ctx.save(); ctx.globalCompositeOperation = mode || "source-over"; ctx.globalAlpha = alpha == null ? 1 : alpha; ctx.imageSmoothingQuality = "high"; ctx.drawImage(o, 0, 0, w, h); ctx.restore();
+  }
+  function glow(g, x, y, r, c, a) { var gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba(c, a)); gr.addColorStop(.4, rgba(c, a * .35)); gr.addColorStop(1, rgba(c, 0)); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+  function bubble(g, x, y, r, tint) {
+    tint = tint || [150, 220, 255];
+    var gr = g.createRadialGradient(x - r * .2, y - r * .25, r * .1, x, y, r);
+    gr.addColorStop(0, "rgba(255,255,255,0.04)"); gr.addColorStop(.7, rgba(tint, .08)); gr.addColorStop(.93, rgba(tint, .32)); gr.addColorStop(1, "rgba(255,255,255,0.75)");
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.save(); g.beginPath(); g.ellipse(x - r * .12, y - r * .5, r * .55, r * .28, -.25, 0, Math.PI * 2);
+    var hg = g.createLinearGradient(0, y - r * .78, 0, y - r * .22); hg.addColorStop(0, "rgba(255,255,255,0.8)"); hg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = hg; g.fill(); g.restore();
+    g.fillStyle = "rgba(255,255,255,0.9)"; g.beginPath(); g.arc(x + r * .42, y - r * .35, Math.max(1.2, r * .07), 0, Math.PI * 2); g.fill();
+    g.strokeStyle = rgba(tint, .55); g.lineWidth = Math.max(1, r * .05); g.beginPath(); g.arc(x, y, r * .82, Math.PI * .2, Math.PI * .8); g.stroke();
+  }
+  function sprite(tint) { var c = mk(132, 132); bubble(c.getContext("2d"), 66, 66, 62, tint); return c; }
+
+  // ================================================================ Le lagon
+  var L = {};
+  (function () {
+    var R = rng(23);
+    // Eau de jour, et eau de nuit ; la nuit monte depuis le fond (voir drawLagoon).
+    function water(stops) {
+      var c = mk(W, H), g = c.getContext("2d"), w = g.createLinearGradient(0, 0, 0, H);
+      stops.forEach(function (s) { w.addColorStop(s[0], s[1]); }); g.fillStyle = w; g.fillRect(0, 0, W, H);
+      return c;
+    }
+    L.day = water([[0, "#38b6e6"], [.18, "#1683c6"], [.45, "#0a4f98"], [.75, "#062c66"], [1, "#02132e"]]);
+    L.night = water([[0, "#0c2f5c"], [.2, "#08214a"], [.5, "#051634"], [.8, "#030c22"], [1, "#010512"]]);
+    L.nightMasked = mk(W, H);
+    // Reflet d'un astre à la surface (blanc, teinté à chaque image : soleil, soleil couchant, lune).
+    L.win = mk(800, 300); soft(L.win.getContext("2d"), 800, 300, 4, function (s) { s.save(); s.translate(400, 0); s.scale(1.9, 1); glow(s, 0, 0, 200, [255, 255, 255], 1); s.restore(); }, "source-over", 1);
+    L.winT = mk(800, 300);
+    // Rayons : blancs le jour ; la même forme, teintée, sert au soir et à la lune.
+    L.rays = mk(W, H); soft(L.rays.getContext("2d"), W, H, 4, function (s) {
+      s.globalCompositeOperation = "lighter";
+      for (var i = 0; i < 16; i++) { var ang = lerp(-.55, .7, i / 15) + (R() - .5) * .06, wd = .012 + R() * .03, len = 700 + R() * 400, x0 = 720, y0 = -120;
+        var gr = s.createLinearGradient(x0, y0, x0 + Math.sin(ang) * len, y0 + Math.cos(ang) * len); gr.addColorStop(0, "rgba(255,255,255,0.38)"); gr.addColorStop(.5, "rgba(255,255,255,0.13)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+        s.fillStyle = gr; s.beginPath(); s.moveTo(x0, y0); s.lineTo(x0 + Math.sin(ang - wd) * len, y0 + Math.cos(ang - wd) * len); s.lineTo(x0 + Math.sin(ang + wd) * len, y0 + Math.cos(ang + wd) * len); s.closePath(); s.fill(); }
+    }, "source-over", 1);
+    L.tinted = mk(W, H); L.moonRays = mk(W, H);
+    function caustic(seed) {
+      var Rc = rng(seed), CW = W + 240, c = mk(CW, 440), cols = 40, rows = 12, pts = [];
+      for (var r = 0; r <= rows; r++) { pts.push([]); for (var k = 0; k <= cols; k++) pts[r].push([k * CW / cols + (Rc() - .5) * 38, r * 34 + (Rc() - .5) * 22]); }
+      soft(c.getContext("2d"), CW, 440, 1.6, function (s) {
+        s.lineCap = "round";
+        for (var r = 0; r <= rows; r++) for (var k = 0; k <= cols; k++) { var p = pts[r][k], fade = Math.pow(1 - r / rows, 1.6); s.strokeStyle = "rgba(255,255,255," + (.6 * fade) + ")"; s.lineWidth = 2.6 * fade + .6;
+          if (k < cols) { var q = pts[r][k + 1]; s.beginPath(); s.moveTo(p[0], p[1]); s.quadraticCurveTo((p[0] + q[0]) / 2 + (Rc() - .5) * 20, (p[1] + q[1]) / 2 + (Rc() - .5) * 16, q[0], q[1]); s.stroke(); }
+          if (r < rows) { var q2 = pts[r + 1][k]; s.beginPath(); s.moveTo(p[0], p[1]); s.quadraticCurveTo((p[0] + q2[0]) / 2 + (Rc() - .5) * 16, (p[1] + q2[1]) / 2, q2[0], q2[1]); s.stroke(); } }
+      }, "source-over", 1);
+      return c;
+    }
+    L.c1 = caustic(101); L.c2 = caustic(202);
+    L.sand = mk(W, H); var g = L.sand.getContext("2d");
+    g.beginPath(); g.moveTo(0, H); for (var sx = 0; sx <= W; sx += 10) g.lineTo(sx, 820 + Math.sin(sx / 180) * 22 + Math.sin(sx / 61) * 6); g.lineTo(W, H); g.closePath();
+    var sg = g.createLinearGradient(0, 790, 0, H); sg.addColorStop(0, "rgba(90,170,190,0.55)"); sg.addColorStop(1, "rgba(20,60,90,0.9)"); g.fillStyle = sg; g.fill();
+    buildReef(R);
+    L.blades = []; for (var k = 0; k < 0; k++) { var left = k < 35; L.blades.push({ x: left ? R() * 260 : W - R() * 300, h: 120 + R() * 300, lean: (R() - .3) * 90 * (left ? 1 : -1), w: 4 + R() * 6, ph: R() * 6.28, c: [10 + R() * 20, 70 + R() * 50, 70 + R() * 40], a: .55 + R() * .4 }); }
+    // Plancton ; un tiers s'allume la nuit, chacun à son moment (th).
+    L.plankton = []; for (var i = 0; i < 420; i++) L.plankton.push({ x: R() * W, y: R() * H, r: R() * 1.6 + .3, a: .15 + R() * .5, sp: 2 + R() * 6, ph: R() * 6.28, lum: R() < .35, th: .35 + R() * .5 });
+    L.cols = [[120, 1], [210, .7], [1380, 1.2], [1490, .8], [600, .5]];
+    L.bub = []; L.cols.forEach(function (c, ci) { for (var j = 0; j < 9; j++) L.bub.push({ col: ci, off: j / 9 + R() * .05, r: (6 + R() * 16) * c[1], sp: .05 + R() * .03, ph: R() * 6.28 }); });
+    L.fish = []; for (var f = 0; f < 34; f++) L.fish.push({ dx: R() * 300, dy: R() * 110, s: 5 + R() * 4, ph: R() * 6.28 });
+    L.spr = sprite([150, 220, 255]);
+    // Lueur du plancton (petit halo cyan).
+    L.dot = mk(32, 32); glow(L.dot.getContext("2d"), 16, 16, 16, [120, 255, 235], 1);
+    L.jglow = mk(128, 128); glow(L.jglow.getContext("2d"), 64, 64, 64, [140, 120, 255], .55);
+    // Méduse lumineuse : cloche translucide, bord brillant, filaments.
+    L.jelly = mk(160, 260); (function (j) {
+      soft(j, 160, 260, 3, function (s) { glow(s, 80, 70, 90, [140, 120, 255], .55); }, "lighter", 1);
+      j.save(); j.beginPath(); j.moveTo(20, 80); j.bezierCurveTo(20, 10, 140, 10, 140, 80); j.bezierCurveTo(120, 90, 100, 76, 80, 86); j.bezierCurveTo(60, 76, 40, 90, 20, 80); j.closePath();
+      var bg = j.createRadialGradient(80, 40, 6, 80, 60, 70); bg.addColorStop(0, "rgba(230,220,255,0.75)"); bg.addColorStop(.6, "rgba(170,140,255,0.35)"); bg.addColorStop(1, "rgba(120,220,255,0.55)");
+      j.fillStyle = bg; j.fill(); j.strokeStyle = "rgba(200,240,255,0.8)"; j.lineWidth = 2; j.stroke(); j.restore();
+      j.lineCap = "round";
+      for (var k = 0; k < 7; k++) { var x = 32 + k * 16; j.strokeStyle = "rgba(170,210,255," + (.35 + (k % 2) * .15) + ")"; j.lineWidth = 1.6; j.beginPath(); j.moveTo(x, 84); j.bezierCurveTo(x - 10, 140, x + 12, 190, x - 4, 250); j.stroke(); }
+    })(L.jelly.getContext("2d"));
+    // Méduses : montent des profondeurs (sous le bas de l'écran) jusqu'à leur place, chacune à son
+    // moment (th) ; à l'aube, elles redescendent.
+    L.jellies = [{ x: 420, y: 430, s: .9, th: .4, ph: 0, side: -1 }, { x: 1010, y: 280, s: .6, th: .52, ph: 2, side: 1 }, { x: 1230, y: 470, s: 1.1, th: .46, ph: 4, side: 1 }, { x: 700, y: 520, s: .45, th: .6, ph: 1, side: -1 }, { x: 1440, y: 230, s: .5, th: .66, ph: 3, side: 1 }];
+    // Aurore boréale vue à travers la surface : deux calques de rubans (bande haute de 300 px).
+    function aurora(seed, shift) {
+      var c = mk(W + 200, 300), Rr = rng(seed);
+      soft(c.getContext("2d"), W + 200, 300, 3, function (s) {
+        s.globalCompositeOperation = "lighter";
+        [{ base: 190, amp: 40, f: .0035, ph: .4 + shift, h: 170, c0: [60, 255, 160], c1: [150, 90, 255], a: .06 },
+         { base: 230, amp: 30, f: .005, ph: 2.1 + shift, h: 140, c0: [80, 255, 200], c1: [70, 180, 255], a: .05 },
+         { base: 160, amp: 50, f: .0024, ph: 4 + shift, h: 150, c0: [60, 230, 140], c1: [210, 90, 220], a: .045 }].forEach(function (cu) {
+          for (var x = -40; x < W + 240; x += 2) { var y = cu.base + Math.sin(x * cu.f + cu.ph) * cu.amp + Math.sin(x * cu.f * 3.1 + cu.ph * 2) * cu.amp * .25;
+            var k = .55 + .45 * Math.sin(x * .011 + cu.ph) * Math.sin(x * .0037 + cu.ph * 1.7), h = cu.h * (.6 + .6 * k) * (.9 + Rr() * .2);
+            var gr = s.createLinearGradient(0, y, 0, y - h); gr.addColorStop(0, rgba(cu.c0, 0)); gr.addColorStop(.08, rgba(cu.c0, cu.a * 2.2 * k)); gr.addColorStop(.5, rgba(cu.c0, cu.a * k)); gr.addColorStop(1, rgba(cu.c1, 0));
+            s.fillStyle = gr; s.fillRect(x, y - h, 2.4, h); }
+        });
+      }, "source-over", 1);
+      return c;
+    }
+    L.aur1 = aurora(5, 0); L.aur2 = aurora(9, .9);
+    var vg = mk(W, H), v = vg.getContext("2d"), gr = v.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, W * .75); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,0.55)"); v.fillStyle = gr; v.fillRect(0, 0, W, H); L.vg = vg;
+  })();
+
+  // ================================================================ Ciel : tout suit l'heure (minutes de la journée)
+  var RISE = 400, SET = 1145;          // soleil : entre par la droite à 6 h 40, sort par la gauche à 19 h 05
+  var MRISE = 1160, MSET = 380;        // lune : entre par la droite à 19 h 20, sort par la gauche à 6 h 20
+  function hexs(a) { return a.map(function (h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }); }
+  var NIGHTC = hexs(["#0c2f5c", "#08214a", "#051634", "#030c22", "#010512"]), DAYC = hexs(["#38b6e6", "#1683c6", "#0a4f98", "#062c66", "#02132e"]);
+  // Couleur de l'eau (cinq teintes du haut vers le fond) au fil de la journée.
+  var WATER = [
+    [0, NIGHTC], [350, NIGHTC],
+    [390, hexs(["#3a3a7a", "#2a3f80", "#16306a", "#0a1c46", "#03102a"])],   // avant l'aube : lavande
+    [420, hexs(["#f2a0a8", "#9a86c0", "#3a68a8", "#123a78", "#041a40"])],   // lever du soleil : rose
+    [455, hexs(["#7fd0ea", "#2f97cf", "#0e5aa0", "#062e68", "#02132e"])],   // matin clair
+    [540, DAYC], [1060, DAYC],
+    [1105, hexs(["#f0c070", "#5aa8c8", "#0e5a98", "#062c66", "#02132e"])],  // heure dorée
+    [1135, hexs(["#ff8a5a", "#c0607a", "#3a4a8a", "#14275e", "#040f2a"])],  // coucher du soleil
+    [1165, hexs(["#4a3a7a", "#2a2e6a", "#141f50", "#0a1434", "#020818"])],  // crépuscule violet
+    [1200, NIGHTC], [1440, NIGHTC]
+  ];
+  function waterAt(m) { for (var i = 1; i < WATER.length; i++) if (m <= WATER[i][0]) { var a = WATER[i - 1], b = WATER[i], u = smooth((m - a[0]) / (b[0] - a[0])); return a[1].map(function (c, j) { return mixc(c, b[1][j], u); }); } return NIGHTC; }
+  // Obscurité (plancton, méduses, poissons) : 0 le jour, 1 la nuit.
+  function darkAt(m) { if (m >= 1120 && m < 1190) return smooth((m - 1120) / 70); if (m >= 360 && m < 420) return 1 - smooth((m - 360) / 60); return (m >= 1190 || m < 360) ? 1 : 0; }
+  // Course d'un astre : u de 0 (entre à droite) à 1 (sort à gauche), hauteur 0 à l'horizon, 1 au plus haut.
+  function arc(m, rise, set) { var span = (set - rise + 1440) % 1440, u = ((m - rise + 1440) % 1440) / span; return u > 1 ? null : { u: u, h: Math.sin(Math.PI * u), x: lerp(W + 260, -260, u) }; }
+  // Aurore boréale : s'allume de 19 h 50 à 20 h 30, s'éteint de 5 h 20 à 6 h.
+  function auroraAt(m) { if (m >= 1190 && m < 1230) return (m - 1190) / 40; if (m >= 320 && m < 360) return 1 - (m - 320) / 40; return (m >= 1230 || m < 320) ? 1 : 0; }
+
+  var fishLap = -1, fishOn = true;
+
+  function drawLagoon(g, t, anim, m, dt, snap) {
+    var wc = waterAt(m), dark = darkAt(m), day = 1 - dark, sun = arc(m, RISE, SET), moon = arc(m, MRISE, MSET), aur = auroraAt(m);
+    // Eau.
+    var wg = g.createLinearGradient(0, 0, 0, H); [0, .18, .45, .75, 1].forEach(function (s, i) { wg.addColorStop(s, rgba(wc[i], 1)); }); g.fillStyle = wg; g.fillRect(0, 0, W, H);
+
+    // Soleil : reflet et rayons ; plus il est bas, plus il est rouge, petit, et ses rayons courts et rasants.
+    if (sun) {
+      var low = 1 - sun.h, sc = mixc([235, 252, 255], dawnish(m) ? [255, 160, 175] : [255, 130, 60], smooth((low - .35) / .55));
+      drawWin(g, sun.x, lerp(.55, 1, sun.h), sc, .85);
+      var slant = (W / 2 - sun.x) / W * 1.1, len = lerp(140, H + 260, Math.pow(sun.h, .6));
+      rays(g, L.tinted, sun.x + (anim ? Math.sin(t * .2) * 12 : 0), 1, slant, mixc([215, 245, 255], sc, .7), len, (anim ? .82 + .18 * Math.sin(t * .35) : .9) * lerp(.55, 1, sun.h));
+    }
+    // Lune : même course, de nuit ; reflet argenté, rayons fins.
+    if (moon) {
+      drawWin(g, moon.x, .5, [190, 215, 255], .6);
+      rays(g, L.moonRays, moon.x, .45, (W / 2 - moon.x) / W * 1.1, [175, 205, 255], lerp(80, 700, Math.pow(moon.h, .7)), .3);
+    }
+    // Aurore boréale vue à travers la surface : rubans verts et violets qui ondulent, arrivés par la droite.
+    if (aur > 0) drawAurora(g, t, anim, aur);
+
+    // Reflets des vagues : avec la lumière du soleil (un peu de lune la nuit).
+    var light = (sun ? Math.pow(sun.h, .5) : 0) + (moon ? moon.h * .2 : 0);
+    var ca = anim ? .5 + .5 * Math.sin(t * .45) : .5, d1 = anim ? (t * 9) % 240 : 0, d2 = anim ? (t * 6) % 240 : 120, cA = .55 * clamp(light, 0, 1);
+    if (cA > .01) { g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = cA * ca; g.drawImage(L.c1, -d1, 0); g.globalAlpha = cA * (1 - ca); g.drawImage(L.c2, -240 + d2, 0); g.restore(); }
+
+    // Plancton : un tiers s'allume grain par grain la nuit.
+    L.plankton.forEach(function (q) {
+      var x = q.x, y = q.y; if (anim) { x = (q.x + t * q.sp) % W; y = q.y + Math.sin(t * .5 + q.ph) * 6; }
+      g.fillStyle = "rgba(200,240,255," + (q.a * (1 - y / H * .5) * (day + dark * .3)) + ")"; g.fillRect(x, y, q.r * 1.6, q.r * 1.6);
+      if (q.lum) { var on = clamp((dark - q.th) / .04, 0, 1); if (on > 0) { var la = on * (anim ? .45 + .55 * Math.max(0, Math.sin(t * 1.3 + q.ph * 3)) : .7), r2 = 4 + q.r * 4;
+        g.globalAlpha = la; g.globalCompositeOperation = "lighter"; g.drawImage(L.dot, x - r2, y - r2, r2 * 2, r2 * 2); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; } }
+    });
+
+    // Banc de poissons : le soir, il n'en part plus ; le dernier finit sa traversée.
+    var lap = Math.floor(t / 40);
+    if (!anim) fishOn = day > .5; else if (lap !== fishLap) { fishLap = lap; fishOn = day > .5; }
+    if (fishOn) { var fp = anim ? (t % 40) / 40 : .55, fx0 = lerp(-400, W + 100, fp); g.fillStyle = rgba(mixc([4, 30, 70], [2, 8, 22], dark), .55);
+      L.fish.forEach(function (f) { var fx = fx0 + f.dx, fy = 340 + f.dy + f.dx * .12 + (anim ? Math.sin(t * 1.2 + f.ph) * 4 : 0), s = f.s; g.beginPath(); g.ellipse(fx, fy, s * 1.6, s * .6, -.08, 0, Math.PI * 2); g.fill(); g.beginPath(); g.moveTo(fx - s * 1.4, fy); g.lineTo(fx - s * 2.4, fy - s * .7); g.lineTo(fx - s * 2.4, fy + s * .7); g.fill(); }); }
+
+    // Méduses : chacune vit sa vie (voir swimJelly) ; l'heure ne fait que leur dire d'arriver ou de partir.
+    L.jellies.forEach(function (j) { swimJelly(j, dark, dt, anim, t, snap); if (j.state !== "out") drawJelly(g, j, j.px, j.py, j.ang, j.c, t, anim); });
+
+    g.drawImage(L.sand, 0, 0);
+    if (dark > 0) { g.fillStyle = "rgba(2,8,22," + (dark * .6) + ")"; g.fillRect(0, 760, W, 140); }
+    // Récif lointain (assombri la nuit), gorgones, banc de demoiselles (qui se cachent dans le récif la
+    // nuit), récif proche (jour, nuit, fluorescence), reflets des vagues sur le récif, anémones et
+    // poissons-clowns (qui se blottissent dans leur anémone la nuit).
+    g.drawImage(L.reefBack, 0, 0);
+    if (dark > 0) { g.fillStyle = "rgba(2,8,22," + (dark * .65) + ")"; g.fillRect(0, 680, W, 220); }
+    L.fans.forEach(function (f) { g.save(); g.translate(f.x, f.y); g.rotate(anim ? Math.sin(t * .55 + f.ph) * .045 : 0);
+      g.drawImage(L.fanDay, -f.w / 2, -f.w, f.w, f.w); if (dark > 0) { g.globalAlpha = dark; g.drawImage(L.fanNight, -f.w / 2, -f.w, f.w, f.w); } g.restore(); });
+    var scx = 1420 + (anim ? Math.sin(t * .3) * 50 : 0), scy = 690 + (anim ? Math.sin(t * .21) * 18 : 0) + dark * 170, sdir = anim ? (Math.cos(t * .3) > 0 ? 1 : -1) : -1;
+    L.chromis.forEach(function (c) { var fx = scx + c.dx + (anim ? Math.sin(t * 1.3 + c.ph) * 6 : 0), fy = scy + c.dy + (anim ? Math.sin(t * 1.7 + c.ph) * 4 : 0); chromis(g, fx, fy, c.s, sdir, t, c.ph); });
+    g.drawImage(L.reefDay, 0, 0);
+    if (dark > 0) { g.globalAlpha = dark; g.drawImage(L.reefNight, 0, 0); g.globalCompositeOperation = "lighter"; g.globalAlpha = dark * (anim ? .8 + .2 * Math.sin(t * .7) : .9); g.drawImage(L.reefGlow, 0, 0); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+    var rcA = cA * (1 - dark) * .8;
+    if (rcA > .01) { var rc = L.reefCaus.getContext("2d"); rc.globalCompositeOperation = "source-over"; rc.clearRect(0, 0, W, 380);
+      rc.globalAlpha = ca; rc.drawImage(L.c1, -d1, 0); rc.globalAlpha = 1 - ca; rc.drawImage(L.c2, -240 + d2, 0); rc.globalAlpha = 1;
+      rc.globalCompositeOperation = "destination-in"; rc.drawImage(L.reefDay, 0, -520);
+      g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = rcA; g.drawImage(L.reefCaus, 0, 520); g.restore(); }
+    L.anemones.forEach(function (a) {
+      if (a.fish) for (var f = 0; f < 2; f++) { var ph = a.ph + f * 2.4, rad = (36 + f * 10) * a.s * (1 - dark * .85);
+        var fx = a.x + (anim ? Math.sin(t * .8 + ph) : .5) * rad, fy = a.y - (40 + f * 8) * a.s * (1 - dark * .6) + (anim ? Math.sin(t * 1.3 + ph) * 8 : 0), fd = anim ? (Math.cos(t * .8 + ph) > 0 ? 1 : -1) : 1;
+        clownfish(g, fx, fy, .9 * a.s, fd, t + ph); }
+      drawAnemone(g, a, t, anim, dark);
+    });
+    L.bub.forEach(function (b) { var c = L.cols[b.col], q = anim ? (b.off + t * b.sp) % 1 : b.off, y = 900 - q * 860, x = c[0] + Math.sin(q * 14 + b.ph) * 10, r = b.r * (0.6 + q * .5);
+      g.globalAlpha = Math.min(1, (1 - q) * 3) * (1 - dark * .45); g.drawImage(L.spr, x - r, y - r, r * 2, r * 2); });
+    g.globalAlpha = 1;
+    g.drawImage(L.vg, 0, 0);
+  }
+  function dawnish(m) { return m < 720; }
+
+  // Aurore boréale à travers la surface : elle s'allume sur place, sur toute la largeur. Les rubans
+  // poussent vers le haut depuis leur base et s'embrasent par vagues qui courent le long de la bande ;
+  // le matin, ils retombent et s'éteignent de même.
+  function drawAurora(g, t, anim, a) {
+    var grow = smooth(a), mix = anim ? .5 + .5 * Math.sin(t * .23) : .5, dx = anim ? Math.sin(t * .05) * 80 : 0;
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (var x = 0; x < W; x += 8) {
+      // Vague d'embrasement : la lumière arrive par endroits avant d'autres (pas un balayage net).
+      var wave = .5 + .5 * Math.sin(x * .006 + (anim ? t * .7 : 0)) * Math.sin(x * .0023 + 1.3);
+      var lit = clamp(grow * 1.6 - (1 - wave) * .6, 0, 1); if (lit <= 0) continue;
+      var hgt = 300 * (.25 + .75 * lit);                        // le ruban pousse depuis sa base
+      var off = anim ? Math.sin(x * .004 + t * .55) * 12 + Math.sin(x * .011 - t * .9) * 5 : 0, pulse = anim ? .75 + .25 * Math.sin(x * .003 - t * .4) : 1;
+      g.globalAlpha = .85 * lit * pulse * mix; g.drawImage(L.aur1, x + 100 + dx, 300 - hgt, 8, hgt, x, off + 300 - hgt, 8, hgt);
+      g.globalAlpha = .85 * lit * pulse * (1 - mix); g.drawImage(L.aur2, x + 100 - dx, 300 - hgt, 8, hgt, x, off * .7 + 300 - hgt, 8, hgt);
+    }
+    var gl = g.createLinearGradient(0, 0, 0, 420); gl.addColorStop(0, "rgba(70,255,180," + (.14 * grow) + ")"); gl.addColorStop(1, "rgba(70,255,180,0)");
+    g.globalAlpha = 1; g.fillStyle = gl; g.fillRect(0, 0, W, 420);
+    g.restore();
+  }
+
+  // ================================================================ Récif
+  // Préparé une fois : récif lointain (bleuté, voilé), puis le récif proche en trois versions — jour,
+  // nuit (couleurs éteintes) et fluorescence (ce qui luit la nuit). Détails : rochers bosselés couverts
+  // d'algues calcaires roses, de zoanthides, d'oursins et d'une étoile de mer ; coraux branchus effilés
+  // avec leurs polypes ; coraux cerveau en labyrinthe ; corail laitue ; corail bulles ; vers
+  // plumeaux ; coraux champignons. Animés : gorgones, anémones, poissons, reflets des vagues sur le récif.
+  function tint(c, k) { return mixc(c, [6, 18, 36], k); }
+  function lighten(c, a) { return mixc(c, [255, 255, 255], a); }
+  function darken(c, a) { return mixc(c, [0, 0, 0], a); }
+
+  function buildReef(R) {
+    var items = [], fans = [], anem = [];
+    [[-30, 380, 1], [1210, 1630, -1]].forEach(function (zone) {
+      var a = zone[0], b = zone[1], w = b - a, at = function (u) { return zone[2] > 0 ? a + w * u : b - w * u; };
+      // Rochers (base du récif), du fond vers l'avant.
+      for (var i = 0; i < 6; i++) items.push({ k: "rock", x: at(R() * .95), y: 880 + R() * 30, rx: 70 + R() * 90 * (1 - i / 8), ry: 40 + R() * 50, seed: R() * 1e6 | 0, z: 0 });
+      items.push({ k: "lettuce", x: at(.5 + R() * .2), y: 850, r: 70 + R() * 20, c: [150, 185, 95], seed: R() * 1e6 | 0, z: 1 });
+      items.push({ k: "bubble", x: at(.8 + R() * .1), y: 868, r: 52 + R() * 12, c: [205, 220, 190], seed: R() * 1e6 | 0, z: 2 });
+      for (i = 0; i < 2; i++) items.push({ k: "brain", x: at(.18 + R() * .5), y: 858 - R() * 22, r: 42 + R() * 24, c: i ? [215, 165, 95] : [165, 200, 120], seed: R() * 1e6 | 0, z: 2 });
+      for (i = 0; i < 3; i++) items.push({ k: "branch", x: at(.06 + R() * .7), y: 868 + R() * 10, h: 110 + R() * 85, c: [[255, 125, 100], [255, 170, 80], [210, 120, 215]][i], seed: R() * 1e6 | 0, z: 2 });
+      items.push({ k: "dusters", x: at(.72 + R() * .12), y: 886, n: 4, seed: R() * 1e6 | 0, z: 3 });
+      items.push({ k: "zoa", x: at(.3 + R() * .35), y: 882, n: 26, c: zone[2] > 0 ? [255, 150, 60] : [120, 230, 120], seed: R() * 1e6 | 0, z: 4 });
+      items.push({ k: "fungia", x: at(.5 + R() * .25), y: 892, r: 24, seed: R() * 1e6 | 0, z: 4 });
+      items.push({ k: "urchin", x: at(.12 + R() * .2), y: 890, r: 14, seed: R() * 1e6 | 0, z: 4 });
+      fans.push({ x: at(.35 + R() * .3), y: 868, w: 250 + R() * 80, ph: R() * 6.28 });
+      for (i = 0; i < 2; i++) anem.push({ x: at(.15 + R() * .7), y: 872 + R() * 12, s: .85 + R() * .45, ph: R() * 6.28, fish: i === 0 });
+    });
+    items.push({ k: "star", x: 250, y: 862, r: 22, seed: 5, z: 5 });
+    items.sort(function (p, q) { return p.z - q.z || p.y - q.y; });
+    L.reefBack = mk(W, H); drawBackReef(L.reefBack.getContext("2d"), R);
+    L.reefDay = mk(W, H); L.reefNight = mk(W, H); L.reefGlow = mk(W, H);
+    drawReef(L.reefDay.getContext("2d"), items, 0, false);
+    drawReef(L.reefNight.getContext("2d"), items, .78, false);
+    var sharp = mk(W, H); drawReef(sharp.getContext("2d"), items, 0, true);
+    var small = mk(W / 4, H / 4), sg = small.getContext("2d"); sg.imageSmoothingQuality = "high"; sg.drawImage(sharp, 0, 0, W / 4, H / 4);
+    var gl = L.reefGlow.getContext("2d"); gl.imageSmoothingQuality = "high"; gl.globalCompositeOperation = "lighter";
+    gl.drawImage(small, 0, 0, W, H); gl.drawImage(small, 0, 0, W, H); gl.globalAlpha = .55; gl.drawImage(sharp, 0, 0);
+    L.fanDay = fanSprite(0); L.fanNight = fanSprite(.75);
+    L.fans = fans; L.anemones = anem; L.reefCaus = mk(W, 380);
+    // Petit banc de demoiselles bleues au-dessus du récif de droite.
+    L.chromis = []; for (var c = 0; c < 9; c++) L.chromis.push({ dx: R() * 140 - 70, dy: R() * 70 - 35, ph: R() * 6.28, s: .8 + R() * .4 });
+  }
+
+  // Récif lointain : silhouettes de coraux bleutées, noyées dans l'eau.
+  function drawBackReef(g, R) {
+    for (var layer = 0; layer < 2; layer++) {
+      var col = layer ? [24, 70, 120] : [18, 52, 96], y0 = layer ? 800 : 770;
+      g.fillStyle = rgba(col, layer ? .75 : .55); g.beginPath(); g.moveTo(0, H);
+      for (var x = 0; x <= W; x += 6) { var bump = Math.sin(x * .013 + layer * 2) * 20 + Math.sin(x * .041 + layer) * 9 + Math.max(0, Math.sin(x * .006 + layer * 3)) * 40; g.lineTo(x, y0 - bump + (x > 450 && x < 1150 ? 40 : 0)); }
+      g.lineTo(W, H); g.closePath(); g.fill();
+      g.strokeStyle = rgba(col, layer ? .7 : .5); g.lineCap = "round";
+      for (var i = 0; i < 40; i++) { var bx = R() * W, by = y0 - 10 - R() * 30 + (bx > 450 && bx < 1150 ? 40 : 0), h = 30 + R() * 70;
+        (function br(x1, y1, ang, len, wd, d) { var ex = x1 + Math.sin(ang) * len, ey = y1 - Math.cos(ang) * len; g.lineWidth = wd; g.beginPath(); g.moveTo(x1, y1); g.lineTo(ex, ey); g.stroke(); if (d > 0) { br(ex, ey, ang - .45, len * .7, wd * .7, d - 1); br(ex, ey, ang + .45, len * .7, wd * .7, d - 1); } })(bx, by, (R() - .5) * .4, h * .4, 7, 3); }
+    }
+    var haze = g.createLinearGradient(0, 700, 0, H); haze.addColorStop(0, "rgba(20,80,140,0.35)"); haze.addColorStop(1, "rgba(10,40,80,0.1)");
+    g.globalCompositeOperation = "source-atop"; g.fillStyle = haze; g.fillRect(0, 600, W, 300); g.globalCompositeOperation = "source-over";
+  }
+
+  function lumpy(g, x, y, rx, ry, Rr, top) {
+    var n = 40, ph1 = Rr() * 6, ph2 = Rr() * 6; g.beginPath();
+    for (var i = 0; i <= n; i++) { var a = Math.PI + i / n * Math.PI, r = 1 + Math.sin(a * 5 + ph1) * .07 + Math.sin(a * 11 + ph2) * .04; g.lineTo(x + Math.cos(a) * rx * r, y + Math.sin(a) * ry * r); }
+    g.lineTo(x + rx, H + 20); g.lineTo(x - rx, H + 20); g.closePath();
+  }
+
+  function drawReef(g, items, k, glowPass) {
+    g.lineCap = "round"; g.lineJoin = "round";
+    var parts = REEF(); items.forEach(function (it) { var Rr = rng(it.seed || 7); parts[it.k](g, it, k, glowPass, Rr); });
+  }
+
+  function REEF() { return {
+    rock: function (g, it, k, glow, Rr) {
+      if (glow) return;
+      g.save(); lumpy(g, it.x, it.y, it.rx, it.ry, Rr);
+      var gr = g.createLinearGradient(it.x - it.rx * .5, it.y - it.ry, it.x + it.rx * .3, it.y + it.ry); gr.addColorStop(0, rgba(tint([92, 112, 128], k), 1)); gr.addColorStop(.5, rgba(tint([48, 62, 80], k), 1)); gr.addColorStop(1, rgba(tint([16, 24, 38], k), 1));
+      g.fillStyle = gr; g.fill(); g.clip();
+      // Grain de la roche.
+      for (var i = 0; i < 160; i++) { var sx = it.x + (Rr() - .5) * it.rx * 2, sy = it.y - it.ry + Rr() * it.ry * 2, l = Rr() < .5; g.fillStyle = rgba(tint(l ? [140, 160, 170] : [10, 16, 26], k), .25 + Rr() * .25); g.beginPath(); g.arc(sx, sy, .8 + Rr() * 2.2, 0, Math.PI * 2); g.fill(); }
+      // Algues calcaires roses.
+      for (i = 0; i < 4; i++) { var px = it.x + (Rr() - .5) * it.rx * 1.4, py = it.y - it.ry * (.2 + Rr() * .6), pr = 10 + Rr() * 18; g.fillStyle = rgba(tint([205, 110, 150], k), .55); g.beginPath();
+        for (var a = 0; a <= 12; a++) { var an = a / 12 * Math.PI * 2, rr2 = pr * (.7 + Rr() * .5); g.lineTo(px + Math.cos(an) * rr2, py + Math.sin(an) * rr2 * .7); } g.fill(); }
+      // Ombre portée au pied, lumière sur le haut.
+      var sh = g.createLinearGradient(0, it.y, 0, it.y + it.ry); sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(0,0,0,0.45)"); g.fillStyle = sh; g.fillRect(it.x - it.rx * 1.2, it.y, it.rx * 2.4, it.ry + 20);
+      g.restore();
+      g.strokeStyle = rgba(tint([170, 210, 230], k), .35); g.lineWidth = 2; g.beginPath(); g.ellipse(it.x, it.y, it.rx * .95, it.ry * .95, 0, Math.PI * 1.15, Math.PI * 1.65); g.stroke();
+    },
+    branch: function (g, it, k, glow, Rr) {
+      var base = it.c;
+      if (!glow) { g.fillStyle = "rgba(0,0,0,0.3)"; g.beginPath(); g.ellipse(it.x, it.y + 4, it.h * .45, 9, 0, 0, Math.PI * 2); g.fill(); }
+      (function br(x, y, ang, len, w0, d) {
+        var bend = (Rr() - .5) * .5, ex = x + Math.sin(ang + bend * .5) * len, ey = y - Math.cos(ang + bend * .5) * len, w1 = w0 * .7;
+        var cx = x + Math.sin(ang) * len * .55, cy = y - Math.cos(ang) * len * .55, px = Math.cos(ang), py = Math.sin(ang);
+        if (glow) { if (d === 0) { g.fillStyle = "rgba(130,255,235,0.8)"; g.beginPath(); g.arc(ex, ey, w1 * .9, 0, Math.PI * 2); g.fill(); }
+        }
+        else {
+          // Branche effilée : forme pleine entre deux bords, ombrée d'un côté.
+          var c0 = tint(darken(base, .35 - (4 - d) * .05), k), c1 = tint(darken(base, .1), k);
+          var gr = g.createLinearGradient(x, y, ex, ey); gr.addColorStop(0, rgba(c0, 1)); gr.addColorStop(1, rgba(c1, 1));
+          g.fillStyle = gr; g.beginPath(); g.moveTo(x - px * w0 / 2, y - py * w0 / 2); g.quadraticCurveTo(cx - px * w0 * .45, cy - py * w0 * .45, ex - px * w1 / 2, ey - py * w1 / 2);
+          g.lineTo(ex + px * w1 / 2, ey + py * w1 / 2); g.quadraticCurveTo(cx + px * w0 * .45, cy + py * w0 * .45, x + px * w0 / 2, y + py * w0 / 2); g.closePath(); g.fill();
+          g.strokeStyle = rgba(tint(lighten(base, .35), k), .45); g.lineWidth = Math.max(1, w1 * .22); g.beginPath(); g.moveTo(x - px * w0 * .25, y - py * w0 * .25); g.quadraticCurveTo(cx - px * w0 * .25, cy - py * w0 * .25, ex - px * w1 * .25, ey - py * w1 * .25); g.stroke();
+          // Polypes (petits points clairs le long de la branche).
+          for (var q = .15; q < 1; q += 9 / len) { var qx = lerp(x, ex, q) + (Rr() - .5) * w0 * .6, qy = lerp(y, ey, q) + (Rr() - .5) * w0 * .6; g.fillStyle = rgba(tint(lighten(base, .55), k), .55); g.beginPath(); g.arc(qx, qy, Math.max(.8, w1 * .12), 0, Math.PI * 2); g.fill(); }
+          if (d === 0) { g.fillStyle = rgba(tint(lighten(base, .65), k), 1); g.beginPath(); g.arc(ex, ey, w1 * .55, 0, Math.PI * 2); g.fill(); }
+        }
+        if (d > 0) { var n = 2 + (Rr() < .45 ? 1 : 0); for (var b = 0; b < n; b++) br(ex, ey, ang + (b - (n - 1) / 2) * (.4 + Rr() * .25) + (Rr() - .5) * .25, len * (.7 + Rr() * .12), w1, d - 1); }
+      })(it.x, it.y, (Rr() - .5) * .3, it.h * .36, 15, 4);
+    },
+    brain: function (g, it, k, glow, Rr) {
+      g.save(); g.beginPath(); g.ellipse(it.x, it.y, it.r, it.r * .8, 0, Math.PI, 0); g.lineTo(it.x + it.r, it.y + 34); g.lineTo(it.x - it.r, it.y + 34); g.closePath();
+      if (!glow) { var bg = g.createRadialGradient(it.x - it.r * .35, it.y - it.r * .6, 3, it.x, it.y, it.r * 1.25); bg.addColorStop(0, rgba(tint(lighten(it.c, .35), k), 1)); bg.addColorStop(.6, rgba(tint(it.c, k), 1)); bg.addColorStop(1, rgba(tint(darken(it.c, .55), k), 1)); g.fillStyle = bg; g.fill(); }
+      if (glow) { var fg = g.createRadialGradient(it.x, it.y - it.r * .5, 2, it.x, it.y - it.r * .3, it.r); fg.addColorStop(0, "rgba(140,255,150,0.55)"); fg.addColorStop(1, "rgba(90,230,140,0.25)"); g.fillStyle = fg; g.fill(); g.restore(); return; }
+      g.clip();
+      // Labyrinthe : des sillons qui serpentent (marches lentes), creux sombres et crêtes claires.
+      for (var w = 0; w < 70; w++) {
+        var x = it.x + (Rr() - .5) * it.r * 2, y = it.y - Rr() * it.r * .85, a = Rr() * 6.28, pts = [[x, y]];
+        for (var s2 = 0; s2 < 14; s2++) { a += (Rr() - .5) * 1.1; x += Math.cos(a) * 4.5; y += Math.sin(a) * 3.6; pts.push([x, y]); }
+        [[1.4, rgba(tint(lighten(it.c, .45), k), .55), -1.2], [2.6, rgba(tint(darken(it.c, .6), k), .7), 0]].forEach(function (st) {
+          if (!st[1]) return; g.strokeStyle = st[1]; g.lineWidth = st[0]; g.beginPath(); pts.forEach(function (p, i) { i ? g.lineTo(p[0] + st[2], p[1] + st[2]) : g.moveTo(p[0] + st[2], p[1] + st[2]); }); g.stroke(); });
+      }
+      if (!glow) { var sh = g.createLinearGradient(0, it.y - it.r * .2, 0, it.y + 30); sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(0,0,0,0.45)"); g.fillStyle = sh; g.fillRect(it.x - it.r, it.y - it.r, it.r * 2, it.r * 2); }
+      g.restore();
+    },
+    lettuce: function (g, it, k, glow, Rr) {
+      // Corail laitue : feuilles minces et froissées, empilées en monticule, bords clairs et ondulés.
+      for (var sh = 0; sh < 9; sh++) {
+        var f = sh / 8, cx = it.x + (Rr() - .5) * it.r * 1.1, cy = it.y - (1 - Math.abs(cx - it.x) / it.r) * it.r * .5 - Rr() * 12 + sh * 3, w = it.r * (.45 + Rr() * .35), h = 16 + Rr() * 14, tilt = (Rr() - .5) * .5;
+        g.save(); g.translate(cx, cy); g.rotate(tilt);
+        g.beginPath(); g.moveTo(-w, 6);
+        for (var a = 0; a <= 40; a++) { var u = a / 40, x = -w + u * 2 * w, y = -Math.sin(u * Math.PI) * h + Math.sin(u * 26 + sh) * 3.2; g.lineTo(x, y); }
+        g.lineTo(w, 6); g.quadraticCurveTo(0, 2 - h * .3, -w, 6); g.closePath();
+        if (glow) { g.fillStyle = "rgba(190,255,120,0.3)"; g.fill(); g.restore(); continue; }
+        var lg = g.createLinearGradient(0, -h, 0, 6); lg.addColorStop(0, rgba(tint(lighten(it.c, .35 - f * .1), k), 1)); lg.addColorStop(1, rgba(tint(darken(it.c, .45), k), 1)); g.fillStyle = lg; g.fill();
+        g.strokeStyle = rgba(tint(lighten(it.c, .6), k), .8); g.lineWidth = 1.3; g.beginPath();
+        for (a = 0; a <= 40; a++) { var u2 = a / 40; g.lineTo(-w + u2 * 2 * w, -Math.sin(u2 * Math.PI) * h + Math.sin(u2 * 26 + sh) * 3.2); } g.stroke();
+        g.strokeStyle = rgba(tint(darken(it.c, .3), k), .35); g.lineWidth = .8;
+        for (var r = 0; r < 12; r++) { var rx = -w * .8 + r / 11 * w * 1.6; g.beginPath(); g.moveTo(rx, 4); g.lineTo(rx * 1.05, -Math.sin((rx + w) / (2 * w) * Math.PI) * h * .85); g.stroke(); }
+        g.restore();
+      }
+    },
+    bubble: function (g, it, k, glow, Rr) {
+      // Corail bulles : une grappe de vésicules translucides, serrées en dôme, chacune avec son reflet.
+      var bubbles = [];
+      for (var i = 0; i < 34; i++) { var a = Math.PI + Rr() * Math.PI, d = Math.sqrt(Rr()), r = 7 + Rr() * 7; bubbles.push([it.x + Math.cos(a) * it.r * d, it.y + Math.sin(a) * it.r * .75 * d, r]); }
+      bubbles.sort(function (p, q) { return p[1] - q[1]; });
+      if (!glow) { g.fillStyle = rgba(tint([40, 50, 45], k), 1); g.beginPath(); g.ellipse(it.x, it.y, it.r * 1.05, it.r * .35, 0, Math.PI, 0); g.fill(); }
+      bubbles.forEach(function (b) {
+        if (glow) { g.fillStyle = "rgba(170,255,230,0.35)"; g.beginPath(); g.arc(b[0], b[1], b[2], 0, Math.PI * 2); g.fill(); return; }
+        var bg = g.createRadialGradient(b[0] - b[2] * .35, b[1] - b[2] * .4, b[2] * .1, b[0], b[1], b[2]);
+        bg.addColorStop(0, rgba(tint(lighten(it.c, .6), k), .95)); bg.addColorStop(.7, rgba(tint(it.c, k), .85)); bg.addColorStop(1, rgba(tint(darken(it.c, .45), k), .9));
+        g.fillStyle = bg; g.beginPath(); g.arc(b[0], b[1], b[2], 0, Math.PI * 2); g.fill();
+        g.fillStyle = rgba(tint([255, 255, 255], k), .7); g.beginPath(); g.ellipse(b[0] - b[2] * .3, b[1] - b[2] * .45, b[2] * .3, b[2] * .18, -.5, 0, Math.PI * 2); g.fill();
+      });
+    },
+    fungia: function (g, it, k, glow, Rr) {
+      // Coraux champignons : disques ovales posés au sol, cloisons fines qui rayonnent, bouche au centre.
+      for (var n = 0; n < 3; n++) {
+        var x = it.x + (n - 1) * it.r * 1.9 + (Rr() - .5) * 10, y = it.y - (n % 2) * 6, rx = it.r * (.75 + Rr() * .4), ry = rx * .38, c = [[200, 160, 120], [150, 200, 170], [220, 140, 150]][n];
+        g.save(); g.translate(x, y); g.rotate((Rr() - .5) * .2);
+        g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        if (glow) { g.fillStyle = "rgba(120,255,190,0.35)"; g.fill(); g.restore(); continue; }
+        g.fillStyle = "rgba(0,0,0,0.35)"; g.beginPath(); g.ellipse(2, 4, rx, ry, 0, 0, Math.PI * 2); g.fill();
+        var fg = g.createRadialGradient(-rx * .3, -ry * .5, 1, 0, 0, rx); fg.addColorStop(0, rgba(tint(lighten(c, .4), k), 1)); fg.addColorStop(1, rgba(tint(darken(c, .35), k), 1));
+        g.fillStyle = fg; g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = rgba(tint(lighten(c, .55), k), .55); g.lineWidth = .8;
+        for (var r = 0; r < 40; r++) { var a = r / 40 * Math.PI * 2; g.beginPath(); g.moveTo(Math.cos(a) * rx * .18, Math.sin(a) * ry * .18); g.lineTo(Math.cos(a) * rx * .96, Math.sin(a) * ry * .96); g.stroke(); }
+        g.fillStyle = rgba(tint(darken(c, .6), k), 1); g.beginPath(); g.ellipse(0, 0, rx * .2, ry * .14, 0, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+    },
+    dusters: function (g, it, k, glow, Rr) {
+      // Vers plumeaux : tiges fines et souples, coiffées d'une couronne de plumes en éventail, rayée.
+      var cols = [[[200, 40, 60], [255, 235, 225]], [[250, 150, 40], [255, 245, 220]], [[130, 70, 200], [235, 225, 255]], [[200, 40, 60], [255, 235, 225]]];
+      for (var u = 0; u < it.n; u++) {
+        var bx = it.x + (u - 1.5) * 24 + (Rr() - .5) * 10, h = 45 + Rr() * 55, lean = (Rr() - .5) * 26, tx = bx + lean, ty = it.y - h, cr = 15 + Rr() * 8, c = cols[u % 4];
+        if (!glow) { g.strokeStyle = rgba(tint([150, 125, 95], k), 1); g.lineWidth = 3.4; g.beginPath(); g.moveTo(bx, it.y); g.quadraticCurveTo(bx + lean * .2, it.y - h * .5, tx, ty); g.stroke();
+          g.strokeStyle = rgba(tint([200, 180, 150], k), .5); g.lineWidth = 1; g.stroke(); }
+        // Couronne : plumes en demi-cercle ouvert vers le haut, chacune avec ses barbes.
+        var n = 26;
+        for (var f = 0; f < n; f++) {
+          var a = Math.PI + .15 + f / (n - 1) * (Math.PI - .3), ex = tx + Math.cos(a) * cr, ey = ty + Math.sin(a) * cr * .75 - cr * .15;
+          if (glow) { if (f === 0) { g.fillStyle = rgba(lighten(c[0], .45), .55); g.beginPath(); g.ellipse(tx, ty - cr * .4, cr * .9, cr * .6, 0, 0, Math.PI * 2); g.fill(); } continue; }
+          var fg = g.createLinearGradient(tx, ty, ex, ey); fg.addColorStop(0, rgba(tint(darken(c[0], .3), k), 1)); fg.addColorStop(.35, rgba(tint(c[1], k), 1)); fg.addColorStop(.55, rgba(tint(c[0], k), 1)); fg.addColorStop(.8, rgba(tint(c[1], k), 1)); fg.addColorStop(1, rgba(tint(c[0], k), 1));
+          g.strokeStyle = fg; g.lineWidth = 1.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(ex, ey); g.stroke();
+          g.strokeStyle = rgba(tint(c[1], k), .35); g.lineWidth = .6;
+          for (var bb = .35; bb < 1; bb += .16) { var mx = lerp(tx, ex, bb), my = lerp(ty, ey, bb), nx = -(ey - ty) / cr * 2.2, ny = (ex - tx) / cr * 2.2; g.beginPath(); g.moveTo(mx - nx, my - ny); g.lineTo(mx + nx, my + ny); g.stroke(); }
+        }
+        if (!glow) { g.fillStyle = rgba(tint(darken(c[0], .5), k), 1); g.beginPath(); g.ellipse(tx, ty - 1, 3.5, 2.2, 0, 0, Math.PI * 2); g.fill(); }
+      }
+    },
+    zoa: function (g, it, k, glow, Rr) {
+      // Zoanthides : un tapis de petits polypes ronds, cœur sombre, couronne claire.
+      for (var i = 0; i < it.n; i++) { var x = it.x + (Rr() - .5) * 90, y = it.y - Rr() * 34, r = 4 + Rr() * 3;
+        if (glow) { g.fillStyle = rgba(lighten(it.c, .3), .8); g.beginPath(); g.arc(x, y, r * .75, 0, Math.PI * 2); g.fill(); continue; }
+        g.fillStyle = rgba(tint(it.c, k), 1); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = rgba(tint(lighten(it.c, .5), k), .9); g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, r * .8, 0, Math.PI * 2); g.stroke();
+        g.fillStyle = rgba(tint(darken(it.c, .6), k), 1); g.beginPath(); g.arc(x, y, r * .35, 0, Math.PI * 2); g.fill(); }
+    },
+    urchin: function (g, it, k, glow, Rr) {
+      if (glow) return;
+      g.strokeStyle = rgba(tint([20, 10, 30], k), 1); g.lineWidth = 1.2;
+      for (var s2 = 0; s2 < 34; s2++) { var a = Math.PI + Rr() * Math.PI, l = it.r * (1.4 + Rr() * 1.1); g.beginPath(); g.moveTo(it.x, it.y - it.r * .4); g.lineTo(it.x + Math.cos(a) * l, it.y - it.r * .4 + Math.sin(a) * l); g.stroke(); }
+      var ug = g.createRadialGradient(it.x - 4, it.y - it.r * .8, 1, it.x, it.y - it.r * .4, it.r); ug.addColorStop(0, rgba(tint([90, 60, 110], k), 1)); ug.addColorStop(1, rgba(tint([15, 8, 22], k), 1));
+      g.fillStyle = ug; g.beginPath(); g.arc(it.x, it.y - it.r * .4, it.r, 0, Math.PI * 2); g.fill();
+    },
+    star: function (g, it, k, glow, Rr) {
+      if (glow) return;
+      g.beginPath(); for (var i = 0; i <= 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? it.r * .42 : it.r; g.lineTo(it.x + Math.cos(a) * r, it.y + Math.sin(a) * r * .55); } g.closePath();
+      var sg = g.createRadialGradient(it.x, it.y, 2, it.x, it.y, it.r); sg.addColorStop(0, rgba(tint([255, 170, 90], k), 1)); sg.addColorStop(1, rgba(tint([215, 85, 45], k), 1)); g.fillStyle = sg; g.fill();
+      for (var d = 0; d < 20; d++) { g.fillStyle = rgba(tint([255, 225, 170], k), .8); g.beginPath(); g.arc(it.x + (Rr() - .5) * it.r * 1.2, it.y + (Rr() - .5) * it.r * .6, 1, 0, Math.PI * 2); g.fill(); }
+    }
+  }; }
+
+  // Gorgone (éventail) : branches qui se divisent et se recroisent en résille fine.
+  function fanSprite(k) {
+    var c = mk(320, 320), g = c.getContext("2d"), Rr = rng(77); g.lineCap = "round";
+    var tips = [];
+    (function br(x, y, ang, len, wd, d) { var ex = x + Math.sin(ang) * len, ey = y - Math.cos(ang) * len;
+      g.strokeStyle = rgba(tint(mixc([190, 50, 100], [235, 110, 150], 1 - d / 6), k), .95); g.lineWidth = wd; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo((x + ex) / 2 + (Rr() - .5) * 12, (y + ey) / 2, ex, ey); g.stroke();
+      if (d > 0) { br(ex, ey, ang - .3 - Rr() * .15, len * .8, wd * .7, d - 1); br(ex, ey, ang + .3 + Rr() * .15, len * .8, wd * .7, d - 1); } else tips.push([ex, ey]);
+    })(160, 318, 0, 66, 8, 6);
+    g.strokeStyle = rgba(tint([240, 130, 170], k), .3); g.lineWidth = .8;
+    for (var i = 0; i < 260; i++) { var p = tips[Math.floor(Rr() * tips.length)], q = tips[Math.floor(Rr() * tips.length)]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 60) { g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); } }
+    for (i = 0; i < 180; i++) { var t2 = tips[Math.floor(Rr() * tips.length)]; g.fillStyle = rgba(tint([255, 200, 220], k), .5); g.beginPath(); g.arc(t2[0] + (Rr() - .5) * 20, t2[1] + (Rr() - .5) * 20, .9, 0, Math.PI * 2); g.fill(); }
+    return c;
+  }
+
+  // Anémone : colonne, tentacules épais qui ondulent avec décalage ; la nuit, leurs bouts luisent.
+  function drawAnemone(g, a, t, anim, dark) {
+    var s = a.s, base = mixc([235, 115, 150], [40, 30, 60], dark * .75), tip = mixc([255, 225, 165], [60, 50, 80], dark * .7);
+    var cg = g.createLinearGradient(a.x - 18 * s, 0, a.x + 18 * s, 0); cg.addColorStop(0, rgba(mixc([120, 50, 80], [20, 15, 30], dark * .75), 1)); cg.addColorStop(.5, rgba(mixc([200, 90, 120], [35, 25, 45], dark * .75), 1)); cg.addColorStop(1, rgba(mixc([110, 45, 70], [18, 12, 28], dark * .75), 1));
+    g.fillStyle = cg; g.beginPath(); g.moveTo(a.x - 18 * s, a.y + 30 * s); g.quadraticCurveTo(a.x - 14 * s, a.y, a.x - 22 * s, a.y - 4 * s); g.lineTo(a.x + 22 * s, a.y - 4 * s); g.quadraticCurveTo(a.x + 14 * s, a.y, a.x + 18 * s, a.y + 30 * s); g.fill();
+    g.lineCap = "round";
+    for (var ring = 0; ring < 2; ring++) for (var k = 0; k < 18; k++) {
+      var f = k / 17, ang = (-1.3 + f * 2.6) * (ring ? .75 : 1), len = (ring ? 30 : 42) * s * (1 + Math.sin(k * 2.1) * .15), sw = anim ? Math.sin(t * 1.4 - f * 2.4 + a.ph + ring) * 10 * s : 0;
+      var bx = a.x + Math.sin(ang) * 15 * s, by = a.y - 5 * s - ring * 3 * s, ex = bx + Math.sin(ang) * len + sw, ey = by - Math.cos(ang) * len * .9 + Math.abs(sw) * .25;
+      var gr = g.createLinearGradient(bx, by, ex, ey); gr.addColorStop(0, rgba(base, 1)); gr.addColorStop(.75, rgba(mixc(base, tip, .6), 1)); gr.addColorStop(1, rgba(tip, 1));
+      g.strokeStyle = gr; g.lineWidth = (ring ? 3.6 : 4.6) * s; g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo(bx + Math.sin(ang) * len * .5 + sw * .3, by - Math.cos(ang) * len * .6, ex, ey); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.25)"; g.lineWidth = 1.2 * s; g.stroke();
+      if (dark > .2) { g.globalAlpha = (dark - .2) / .8; g.globalCompositeOperation = "lighter"; g.drawImage(L.dot, ex - 7 * s, ey - 7 * s, 14 * s, 14 * s); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+    }
+  }
+  // Poisson-clown : orange, trois bandes blanches cerclées de noir.
+  function clownfish(g, x, y, s, dir, t) {
+    g.save(); g.translate(x, y); g.scale(dir * s, s);
+    var tail = Math.sin(t * 9) * .35; g.fillStyle = "#ff7a1a";
+    g.beginPath(); g.moveTo(-12, 0); g.lineTo(-20, -6 + tail * 6); g.lineTo(-20, 6 + tail * 6); g.closePath(); g.fill();
+    g.beginPath(); g.ellipse(0, 0, 13, 7, 0, 0, Math.PI * 2); g.fill(); g.save(); g.clip();
+    [[6, 3.2], [-1, 3.6], [-9, 2.4]].forEach(function (b) { g.fillStyle = "#111"; g.fillRect(b[0] - b[1] / 2 - 1, -8, b[1] + 2, 16); g.fillStyle = "#fff"; g.fillRect(b[0] - b[1] / 2, -8, b[1], 16); });
+    g.restore(); g.fillStyle = "#111"; g.beginPath(); g.arc(9, -2, 1.4, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  // Demoiselle bleue.
+  function chromis(g, x, y, s, dir, t, ph) {
+    g.save(); g.translate(x, y); g.scale(dir * s, s); var tail = Math.sin(t * 10 + ph) * .3;
+    g.fillStyle = "#46b4ff"; g.beginPath(); g.moveTo(-8, 0); g.lineTo(-14, -5 + tail * 5); g.lineTo(-14, 5 + tail * 5); g.closePath(); g.fill();
+    var fg = g.createLinearGradient(0, -5, 0, 5); fg.addColorStop(0, "#9ae4ff"); fg.addColorStop(1, "#1f7fd8"); g.fillStyle = fg; g.beginPath(); g.ellipse(0, 0, 10, 4.6, 0, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+
+  // Nage d'une méduse. Quand la nuit est assez noire pour elle (th), elle arrive par son côté ; à
+  // l'aube, elle repart de ce côté. Elle nage vraiment : à chaque contraction de la cloche, une
+  // poussée dans le sens où pointe sa cloche ; entre deux, elle ralentit et coule un peu. En voyage,
+  // elle s'oriente cloche en avant vers où elle va ; chez elle, elle se redresse et ne pousse que
+  // quand elle est descendue sous sa hauteur. Un saut d'heure (glissière, boutons) la pose
+  // directement à sa place, ou l'enlève.
+  function swimJelly(j, dark, dt, anim, t, snap) {
+    var want = dark >= j.th ? true : dark < j.th - .05 ? false : (j.state === "in" || j.state === "arriving");
+    var side = j.side < 0 ? -300 : W + 300;
+    if (snap || !anim || !j.state) {
+      j.state = want ? "in" : "out"; j.px = j.x; j.py = j.y; j.vx = 0; j.vy = 0; j.ang = 0; j.c = 0; j.cp = (j.ph * .37) % 1; j.hist = [];
+      return;
+    }
+    if (want && j.state === "out") { j.state = "arriving"; j.px = side; j.py = j.y + 60 * Math.sin(j.ph * 3); j.vx = 0; j.vy = 0; j.ang = (j.side < 0 ? 1 : -1) * 1.25; j.hist = []; }
+    if (want && j.state === "leaving") j.state = "arriving";
+    if (!want && (j.state === "in" || j.state === "arriving")) j.state = "leaving";
+    if (j.state === "out") return;
+    var tx, ty;
+    if (j.state === "leaving") { tx = side; ty = j.py - 40; }
+    else { tx = j.x + Math.sin(t * .07 + j.ph) * 40; ty = j.y + Math.sin(t * .05 + j.ph) * 25; }
+    var dx = tx - j.px, dy = ty - j.py, dist = Math.hypot(dx, dy), travel = j.state === "leaving" || dist > 70 * j.s;
+    var desired = travel ? clamp(Math.atan2(dx, -dy), -1.45, 1.45) : Math.sin(t * .4 + j.ph) * .08;
+    j.ang += (desired - j.ang) * Math.min(1, dt * .9);
+    var P = (2 + j.s * 1.2) * (j.state === "leaving" ? .6 : j.state === "arriving" ? .8 : 1), TH = .28; j.cp = (j.cp + dt / P) % 1; j.c = j.cp < TH ? Math.sin(j.cp / TH * Math.PI) : 0;
+    var push = travel ? 1 : clamp((j.py - ty) / (40 * j.s), 0, 1.2);
+    if (j.cp < TH) { var a = 270 * j.s * push * j.c * (j.state === "leaving" ? 1.8 : j.state === "arriving" ? 1.3 : 1); j.vx += Math.sin(j.ang) * a * dt; j.vy -= Math.cos(j.ang) * a * dt; }
+    j.vy += 9 * dt; var drag = Math.pow(.35, dt); j.vx *= drag; j.vy *= drag;
+    if (!travel) j.vx += dx * .25 * dt;
+    j.px += j.vx * dt; j.py += j.vy * dt;
+    if (j.state === "arriving" && dist < 45 * j.s) j.state = "in";
+    if (j.state === "leaving" && (j.px < -320 || j.px > W + 320)) { j.state = "out"; j.hist = []; }
+  }
+
+  // Méduse, dessinée à chaque image : cloche qui se contracte et dont le bord ondule, lueurs
+  // intérieures, bras buccaux qui flottent, tentacules qui suivent le corps avec du retard (positions
+  // passées de la méduse) et ondulent jusqu'au bout. (x, y) : bord de la cloche ; ang : inclinaison ;
+  // c : contraction (0 à 1).
+  function drawJelly(g, j, x, y, ang, c, t, anim) {
+    var s = j.s, R = 62 * s, rr = R * (1 - .24 * c), bh = R * (.82 + .26 * c);
+    var ux = Math.sin(ang), uy = -Math.cos(ang), rx = Math.cos(ang), ry = Math.sin(ang);    // haut, droite
+    if (!j.hist) j.hist = [];
+    if (anim) { j.hist.push([x, y]); if (j.hist.length > 60) j.hist.shift(); } else j.hist = [[x, y]];
+    function past(n) { var h = j.hist, q = h[Math.max(0, h.length - 1 - n)], ox = q[0] - x, oy = q[1] - y, d = Math.hypot(ox, oy), mx = R * 1.2; if (d > mx) { ox *= mx / d; oy *= mx / d; } return [ox, oy]; }
+    g.save(); g.globalCompositeOperation = "lighter";
+    // Halo.
+    g.globalAlpha = .5 + .2 * c; g.drawImage(L.jglow, x - R * 2.2 + ux * bh * .5, y - R * 2.2 + uy * bh * .5, R * 4.4, R * 4.4); g.globalAlpha = 1;
+    var wob = function (i, sp, ph) { return anim ? Math.sin(t * sp - i * .42 + ph) : Math.sin(-i * .42 + ph); };
+    // Bras buccaux : quatre rubans épais et lents, sous la cloche.
+    for (var a = 0; a < 4; a++) {
+      var ox = (a - 1.5) * rr * .16, n = 14, len = R * 1.5, pts = [];
+      for (var i = 0; i <= n; i++) { var f = i / n, lag = past(Math.round(i * 1.6)), w1 = wob(i, 1.1, a * 1.7 + j.ph) * R * .16 * f, w2 = wob(i * 2.3, 1.7, a) * R * .05 * f;
+        pts.push([x + rx * (ox + w1 + w2) - ux * (len * f + R * .05) + lag[0] * Math.min(1, f * 1.4), y + ry * (ox + w1 + w2) - uy * (len * f + R * .05) + lag[1] * Math.min(1, f * 1.4)]); }
+      for (var layer = 0; layer < 2; layer++) {
+        g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+        for (var i2 = 1; i2 < pts.length - 1; i2++) g.quadraticCurveTo(pts[i2][0], pts[i2][1], (pts[i2][0] + pts[i2 + 1][0]) / 2, (pts[i2][1] + pts[i2 + 1][1]) / 2);
+        g.lineTo(pts[n][0], pts[n][1]);
+        var gr = g.createLinearGradient(pts[0][0], pts[0][1], pts[n][0], pts[n][1]); gr.addColorStop(0, "rgba(230,160,255," + (layer ? .55 : .22) + ")"); gr.addColorStop(1, "rgba(160,120,255,0)");
+        g.strokeStyle = gr; g.lineWidth = (layer ? 1.6 : 7) * s; g.lineCap = "round"; g.stroke();
+      }
+    }
+    // Tentacules : partent du bord, traînent derrière le mouvement, ondulent de plus en plus vers le bout.
+    var NT = 14;
+    for (var k = 0; k < NT; k++) {
+      var fx = (k + .5) / NT * 2 - 1, ax = x + rx * fx * rr * .96 - ux * Math.sqrt(1 - fx * fx) * R * .04, ay = y + ry * fx * rr * .96 - uy * Math.sqrt(1 - fx * fx) * R * .04;
+      var n2 = 22, len2 = R * (2.4 + ((k * 7) % 5) * .25) * (1 - .12 * c), tp = [[ax, ay]];
+      for (var i3 = 1; i3 <= n2; i3++) { var f2 = i3 / n2, lag2 = past(Math.round(i3 * 1.4));
+        var spread = fx * R * (.15 + .35 * (1 - c)) * f2, wave = wob(i3, 2.1 + (k % 3) * .3, k * 1.3 + j.ph) * R * .2 * f2 * f2;
+        tp.push([ax + rx * (spread + wave) - ux * len2 * f2 + lag2[0] * Math.min(1, f2 * 1.3), ay + ry * (spread + wave) - uy * len2 * f2 + lag2[1] * Math.min(1, f2 * 1.3)]); }
+      g.beginPath(); g.moveTo(tp[0][0], tp[0][1]);
+      for (var i4 = 1; i4 < tp.length - 1; i4++) g.quadraticCurveTo(tp[i4][0], tp[i4][1], (tp[i4][0] + tp[i4 + 1][0]) / 2, (tp[i4][1] + tp[i4 + 1][1]) / 2);
+      g.lineTo(tp[n2][0], tp[n2][1]);
+      var tg = g.createLinearGradient(ax, ay, tp[n2][0], tp[n2][1]); tg.addColorStop(0, "rgba(190,225,255,0.6)"); tg.addColorStop(.6, "rgba(160,190,255,0.25)"); tg.addColorStop(1, "rgba(140,170,255,0)");
+      g.strokeStyle = tg; g.lineWidth = 1.2 * s + .3; g.stroke();
+    }
+    // Cloche : dôme, bord festonné qui ondule, sous-ombrelle, organes en fer à cheval.
+    g.translate(x, y); g.rotate(ang);
+    g.beginPath(); g.moveTo(-rr, 0);
+    g.bezierCurveTo(-rr * 1.02, -bh * .85, -rr * .55, -bh, 0, -bh);
+    g.bezierCurveTo(rr * .55, -bh, rr * 1.02, -bh * .85, rr, 0);
+    var NL = 10;
+    for (var l = NL - 1; l >= 0; l--) { var lx0 = -rr + 2 * rr * (l + 1) / NL, lx1 = -rr + 2 * rr * l / NL, dip = R * .07 + (anim ? Math.sin(t * 3.2 + l * .9 + j.ph) * R * .03 : 0);
+      g.quadraticCurveTo((lx0 + lx1) / 2, dip, lx1, 0); }
+    g.closePath();
+    var bgr = g.createRadialGradient(0, -bh * .65, R * .05, 0, -bh * .4, R * 1.1);
+    bgr.addColorStop(0, "rgba(235,225,255,0.55)"); bgr.addColorStop(.55, "rgba(170,140,255,0.22)"); bgr.addColorStop(1, "rgba(110,210,255,0.38)");
+    g.fillStyle = bgr; g.fill();
+    g.strokeStyle = "rgba(200,240,255," + (.55 + .3 * c) + ")"; g.lineWidth = 1.6 * s + .4; g.stroke();
+    g.beginPath(); g.ellipse(0, -bh * .12, rr * .78, bh * .22, 0, 0, Math.PI * 2); g.fillStyle = "rgba(190,170,255,0.12)"; g.fill();
+    for (var q = 0; q < 4; q++) { var qa = q * Math.PI / 2 + Math.PI / 4, qx = Math.cos(qa) * rr * .3, qy = -bh * .45 + Math.sin(qa) * bh * .1, qr = R * .2;
+      var og = g.createRadialGradient(qx, qy, 0, qx, qy, qr); og.addColorStop(0, "rgba(255,170,235," + (.22 + .2 * c) + ")"); og.addColorStop(1, "rgba(255,170,235,0)");
+      g.fillStyle = og; g.beginPath(); g.ellipse(qx, qy, qr, qr * .7, qa, 0, Math.PI * 2); g.fill(); }
+    // Reflet sur le haut du dôme.
+    g.beginPath(); g.ellipse(-rr * .25, -bh * .72, rr * .32, bh * .12, -.4, 0, Math.PI * 2); g.fillStyle = "rgba(255,255,255,0.16)"; g.fill();
+    g.restore();
+  }
+
+  // Reflet d'un astre à la surface, teinté.
+  function drawWin(g, x, s, c, a) {
+    var tw = L.winT.getContext("2d"); tw.globalCompositeOperation = "source-over"; tw.clearRect(0, 0, 800, 300); tw.drawImage(L.win, 0, 0);
+    tw.globalCompositeOperation = "source-in"; tw.fillStyle = rgba(c, 1); tw.fillRect(0, 0, 800, 300);
+    g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = a; g.drawImage(L.winT, x - 400 * s * 1.6, -40, 800 * s * 1.6, 300 * s * 1.3); g.restore();
+  }
+  // Faisceau de rayons depuis (x, haut) : largeur w, inclinaison slant, couleur c, longueur len.
+  function rays(g, cv, x, w, slant, c, len, a) {
+    var tg = cv.getContext("2d"); tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalCompositeOperation = "source-over"; tg.clearRect(0, 0, W, H);
+    tg.setTransform(w, 0, slant, 1, x - 720 * w + 120 * slant, 0); tg.drawImage(L.rays, 0, 0); tg.setTransform(1, 0, 0, 1, 0, 0);
+    tg.globalCompositeOperation = "source-in"; tg.fillStyle = rgba(c, 1); tg.fillRect(0, 0, W, H);
+    var mm = tg.createLinearGradient(0, 0, 0, len); mm.addColorStop(0, "rgba(0,0,0,1)"); mm.addColorStop(.55, "rgba(0,0,0,0.75)"); mm.addColorStop(1, "rgba(0,0,0,0)");
+    tg.globalCompositeOperation = "destination-in"; tg.fillStyle = mm; tg.fillRect(0, 0, W, H);
+    g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = a; g.drawImage(cv, 0, 0); g.restore();
+  }
+
+  function phaseName(m) {
+    var sun = arc(m, RISE, SET), moon = arc(m, MRISE, MSET);
+    if (sun && sun.h > .3) return ["Jour", ""];
+    if (sun && m > 720) return ["Coucher du soleil", "dusk"];
+    if (sun) return ["Lever du soleil", "dusk"];
+    if (m >= SET && m < 1200) return ["Crépuscule", "dusk"];
+    if (m >= 350 && m < RISE) return ["Aube", "dusk"];
+    if (auroraAt(m) > 0 && auroraAt(m) < 1) return [m > 720 ? "Aurore boréale qui arrive" : "Aurore boréale qui s'en va", "night"];
+    return moon ? ["Nuit · lune et aurore boréale", "night"] : ["Nuit", "night"];
+  }
+
+  // ================================================================ Interface Aero (posée par-dessus)
+  var posters = [
+    ["Les Marées", [40, 120, 200], [10, 30, 70]], ["Nord", [200, 220, 240], [40, 70, 110]], ["Station 9", [230, 120, 60], [60, 20, 30]],
+    ["Le Phare", [250, 200, 90], [30, 50, 90]], ["Verre et Sel", [120, 230, 200], [20, 60, 80]], ["Minuit Bleu", [80, 90, 220], [10, 10, 40]]
+  ];
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function drawUI(g, clock) {
+    g.clearRect(0, 0, W, H);
+    var bar = g.createLinearGradient(0, 0, 0, 72); bar.addColorStop(0, "rgba(28,58,104,0.92)"); bar.addColorStop(.48, "rgba(14,36,74,0.9)"); bar.addColorStop(.52, "rgba(4,16,40,0.9)"); bar.addColorStop(1, "rgba(6,20,48,0.92)");
+    g.fillStyle = bar; g.fillRect(0, 0, W, 72);
+    var sh = g.createLinearGradient(0, 0, 0, 36); sh.addColorStop(0, "rgba(255,255,255,0.18)"); sh.addColorStop(1, "rgba(255,255,255,0.04)"); g.fillStyle = sh; g.fillRect(0, 0, W, 36); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(0, 0, W, 1); g.fillStyle = "rgba(0,8,24,0.7)"; g.fillRect(0, 71, W, 1);
+    g.fillStyle = "rgba(255,255,255,0.95)"; g.font = "600 25px Inter, Segoe UI, sans-serif";
+    [["Accueil", 560], ["Favoris", 690], ["Demandes", 820], ["Collections", 985]].forEach(function (t, i) { g.fillText(t[0], t[1], 45); if (!i) { g.fillStyle = "#6cc6ff"; g.fillRect(t[1], 60, g.measureText(t[0]).width, 3); g.fillStyle = "rgba(255,255,255,0.95)"; } });
+    g.textAlign = "right"; g.fillText(clock, W - 40, 45); g.textAlign = "left";
+    g.strokeStyle = "rgba(255,255,255,0.85)"; g.lineWidth = 3; g.beginPath(); for (var k = 0; k < 3; k++) { g.moveTo(32, 26 + k * 10); g.lineTo(58, 26 + k * 10); } g.stroke();
+    g.font = "700 34px 'Space Grotesk', Segoe UI, sans-serif"; g.fillStyle = "#fff"; g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 8; g.fillText("Reprendre", 80, 150); g.shadowBlur = 0;
+    for (var i = 0; i < 4; i++) { var x = 80 + i * 370, y = 172, w = 340, h = 191, p = posters[i];
+      var pg = g.createLinearGradient(x, y, x + w, y + h); pg.addColorStop(0, rgba(p[1], 1)); pg.addColorStop(1, rgba(p[2], 1)); g.fillStyle = pg; rr(g, x, y, w, h, 8); g.fill();
+      var gl = g.createLinearGradient(0, y, 0, y + h * .5); gl.addColorStop(0, "rgba(255,255,255,0.28)"); gl.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gl; rr(g, x, y, w, h * .5, 8); g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 2; rr(g, x, y, w, h, 8); g.stroke();
+      g.fillStyle = "rgba(0,0,0,0.4)"; g.fillRect(x, y + h - 6, w, 6); g.fillStyle = "#6cc6ff"; g.fillRect(x, y + h - 6, w * (.25 + i * .17), 6);
+      g.fillStyle = "#fff"; g.font = "600 21px Inter, Segoe UI, sans-serif"; g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 6; g.fillText(p[0], x, y + h + 30); g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "400 17px Inter, Segoe UI, sans-serif"; g.fillText("S01E0" + (i + 2) + " · 24 min", x, y + h + 54); g.shadowBlur = 0; }
+    g.font = "700 34px 'Space Grotesk', Segoe UI, sans-serif"; g.fillStyle = "#fff"; g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 8; g.fillText("Ajouts récents", 80, 492); g.shadowBlur = 0;
+    for (var j = 0; j < 7; j++) { var px = 80 + j * 212, py = 514, pw = 190, ph = 285, q = posters[(j + 2) % posters.length];
+      var qg = g.createLinearGradient(px, py, px, py + ph); qg.addColorStop(0, rgba(q[1], 1)); qg.addColorStop(1, rgba(q[2], 1)); g.fillStyle = qg; rr(g, px, py, pw, ph, 8); g.fill();
+      var ql = g.createLinearGradient(0, py, 0, py + ph * .45); ql.addColorStop(0, "rgba(255,255,255,0.3)"); ql.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = ql; rr(g, px, py, pw, ph * .45, 8); g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = 2; rr(g, px, py, pw, ph, 8); g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.92)"; g.font = "700 20px 'Space Grotesk', Segoe UI, sans-serif"; g.fillText(q[0], px + 14, py + ph - 18); }
+  }
+
+  // ================================================================ Boucle
+  var scene = document.getElementById("scene").getContext("2d"), ui = document.getElementById("ui").getContext("2d");
+  var hourEl = document.getElementById("hour"), clockEl = document.getElementById("clock"), phaseEl = document.getElementById("phase");
+  var playBtn = document.getElementById("play"), speedEl = document.getElementById("speed"), animEl = document.getElementById("anim");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var minutes = 1090, playing = !reduce, last = performance.now(), t0 = performance.now(), lastClock = "", lastPhase = "", lastFrame = 0;
+  if (reduce) { playing = false; playBtn.textContent = "▶ Lecture"; playBtn.classList.remove("on"); animEl.checked = false; }
+
+  function fmt(m) { m = Math.floor(m) % 1440; var h = Math.floor(m / 60), mm = m % 60; return (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm; }
+  var lastT = 0, jump = true;
+  function render(now) {
+    var t = (now - t0) / 1000, anim = animEl.checked, m = minutes, dt = clamp(t - lastT, 0, .1); lastT = t;
+    drawLagoon(scene, t, anim, m, dt, jump); jump = false;
+    var c = fmt(m), p = phaseName(Math.floor(m));
+    if (c !== lastClock) { lastClock = c; clockEl.textContent = c; drawUI(ui, c); if (document.activeElement !== hourEl) hourEl.value = Math.floor(m); }
+    if (p[0] !== lastPhase) { lastPhase = p[0]; phaseEl.textContent = p[0]; phaseEl.className = "phase" + (p[1] ? " " + p[1] : ""); }
+  }
+  function frame(now) {
+    var dt = Math.min(.25, (now - last) / 1000); last = now;
+    if (playing) minutes = (minutes + dt * +speedEl.value / 60) % 1440;
+    if (now - lastFrame >= 32) { lastFrame = now; render(now); }
+    requestAnimationFrame(frame);
+  }
+  hourEl.addEventListener("input", function () { minutes = +hourEl.value; lastClock = ""; jump = true; });
+  playBtn.addEventListener("click", function () { playing = !playing; playBtn.textContent = playing ? "⏸ Pause" : "▶ Lecture"; playBtn.classList.toggle("on", playing); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { minutes = +b.getAttribute("data-go"); lastClock = ""; jump = true; }); });
+  document.getElementById("showui").addEventListener("change", function (e) { document.body.classList.toggle("no-ui", !e.target.checked); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { lastClock = ""; });
+  render(performance.now());
+  requestAnimationFrame(frame);
+})();
+</script>

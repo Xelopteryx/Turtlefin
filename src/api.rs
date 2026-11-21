@@ -528,7 +528,7 @@ impl Item {
         self.community_rating.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")).unwrap_or_default()
     }
 
-    fn minutes(&self) -> Option<i64> {
+    pub fn minutes(&self) -> Option<i64> {
         self.run_time_ticks.filter(|t| *t > 0).map(|t| t / 600_000_000)
     }
 
@@ -599,6 +599,13 @@ impl Item {
         let mut parts: Vec<String> = Vec::new();
         if let Some(m) = self.minutes() {
             parts.push(format!("{m} min"));
+        }
+        // Date de diffusion (« 12 mars 2008 »), seulement si le jour est connu (pas l'année seule).
+        if self.premiere_date.is_some() {
+            let date = self.stats().2;
+            if !date.is_empty() {
+                parts.push(date);
+            }
         }
         let played = self.user_data.as_ref().map(|u| u.played).unwrap_or(false);
         let tag = self.primary_tag();
@@ -2040,17 +2047,24 @@ impl Client {
         Ok(())
     }
 
-    /// Administrateurs : relit les informations d'un élément sur Internet (et ses images manquantes),
-    /// sans écraser ce qui a été corrigé à la main.
-    pub async fn refresh_item(&self, id: &str) -> Result<()> {
+    /// Administrateurs : actualise un élément ou une bibliothèque entière (avec tout ce qu'elle contient),
+    /// comme la fenêtre « Actualiser » du client officiel. `mode` : « scan » (fichiers nouveaux et mis à
+    /// jour), « missing » (métadonnées manquantes), « all » (remplacer toutes les métadonnées) ;
+    /// `images` et `trickplay` : remplacer aussi les images existantes, les images d'aperçu (pas pour « scan »).
+    pub async fn refresh_item(&self, id: &str, mode: &str, images: bool, trickplay: bool) -> Result<()> {
+        let scan = mode == "scan";
+        let refresh = if scan { "Default" } else { "FullRefresh" };
+        let b = |v: bool| if v { "true" } else { "false" };
         let resp = self
             .http
             .post(format!("{}/Items/{}/Refresh", self.server, seg(id)))
             .query(&[
-                ("metadataRefreshMode", "FullRefresh"),
-                ("imageRefreshMode", "FullRefresh"),
-                ("replaceAllMetadata", "false"),
-                ("replaceAllImages", "false"),
+                ("Recursive", "true"),
+                ("MetadataRefreshMode", refresh),
+                ("ImageRefreshMode", refresh),
+                ("ReplaceAllMetadata", b(mode == "all")),
+                ("ReplaceAllImages", b(images && !scan)),
+                ("RegenerateTrickplay", b(trickplay && !scan)),
             ])
             .header("Authorization", auth_header(&self.device_id, Some(&self.token)))
             .send()

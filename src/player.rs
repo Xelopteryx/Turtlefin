@@ -395,6 +395,9 @@ pub async fn play(
     let mut last_tracks = Value::Null;
     let mut switching = false;
     let mut result: Result<Exit> = Ok(Exit::Back);
+    // Intros passées à la main d'affilée (même série) : à partir de 3, les suivantes le sont toutes
+    // seules jusqu'à la fin de cette lecture (fermeture du lecteur).
+    let mut streak = IntroStreak::default();
 
     loop {
         // Changement d'épisode demandé (bouton, ou fin de fichier) : Some(décalage).
@@ -417,9 +420,10 @@ pub async fn play(
                                 push_time(&ui, &cur);
                                 // Intro : bouton « Passer l'intro » 5 s au plus, dès qu'elle commence.
                                 if let Some((s, e)) = cur.intro {
-                                    if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 && crate::config::ui_prefs().auto_skip_intro && !sync {
-                                        // Réglage « Passer l'intro automatiquement ».
+                                    if !cur.intro_shown && cur.pos >= s && cur.pos < e - 2.0 && (crate::config::ui_prefs().auto_skip_intro || streak.auto(&cur)) && !sync {
+                                        // Réglage « Passer l'intro automatiquement », ou 3 intros passées d'affilée.
                                         cur.intro_shown = true;
+                                        streak.skipped = true;
                                         let _ = player.command(&["seek", &format!("{e:.1}"), "absolute"]);
                                         let _ = ui.upgrade_in_event_loop(|u| u.set_toast(tr("Intro passée").into()));
                                     }
@@ -713,10 +717,22 @@ pub async fn play(
                     "chapter" => player.command(&["add", "chapter", arg]),
                     "skip-intro" => {
                         let _ = ui.upgrade_in_event_loop(|u| u.set_p_skip_intro(false));
+                        if cur.intro.is_some() && streak.user_skip(&cur) {
+                            let _ = ui.upgrade_in_event_loop(|u| {
+                                u.set_toast(tr("Les prochaines intros de cette série seront passées automatiquement").into());
+                                u.set_p_intro_auto(true);
+                            });
+                        }
                         match cur.intro {
                             Some((_, e)) => player.command(&["seek", &format!("{e:.2}"), "absolute"]),
                             None => Ok(()),
                         }
+                    }
+                    // Pastille « Intros passées automatiquement » : retour au bouton « Passer l'intro ».
+                    "intro-auto-off" => {
+                        streak.count = 0;
+                        let _ = ui.upgrade_in_event_loop(|u| u.set_p_intro_auto(false));
+                        Ok(())
                     }
                     "sub-margin" => player.set_property("sub-margin-y", arg),
                     // Commandes cachées : le pointeur aussi, même immobile (Slint ne change son curseur
@@ -894,12 +910,17 @@ pub async fn play(
                 // Épisode choisi (bandeau, suivant, suggestion) : il démarre, même si l'on était en pause.
                 let _ = player.set_property("pause", "no");
             }
+            // Intro regardée (pas passée) : la série d'intros passées d'affilée repart de zéro.
+            streak.file_done(&cur);
             // L'ancien fichier se terminera (« stop ») sauf s'il était déjà fini.
             switching = !cur.ended;
             match load(&player, client, Some(next), start, None, &episodes, &ui).await {
                 Ok(n) => {
                     cur = n;
                     last_sec = -1;
+                    // Autre série : la pastille s'en va.
+                    let auto = streak.auto(&cur);
+                    let _ = ui.upgrade_in_event_loop(move |u| u.set_p_intro_auto(auto));
                     prepare_extras(&app, client, &mut cur).await;
                     report(client, "/Sessions/Playing", cur.body(cur.pos)).await;
                 }
@@ -921,6 +942,7 @@ pub async fn play(
     let _ = ui.upgrade_in_event_loop(|u| {
         u.set_p_lost(false);
         u.set_p_buffering(false);
+        u.set_p_intro_auto(false);
     });
     // Arrêt du lecteur : le thread d'événements se termine, puis l'interface libère le rendu
     // au prochain affichage, ce qui détruit le lecteur (et rend sa mémoire).
@@ -928,6 +950,52 @@ pub async fn play(
     // Rendu détaché tout de suite ; l'avis de fin (Receiver) ne sert pas ici.
     drop(video::attach(&ui, None));
     result
+}
+
+/// Intros passées à la main d'affilée pendant une lecture (voir `play`).
+#[derive(Default)]
+struct IntroStreak {
+    /// Série concernée (les épisodes d'une autre série recommencent le compte).
+    series: Option<String>,
+    count: u32,
+    /// Intro du fichier en cours passée (à la main ou automatiquement).
+    skipped: bool,
+}
+
+impl IntroStreak {
+    const AUTO_AFTER: u32 = 3;
+
+    fn series_of(cur: &Current) -> Option<String> {
+        cur.item.as_ref().and_then(|i| i.series_id.clone())
+    }
+
+    /// Les intros de cette série sont passées sans demander.
+    fn auto(&self, cur: &Current) -> bool {
+        self.count >= Self::AUTO_AFTER && self.series.is_some() && self.series == Self::series_of(cur)
+    }
+
+    /// « Passer l'intro » choisi : vrai quand c'est celui qui active le passage automatique.
+    fn user_skip(&mut self, cur: &Current) -> bool {
+        let series = Self::series_of(cur);
+        if series.is_none() || series != self.series {
+            self.series = series;
+            self.count = 0;
+        }
+        if !self.skipped {
+            self.skipped = true;
+            self.count += 1;
+            return self.series.is_some() && self.count == Self::AUTO_AFTER;
+        }
+        false
+    }
+
+    /// Fin d'un fichier : intro proposée mais regardée, le compte repart de zéro.
+    fn file_done(&mut self, cur: &Current) {
+        if cur.intro.is_some() && cur.intro_shown && !self.skipped {
+            self.count = 0;
+        }
+        self.skipped = false;
+    }
 }
 
 /// Vidéo dont l'écran de pause est affiché (son logo arrive après coup).

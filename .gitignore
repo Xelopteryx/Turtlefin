@@ -1,5 +1,7 @@
 /target
 
 # Fichiers de travail locaux (pas publiés)
-Style.css
+Style*.css
+/probl*/
+__pycache__/
 /probl*.txt

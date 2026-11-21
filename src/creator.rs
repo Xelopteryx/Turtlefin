@@ -103,7 +103,7 @@ fn defs(tab: usize) -> Vec<Def> {
             d("player_orb", "Bouton lecture en orbe", "", Bool),
         ],
         3 => vec![
-            d("scenery", "Décor", "", Choice(&[("", "Aucun"), ("abyss", "Abysses"), ("sky", "Ciel et bulles"), ("harmony", "Harmony (Windows 7)"), ("circuit", "Circuit imprimé")])),
+            d("scenery", "Décor", "", Choice(&[("", "Aucun"), ("abyss", "Abysses"), ("sky", "Ciel et bulles"), ("harmony", "Harmony (Windows 7)"), ("aqua", "Lagon (sous l'eau)"), ("circuit", "Circuit imprimé")])),
             d("background", "Fond personnel", "Image, GIF ou vidéo ; il remplace le décor.", File(BACKGROUNDS)),
             d("background_dim", "Voile sur le fond", "Plus haut : fond plus effacé, textes plus lisibles.", Num(0.0, 1.0)),
             d("veil", "Voile sur l'image du média", "", Num(0.5, 2.0)),
