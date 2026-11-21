@@ -11244,7 +11244,8 @@ export component AppWindow inherits Window {
             // Pas encore de serveur, ou pour voir : la visite guidée sur un serveur de démonstration. Sur sa
             // propre ligne (trois boutons ne tenaient pas sur un téléphone tenu droit).
             HorizontalLayout {
-                alignment: start;
+                // Écran étroit : toute la largeur, comme les deux boutons du dessus.
+                alignment: srv.tight ? LayoutAlignment.stretch : LayoutAlignment.start;
                 height: 46px * root.k;
                 ActionButton {
                     text: Tr.t(Tr.k, "Découvrir Turtlefin");
