@@ -10985,20 +10985,19 @@ export component AppWindow inherits Window {
                 if (event.text == Key.UpArrow) {
                     if (root.srv-sel == 0) {
                         root.nav-enter();
+                    } else if (root.srv-sel == srv.n + 2) {
+                        // « Découvrir Turtlefin » (ligne du dessous) : retour aux deux boutons.
+                        root.srv-sel = srv.n;
                     } else if (root.srv-sel > srv.n) {
                         root.srv-sel = max(0, srv.n - 1);
                     } else {
                         root.srv-sel -= 1;
                     }
                 } else if (event.text == Key.DownArrow) {
-                    root.srv-sel = min(srv.n, root.srv-sel + 1);
+                    root.srv-sel = root.srv-sel >= srv.n ? srv.n + 2 : root.srv-sel + 1;
                 } else if (event.text == Key.LeftArrow && root.srv-sel == srv.n + 1) {
                     root.srv-sel = srv.n;
                 } else if (event.text == Key.RightArrow && root.srv-sel == srv.n) {
-                    root.srv-sel = srv.n + 1;
-                } else if (event.text == Key.RightArrow && root.srv-sel == srv.n + 1) {
-                    root.srv-sel = srv.n + 2;
-                } else if (event.text == Key.LeftArrow && root.srv-sel == srv.n + 2) {
                     root.srv-sel = srv.n + 1;
                 } else if (event.text == Key.Return) {
                     if (root.srv-sel < srv.n) {
@@ -11217,7 +11216,12 @@ export component AppWindow inherits Window {
                         root.open-manual();
                     }
                 }
-                // Pas encore de serveur, ou pour voir : la visite guidée sur un serveur de démonstration.
+            }
+            // Pas encore de serveur, ou pour voir : la visite guidée sur un serveur de démonstration. Sur sa
+            // propre ligne (trois boutons ne tenaient pas sur un téléphone tenu droit).
+            HorizontalLayout {
+                alignment: start;
+                height: 46px * root.k;
                 ActionButton {
                     text: Tr.t(Tr.k, "Découvrir Turtlefin");
                     font: (16px * root.k) * Theme.text-scale;
@@ -16635,7 +16639,10 @@ export component AppWindow inherits Window {
                 : root.tour-last == 9 ? 170px * root.k : 0px;
             property <bool> buttons: !root.tour-act;
             width: min((root.tour-last == 6 ? parent.width - root.menu-w : parent.width) - 80px * root.k, (self.corner ? 480px : 620px) * root.k);
-            height: (self.buttons ? 150px : 118px) * root.k + self.art-h + tour-body.preferred-height;
+            // Bulle étroite (téléphone) : les points d'avancement passent au-dessus des boutons.
+            property <bool> tight: self.width < 540px * root.k;
+            height: (self.buttons ? 150px : 118px) * root.k + self.art-h + tour-body.preferred-height
+                + (tour-body.y - 66px * root.k) + (self.tight && self.buttons ? 26px * root.k : 0px);
             x: root.tour-last == 6 ? root.menu-w + (parent.width - root.menu-w - self.width) / 2
                 : self.corner ? parent.width - self.width - 30px * root.k : (parent.width - self.width) / 2;
             y: self.below ? root.header-h + 30px * root.k
@@ -16654,7 +16661,7 @@ export component AppWindow inherits Window {
             border-color: root.tour-ok ? Theme.ok : Theme.glass-border;
             Gloss { r: parent.border-radius; strength: 0.45; }
 
-            Text {
+            tour-title := Text {
                 x: 28px * root.k;
                 y: 22px * root.k;
                 width: parent.width - 100px * root.k;
@@ -16696,11 +16703,12 @@ export component AppWindow inherits Window {
             }
             tour-body := Text {
                 x: 28px * root.k;
-                y: 66px * root.k;
+                // Sous le titre, même sur deux lignes (téléphone tenu droit).
+                y: max(66px * root.k, tour-title.y + tour-title.preferred-height + 10px * root.k);
                 width: parent.width - 56px * root.k;
                 wrap: word-wrap;
                 text: root.tour-last == 0 ? (root.demo-on ? Tr.t(Tr.k, "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. ") : "")
-                        + Tr.t(Tr.k, "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière. Souris et doigt marchent aussi.")
+                        + Tr.t(Tr.k, "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière.")
                     : root.tour-last == 1 ? Tr.t(Tr.k, "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre.")
                     : root.tour-last == 2 ? Tr.t(Tr.k, "Change de rangée avec ↓ ou ↑.")
                     : root.tour-last == 3 ? Tr.t(Tr.k, "Appuie sur ↑ jusqu'à monter dans la barre du haut.")
@@ -16904,7 +16912,7 @@ export component AppWindow inherits Window {
             // Points d'avancement.
             for d[i] in root.tour-count: Rectangle {
                 x: 28px * root.k + i * 14px * root.k;
-                y: parent.height - (parent.buttons ? 40px : 30px) * root.k;
+                y: parent.height - (parent.buttons ? (parent.tight ? 76px : 40px) : 30px) * root.k;
                 width: (i == root.tour-last ? 20px : 7px) * root.k;
                 animate width { duration: Motion.tour ? 220ms : 0ms; }
                 height: 7px * root.k;

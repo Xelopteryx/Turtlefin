@@ -4331,3 +4331,6 @@ msgstr "Automatic ({})"
 
 msgid "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil."
 msgstr "Cast: send the video to a TV, or control another device."
+
+msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
+msgstr "This tour lets you try the app. Remote or keyboard: the arrows to move around, OK (Enter) to open or confirm, Back (Esc) to go back."

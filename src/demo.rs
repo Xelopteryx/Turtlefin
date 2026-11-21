@@ -24,6 +24,7 @@ const SERVER_ID: &str = "demo0000000000000000000000000000";
 static THEME_FILE: OnceLock<std::path::PathBuf> = OnceLock::new();
 
 /// Prépare l'essai : dossiers à part, préférences avec le thème, faux serveur. Rend son adresse.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub fn start(theme_file: &str) -> Option<String> {
     let real = crate::config::ui_prefs();
     let theme = crate::theme::load(std::path::Path::new(theme_file))?;
@@ -87,6 +88,7 @@ pub fn serve_local() -> Option<String> {
 }
 
 /// Suit le fichier du thème : dès qu'il change (le créateur l'a réécrit), le thème est reposé.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub fn watch(ui: &crate::AppWindow) {
     use slint::ComponentHandle;
     let Some(path) = THEME_FILE.get() else { return };
