@@ -3189,6 +3189,7 @@ component HeaderRight inherits Rectangle {
     in property <int> avatar-idx;
     in property <string> clock;
     in property <bool> offline;
+    in property <bool> demo;
     in property <int> party-count;
     // Portrait (téléphone tenu droit) : pas d'heure (la barre d'Android l'affiche), moins de marge.
     in property <bool> narrow;
@@ -3278,6 +3279,23 @@ component HeaderRight inherits Rectangle {
                     font-weight: 700;
                     vertical-alignment: center;
                 }
+            }
+        }
+        // Démonstration : pastille d'accent (rien de ce qu'on voit n'est sur un vrai serveur).
+        if root.demo: Rectangle {
+            width: demo-label.preferred-width + 28px * root.k;
+            opacity: root.fade-at(root.r0 - 100, 400);
+            border-radius: self.height / 2;
+            background: Theme.accent2.with-alpha(0.18);
+            border-width: 1px;
+            border-color: Theme.accent2;
+            demo-label := Text {
+                text: Tr.t(Tr.k, "Démonstration");
+                color: Theme.fg;
+                font-size: (15px * root.k) * Theme.text-scale;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
         }
         // Mode hors ligne : pastille ambre (comme le thème hors ligne) à la place des icônes qui
@@ -5984,6 +6002,11 @@ export component AppWindow inherits Window {
     callback logout();
     callback switch-account();
     callback login-opened();               // écran de connexion affiché : tuiles des comptes
+    // Démonstration (serveur intégré, demo.rs) : « Découvrir Turtlefin » / « Revoir la visite » ; la
+    // visite finie ou passée, demo-done ramène au compte quitté. Rien de la démo n'est enregistré.
+    callback demo-tour();
+    callback demo-done();
+    in property <bool> demo-on;
     callback login-pick(string);           // "acc:<id>" | "pub:<nom>" | "other"
     // Compte protégé par un code (voir lock.rs) : pas d'envol de la photo, la fenêtre du code s'ouvre.
     pure callback login-locked(string) -> bool;
@@ -10969,13 +10992,19 @@ export component AppWindow inherits Window {
                     root.srv-sel = srv.n;
                 } else if (event.text == Key.RightArrow && root.srv-sel == srv.n) {
                     root.srv-sel = srv.n + 1;
+                } else if (event.text == Key.RightArrow && root.srv-sel == srv.n + 1) {
+                    root.srv-sel = srv.n + 2;
+                } else if (event.text == Key.LeftArrow && root.srv-sel == srv.n + 2) {
+                    root.srv-sel = srv.n + 1;
                 } else if (event.text == Key.Return) {
                     if (root.srv-sel < srv.n) {
                         root.srv-go(root.srv-sel);
                     } else if (root.srv-sel == srv.n) {
                         root.servers-search();
-                    } else {
+                    } else if (root.srv-sel == srv.n + 1) {
                         root.open-manual();
+                    } else {
+                        root.demo-tour();
                     }
                 } else if (event.text == Key.Escape || event.text == Key.Backspace) {
                     root.nav-out("go-home", "");
@@ -11182,6 +11211,16 @@ export component AppWindow inherits Window {
                     focused: !root.h-focus && root.srv-sel == root.servers.length + 1 && Nav.kb;
                     clicked => {
                         root.open-manual();
+                    }
+                }
+                // Pas encore de serveur, ou pour voir : la visite guidée sur un serveur de démonstration.
+                ActionButton {
+                    text: Tr.t(Tr.k, "Découvrir Turtlefin");
+                    font: (16px * root.k) * Theme.text-scale;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length + 2 && Nav.kb;
+                    clicked => {
+                        root.srv-sel = root.servers.length + 2;
+                        root.demo-tour();
                     }
                 }
             }
@@ -14820,6 +14859,7 @@ export component AppWindow inherits Window {
         avatar-idx: root.avatar-idx;
         clock: root.clock;
         offline: root.offline;
+        demo: root.demo-on;
         dl-text: root.dl-pill;
         dl-p: root.dl-p;
         dl-paused: root.dl-paused;
@@ -16384,9 +16424,17 @@ export component AppWindow inherits Window {
     // quitte la visite là où il ne sert pas au geste demandé. Bienvenue, lecture et fin : bulle avec
     // boutons (← → choisissent, OK active). Étapes : 0 bienvenue · 1 parcourir une rangée ·
     // 2 changer de rangée · 3 monter aux onglets · 4 barre du haut · 5 ouvrir le menu · 6 le menu ·
-    // 7 ouvrir une fiche · 8 revenir · 9 lecture (schéma) · 10 fin.
+    // 7 ouvrir une fiche · 8 revenir · 9 lecture (schéma) · 10 menu d'une affiche · 11 recherche ·
+    // 12 réglages à son goût · 13 fin (démonstration : invitation à ajouter son serveur).
     in-out property <int> tour-step: -1;
-    property <int> tour-count: 11;
+    // Démonstration : visite finie ou passée, retour au compte quitté (voir demo-done).
+    property <int> tour-step-demo: root.tour-step;
+    changed tour-step-demo => {
+        if (root.tour-step < 0 && root.demo-on) {
+            root.demo-done();
+        }
+    }
+    property <int> tour-count: 14;
     property <float> tour-p: root.tour-step >= 0 ? 1 : 0;
     animate tour-p { duration: Motion.tour ? 300ms : 0ms; easing: ease-out; }
     property <int> tour-last: 0;
@@ -16611,6 +16659,8 @@ export component AppWindow inherits Window {
                     : root.tour-last == 4 ? Tr.t(Tr.k, "La barre du haut") : root.tour-last == 5 ? Tr.t(Tr.k, "Le menu")
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Dans le menu") : root.tour-last == 7 ? Tr.t(Tr.k, "Ouvrir un média")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Revenir") : root.tour-last == 9 ? Tr.t(Tr.k, "Pendant la lecture")
+                    : root.tour-last == 10 ? Tr.t(Tr.k, "Le menu d'une affiche") : root.tour-last == 11 ? Tr.t(Tr.k, "Chercher")
+                    : root.tour-last == 12 ? Tr.t(Tr.k, "À ton goût")
                     : Tr.t(Tr.k, "C'est parti !");
                 color: Theme.fg;
                 font-size: (24px * root.k) * Theme.text-scale;
@@ -16645,16 +16695,21 @@ export component AppWindow inherits Window {
                 y: 66px * root.k;
                 width: parent.width - 56px * root.k;
                 wrap: word-wrap;
-                text: root.tour-last == 0 ? Tr.t(Tr.k, "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière.")
+                text: root.tour-last == 0 ? (root.demo-on ? Tr.t(Tr.k, "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. ") : "")
+                        + Tr.t(Tr.k, "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière. Souris et doigt marchent aussi.")
                     : root.tour-last == 1 ? Tr.t(Tr.k, "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre.")
                     : root.tour-last == 2 ? Tr.t(Tr.k, "Change de rangée avec ↓ ou ↑.")
                     : root.tour-last == 3 ? Tr.t(Tr.k, "Appuie sur ↑ jusqu'à monter dans la barre du haut.")
-                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes.")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche.")
                     : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →.")
                     : root.tour-last == 7 ? Tr.t(Tr.k, "Choisis une affiche et appuie sur OK pour l'ouvrir.")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil.")
-                    : root.tour-last == 9 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture.")
+                    : root.tour-last == 9 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules.")
+                    : root.tour-last == 10 ? Tr.t(Tr.k, "Clic droit, appui long ou OK maintenu sur une affiche : l'ouvrir, la marquer vue ou non vue ; les administrateurs y trouvent aussi Identifier, Actualiser et Modifier. Dans une bibliothèque, l'index A–Z est sur le côté et une lettre tapée filtre la liste.")
+                    : root.tour-last == 11 ? Tr.t(Tr.k, "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe.")
+                    : root.tour-last == 12 ? Tr.t(Tr.k, "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom.")
+                    : root.demo-on ? Tr.t(Tr.k, "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos.")
                     : Tr.t(Tr.k, "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos.");
                 color: Theme.fg.with-alpha(0.85);
                 font-size: (17px * root.k) * Theme.text-scale;

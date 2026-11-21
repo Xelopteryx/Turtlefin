@@ -1,0 +1,32 @@
+Images du serveur de démonstration (src/demo.rs) / Demo server images
+=====================================================================
+
+Affiches et images des films libres de la Blender Foundation / Blender Studio, prises sur Wikimedia
+Commons, recadrées (2:3 pour les affiches, 16:9 pour les fonds), réduites et converties en WebP.
+Posters and stills of the Blender Foundation / Blender Studio open movies, taken from Wikimedia Commons,
+cropped (2:3 posters, 16:9 backdrops), downscaled and converted to WebP.
+
+Fichier / File          Film                 Source (Wikimedia Commons)                                   Licence
+bbb-poster.webp         Big Buck Bunny       File:Big buck bunny poster big.jpg                           CC BY 3.0  (c) Blender Foundation | peach.blender.org
+bbb-backdrop.webp       Big Buck Bunny       File:Big.Buck.Bunny.-.Frank.Rinky.Gimera.png                 CC BY 3.0  (c) Blender Foundation | peach.blender.org
+ed-poster.webp          Elephants Dream      File:ElephantsDreamPoster.jpg                                CC BY 4.0  Bassam Kurdali, Andy Goralczyk and the Blender Foundation
+ed-backdrop.webp        Elephants Dream      File:Elephants Dream - Emo and Proog.png                     CC BY 2.5  Ton Roosendaal, Blender Foundation | orange.blender.org
+sintel-poster.webp      Sintel               File:Sintel poster.jpg                                       CC BY 3.0  (c) Blender Foundation | durian.blender.org
+sintel-backdrop.webp    Sintel               File:Sintel-screenshot-1.jpg                                 CC BY 3.0  (c) Blender Foundation | durian.blender.org
+tos-poster.webp         Tears of Steel       File:Tos-poster.png                                          CC BY 3.0  (CC) Blender Foundation | mango.blender.org
+tos-backdrop.webp       Tears of Steel       File:Tears of Steel frame 09 1a.jpg                          CC BY 3.0  (CC) Blender Foundation | mango.blender.org
+cosmos-poster.webp      Cosmos Laundromat    File:CosmosLaundromatPoster.jpg                              CC BY 4.0  Andy Goralczyk and the Blender Foundation
+cosmos-backdrop.webp    Cosmos Laundromat    File:CosmosLaundromatPoster.jpg (recadrée / cropped)         CC BY 4.0  Andy Goralczyk and the Blender Foundation
+spring-poster.webp      Spring               File:Spring2019AlphaPosterBlender.jpg                        CC BY 4.0  Blender Foundation
+spring-backdrop.webp    Spring               File:Blender Open Movie - Spring (2019).png (image du film seule / film frame only)  CC0
+coffee-poster.webp      Coffee Run           File:Coffee Run-movie poster.png                             CC BY 4.0  Blender Studio
+coffee-backdrop.webp    Coffee Run           File:Coffee Run - screenshot-Location 01 Outisde-Run 1-coffee.png  CC BY 4.0  Blender Foundation
+sprite-poster.webp      Sprite Fright        File:Sprite Fright-movie poster.jpg                          CC BY 4.0  Blender Studio
+sprite-backdrop.webp    Sprite Fright        File:Sprite Fright-movie poster.jpg (recadrée / cropped)     CC BY 4.0  Blender Studio
+
+Page d'un fichier / File page : https://commons.wikimedia.org/wiki/<nom du fichier / file name>
+Licences : https://creativecommons.org/licenses/by/2.5/ · /by/3.0/ · /by/4.0/ · CC0 : https://creativecommons.org/publicdomain/zero/1.0/
+
+Dans l'appli, chaque film le dit dans son résumé (« Film libre de la Blender Foundation (CC BY 3.0) »).
+In the app, each film says so in its overview ("Free film by the Blender Foundation (CC BY 3.0)").
+Les résumés sont écrits pour Turtlefin. / The overviews were written for Turtlefin.

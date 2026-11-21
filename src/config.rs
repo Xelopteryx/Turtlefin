@@ -3,6 +3,19 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Session de démonstration en cours (visite guidée sur le serveur interne, voir demo.rs) : la
+/// session, les comptes, les pistes et les drapeaux vu / favori ne sont pas enregistrés.
+static DEMO: AtomicBool = AtomicBool::new(false);
+
+pub fn demo() -> bool {
+    DEMO.load(Ordering::SeqCst)
+}
+
+pub fn set_demo(on: bool) {
+    DEMO.store(on, Ordering::SeqCst);
+}
 
 /// Diffusion en cours : l'écran et la vidéo.
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -406,6 +419,10 @@ pub fn load() -> Saved {
 }
 
 pub fn save(s: &Saved) {
+    // Démonstration (visite guidée sur le serveur interne) : rien n'est enregistré.
+    if demo() {
+        return;
+    }
     let Some(p) = path() else { return };
     if let Ok(text) = serde_json::to_string_pretty(s) {
         let _ = write_atomic(&p, &text, true);
@@ -446,6 +463,10 @@ pub fn track_pref(key: &str) -> TrackPref {
 
 /// Modifie la préférence d'une série / d'un film (audio et/ou sous-titres).
 pub fn set_track_pref(key: &str, audio: Option<&str>, sub: Option<&str>) {
+    // Démonstration (visite guidée sur le serveur interne) : rien n'est enregistré.
+    if demo() {
+        return;
+    }
     if key.is_empty() {
         return;
     }
@@ -513,6 +534,10 @@ pub fn accounts() -> Vec<Account> {
 }
 
 fn save_accounts(list: &[Account]) {
+    // Démonstration (visite guidée sur le serveur interne) : rien n'est enregistré.
+    if demo() {
+        return;
+    }
     let Some(p) = accounts_path() else { return };
     if let Ok(t) = serde_json::to_string_pretty(list) {
         let _ = write_atomic(&p, &t, true);
@@ -638,6 +663,10 @@ pub fn flags(id: &str) -> Flags {
 
 /// Change « vu » (`favorite` = false) ou « favori » d'un élément ; `dirty` : à renvoyer au serveur.
 pub fn set_flag(id: &str, favorite: bool, value: bool, dirty: bool) {
+    // Démonstration (visite guidée sur le serveur interne) : rien n'est enregistré.
+    if demo() {
+        return;
+    }
     if id.is_empty() {
         return;
     }

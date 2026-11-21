@@ -54,16 +54,36 @@ pub fn start(theme_file: &str) -> Option<String> {
     crate::config::save_ui_prefs(&p);
     let _ = THEME_FILE.set(std::path::PathBuf::from(theme_file));
 
-    let listener = TcpListener::bind(("127.0.0.1", 0)).ok()?;
-    let port = listener.local_addr().ok()?.port();
-    std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            std::thread::spawn(move || {
-                let _ = serve(stream);
-            });
-        }
-    });
-    Some(format!("http://127.0.0.1:{port}"))
+    serve_local()
+}
+
+/// Adresse du faux serveur, s'il tourne (session de démonstration).
+pub fn is_local(server: &str) -> bool {
+    local_url().is_some_and(|u| server.trim_end_matches('/') == u)
+}
+
+fn local_url() -> Option<&'static str> {
+    URL.get().and_then(|u| u.as_deref())
+}
+
+static URL: OnceLock<Option<String>> = OnceLock::new();
+
+/// Lance le faux serveur (une seule fois) et rend son adresse. Port 8097 s'il est libre : la même
+/// adresse d'une fois à l'autre, le cache des images ne se remplit pas de copies ; sinon un port libre.
+pub fn serve_local() -> Option<String> {
+    URL.get_or_init(|| {
+        let listener = TcpListener::bind(("127.0.0.1", 8097)).or_else(|_| TcpListener::bind(("127.0.0.1", 0))).ok()?;
+        let port = listener.local_addr().ok()?.port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                std::thread::spawn(move || {
+                    let _ = serve(stream);
+                });
+            }
+        });
+        Some(format!("http://127.0.0.1:{port}"))
+    })
+    .clone()
 }
 
 /// Suit le fichier du thème : dès qu'il change (le créateur l'a réécrit), le thème est reposé.
@@ -136,7 +156,7 @@ const FR: Words = Words {
     "Quand le signal revient après vingt ans de silence, il faut bien que quelqu'un aille voir d'où il vient.",
     "Ils pensaient avoir tout prévu. La mer, elle, n'avait rien promis.",
     "Entre deux escales, une rencontre remet en question tout ce qu'elle croyait savoir de sa famille.",
-    "Ceci est un média de démonstration : il n'existe que pour essayer ton thème.",
+    "Ceci est un média de démonstration : il n'existe que pour découvrir Turtlefin.",
 ],
     roles: ["La capitaine", "Le mécano", "L'inconnue", "Le gardien", "La cartographe"],
     libs: ["Films", "Séries", "Collections"],
@@ -166,7 +186,7 @@ const EN: Words = Words {
         "When the signal returns after twenty years of silence, someone has to go and see where it comes from.",
         "They thought they had planned for everything. The sea had promised nothing.",
         "Between two ports of call, a chance meeting calls into question everything she thought she knew about her family.",
-        "This is a demo title: it only exists so you can try out your theme.",
+        "This is a demo title: it only exists to show you around Turtlefin.",
     ],
     roles: ["The Captain", "The Mechanic", "The Stranger", "The Keeper", "The Mapmaker"],
     libs: ["Movies", "Shows", "Collections"],
@@ -175,6 +195,75 @@ const EN: Words = Words {
     ratings: ["All ages", "10+", "12+", "16+"],
     stream: "Demo test pattern",
 };
+
+/// Vrais films libres de la Blender Foundation / Blender Studio (images de Wikimedia Commons, voir
+/// src/demo-assets/CREDITS.txt) : clé des images, titre, année, genres (rangs dans `Words::genres`),
+/// réalisation, studio, licence.
+struct Film {
+    key: &'static str,
+    name: &'static str,
+    year: u32,
+    genres: [usize; 2],
+    director: &'static str,
+    studio: &'static str,
+    license: &'static str,
+    poster: &'static [u8],
+    backdrop: &'static [u8],
+}
+
+macro_rules! film {
+    ($key:literal, $name:literal, $year:literal, $g:expr, $dir:literal, $studio:literal, $lic:literal) => {
+        Film {
+            key: $key,
+            name: $name,
+            year: $year,
+            genres: $g,
+            director: $dir,
+            studio: $studio,
+            license: $lic,
+            poster: include_bytes!(concat!("demo-assets/", $key, "-poster.webp")),
+            backdrop: include_bytes!(concat!("demo-assets/", $key, "-backdrop.webp")),
+        }
+    };
+}
+
+const FILMS: [Film; 8] = [
+    film!("sprite", "Sprite Fright", 2021, [6, 2], "Matthew Luhn", "Blender Studio", "CC BY 4.0"),
+    film!("coffee", "Coffee Run", 2020, [2, 4], "Hjalti Hjálmarsson", "Blender Studio", "CC BY 4.0"),
+    film!("spring", "Spring", 2019, [6, 4], "Andy Goralczyk", "Blender Foundation", "CC BY 4.0"),
+    film!("cosmos", "Cosmos Laundromat", 2015, [2, 6], "Mathieu Auvray", "Blender Foundation", "CC BY 4.0"),
+    film!("tos", "Tears of Steel", 2012, [1, 0], "Ian Hubert", "Blender Foundation", "CC BY 3.0"),
+    film!("sintel", "Sintel", 2010, [6, 0], "Colin Levy", "Blender Foundation", "CC BY 3.0"),
+    film!("bbb", "Big Buck Bunny", 2008, [2, 4], "Sacha Goedegebure", "Blender Foundation", "CC BY 3.0"),
+    film!("ed", "Elephants Dream", 2006, [1, 4], "Bassam Kurdali", "Blender Foundation", "CC BY 2.5"),
+];
+
+/// Résumés des films (même ordre que FILMS), rédigés pour la démo.
+const FILM_FR: [&str; 8] = [
+    "Une sortie en forêt tourne mal quand une bande d'ados croise des lutins bien moins mignons qu'ils n'en ont l'air.",
+    "Portée par la caféine, une jeune femme traverse à toute allure les souvenirs de sa vie.",
+    "Une bergère et son chien affrontent les esprits anciens de la montagne pour faire revenir le printemps.",
+    "Sur une île désolée, un mouton las de tout rencontre un vendeur excentrique qui lui propose une vie nouvelle.",
+    "Dans un Amsterdam du futur, des scientifiques tentent de sauver le monde des robots géants… en réparant un cœur brisé.",
+    "Une jeune femme parcourt des terres hostiles à la recherche du petit dragon qu'elle avait recueilli.",
+    "Un lapin géant et paisible voit sa journée gâchée par trois rongeurs farceurs, et décide de leur rendre la monnaie de leur pièce.",
+    "Deux hommes errent dans une machine sans fin, où le plus âgé tente d'imposer sa vision du monde au plus jeune.",
+];
+const FILM_EN: [&str; 8] = [
+    "A trip to the woods goes wrong when a group of teenagers meets forest sprites far less cute than they look.",
+    "Fuelled by caffeine, a young woman races through the memories of her life.",
+    "A shepherd girl and her dog face the ancient spirits of the mountain to bring back the spring.",
+    "On a desolate island, a weary sheep meets an eccentric salesman who offers him a brand-new life.",
+    "In a future Amsterdam, a group of scientists try to save the world from giant robots… by mending a broken heart.",
+    "A young woman crosses hostile lands in search of the baby dragon she once took in.",
+    "A gentle giant rabbit has his day ruined by three mischievous rodents, and decides it is time to pay them back.",
+    "Two men wander through an endless machine, the elder trying to impose his view of the world on the younger.",
+];
+
+fn film_of(item: &Value) -> Option<&'static Film> {
+    let id = item["Id"].as_str()?;
+    FILMS.iter().find(|f| id.strip_prefix("film-") == Some(f.key))
+}
 
 fn w() -> &'static Words {
     if crate::i18n::current() == "fr" { &FR } else { &EN }
@@ -249,6 +338,29 @@ fn build() -> Vec<Value> {
     let libs = w().libs;
     for (id, name, kind) in [("libmovies", libs[0], "movies"), ("libshows", libs[1], "tvshows"), ("libsets", libs[2], "boxsets")] {
         out.push(json!({ "Id": id, "Name": name, "Type": "CollectionFolder", "CollectionType": kind, "IsFolder": true, "ImageTags": { "Primary": "demo" } }));
+    }
+    let fr = crate::i18n::current() == "fr";
+    for (i, f) in FILMS.iter().enumerate() {
+        let id = format!("film-{}", f.key);
+        let mut v = common(&id, f.name, "Movie", i + 3);
+        let credit = if fr {
+            format!(" Film libre de la {} ({}).", f.studio, f.license)
+        } else {
+            format!(" Free film by the {} ({}).", f.studio, f.license)
+        };
+        v["Overview"] = json!(format!("{}{credit}", if fr { FILM_FR[i] } else { FILM_EN[i] }));
+        v["Genres"] = json!([w().genres[f.genres[0]], w().genres[f.genres[1]]]);
+        v["Studios"] = json!([{ "Name": f.studio, "Id": "studioblender" }]);
+        v["People"] = json!([{ "Id": format!("dir-{}", f.key), "Name": f.director, "Role": "", "Type": "Director" }]);
+        v["ProductionYear"] = json!(f.year);
+        v["PremiereDate"] = json!(format!("{}-0{}-1{}T00:00:00.0000000Z", f.year, 1 + i % 9, i % 9));
+        // Pas de logo : le titre s'affiche en texte (pas de faux logo dessiné pour un vrai film).
+        v["ImageTags"] = json!({ "Primary": "film", "Thumb": "film" });
+        // Arrivés en dernier : en tête de « Ajouts récents ».
+        v["DateCreated"] = json!(1000 + FILMS.len() - i);
+        v["Parent"] = json!("libmovies");
+        playable(&mut v, &id, i + 3);
+        out.push(v);
     }
     for (i, name) in w().movies.iter().enumerate() {
         let id = format!("movie{i:02}");
@@ -440,7 +552,13 @@ fn list(q: &HashMap<String, String>) -> Value {
     let name_of = |v: &Value| lower(v["Name"].as_str().unwrap_or(""));
     if sort.contains("communityrating") {
         items.sort_by(|a, b| a["CommunityRating"].as_f64().partial_cmp(&b["CommunityRating"].as_f64()).unwrap_or(std::cmp::Ordering::Equal));
-    } else if sort.contains("datecreated") || sort.contains("random") {
+    } else if sort.contains("datecreated") {
+        // Faux médias mêlés au hasard, les vrais films (DateCreated 1000 et plus) au plus récent.
+        items.sort_by_key(|v| {
+            let d = v["DateCreated"].as_u64().unwrap_or(0);
+            if d >= 1000 { d } else { (d * 7919) % 97 }
+        });
+    } else if sort.contains("random") {
         items.sort_by_key(|v| (v["DateCreated"].as_u64().unwrap_or(0) * 7919) % 97);
     } else if sort.contains("sortname") || get("namelessthan").is_some() {
         items.sort_by_key(|v| name_of(v));
@@ -601,6 +719,7 @@ fn route(method: &str, path: &str, q: &HashMap<String, String>) -> Reply {
 enum Reply {
     Json(Value),
     Png(Vec<u8>),
+    Jpeg(Vec<u8>),
     Video,
     Empty,
     NotFound,
@@ -643,6 +762,10 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
         }
         Reply::Png(b) => {
             out.write_all(head("200 OK", "image/png", b.len() as u64, "").as_bytes())?;
+            out.write_all(&b)
+        }
+        Reply::Jpeg(b) => {
+            out.write_all(head("200 OK", "image/jpeg", b.len() as u64, "").as_bytes())?;
             out.write_all(&b)
         }
         Reply::Empty => out.write_all(head("204 No Content", "text/plain", 0, "").as_bytes()),
@@ -848,6 +971,20 @@ fn image(item: &Value, kind: &str, q: &HashMap<String, String>) -> Reply {
         return Reply::NotFound;
     }
     let num = |k: &str| q.get(k).and_then(|v| v.parse::<u32>().ok());
+    // Vrai film : son affiche ou son image, à la taille demandée.
+    if let Some(f) = film_of(item) {
+        let src = if kind == "primary" { f.poster } else { f.backdrop };
+        let Ok(img) = image::load_from_memory(src) else { return Reply::NotFound };
+        let w = num("fillwidth").or(num("maxwidth")).unwrap_or(img.width()).clamp(32, img.width());
+        let h = num("fillheight").unwrap_or(w * img.height() / img.width()).clamp(32, img.height());
+        let img = img.resize_to_fill(w, h, image::imageops::FilterType::Triangle).to_rgb8();
+        let mut out = Vec::new();
+        let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 88);
+        return match image::ImageEncoder::write_image(enc, img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgb8) {
+            Ok(()) => Reply::Jpeg(out),
+            Err(_) => Reply::NotFound,
+        };
+    }
     let name = item["Name"].as_str().unwrap_or("");
     let title = item["SeriesName"].as_str().filter(|_| item["Type"] == "Season").unwrap_or(name);
     let wide = kind != "primary" || item["Type"] == "Episode" || item["Type"] == "CollectionFolder";
@@ -898,7 +1035,7 @@ mod tests {
     #[test]
     fn library_pages_and_index() {
         let page = list(&q("parentId=libmovies&IncludeItemTypes=Movie&Recursive=true&SortBy=SortName&StartIndex=0&Limit=10"));
-        assert_eq!(page["TotalRecordCount"], 30);
+        assert_eq!(page["TotalRecordCount"], 30 + FILMS.len());
         assert_eq!(page["Items"].as_array().unwrap().len(), 10);
         let before = list(&q("parentId=libmovies&Limit=0&NameLessThan=M"));
         assert!(before["TotalRecordCount"].as_u64().unwrap() > 5);
@@ -944,5 +1081,16 @@ mod tests {
         let img = image::load_from_memory(&b).unwrap();
         assert_eq!((img.width(), img.height()), (270, 405));
         assert!(matches!(image(&find("movie00").unwrap(), "logo", &q("maxWidth=400")), Reply::Png(_)));
+    }
+
+    #[test]
+    fn films_have_real_images() {
+        let Reply::Jpeg(b) = image(&find("film-bbb").unwrap(), "primary", &q("fillWidth=270&fillHeight=405")) else { panic!() };
+        let img = image::load_from_memory(&b).unwrap();
+        assert_eq!((img.width(), img.height()), (270, 405));
+        assert!(matches!(image(&find("film-sintel").unwrap(), "backdrop", &q("maxWidth=1280")), Reply::Jpeg(_)));
+        assert!(matches!(image(&find("film-sintel").unwrap(), "logo", &q("maxWidth=400")), Reply::NotFound));
+        let latest = list(&q("parentId=libmovies&SortBy=DateCreated&SortOrder=Descending&Limit=3"));
+        assert_eq!(latest["Items"][0]["Id"], "film-sprite");
     }
 }

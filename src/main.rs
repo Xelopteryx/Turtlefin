@@ -15,7 +15,6 @@ mod android_entry;
 mod config;
 #[cfg(not(target_os = "android"))]
 mod creator;
-#[cfg(not(target_os = "android"))]
 mod demo;
 mod dashboard;
 mod daynight;
@@ -179,6 +178,8 @@ fn parse_cli() -> Cli {
             s if s.starts_with("--audio=") => player::cli_tracks(Some(&s["--audio=".len()..]), None),
             // Essai d'un thème (Turtlefin Theme Creator) : voir demo.rs, lu dans main.
             s if s.starts_with("--theme-demo=") => {}
+            // Visite guidée sur le serveur de démonstration dès le lancement (essais, captures).
+            "--demo" | "--demo-only" => {}
             s if s.starts_with("--") => eprintln!("Option inconnue : {s}"),
             _ => positional.push(a.clone()),
         }
@@ -1418,6 +1419,13 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
 /// Session ouverte (mot de passe ou compte enregistré) : session et compte enregistrés, accueil.
 /// `weak` : verdict sur le mot de passe tapé (None : compte enregistré, le verdict d'avant reste).
 async fn start_session(app: Arc<App>, client: api::Client, weak: Option<bool>) {
+    // Serveur de démonstration (visite guidée, demo.rs) : rien de cette session n'est enregistré.
+    let is_demo = demo::is_local(&client.server);
+    config::set_demo(is_demo);
+    let _ = app.ui().upgrade_in_event_loop(move |u| u.set_demo_on(is_demo));
+    if is_demo && DEMO_TOUR.swap(false, Ordering::SeqCst) {
+        start_tour(&app, 2500);
+    }
     {
         {
             let old = config::load();
@@ -1744,11 +1752,58 @@ fn forget_saved_account(app: &Arc<App>, uid: &str) {
 
 /// « Changer de compte » : retour à « Qui regarde ? », en retenant le compte quitté.
 fn switch_account(app: &Arc<App>) {
-    *app.prev_account.lock().unwrap() = app.client().map(|c| c.user_id.clone());
+    // Démonstration : le compte à rouvrir reste celui quitté pour la commencer.
+    if !config::demo() {
+        *app.prev_account.lock().unwrap() = app.client().map(|c| c.user_id.clone());
+    }
     end_session(app, false);
 }
 
+/// Visite guidée à lancer à l'ouverture de la session de démonstration.
+static DEMO_TOUR: AtomicBool = AtomicBool::new(false);
+
+/// « Découvrir Turtlefin » (choix du serveur) et « Revoir la visite » (Paramètres) : la visite guidée
+/// sur le serveur de démonstration intégré (demo.rs), sans toucher aux comptes. Une session ouverte
+/// est quittée comme par « Changer de compte » ; la démo finie (fin ou abandon de la visite, déconnexion),
+/// ce compte est rouvert (voir end_session).
+fn start_demo(app: &Arc<App>) {
+    if config::demo() {
+        go_home(app);
+        start_tour(app, 1200);
+        return;
+    }
+    let Some(url) = demo::serve_local() else {
+        if let Some(u) = app.ui().upgrade() {
+            u.set_toast(tr("La démonstration n'a pas pu démarrer.").into());
+        }
+        return;
+    };
+    if app.client().is_some() {
+        switch_account(app);
+    }
+    if let Some(u) = app.ui().upgrade() {
+        u.set_screen("loading".into());
+    }
+    let a = app.clone();
+    app.rt.spawn(async move {
+        DEMO_TOUR.store(true, Ordering::SeqCst);
+        match api::Client::login(&url, demo::USER, demo::PASSWORD, &a.device_id).await {
+            Ok(client) => start_session(a.clone(), client, Some(false)).await,
+            Err(e) => {
+                let msg = format!("{}", human_err(&e));
+                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                    u.set_screen("login".into());
+                    u.set_toast(msg.into());
+                });
+            }
+        }
+    });
+}
+
 fn end_session(app: &Arc<App>, forget: bool) {
+    // Fin de la démonstration : le compte de démo ne s'oublie pas (il n'est enregistré nulle part).
+    let was_demo = config::demo();
+    let forget = forget && !was_demo;
     if app.sp.lock().unwrap().group.is_some() {
         if let Some(c) = app.client() {
             app.rt.spawn(async move {
@@ -1799,6 +1854,20 @@ fn end_session(app: &Arc<App>, forget: bool) {
         u.set_busy(false);
         u.set_error_text("".into());
         u.set_screen("login".into());
+    }
+    if was_demo {
+        config::set_demo(false);
+        if let Some(u) = app.ui().upgrade() {
+            u.set_demo_on(false);
+            u.set_tour_step(-1);
+        }
+        // Retour au compte quitté pour la démo ; sans serveur encore choisi (premier lancement) : le
+        // choix du serveur.
+        if let Some(id) = app.prev_account.lock().unwrap().take() {
+            login_pick(app, format!("acc:{id}"));
+        } else if config::load().server_main.is_empty() {
+            open_servers(app);
+        }
     }
 }
 
@@ -7592,10 +7661,8 @@ fn settings_activate(app: &Arc<App>, key: &str) {
             refresh_settings(app);
         }
         "fullscreen" => toggle_full(app),
-        "tour" => {
-            go_home(app);
-            start_tour(app, 1200);
-        }
+        // Revoir la visite : sur le serveur de démonstration (le compte est rouvert à la fin).
+        "tour" => start_demo(app),
         "precache" => {
             if app.pre_on.load(Ordering::SeqCst) {
                 app.pre_stop.store(true, Ordering::SeqCst);
@@ -9495,6 +9562,10 @@ async fn play_local(app: Arc<App>, e: downloads::Entry) {
 
 /// Lectures faites hors ligne renvoyées au serveur (position, « vu »).
 fn sync_offline_plays(app: &Arc<App>, client: &api::Client) {
+    // Démonstration : les lectures hors ligne appartiennent au vrai serveur.
+    if config::demo() {
+        return;
+    }
     let (c, ui, app) = (client.clone(), app.ui(), app.clone());
     app.clone().rt.spawn(async move {
         let n = downloads::sync(&c).await;
@@ -10484,15 +10555,20 @@ pub(crate) fn main() -> anyhow::Result<()> {
     let demo_server = std::env::args().find_map(|a| a.strip_prefix("--theme-demo=").map(str::to_string)).and_then(|f| demo::start(&f));
     #[cfg(target_os = "android")]
     let demo_server: Option<String> = None;
-    #[allow(unused_mut)]
+    // --demo : le serveur de démonstration, sans dossiers à part (rien n'est enregistré, voir config::demo).
+    let demo_server = demo_server.or_else(|| {
+        // --demo-only : sans la visite (mesures, captures).
+        let tour = std::env::args().any(|a| a == "--demo");
+        (tour || std::env::args().any(|a| a == "--demo-only"))
+            .then(demo::serve_local)
+            .flatten()
+            .inspect(|_| DEMO_TOUR.store(tour, Ordering::SeqCst))
+    });
     let mut cli = parse_cli();
     if let Some(url) = &demo_server {
         cli.server = Some(url.clone());
-        #[cfg(not(target_os = "android"))]
-        {
-            cli.user = Some(demo::USER.to_string());
-            cli.pass = Some(demo::PASSWORD.to_string());
-        }
+        cli.user = Some(demo::USER.to_string());
+        cli.pass = Some(demo::PASSWORD.to_string());
     }
     // Vérification « Configuration » du démarrage : avant toute lecture des fichiers (voir boot.rs).
     let config_issues = config::unreadable_files();
@@ -10760,6 +10836,20 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_switch_account({
         let app = app.clone();
         move || end_session(&app, false)
+    });
+
+    ui.on_demo_tour({
+        let app = app.clone();
+        move || start_demo(&app)
+    });
+    // Visite finie ou passée pendant la démonstration : retour au compte quitté.
+    ui.on_demo_done({
+        let app = app.clone();
+        move || {
+            if config::demo() {
+                end_session(&app, false);
+            }
+        }
     });
 
     // Android : clavier virtuel rangé quand son champ disparaît (voir drop-keyboard, app.slint).

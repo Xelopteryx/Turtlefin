@@ -4274,3 +4274,42 @@ msgstr "cache"
 
 msgid "lancé depuis"
 msgstr "uptime"
+
+msgid "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos."
+msgstr "That's it! Now add your Jellyfin server to find your movies and shows. You can replay this tour from Settings → About."
+
+msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière. Souris et doigt marchent aussi."
+msgstr "This tour lets you try the app. Remote or keyboard: the arrows to move around, OK (Enter) to open or confirm, Back (Esc) to go back. Mouse and touch work too."
+
+msgid "Clic droit, appui long ou OK maintenu sur une affiche : l'ouvrir, la marquer vue ou non vue ; les administrateurs y trouvent aussi Identifier, Actualiser et Modifier. Dans une bibliothèque, l'index A–Z est sur le côté et une lettre tapée filtre la liste."
+msgstr "Right-click, long-press or hold OK on a poster: open it, mark it as watched or unwatched; administrators also get Identify, Refresh and Edit. In a library, the A–Z index sits on the side and typing a letter filters the list."
+
+msgid "Découvrir Turtlefin"
+msgstr "Discover Turtlefin"
+
+msgid "Démonstration"
+msgstr "Demo"
+
+msgid "La démonstration n'a pas pu démarrer."
+msgstr "The demo could not start."
+
+msgid "Le menu d'une affiche"
+msgstr "A poster's menu"
+
+msgid "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom."
+msgstr "Settings: themes and their day and night scenery, text size, animations, language, TV interface… The field at the top of Settings finds a setting by its name."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
+msgstr "Move along it with → up to your profile, on the far right: the tabs (Home, Favorites…), then Cast to a TV, watch party, a random pick and search."
+
+msgid "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
+msgstr "Type a letter anywhere on the home screen, or pick the magnifier: search opens and finds movies, shows, episodes and people as you type."
+
+msgid "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. "
+msgstr "Everything you see here comes from a demo server: nothing is saved, so feel free to try anything. "
+
+msgid "À ton goût"
+msgstr "Make it yours"
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
+msgstr "← →: 10 s back or forward. OK or ↓: the controls (pause, volume, audio, subtitles); ↓ again: the season's episodes. Back: stop playback. Skip three intros in a row and the next ones are skipped for you."
