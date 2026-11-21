@@ -1087,6 +1087,20 @@ mod tests {
     }
 
     #[test]
+    fn every_item_reads_like_a_real_one() {
+        // Chaque fiche du catalogue se lit comme celle d'un vrai serveur (une seule qui échoue : la
+        // fiche ne s'ouvre pas pendant la visite).
+        let all: Vec<Value> = catalog().lock().unwrap().clone();
+        for v in all {
+            let id = v["Id"].as_str().unwrap_or("").to_string();
+            let Reply::Json(j) = route("GET", &format!("/Items/{id}"), &q("userId=x")) else { panic!("{id} : introuvable") };
+            if let Err(e) = serde_json::from_value::<crate::api::Item>(j) {
+                panic!("{id} : {e}");
+            }
+        }
+    }
+
+    #[test]
     fn films_have_real_images() {
         let Reply::Jpeg(b) = image(&find("film-bbb").unwrap(), "primary", &q("fillWidth=270&fillHeight=405")) else { panic!() };
         let img = image::load_from_memory(&b).unwrap();

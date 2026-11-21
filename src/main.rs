@@ -7905,6 +7905,11 @@ fn watch_addresses(app: &Arc<App>, client: &api::Client) {
 /// si besoin. Renvoie true si l'adresse a changé.
 pub(crate) async fn check_address(app: &Arc<App>) -> bool {
     let Some(cur) = app.client() else { return false };
+    // Démonstration : les adresses enregistrées sont celles du vrai serveur, pas de la démo (on y
+    // basculait avec le jeton de la démo : « Session expirée », retour à « Qui regarde ? »).
+    if config::demo() {
+        return false;
+    }
     let s = config::load();
     if s.server_backup.is_empty() || app.offline.load(Ordering::SeqCst) {
         return false;

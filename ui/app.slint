@@ -1141,6 +1141,7 @@ component SectionRow inherits Rectangle {
     property <float> te: (1 - (1 - root.t-x) * (1 - root.t-x)) * (1 - root.out);
     callback activated(int);
     callback touched(int);                  // carte touchée du doigt (sans l'ouvrir)
+    callback hovered(int);                  // carte survolée à la souris (-1 : plus aucune)
     // Menu d'une carte (clic droit, appui long) : carte, position dans la fenêtre. Pas sur les tuiles.
     callback card-menu(CardData, length, length);
 
@@ -1244,8 +1245,15 @@ component SectionRow inherits Rectangle {
                 lit-changed(on) => {
                     if (on) {
                         root.hover-i = i;
+                        if (!Nav.kb) {
+                            root.hovered(i);
+                        }
                     } else if (root.hover-i == i) {
                         root.hover-i = -1;
+                        // La souris a quitté la carte (pas le retour au clavier, qui éteint aussi le survol).
+                        if (!Nav.kb) {
+                            root.hovered(-1);
+                        }
                     }
                 }
                 clicked => {
@@ -4991,6 +4999,24 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Affiche de l'accueil survolée à la souris : les flèches repartent d'elle (et non de l'ancienne
+    // sélection au clavier) quand on revient au clavier.
+    property <int> hov-s: -1;
+    property <int> hov-i: -1;
+    property <bool> kb-now: Nav.kb;
+    changed kb-now => {
+        if (root.kb-now && root.screen == "home" && root.hov-s >= 0 && root.hov-i >= 0 && root.hov-s < root.sections.length) {
+            root.h-focus = false;
+            root.banner-sel = false;
+            root.home-free = false;
+            root.sel-section = root.hov-s;
+            root.sel-item = min(root.hov-i, root.sections[root.hov-s].items.length - 1);
+        }
+        if (root.kb-now) {
+            root.hov-s = -1;
+            root.hov-i = -1;
+        }
+    }
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
         root.ep-btn = -1;
@@ -7980,6 +8006,10 @@ export component AppWindow inherits Window {
                             root.banner-sel = false;
                             root.sel-section = si;
                             root.sel-item = i;
+                        }
+                        hovered(i) => {
+                            root.hov-s = i >= 0 ? si : -1;
+                            root.hov-i = i;
                         }
                         activated(i) => {
                             root.h-focus = false;
@@ -16666,7 +16696,7 @@ export component AppWindow inherits Window {
             // qu'on navigue dans la page, sinon au centre.
             property <bool> below: root.tour-last == 3 || root.tour-last == 4;
             property <bool> corner: root.tour-last == 1 || root.tour-last == 2 || root.tour-last == 5 || root.tour-last == 7 || root.tour-last == 8;
-            property <length> art-h: root.tour-last == 0 ? 190px * root.k : root.tour-last == 4 ? 210px * root.k
+            property <length> art-h: root.tour-last == 0 ? 190px * root.k : root.tour-last == 4 ? 266px * root.k
                 : root.tour-last == 9 ? 170px * root.k : 0px;
             property <bool> buttons: !root.tour-act;
             width: min((root.tour-last == 6 ? parent.width - root.menu-w : parent.width) - 80px * root.k, (self.corner ? 480px : 620px) * root.k);
