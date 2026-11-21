@@ -4334,3 +4334,24 @@ msgstr "Cast: send the video to a TV, or control another device."
 
 msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
 msgstr "This tour lets you try the app. Remote or keyboard: the arrows to move around, OK (Enter) to open or confirm, Back (Esc) to go back."
+
+msgid "Cherche quoi regarder"
+msgstr "Looking for something to watch"
+
+msgid "Fouille dans ses films et séries"
+msgstr "Digging through movies and shows"
+
+msgid "Hésite devant une fiche"
+msgstr "Can't make up their mind"
+
+msgid "Ne sait pas quoi regarder"
+msgstr "Can't decide what to watch"
+
+msgid "Organise une watch party"
+msgstr "Setting up a watch party"
+
+msgid "Peaufine ses réglages"
+msgstr "Fine-tuning the settings"
+
+msgid "Prépare de quoi regarder hors ligne"
+msgstr "Getting something ready to watch offline"

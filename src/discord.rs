@@ -44,40 +44,58 @@ pub fn set_enabled(ui: &slint::Weak<AppWindow>, on: bool) {
     }
 }
 
-/// Ce que montre le statut : (première ligne, seconde ligne, début de la lecture en secondes Unix).
+/// Ce que montre le statut : première ligne, seconde ligne, début et fin (secondes Unix ; Discord
+/// affiche le temps écoulé, ou restant), et lecture en cours (activité « Regarde » au lieu de « Joue à »).
 #[derive(Clone, PartialEq, Default)]
 struct Status {
     details: String,
     state: String,
     start: Option<u64>,
     end: Option<u64>,
+    watching: bool,
+}
+
+thread_local! {
+    /// Début du moment passé à chercher quoi regarder (hors lecture) : le statut compte depuis quand.
+    static IDLE_SINCE: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
 }
 
 /// État de l'interface traduit en statut (fil de l'interface).
 fn read_status(u: &AppWindow) -> Status {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     if u.get_playing() {
+        // Discord écrit « Regarde Turtlefin » (activité de type 3) : le titre suffit en première ligne.
+        IDLE_SINCE.with(|c| c.set(None));
         let title = u.get_p_title().to_string();
         let sub = u.get_p_subtitle().to_string();
         let (pos, dur) = (u.get_p_pos_secs() as u64, u.get_p_dur_secs() as u64);
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         if u.get_p_paused() {
-            return Status { details: trf("Regarde {}", &[&title]), state: if sub.is_empty() { tr("En pause").into() } else { trf("{} · en pause", &[&sub]) }, ..Default::default() };
+            let state = if sub.is_empty() { tr("En pause").to_string() } else { trf("{} · en pause", &[&sub]) };
+            return Status { details: title, state, watching: true, ..Default::default() };
         }
         let start = now.saturating_sub(pos);
         let end = (dur > pos).then(|| now + (dur - pos));
-        return Status { details: trf("Regarde {}", &[&title]), state: sub, start: Some(start), end };
+        return Status { details: title, state: sub, start: Some(start), end, watching: true };
     }
+    // Hors lecture : on cherche quoi regarder, depuis… (le compteur part à la fin de la dernière lecture,
+    // ou au lancement).
+    let since = IDLE_SINCE.with(|c| {
+        let v = c.get().unwrap_or(now);
+        c.set(Some(v));
+        v
+    });
     let screen = u.get_screen().to_string();
     let (details, state) = match screen.as_str() {
-        "home" => (tr("Sur l'accueil").to_string(), String::new()),
-        "library" => (tr("Parcourt une bibliothèque").to_string(), u.get_lib_title().to_string()),
-        "detail" => (tr("Regarde une fiche").to_string(), u.get_detail().title.to_string()),
-        "search" => (tr("Cherche quelque chose à voir").to_string(), String::new()),
-        "settings" => (tr("Dans les paramètres").to_string(), String::new()),
-        "downloads" => (tr("Dans ses téléchargements").to_string(), String::new()),
-        _ => (tr("Dans Turtlefin").to_string(), String::new()),
+        "home" => (tr("Ne sait pas quoi regarder").to_string(), String::new()),
+        "library" => (tr("Fouille dans ses films et séries").to_string(), u.get_lib_title().to_string()),
+        "detail" => (tr("Hésite devant une fiche").to_string(), u.get_detail().title.to_string()),
+        "search" => (tr("Cherche quoi regarder").to_string(), String::new()),
+        "settings" => (tr("Peaufine ses réglages").to_string(), String::new()),
+        "downloads" => (tr("Prépare de quoi regarder hors ligne").to_string(), String::new()),
+        "party" => (tr("Organise une watch party").to_string(), String::new()),
+        _ => (tr("Ne sait pas quoi regarder").to_string(), String::new()),
     };
-    Status { details, state, ..Default::default() }
+    Status { details, state, start: Some(since), ..Default::default() }
 }
 
 /// Fil de mise à jour : relit l'interface, envoie le statut quand il change.
@@ -122,6 +140,8 @@ fn run(ui: slint::Weak<AppWindow>) {
 fn activity(s: Option<&Status>) -> Value {
     let act = s.map(|s| {
         let mut a = json!({
+            // 3 : « Regarde » ; 0 : « Joue à ».
+            "type": if s.watching { 3 } else { 0 },
             "details": clip(&s.details),
             "assets": { "large_image": "turtlefin", "large_text": "Turtlefin" },
         });
