@@ -66,6 +66,12 @@ codegen-units = 16
 incremental = true
 strip = true
 
+# Binaires d'essai (Pi, chulak-1, mesures) : comme release, sans le thin-LTO de l'édition de liens
+# (plus rapide à compiler). `cargo build --profile essai` ; les paquets publiés restent en release.
+[profile.essai]
+inherits = "release"
+lto = false
+
 # Script de build (compilateur Slint de ui/*.slint) et ses dépendances optimisés : par défaut Cargo les
 # compile sans optimisation, et la compilation de l'interface, qui ne tourne que sur un cœur, durait
 # plusieurs minutes. Optimisé, il s'exécute bien plus vite (compilé une fois, puis gardé).

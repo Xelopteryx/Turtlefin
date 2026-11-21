@@ -4313,3 +4313,21 @@ msgstr "Make it yours"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s back or forward. OK or ↓: the controls (pause, volume, audio, subtitles); ↓ again: the season's episodes. Back: stop playback. Skip three intros in a row and the next ones are skipped for you."
+
+msgid "Détail du décor"
+msgstr "Scenery detail"
+
+msgid "Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."
+msgstr "Automatic: lighter, or still, if this device cannot keep 60 frames per second."
+
+msgid "Allégé"
+msgstr "Lighter"
+
+msgid "Figé"
+msgstr "Still"
+
+msgid "Complet"
+msgstr "Full"
+
+msgid "Automatique ({})"
+msgstr "Automatic ({})"

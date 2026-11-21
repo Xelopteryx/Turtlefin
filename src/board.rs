@@ -521,7 +521,7 @@ fn frame(u: &AppWindow) {
 
 /// Le décor Nerd est-il à l'écran et animé ?
 fn visible(u: &AppWindow) -> bool {
-    u.global::<Theme>().get_scenery() == 3 && config::ui_prefs().anim.scenery && !u.get_playing()
+    u.global::<Theme>().get_scenery() == 3 && config::ui_prefs().anim.scenery && !u.get_playing() && u.global::<crate::Perf>().get_decor() < 2
 }
 
 static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();

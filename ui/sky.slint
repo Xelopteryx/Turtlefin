@@ -1539,7 +1539,10 @@ export component Lagon inherits Rectangle {
     Rectangle {
         background: @linear-gradient(180deg, Lagoon.w0 0%, Lagoon.w1 18%, Lagoon.w2 45%, Lagoon.w3 75%, Lagoon.w4 100%);
     }
-    if Lagoon.ready: Rectangle {
+    // Décor allégé (Perf.decor 1, decor.rs) : sans les petits éléments (256) ni les bords assombris (2048).
+    // Diagnostic (TURTLEFIN_PERF_OFF) : 128 lumières, 256 petits éléments, 512 tracés (méduses, anémones),
+    // 1024 récif et sable, 2048 bords assombris.
+    if Lagoon.ready && !Perf.hide(128): Rectangle {
         // Reflets du soleil et de la lune à la surface.
         if Lagoon.sun-a > 0: Image {
             x: root.ox + (Lagoon.sun-x - 400 * Lagoon.sun-scale * 1.6) * root.s;
@@ -1648,7 +1651,7 @@ export component Lagon inherits Rectangle {
         width: q.r * 1.6 * root.s;
         height: self.width;
         background: #c8f0ff.with-alpha(q.a * (1 - self.py / 900 * 0.5) * (1 - root.dark + root.dark * 0.3));
-        if speck.on > 0 && Lagoon.ready: Image {
+        if speck.on > 0 && Lagoon.ready && !Perf.hide(256) && Perf.decor < 1: Image {
             property <float> rr: 4 + q.r * 4;
             x: (q.r * 0.8 - self.rr) * root.s;
             y: (q.r * 0.8 - self.rr) * root.s;
@@ -1659,7 +1662,7 @@ export component Lagon inherits Rectangle {
         }
     }
     // Banc de poissons au loin.
-    if Lagoon.school >= 0 && Lagoon.ready: school := Rectangle {
+    if Lagoon.school >= 0 && Lagoon.ready && !Perf.hide(256) && Perf.decor < 1: school := Rectangle {
         property <float> x0: -400 + 1900 * Lagoon.school;
         for f in Lagoon.school-fish: Image {
             x: root.ox + (school.x0 + f.x - 20 * f.r / 6) * root.s;
@@ -1672,7 +1675,7 @@ export component Lagon inherits Rectangle {
     }
     // Méduses.
     for j in Lagoon.jellies: Rectangle {
-        visible: j.on;
+        visible: j.on && !Perf.hide(512);
         if Lagoon.ready: Image {
             x: root.ox + (j.gx - j.gr) * root.s;
             y: root.oy + (j.gy - j.gr) * root.s;
@@ -1728,7 +1731,7 @@ export component Lagon inherits Rectangle {
             commands: j.shine != "" ? j.shine : "M 0 0";
         }
     }
-    if Lagoon.ready: Rectangle {
+    if Lagoon.ready && !Perf.hide(1024): Rectangle {
         // Sable, récif lointain, gorgones.
         Image { x: root.ox; y: root.oy + 760 * root.s; width: 1600 * root.s; height: 140 * root.s; source: Lagoon.sand; image-fit: fill; }
         Rectangle { x: root.ox; y: root.oy + 760 * root.s; width: 1600 * root.s; height: 140 * root.s; background: #020816.with-alpha(root.dark * 0.6); }
@@ -1767,6 +1770,7 @@ export component Lagon inherits Rectangle {
     }
     // Anémones.
     for a in Lagoon.anemones: Rectangle {
+        visible: !Perf.hide(512);
         Path {
             x: root.ox; y: root.oy; width: 1600 * root.s; height: 900 * root.s;
             viewbox-width: 1600; viewbox-height: 900;
@@ -1795,7 +1799,7 @@ export component Lagon inherits Rectangle {
             commands: a.tips != "" ? a.tips : "M 0 0";
         }
     }
-    if root.dark > 0.2 && Lagoon.ready: Rectangle {
+    if root.dark > 0.2 && Lagoon.ready && !Perf.hide(256) && Perf.decor < 1: Rectangle {
         for d in Lagoon.tips: Image {
             x: root.ox + (d.x - d.r) * root.s;
             y: root.oy + (d.y - d.r) * root.s;
@@ -1806,7 +1810,7 @@ export component Lagon inherits Rectangle {
         }
     }
     // Colonnes de bulles qui montent du récif.
-    if Lagoon.ready: Rectangle {
+    if Lagoon.ready && !Perf.hide(256) && Perf.decor < 1: Rectangle {
         for b in Lagoon.bubbles: Image {
             property <float> q: mod(b.off + root.t * b.sp, 1);
             property <float> by: 900 - self.q * 860;
@@ -1820,7 +1824,7 @@ export component Lagon inherits Rectangle {
         }
     }
     // Bords assombris.
-    Rectangle {
+    if !Perf.hide(2048) && Perf.decor < 1: Rectangle {
         background: @radial-gradient(circle, #00000000 0%, #00000000 45%, #0000008c 100%);
     }
 }

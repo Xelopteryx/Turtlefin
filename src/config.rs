@@ -714,6 +714,11 @@ pub struct UiPrefs {
     pub night_at: u32,
     /// Durée de l'aube et du crépuscule, en minutes.
     pub daynight_span: u32,
+    /// Détail du décor animé : "" automatique (mesuré, voir decor.rs), "full", "light", "still".
+    pub decor_mode: String,
+    /// Mode automatique : niveau retenu (0 complet, 1 allégé, 2 figé) pour la carte graphique `decor_gpu`.
+    pub decor_auto: u8,
+    pub decor_gpu: String,
     /// Statut Discord (page ouverte, média regardé), bureau seulement.
     pub discord: bool,
     /// Interface TV (grands éléments, plein écran) ; les options --tv / --desktop priment.
@@ -922,6 +927,9 @@ impl Default for UiPrefs {
             day_at: 420,
             night_at: 1140,
             daynight_span: 60,
+            decor_mode: String::new(),
+            decor_auto: 0,
+            decor_gpu: String::new(),
             discord: false,
             tv: false,
             fullscreen: false,

@@ -282,7 +282,8 @@ fn catalog() -> &'static Mutex<Vec<Value>> {
 
 fn user_data(i: usize, playable: bool) -> Value {
     let played = playable && i % 5 == 0;
-    let pct = if playable && i % 4 == 1 { 20.0 + (i * 13 % 60) as f64 } else { 0.0 };
+    // Vu ou commencé, pas les deux.
+    let pct = if playable && !played && i % 4 == 1 { 20.0 + (i * 13 % 60) as f64 } else { 0.0 };
     json!({
         "Played": played,
         "IsFavorite": i % 6 == 2,

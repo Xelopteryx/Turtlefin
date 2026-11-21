@@ -109,6 +109,8 @@ export global Theme {
 // coût. 0 en usage normal.
 export global Perf {
     in-out property <int> off;
+    // Détail du décor animé (decor.rs) : 0 complet, 1 allégé (moins de petits éléments), 2 figé.
+    in-out property <int> decor;
     // Contexte graphique recréé (Android : rotation, écran rallumé) : les images gardées en cache par le
     // moteur de rendu sont perdues, les éléments en cache se redessinent (voir AeroSky).
     in-out property <int> gl-epoch;

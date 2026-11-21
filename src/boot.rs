@@ -338,7 +338,9 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         }
 
         // Visite guidée : proposée une fois, juste après la langue (pas sans animation : --no-intro).
-        if i == 0 && animate && !config::ui_prefs().tutorial_offered {
+        // Démonstration en ligne de commande (--demo, --demo-only) : ni visite ni thème demandés.
+        let cli_demo = std::env::args().any(|a| a == "--demo" || a == "--demo-only");
+        if i == 0 && animate && !cli_demo && !config::ui_prefs().tutorial_offered {
             let items = vec![
                 TrackData { id: "yes".into(), label: tr("Oui, montre-moi").into(), current: false },
                 TrackData { id: "no".into(), label: tr("Non merci").into(), current: false },
@@ -360,7 +362,7 @@ pub async fn run(app: Arc<App>, mut start: Start) {
 
         // Thème : proposé au tout premier lancement (avant le choix de la langue, rien n'était
         // enregistré). Il s'applique aussitôt : la suite du démarrage se joue déjà dans ce thème.
-        if i == 0 && first && animate {
+        if i == 0 && first && animate && !cli_demo {
             let cur = config::ui_prefs().theme;
             let all = crate::theme::builtin();
             let sel = all.iter().position(|(k, _)| *k == cur).unwrap_or(0) as i32;

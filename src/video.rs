@@ -172,6 +172,9 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // Durée de dessin d'une image (avant -> après le rendu) : l'écart entre deux images compterait
     // aussi les moments de repos, où rien n'est redessiné.
     let mut started: Option<std::time::Instant> = None;
+    // Mesure du décor (decor.rs) : début de l'image, fin de la précédente.
+    let mut probe_t0: Option<std::time::Instant> = None;
+    let mut probe_last: Option<std::time::Instant> = None;
     let t_start = std::time::Instant::now();
     // TURTLEFIN_DEBUG_FPS=1 : nombre d'images dessinées par seconde (avec
     // SLINT_DEBUG_PERFORMANCE=refresh_full_speed pour un rendu continu : le maximum possible).
@@ -179,6 +182,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
     // TURTLEFIN_DEBUG_GAPS=1 (avec SLINT_DEBUG_PERFORMANCE=refresh_full_speed) : signale chaque pause
     // de plus de 40 ms entre deux images, c'est-à-dire un à-coup (fil de l'interface occupé).
     let debug_gaps = std::env::var_os("TURTLEFIN_DEBUG_GAPS").is_some();
+    let debug_finish = std::env::var_os("TURTLEFIN_DEBUG_FINISH").is_some();
     let mut last_frame: Option<std::time::Instant> = None;
     let (mut fps_n, mut fps_t) = (0u32, std::time::Instant::now());
     ui.window().set_rendering_notifier(move |rs, api| {
@@ -204,6 +208,14 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
             match rs {
                 slint::RenderingState::BeforeRendering => started = Some(std::time::Instant::now()),
                 slint::RenderingState::AfterRendering => {
+                    // TURTLEFIN_DEBUG_FINISH=1 : on attend que la carte graphique ait fini l'image, la durée
+                    // mesurée est alors son vrai coût (pas seulement l'envoi des commandes).
+                    if debug_finish {
+                        if let Some(st) = state.as_ref() {
+                            // SAFETY : contexte OpenGL de la fenêtre courant pendant ce rappel.
+                            unsafe { st.gl.finish() };
+                        }
+                    }
                     if let Some(t) = started.take() {
                         let ms = t.elapsed().as_secs_f64() * 1000.0;
                         if ms > slow_ms {
@@ -223,7 +235,11 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 let info = unsafe {
                     format!("{} · {}", gl.get_parameter_string(glow::VERSION), gl.get_parameter_string(glow::RENDERER))
                 };
-                let _ = GL_INFO.set(info);
+                let _ = GL_INFO.set(info.clone());
+                // Détail du décor selon la carte graphique (decor.rs).
+                if let Some(u) = weak.upgrade() {
+                    crate::decor::gpu_known(&u, &info);
+                }
                 state = Some(State { gl, render: None, target: None });
                 gl_epoch(&weak);
             }
@@ -236,8 +252,23 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                     state = Some(State { gl, render: None, target: None });
                     gl_epoch(&weak);
                 }
+                probe_t0 = Some(std::time::Instant::now());
                 if let (Some(st), Some(ui)) = (state.as_mut(), weak.upgrade()) {
                     before_rendering(st, &ui, *get_proc_address);
+                }
+            }
+            slint::RenderingState::AfterRendering => {
+                // Mesure du décor (decor.rs) : images d'affilée seulement (le décor ou une page qui
+                // bouge), chronométrées carte graphique comprise.
+                let now = std::time::Instant::now();
+                let continuous = probe_last.is_some_and(|t| now.duration_since(t) < std::time::Duration::from_millis(60));
+                probe_last = Some(now);
+                if crate::decor::probing() && continuous {
+                    if let (Some(st), Some(t0), Some(u)) = (state.as_ref(), probe_t0, weak.upgrade()) {
+                        // SAFETY : contexte OpenGL de la fenêtre courant pendant ce rappel.
+                        unsafe { st.gl.finish() };
+                        crate::decor::sample(&u, t0.elapsed().as_secs_f32() * 1000.0);
+                    }
                 }
             }
             slint::RenderingState::RenderingTeardown => {

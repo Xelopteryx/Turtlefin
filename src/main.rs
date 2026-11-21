@@ -18,6 +18,7 @@ mod creator;
 mod demo;
 mod dashboard;
 mod daynight;
+mod decor;
 mod discovery;
 mod downloads;
 #[cfg(not(target_os = "android"))]
@@ -3180,6 +3181,10 @@ fn toggle_flag(app: &Arc<App>, action: &str) {
 // ---------------------------------------------------------------------------
 /// Connexion de la watch party pour le compte de la session (celle d'un autre compte est fermée).
 fn start_syncplay(app: &Arc<App>, client: &api::Client) {
+    // Démonstration : le serveur intégré n'a pas de watch party (pas de WebSocket).
+    if config::demo() {
+        return;
+    }
     let mut conn = app.sp_conn.lock().unwrap();
     if conn.as_ref().is_some_and(|(token, ..)| *token == client.token) {
         return;
@@ -6138,6 +6143,8 @@ pub(crate) fn switch_theme(u: &AppWindow, p: config::UiPrefs) {
 
 fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     theme::apply(u, &theme::find(&p.theme, &p.themes));
+    // Détail du décor : retenu par carte graphique et par décor (le nouveau thème a peut-être le sien).
+    decor::apply(u);
     #[cfg(not(target_os = "android"))]
     discord::set_enabled(&u.as_weak(), p.discord);
     u.global::<Theme>().set_text_scale(p.text_scale.clamp(0.7, 2.0) as f32);
@@ -6474,6 +6481,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("dayat", tr("Passage au jour"), tr("Milieu de l'aube."), daynight::hm(prefs.day_at), "choice", false),
             row("nightat", tr("Passage à la nuit"), tr("Milieu du crépuscule."), daynight::hm(prefs.night_at), "choice", false),
             row("dnspan", tr("Durée de l'aube et du crépuscule"), tr("Le temps que met le décor à passer du jour à la nuit, et inversement."), trf("{} min", &[&prefs.daynight_span]), "choice", false),
+            row("decor", tr("Détail du décor"), tr("Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."), decor_label(app, &prefs.decor_mode), "choice", false),
             row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."), String::new(), "action", false),
             row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
             row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
@@ -6849,6 +6857,10 @@ fn setting_choices(app: &Arc<App>, key: &str) -> Option<(String, Vec<(String, St
             let (list, cur) = lock::choices(&session_user(app));
             Some((tr("Code pour ouvrir ce compte").into(), list, cur))
         }
+        "decor" => {
+            let list = decor::MODES.iter().map(|k| (k.to_string(), decor_label(app, k))).collect();
+            Some((tr("Détail du décor").into(), list, config::ui_prefs().decor_mode))
+        }
         "daynight" => {
             let list = DAYNIGHT_MODES.iter().map(|k| (k.to_string(), daynight_label(k))).collect();
             Some((tr("Décor jour et nuit").into(), list, config::ui_prefs().daynight_mode))
@@ -6886,6 +6898,24 @@ fn session_user(app: &Arc<App>) -> String {
 
 /// Décor jour et nuit : selon l'heure (""), toujours le jour, toujours la nuit.
 const DAYNIGHT_MODES: [&str; 3] = ["", "day", "night"];
+
+/// Détail du décor (decor.rs) ; en automatique, le niveau retenu pour cet appareil.
+fn decor_label(app: &Arc<App>, mode: &str) -> String {
+    let name = |l: i32| match l {
+        1 => tr("Allégé").to_string(),
+        2 => tr("Figé").to_string(),
+        _ => tr("Complet").to_string(),
+    };
+    match mode {
+        "full" => name(0),
+        "light" => name(1),
+        "still" => name(2),
+        _ => {
+            let now = app.ui().upgrade().map(|u| u.global::<Perf>().get_decor()).unwrap_or(0);
+            trf("Automatique ({})", &[&name(now)]).to_string()
+        }
+    }
+}
 
 fn daynight_label(mode: &str) -> String {
     match mode {
@@ -7001,6 +7031,16 @@ fn choose_setting(app: &Arc<App>, key: &str, value: &str) {
         config::save_ui_prefs(&p);
         if let Some(u) = app.ui().upgrade() {
             switch_theme(&u, p);
+        }
+        refresh_settings(app);
+        return;
+    }
+    if key == "decor" {
+        let mut p = config::ui_prefs();
+        p.decor_mode = if decor::MODES.contains(&value) { value.to_string() } else { String::new() };
+        config::save_ui_prefs(&p);
+        if let Some(u) = app.ui().upgrade() {
+            decor::apply(&u);
         }
         refresh_settings(app);
         return;
@@ -7479,7 +7519,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         return;
     }
     match key {
-        "alang" | "slang" | "submode" | "subsize" | "textsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" | "daynight" | "dayat" | "nightat" | "dnspan" => open_choice(app, key),
+        "alang" | "slang" | "submode" | "subsize" | "textsize" | "maxrate" | "relay" | "dllimit" | "language" | "animpreset" | "theme" | "lock" | "daynight" | "dayat" | "nightat" | "dnspan" | "decor" => open_choice(app, key),
         "themeimport" => lx_open_mode(app, "theme"),
         "notes" => {
             let up = app.update_state.lock().unwrap().clone();

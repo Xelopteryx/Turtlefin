@@ -3556,7 +3556,8 @@ component Backdrop inherits Rectangle {
     }
     // Turtlefin : nappes de couleur qui suivent l'heure (daynight.rs).
     if Theme.bubbles && Theme.scenery == 4 && !Perf.hide(4): Nappes {
-        live: Motion.scenery;
+        // Décor figé (Perf.decor 2, machine trop lente : decor.rs) : plus rien ne bouge.
+        live: Motion.scenery && Perf.decor < 2;
         ticking: root.ticking;
         opacity: root.a * root.decor;
     }
@@ -3564,12 +3565,14 @@ component Backdrop inherits Rectangle {
     // (bulles et anneau de lumière ; courant dans toutes les pistes).
     // Aero : le lagon, dont la lumière suit l'heure (lagoon.rs, daynight.rs).
     if Theme.bubbles && Theme.scenery == 5 && !Perf.hide(4): Lagon {
-        live: Motion.scenery;
+        // Décor figé (Perf.decor 2, machine trop lente : decor.rs) : plus rien ne bouge.
+        live: Motion.scenery && Perf.decor < 2;
         ticking: root.ticking;
         opacity: root.a * root.decor;
     }
     if Theme.bubbles && (Theme.scenery == 1 || Theme.scenery == 2) && !Perf.hide(4): AeroDrift {
-        live: Motion.scenery;
+        // Décor figé (Perf.decor 2, machine trop lente : decor.rs) : plus rien ne bouge.
+        live: Motion.scenery && Perf.decor < 2;
         ticking: root.ticking;
         no-server: root.no-server || Srv.core == 3;
         k: root.k;
@@ -3577,7 +3580,8 @@ component Backdrop inherits Rectangle {
     }
     // Nerd : schéma de la carte, vert le jour, en veille ambrée la nuit (board.rs, daynight.rs).
     if Theme.bubbles && Theme.scenery == 3 && !Perf.hide(4): Schematic {
-        live: Motion.scenery;
+        // Décor figé (Perf.decor 2, machine trop lente : decor.rs) : plus rien ne bouge.
+        live: Motion.scenery && Perf.decor < 2;
         ticking: root.ticking;
         opacity: root.a * root.decor;
     }

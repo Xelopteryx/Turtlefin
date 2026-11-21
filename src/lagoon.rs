@@ -639,7 +639,8 @@ pub fn start(u: &AppWindow) -> Vec<slint::Timer> {
             loaded = true;
             load_images(u.as_weak());
         }
-        let anim = on && config::ui_prefs().anim.scenery;
+        // Décor figé (decor.rs) : plus d'animation.
+        let anim = on && config::ui_prefs().anim.scenery && u.global::<crate::Perf>().get_decor() < 2;
         if anim && !fast2.running() {
             // Reprise : les méduses sont posées à leur place (pas de traversée de rattrapage).
             frame(&u, true, !was_anim);
