@@ -53,6 +53,7 @@ struct Status {
     start: Option<u64>,
     end: Option<u64>,
     watching: bool,
+    paused: bool,
 }
 
 thread_local! {
@@ -71,11 +72,11 @@ fn read_status(u: &AppWindow) -> Status {
         let (pos, dur) = (u.get_p_pos_secs() as u64, u.get_p_dur_secs() as u64);
         if u.get_p_paused() {
             let state = if sub.is_empty() { tr("En pause").to_string() } else { trf("{} · en pause", &[&sub]) };
-            return Status { details: title, state, watching: true, ..Default::default() };
+            return Status { details: title, state, watching: true, paused: true, ..Default::default() };
         }
         let start = now.saturating_sub(pos);
         let end = (dur > pos).then(|| now + (dur - pos));
-        return Status { details: title, state: sub, start: Some(start), end, watching: true };
+        return Status { details: title, state: sub, start: Some(start), end, watching: true, paused: false };
     }
     // Hors lecture : on cherche quoi regarder, depuis… (le compteur part à la fin de la dernière lecture,
     // ou au lancement).
@@ -147,6 +148,11 @@ fn activity(s: Option<&Status>) -> Value {
         });
         if !s.state.is_empty() {
             a["state"] = json!(clip(&s.state));
+        }
+        // Petite icône sur le logo pendant une lecture (images « play » et « pause » du portail Discord).
+        if s.watching {
+            a["assets"]["small_image"] = json!(if s.paused { "pause" } else { "play" });
+            a["assets"]["small_text"] = json!(if s.paused { tr("En pause").to_string() } else { tr("Lecture").to_string() });
         }
         if let Some(t) = s.start {
             a["timestamps"] = json!({ "start": t });
