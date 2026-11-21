@@ -1804,6 +1804,12 @@ fn start_demo(app: &Arc<App>) {
 }
 
 fn end_session(app: &Arc<App>, forget: bool) {
+    end_session_to(app, forget, true);
+}
+
+/// `reopen` : en fin de démonstration, rouvrir le compte quitté pour elle (false : l'utilisateur est
+/// déjà allé ailleurs, par exemple sur « Qui regarde ? » d'un serveur choisi pendant la démo).
+fn end_session_to(app: &Arc<App>, forget: bool, reopen: bool) {
     // Fin de la démonstration : le compte de démo ne s'oublie pas (il n'est enregistré nulle part).
     let was_demo = config::demo();
     let forget = forget && !was_demo;
@@ -1869,7 +1875,10 @@ fn end_session(app: &Arc<App>, forget: bool) {
         }
         // Retour au compte quitté pour la démo ; sans serveur encore choisi (premier lancement) : le
         // choix du serveur.
-        if let Some(id) = app.prev_account.lock().unwrap().take() {
+        let prev = app.prev_account.lock().unwrap().take();
+        if !reopen {
+            // Déjà ailleurs (« Qui regarde ? » d'un serveur choisi) : on y reste.
+        } else if let Some(id) = prev {
             login_pick(app, format!("acc:{id}"));
         } else if config::load().server_main.is_empty() {
             open_servers(app);
@@ -10886,6 +10895,16 @@ pub(crate) fn main() -> anyhow::Result<()> {
     ui.on_demo_tour({
         let app = app.clone();
         move || start_demo(&app)
+    });
+    // « Qui regarde ? » ouvert pendant la démonstration (serveur choisi depuis le menu) : la démo se
+    // termine là, visite comprise, sans quitter cette page.
+    ui.on_demo_left({
+        let app = app.clone();
+        move || {
+            if config::demo() {
+                end_session_to(&app, false, false);
+            }
+        }
     });
     // Visite finie ou passée pendant la démonstration : retour au compte quitté.
     ui.on_demo_done({

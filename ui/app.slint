@@ -5032,6 +5032,11 @@ export component AppWindow inherits Window {
         if (root.screen != "login") {
             root.page-enter();
         }
+        // Démonstration quittée pour un vrai serveur (menu → serveur → « Qui regarde ? ») : elle se termine
+        // (la visite aussi), rien n'en reste dans la session qu'on va ouvrir.
+        if (root.screen == "login" && root.demo-on) {
+            root.demo-left();
+        }
         if (root.screen == "login") {
             root.login-mode = "pick";
             root.login-osk = false;
@@ -6010,6 +6015,7 @@ export component AppWindow inherits Window {
     // visite finie ou passée, demo-done ramène au compte quitté. Rien de la démo n'est enregistré.
     callback demo-tour();
     callback demo-done();
+    callback demo-left();                  // « Qui regarde ? » ouvert pendant la démo : elle se termine
     in property <bool> demo-on;
     callback login-pick(string);           // "acc:<id>" | "pub:<nom>" | "other"
     // Compte protégé par un code (voir lock.rs) : pas d'envol de la photo, la fenêtre du code s'ouvre.

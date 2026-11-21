@@ -30,6 +30,11 @@ fn app_id() -> String {
     std::env::var("TURTLEFIN_DISCORD_ID").ok().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| APP_ID.to_string())
 }
 
+/// TURTLEFIN_DEBUG_DISCORD=1 : ce que fait le statut (connexion, envois, réponses de Discord).
+fn debug() -> bool {
+    std::env::var_os("TURTLEFIN_DEBUG_DISCORD").is_some()
+}
+
 /// Le statut peut-il marcher ici (identifiant connu) ?
 pub fn available() -> bool {
     !app_id().is_empty()
@@ -123,11 +128,17 @@ fn run(ui: slint::Weak<AppWindow>) {
         }
         if conn.is_none() {
             conn = Pipe::connect(&app_id());
+            if debug() {
+                eprintln!("turtlefin : Discord, connexion {}", if conn.is_some() { "établie" } else { "impossible (Discord fermé ?)" });
+            }
             if conn.is_none() {
                 continue;
             }
         }
         let ok = conn.as_mut().is_some_and(|c| c.send(1, &activity(Some(&status))).is_ok());
+        if debug() {
+            eprintln!("turtlefin : Discord, statut « {} » / « {} » {}", status.details, status.state, if ok { "envoyé" } else { "refusé" });
+        }
         if ok {
             last = Some(status);
         } else {
@@ -204,7 +215,10 @@ impl Pipe {
         self.f.flush()?;
         // Réponse de Discord lue (sinon le tube se remplit).
         if op == 1 {
-            let _ = self.recv();
+            let r = self.recv();
+            if debug() {
+                eprintln!("turtlefin : Discord, réponse {}", r.map(|v| v.to_string().chars().take(300).collect::<String>()).unwrap_or_default());
+            }
         }
         Ok(())
     }
