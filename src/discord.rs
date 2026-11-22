@@ -155,14 +155,14 @@ fn activity(s: Option<&Status>) -> Value {
             // 3 : « Regarde » ; 0 : « Joue à ».
             "type": if s.watching { 3 } else { 0 },
             "details": clip(&s.details),
-            "assets": { "large_image": "turtlefin", "large_text": "Turtlefin" },
+            "assets": { "large_image": "rp-turtlefin", "large_text": "Turtlefin" },
         });
         if !s.state.is_empty() {
             a["state"] = json!(clip(&s.state));
         }
-        // Petite icône sur le logo pendant une lecture (images « play » et « pause » du portail Discord).
+        // Petite icône sur le logo pendant une lecture (images « rp-play » et « rp-pause » du portail Discord ; le logo : « rp-turtlefin »).
         if s.watching {
-            a["assets"]["small_image"] = json!(if s.paused { "pause" } else { "play" });
+            a["assets"]["small_image"] = json!(if s.paused { "rp-pause" } else { "rp-play" });
             a["assets"]["small_text"] = json!(if s.paused { tr("En pause").to_string() } else { tr("Lecture").to_string() });
         }
         if let Some(t) = s.start {
