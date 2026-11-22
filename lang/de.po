@@ -4274,3 +4274,84 @@ msgstr "cache"
 
 msgid "lancé depuis"
 msgstr "läuft seit"
+
+msgid "Allégé"
+msgstr "Reduziert"
+
+msgid "Automatique ({})"
+msgstr "Automatisch ({})"
+
+msgid "Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."
+msgstr "Automatisch: reduziert oder unbewegt, wenn dieses Gerät keine 60 Bilder pro Sekunde schafft."
+
+msgid "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Das war's! Füge jetzt deinen Jellyfin-Server hinzu, um deine Filme und Serien wiederzufinden. Diese Tour startest du erneut unter Einstellungen → Über."
+
+msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
+msgstr "Diese Tour lässt dich die App ausprobieren. Fernbedienung oder Tastatur: die Pfeile zum Bewegen, OK (Eingabe) zum Öffnen oder Bestätigen, Zurück (Esc) zum Zurückgehen."
+
+msgid "Cherche quoi regarder"
+msgstr "Sucht etwas zum Anschauen"
+
+msgid "Clic droit, appui long ou OK maintenu sur une affiche : l'ouvrir, la marquer vue ou non vue ; les administrateurs y trouvent aussi Identifier, Actualiser et Modifier. Dans une bibliothèque, l'index A–Z est sur le côté et une lettre tapée filtre la liste."
+msgstr "Rechtsklick, langes Drücken oder OK gedrückt halten auf einem Poster: öffnen, als gesehen oder ungesehen markieren; Administratoren finden dort auch Identifizieren, Aktualisieren und Bearbeiten. In einer Bibliothek steht der A–Z-Index am Rand, und ein getippter Buchstabe filtert die Liste."
+
+msgid "Complet"
+msgstr "Vollständig"
+
+msgid "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil."
+msgstr "Übertragen: das Video an einen Fernseher senden oder ein anderes Gerät steuern."
+
+msgid "Découvrir Turtlefin"
+msgstr "Turtlefin entdecken"
+
+msgid "Démonstration"
+msgstr "Demo"
+
+msgid "Détail du décor"
+msgstr "Detail der Kulisse"
+
+msgid "Figé"
+msgstr "Unbewegt"
+
+msgid "Fouille dans ses films et séries"
+msgstr "Stöbert in Filmen und Serien"
+
+msgid "Hésite devant une fiche"
+msgstr "Kann sich nicht entscheiden"
+
+msgid "La démonstration n'a pas pu démarrer."
+msgstr "Die Demo konnte nicht starten."
+
+msgid "Le menu d'une affiche"
+msgstr "Das Menü eines Posters"
+
+msgid "Ne sait pas quoi regarder"
+msgstr "Weiß nicht, was anschauen"
+
+msgid "Organise une watch party"
+msgstr "Plant eine Watch Party"
+
+msgid "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom."
+msgstr "Einstellungen: Designs und ihre Tag- und Nachtkulisse, Textgröße, Animationen, Sprache, TV-Oberfläche… Das Feld oben in den Einstellungen findet eine Einstellung über ihren Namen."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
+msgstr "Geh mit → bis zu deinem Profil ganz rechts: die Tabs (Start, Favoriten…), dann Übertragen an einen Fernseher, Watch Party, Zufall und die Suche."
+
+msgid "Peaufine ses réglages"
+msgstr "Feilt an den Einstellungen"
+
+msgid "Prépare de quoi regarder hors ligne"
+msgstr "Bereitet etwas für offline vor"
+
+msgid "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
+msgstr "Tippe irgendwo auf der Startseite einen Buchstaben oder wähle die Lupe: Die Suche öffnet sich und findet Filme, Serien, Folgen und Personen schon beim Tippen."
+
+msgid "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. "
+msgstr "Alles, was du hier siehst, kommt von einem Demo-Server: Nichts wird gespeichert, probier ruhig alles aus. "
+
+msgid "À ton goût"
+msgstr "Nach deinem Geschmack"
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
+msgstr "← →: 10 s zurück oder vor. OK oder ↓: die Bedienelemente (Pause, Lautstärke, Audio, Untertitel); noch einmal ↓: die Folgen der Staffel. Zurück: Wiedergabe beenden. Drei übersprungene Intros hintereinander: Die nächsten werden von selbst übersprungen."

@@ -4274,3 +4274,84 @@ msgstr "cache"
 
 msgid "lancé depuis"
 msgstr "actief sinds"
+
+msgid "Allégé"
+msgstr "Lichter"
+
+msgid "Automatique ({})"
+msgstr "Automatisch ({})"
+
+msgid "Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."
+msgstr "Automatisch: lichter, of stilstaand, als dit apparaat geen 60 beelden per seconde haalt."
+
+msgid "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Dat was het! Voeg nu je Jellyfin-server toe om je films en series terug te vinden. Je start deze rondleiding opnieuw via Instellingen → Over."
+
+msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
+msgstr "Met deze rondleiding probeer je de app uit. Afstandsbediening of toetsenbord: de pijlen om te bewegen, OK (Enter) om te openen of te bevestigen, Terug (Esc) om terug te gaan."
+
+msgid "Cherche quoi regarder"
+msgstr "Zoekt iets om te kijken"
+
+msgid "Clic droit, appui long ou OK maintenu sur une affiche : l'ouvrir, la marquer vue ou non vue ; les administrateurs y trouvent aussi Identifier, Actualiser et Modifier. Dans une bibliothèque, l'index A–Z est sur le côté et une lettre tapée filtre la liste."
+msgstr "Rechtsklik, lang indrukken of OK ingedrukt houden op een poster: openen, als bekeken of niet bekeken markeren; beheerders vinden er ook Identificeren, Vernieuwen en Wijzigen. In een bibliotheek staat de A–Z-index aan de zijkant en een getypte letter filtert de lijst."
+
+msgid "Complet"
+msgstr "Volledig"
+
+msgid "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil."
+msgstr "Casten: de video naar een tv sturen, of een ander apparaat bedienen."
+
+msgid "Découvrir Turtlefin"
+msgstr "Turtlefin ontdekken"
+
+msgid "Démonstration"
+msgstr "Demo"
+
+msgid "Détail du décor"
+msgstr "Detail van het decor"
+
+msgid "Figé"
+msgstr "Stilstaand"
+
+msgid "Fouille dans ses films et séries"
+msgstr "Snuffelt door films en series"
+
+msgid "Hésite devant une fiche"
+msgstr "Twijfelt bij een titel"
+
+msgid "La démonstration n'a pas pu démarrer."
+msgstr "De demo kon niet starten."
+
+msgid "Le menu d'une affiche"
+msgstr "Het menu van een poster"
+
+msgid "Ne sait pas quoi regarder"
+msgstr "Weet niet wat te kijken"
+
+msgid "Organise une watch party"
+msgstr "Organiseert een watch party"
+
+msgid "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom."
+msgstr "Instellingen: thema's en hun dag- en nachtdecor, tekstgrootte, animaties, taal, tv-interface… Het veld bovenaan in Instellingen vindt een instelling op naam."
+
+msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
+msgstr "Loop er met → doorheen tot je profiel, helemaal rechts: de tabbladen (Start, Favorieten…), dan Casten naar een tv, watch party, iets willekeurigs en zoeken."
+
+msgid "Peaufine ses réglages"
+msgstr "Schaaft aan de instellingen"
+
+msgid "Prépare de quoi regarder hors ligne"
+msgstr "Zet iets klaar om offline te kijken"
+
+msgid "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
+msgstr "Typ ergens op de startpagina een letter, of kies het vergrootglas: zoeken opent en vindt films, series, afleveringen en personen terwijl je typt."
+
+msgid "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. "
+msgstr "Alles wat je hier ziet komt van een demoserver: er wordt niets bewaard, probeer gerust alles. "
+
+msgid "À ton goût"
+msgstr "Naar jouw smaak"
+
+msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
+msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen. Drie intro's na elkaar overgeslagen: de volgende worden vanzelf overgeslagen."
