@@ -1,4 +1,4 @@
-# Turtlefin: Projektübergabe (Stand 29. Oktober 2026, Version 1.9.7 „Cast Update“)
+# Turtlefin: Projektübergabe (Stand 22. November 2026, Version 2.0.0, noch nicht veröffentlicht)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · **Deutsch** · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -194,6 +194,30 @@ Offline-Modus, Sicherheitsprüfung, schnelleres Kompilieren (`codegen-units = 16
 („Interface Update“, „Touch Update“): benannt nach Streamen (Cast), der wichtigsten Neuerung. Server-Überwachung (`watch_server`, alle 6 s): Die App verliert und findet ihren Server selbst wieder, in beide
 Richtungen und auf jeder Seite; während einer Wiedergabe nur eine Meldung, Thema und Seite wechseln erst danach.
 Getestet unter Windows, Linux (Raspberry Pi 5) und Android; es bleiben Probleme.
+
+## 6 ter. Version 2.0.0 (November 2026, fertig, noch nicht veröffentlicht)
+
+Die französische [HANDOFF.md](HANDOFF.md) ist die vollständige, aktuelle Referenz (Abschnitte 6 octies bis
+6 septdecies). Zusammenfassung:
+- **Demo** (`demo.rs`): „Turtlefin entdecken“ (Serverauswahl) und „Rundgang“ (Einstellungen → Über)
+  öffnen die Tour auf einem eingebauten Demo-Server (127.0.0.1:8097), in der App selbst (auch Android). Nichts aus
+  der Demo-Sitzung wird gespeichert (`config::demo()`); 8 echte freie Filme der Blender Foundation (CC BY / CC0,
+  Nachweise in `src/demo-assets/CREDITS.txt`). `--demo` (Demo + Tour), `--demo-only` (Messungen, Screenshots).
+- **Tag- und Nachtkulissen** der drei Designs (`daynight.rs`): Aeros Lagune (`lagoon.rs`), Turtlefins
+  Farbschleier, Nerds Platine (`board.rs`). Animierter Start je Design.
+- **Flüssigkeit** (`decor.rs`): Beim Start misst Turtlefin 40 Bilder samt Grafikkarte (glFinish); über 14,5 ms
+  wird die Kulisse vereinfacht, dann angehalten. Stufe je Grafikkarte, Treiber und Kulisse gemerkt;
+  Software-Rendering: angehalten. Einstellung „Detail der Kulisse“. Raspberry Pi 5 in 1080p: Turtlefin 10 ms,
+  Nerd 6 ms, Aero 17 → 13,5 ms (vereinfacht).
+- **Discord-Status** (`discord.rs`, Anwendung 1573772885674168492): „Schaut Turtlefin“ mit Titel und Restzeit
+  bei der Wiedergabe; standardmäßig aus. Bilder im Portal: `rp-turtlefin`, `rp-play`, `rp-pause`.
+- Startseite baut sich nach der Anmeldung Stück für Stück auf; neue TV-Suche; Einstellungen in Unterkategorien mit
+  Suche und Textgröße; Medien bearbeiten für Administratoren (`editor.rs`); Mods in einer Sandbox; Android TV
+  richtig skaliert, 32-Bit-APK.
+- **Die App siezt** in allen Sprachen (Französisch „vous“, Deutsch Sie, Spanisch usted, Italienisch Lei,
+  Niederländisch u, Portugiesisch Höflichkeitsform, Polnisch „Ty“ großgeschrieben). Neue Texte folgen dieser Regel.
+- Versionshinweise für die Tag-Nachricht: `packaging/notes/v2.0.0.md`. Testbinärdateien: `--profile essai`
+  (release ohne thin-LTO); Kosten eines Bildes: `TURTLEFIN_DEBUG_FINISH=1`.
 
 ## 7. Kompilieren, Pakete bauen, veröffentlichen
 

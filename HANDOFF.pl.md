@@ -1,4 +1,4 @@
-# Turtlefin: przekazanie projektu (stan na 29 października 2026, wersja 1.9.7 „Cast Update”)
+# Turtlefin: przekazanie projektu (stan na 22 listopada 2026, wersja 2.0.0, jeszcze nieopublikowana)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · **Polski** · [Português](HANDOFF.pt.md)
 
@@ -193,6 +193,32 @@ bezpieczeństwa, szybszą kompilację (`codegen-units = 16`). Nazwa nawiązuje d
 co 6 s): aplikacja sama traci i odzyskuje serwer, w obie strony i na każdej stronie; podczas odtwarzania tylko
 jeden komunikat, motyw i strona zmieniają się po jego końcu. Testowana na Windows, Linuksie (Raspberry Pi 5) i
 Androidzie; pozostają problemy.
+
+## 6 ter. Wersja 2.0.0 (listopad 2026, gotowa, jeszcze nieopublikowana)
+
+Francuski [HANDOFF.md](HANDOFF.md) jest pełnym, aktualnym odniesieniem (sekcje od 6 octies do 6 septdecies).
+Podsumowanie:
+- **Demonstracja** (`demo.rs`): „Poznaj Turtlefin” (wybór serwera) i „Przewodnik”
+  (Ustawienia → Informacje) otwierają prezentację na wbudowanym serwerze demonstracyjnym (127.0.0.1:8097), w samej
+  aplikacji (także na Androidzie). Nic z sesji demonstracyjnej nie jest zapisywane (`config::demo()`); 8
+  prawdziwych wolnych filmów Blender Foundation (CC BY / CC0, podziękowania w `src/demo-assets/CREDITS.txt`).
+  `--demo` (demonstracja + prezentacja), `--demo-only` (pomiary, zrzuty ekranu do README).
+- **Tła dzienne i nocne** trzech motywów (`daynight.rs`): laguna Aero (`lagoon.rs`), barwne mgławice Turtlefin,
+  płytka drukowana Nerd (`board.rs`). Animowany start dla każdego motywu.
+- **Płynność** (`decor.rs`): przy starcie Turtlefin mierzy 40 klatek łącznie z kartą graficzną (glFinish);
+  powyżej 14,5 ms tło jest upraszczane, potem zatrzymywane. Poziom zapamiętywany dla karty graficznej,
+  sterownika i tła; renderowanie programowe: zatrzymane. Ustawienie „Szczegółowość tła”. Raspberry Pi 5 w 1080p:
+  Turtlefin 10 ms, Nerd 6 ms, Aero 17 → 13,5 ms (uproszczone).
+- **Status Discord** (`discord.rs`, aplikacja 1573772885674168492): „Ogląda Turtlefin” z tytułem i pozostałym
+  czasem podczas odtwarzania; domyślnie wyłączony. Obrazy w portalu: `rp-turtlefin`, `rp-play`, `rp-pause`.
+- Strona główna budowana kawałek po kawałku po zalogowaniu; nowe wyszukiwanie na TV; ustawienia w podkategoriach z
+  wyszukiwaniem i rozmiarem tekstu; edycja materiałów dla administratorów (`editor.rs`); mody w piaskownicy;
+  Android TV we właściwej skali, APK 32-bitowe.
+- **Aplikacja zwraca się grzecznie** we wszystkich językach (francuski „vous”, niemiecki Sie, hiszpański usted,
+  włoski Lei, niderlandzki u, portugalski forma grzecznościowa, polski „Ty” wielką literą). Nowe teksty stosują
+  tę zasadę.
+- Informacje o wersji do wiadomości tagu: `packaging/notes/v2.0.0.md`. Pliki testowe: `--profile essai`
+  (release bez thin-LTO); koszt klatki: `TURTLEFIN_DEBUG_FINISH=1`.
 
 ## 7. Kompilacja, budowanie pakietów, publikacja
 

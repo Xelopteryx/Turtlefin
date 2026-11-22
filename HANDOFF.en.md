@@ -1,4 +1,4 @@
-# Turtlefin: project handoff (state on October 29, 2026, version 1.9.7 “Cast Update”)
+# Turtlefin: project handoff (state on November 22, 2026, version 2.0.0, not yet released)
 
 [Français](HANDOFF.md) · **English** · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -305,6 +305,28 @@ named after Cast, the main new feature. The server watcher (`watch_server`, ever
 loses and finds its server again by itself, both ways and on every page; during playback it only shows one
 message, and the theme and page change once playback ends. Tested on Windows, Linux (Raspberry Pi 5) and
 Android; some issues remain.
+
+## 6 septies. Version 2.0.0 (November 2026, ready, not yet released)
+
+The French [HANDOFF.md](HANDOFF.md) is the complete, up-to-date reference (sections 6 octies to 6 septdecies).
+Summary:
+- **Demo** (`demo.rs`): “Discover Turtlefin” (server screen) and “Guided tour” (Settings → About) open the
+  guided tour on a built-in demo server (127.0.0.1:8097), inside the app (Android included). Nothing from the demo
+  session is saved (`config::demo()`); 8 real free films from the Blender Foundation (CC BY / CC0, credits in
+  `src/demo-assets/CREDITS.txt`). `--demo` (demo + tour), `--demo-only` (measurements, README screenshots).
+- **Day and night scenery** for the three themes (`daynight.rs`): Aero's lagoon (`lagoon.rs`), Turtlefin's
+  drifting colours, Nerd's circuit board (`board.rs`). Animated startup per theme.
+- **Smoothness** (`decor.rs`): at launch Turtlefin times 40 frames including the GPU (glFinish); above 14.5 ms the
+  scenery gets lighter, then still. Level remembered per GPU, driver and scenery; software rendering: still.
+  “Scenery detail” setting. Raspberry Pi 5 at 1080p: Turtlefin 10 ms, Nerd 6 ms, Aero 17 → 13.5 ms (lighter).
+- **Discord status** (`discord.rs`, application 1573772885674168492): “Watching Turtlefin” with title and
+  remaining time while playing; off by default. Portal images: `rp-turtlefin`, `rp-play`, `rp-pause`.
+- Home screen built piece by piece after login; redesigned TV search; settings in sub-categories with search and
+  text size; media editing for administrators (`editor.rs`); mods in a sandbox; Android TV scaling, 32-bit APK.
+- **The app addresses the user formally** in every language (French “vous”, German Sie, Spanish usted, Italian
+  Lei, Dutch u, Portuguese polite forms, Polish capitalised “Ty”). New texts follow this rule.
+- Release notes for the tag message: `packaging/notes/v2.0.0.md`. Test builds: `--profile essai` (release
+  without thin-LTO); frame cost: `TURTLEFIN_DEBUG_FINISH=1`.
 
 ## 7. Building, packaging, publishing
 

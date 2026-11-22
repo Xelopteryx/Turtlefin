@@ -12,14 +12,14 @@ als met toetsenbord en muis — en op Android (telefoon, tablet, tv), met de vin
 > **Volledig gevibecodeerd project**: alle code, teksten en vertalingen zijn geschreven door een AI (Claude,
 > van Anthropic), begeleid en getest door een mens die het niet zelf heeft geprogrammeerd.
 
-Huidige versie: **1.9.9 „Cast Update”** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
+Huidige versie: **2.0.0** · Talen van de interface: Nederlands, English, Français, Español, Deutsch, Italiano,
 Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertalen](#turtlefin-vertalen)).
 
-> **Over deze versie.** 1.9.7 „Cast Update” is getest op Windows, Linux (Raspberry Pi 5 aan een tv) en Android
-> (telefoon). Er moet nog het een en ander verbeterd worden — de ontwikkelaar weet dat er nog problemen zijn
-> (zie de toelichting bij de [versies](https://github.com/Xelopteryx/Turtlefin/releases) en de bekende
-> problemen in [HANDOFF.nl.md](HANDOFF.nl.md)) —, maar het werd tijd om een versie uit te brengen die veel
-> verder is dan 1.2.0. Reacties zijn welkom bij de [issues](https://github.com/Xelopteryx/Turtlefin/issues).
+> **Over deze versie.** 2.0.0 is getest op Windows, op een Raspberry Pi 5 aangesloten op een tv, op Linux en op
+> Android (telefoon). Er moet nog het een en ander verbeterd worden (zie de notities bij de
+> [versies](https://github.com/Xelopteryx/Turtlefin/releases) en de bekende problemen in
+> [HANDOFF.nl.md](HANDOFF.nl.md)). Reacties zijn welkom in de
+> [issues](https://github.com/Xelopteryx/Turtlefin/issues).
 
 ## Wat hij kan
 
@@ -68,6 +68,15 @@ Português, Polski — en elke taal die je zelf toevoegt (zie [Turtlefin vertale
   aanmelden, taalwissel), één voor één in te stellen via Instellingen → Animaties, met presets (Alle, Licht, Geen)
   en eigen presets, die je kunt exporteren en importeren.
 - **Rondleiding**: aangeboden bij de eerste start, opnieuw te bekijken via Instellingen → Over.
+- **Demo**: „Turtlefin ontdekken” (bij de serverkeuze) opent een rondleiding op een ingebouwde demoserver, met echte
+  vrije films van de Blender Foundation; er wordt niets bewaard. Via de opdrachtregel: `--demo`.
+- **Dag- en nachtdecors**: elk thema heeft een geanimeerd decor dat de tijd volgt (de lagune van Aero, de kleurwolken
+  van Turtlefin, de printplaat van Nerd), of altijd dag, of altijd nacht.
+- **Vloeiendheid**: Turtlefin meet wat het apparaat aankan en maakt het decor vanzelf lichter om 60 beelden per
+  seconde te halen (Instellingen → Weergave → Detail van het decor).
+- **Discord-status**: de open pagina en wat er bekeken wordt op het Discord-profiel (standaard uit).
+- **Beheerders**: een medium wijzigen vanaf de pagina (informatie, afbeeldingen), Identificeren, Vernieuwen,
+  serverdashboard.
 
 ## Installeren
 

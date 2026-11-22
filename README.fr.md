@@ -12,15 +12,13 @@ qu'au clavier et à la souris — et sur Android (téléphone, tablette, télé)
 > **Projet entièrement vibecodé** : tout le code, les textes et les traductions ont été écrits par une IA
 > (Claude, d'Anthropic), guidée et testée par un humain qui ne l'a pas programmé lui-même.
 
-Version actuelle : **1.9.9 « Cast Update »** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
+Version actuelle : **2.0.0** · Langues de l'interface : Français, English, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtlefin](#traduire-turtlefin)).
 
-> **À propos de cette version.** La 1.9.7 « Cast Update » a été testée sous Windows, Linux (Raspberry Pi 5
-> branché à une télé) et Android (téléphone). Il reste des choses à revoir — le développeur sait qu'il reste
-> des problèmes (voir les notes des [versions](https://github.com/Xelopteryx/Turtlefin/releases) et les
-> problèmes connus de [HANDOFF.md](HANDOFF.md)) — mais il fallait bien sortir une version beaucoup plus
-> avancée que la 1.2.0. Les retours sont les bienvenus dans les
-> [tickets](https://github.com/Xelopteryx/Turtlefin/issues).
+> **À propos de cette version.** La 2.0.0 a été testée sous Windows, sur Raspberry Pi 5 branché à une télé, sous Linux
+> et sur Android (téléphone). Il reste des choses à revoir (voir les notes des
+> [versions](https://github.com/Xelopteryx/Turtlefin/releases) et les problèmes connus de [HANDOFF.md](HANDOFF.md)).
+> Les retours sont les bienvenus dans les [tickets](https://github.com/Xelopteryx/Turtlefin/issues).
 
 ## Ce qu'il sait faire
 
@@ -66,6 +64,16 @@ Polski, Nederlands — et toute langue ajoutée soi-même (voir [Traduire Turtle
   changement de langue), réglables une par une dans Paramètres → Animations, avec des presets (Toutes, Légères,
   Aucune) et les siens, exportables et importables.
 - **Visite guidée** : proposée au premier lancement, à revoir dans Paramètres → À propos.
+- **Démonstration** : « Découvrir Turtlefin » (au choix du serveur) ouvre une visite guidée sur un serveur de
+  démonstration intégré, avec de vrais films libres de la Blender Foundation ; rien n'est enregistré. En ligne de
+  commande : `--demo`.
+- **Décors de jour et de nuit** : chaque thème a son décor animé qui suit l'heure (le lagon d'Aero, les nappes de
+  Turtlefin, la carte électronique de Nerd), ou toujours le jour, ou toujours la nuit.
+- **Fluidité** : Turtlefin mesure ce que peut l'appareil et allège tout seul le décor pour tenir 60 images par seconde
+  (Paramètres → Affichage → Détail du décor).
+- **Statut Discord** : la page ouverte et le média regardé sur le profil Discord (coupé par défaut).
+- **Administrateurs** : modifier un média depuis sa fiche (informations, images), Identifier, Actualiser, tableau de
+  bord du serveur.
 
 ## Installer
 

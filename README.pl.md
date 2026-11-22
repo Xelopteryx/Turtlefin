@@ -12,13 +12,12 @@ go pilotem, jak klawiaturą i myszą — a także na Androidzie (telefon, tablet
 > **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja
 > (Claude od Anthropic), prowadzona i testowana przez człowieka, który sam go nie programował.
 
-Aktualna wersja: **1.9.9 „Cast Update”** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
+Aktualna wersja: **2.0.0** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
 Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
 
-> **O tej wersji.** Wersja 1.9.7 „Cast Update” została przetestowana na Windows, Linuksie (Raspberry Pi 5
-> podłączone do telewizora) i Androidzie (telefon). Niektóre rzeczy wymagają jeszcze poprawek — autor wie, że
-> nadal są problemy (zob. opisy [wydań](https://github.com/Xelopteryx/Turtlefin/releases) i znane problemy w
-> [HANDOFF.pl.md](HANDOFF.pl.md)) — ale trzeba było wydać wersję znacznie bardziej rozwiniętą niż 1.2.0.
+> **O tej wersji.** Wersja 2.0.0 została przetestowana w systemie Windows, na Raspberry Pi 5 podłączonym do
+> telewizora, w systemie Linux i na Androidzie (telefon). Niektóre rzeczy wymagają jeszcze poprawek (zob. informacje o
+> [wersjach](https://github.com/Xelopteryx/Turtlefin/releases) i znane problemy w [HANDOFF.pl.md](HANDOFF.pl.md)).
 > Uwagi są mile widziane w [zgłoszeniach](https://github.com/Xelopteryx/Turtlefin/issues).
 
 ## Co potrafi
@@ -65,6 +64,15 @@ Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtle
   zmiana języka), regulowane pojedynczo w Ustawienia → Animacje, z presetami (Wszystkie, Lekkie, Brak) i
   własnymi, które można eksportować i importować.
 - **Przewodnik**: proponowany przy pierwszym uruchomieniu, do obejrzenia ponownie w Ustawienia → Informacje.
+- **Demonstracja**: „Poznaj Turtlefin” (przy wyborze serwera) otwiera prezentację na wbudowanym serwerze
+  demonstracyjnym, z prawdziwymi wolnymi filmami Blender Foundation; nic nie jest zapisywane. Z wiersza poleceń:
+  `--demo`.
+- **Tła dzienne i nocne**: każdy motyw ma animowane tło, które podąża za porą dnia (laguna Aero, barwne mgławice
+  Turtlefin, płytka drukowana Nerd), albo zawsze dzień, albo zawsze noc.
+- **Płynność**: Turtlefin sprawdza możliwości urządzenia i sam upraszcza tło, aby utrzymać 60 klatek na sekundę
+  (Ustawienia → Wyświetlanie → Szczegółowość tła).
+- **Status Discord**: otwarta strona i oglądany materiał w profilu Discord (domyślnie wyłączony).
+- **Administratorzy**: zmiana materiału z jego strony (informacje, obrazy), Identyfikuj, Odśwież, panel serwera.
 
 ## Instalacja
 

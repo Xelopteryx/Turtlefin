@@ -12,14 +12,13 @@ keyboard and mouse — and on Android phones, tablets and TVs, with the finger.
 > **Fully vibecoded project**: all the code, texts and translations were written by an AI (Claude, by
 > Anthropic), guided and tested by a human who did not write any of the code.
 
-Current version: **1.9.9 “Cast Update”** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
+Current version: **2.0.0** · Interface languages: English, Français, Español, Deutsch, Italiano, Português,
 Polski, Nederlands — and any language you add yourself (see [Translate Turtlefin](#translate-turtlefin)).
 
-> **About this version.** 1.9.7 “Cast Update” has been tested on Windows, Linux (Raspberry Pi 5 plugged into a TV)
-> and Android (phone). Some things still need work — the developer knows of remaining issues (see the
-> [Releases](https://github.com/Xelopteryx/Turtlefin/releases) notes and the known issues in
-> [HANDOFF.en.md](HANDOFF.en.md)) — but it was time to publish a version much more advanced than 1.2.0.
-> Feedback is welcome in the [issues](https://github.com/Xelopteryx/Turtlefin/issues).
+> **About this version.** 2.0.0 has been tested on Windows, on a Raspberry Pi 5 plugged into a TV, on Linux and on
+> Android (phone). Some things still need work (see the [Releases](https://github.com/Xelopteryx/Turtlefin/releases)
+> notes and the known issues in [HANDOFF.en.md](HANDOFF.en.md)). Feedback is welcome in the
+> [issues](https://github.com/Xelopteryx/Turtlefin/issues).
 
 ## What it does
 
@@ -65,6 +64,14 @@ Polski, Nederlands — and any language you add yourself (see [Translate Turtlef
   language change), adjustable one by one in Settings → Animations, with presets (All, Light, None) and your
   own, which can be exported and imported.
 - **Guided tour**: offered on first launch, available again in Settings → About.
+- **Demo**: “Discover Turtlefin” (on the server screen) opens a guided tour on a built-in demo server, with real free
+  films from the Blender Foundation; nothing is saved. From the command line: `--demo`.
+- **Day and night scenery**: each theme has an animated background that follows the time of day (Aero's lagoon,
+  Turtlefin's drifting colours, Nerd's circuit board), or always day, or always night.
+- **Smoothness**: Turtlefin measures what the device can handle and lightens the scenery by itself to keep 60 frames
+  per second (Settings → Display → Scenery detail).
+- **Discord status**: the open page and what you are watching on your Discord profile (off by default).
+- **Administrators**: edit a media item from its page (information, images), Identify, Refresh, server dashboard.
 
 ## Install
 

@@ -12,15 +12,14 @@ Fernbedienung genauso gut bedienen wie mit Tastatur und Maus — und auf Android
 > **Vollständig per Vibecoding entstanden**: Code, Texte und Übersetzungen wurden komplett von einer KI
 > (Claude von Anthropic) geschrieben, angeleitet und getestet von einem Menschen, der nicht selbst programmiert hat.
 
-Aktuelle Version: **1.9.9 „Cast Update“** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
+Aktuelle Version: **2.0.0** · Sprachen der Oberfläche: Deutsch, English, Français, Español, Italiano, Português,
 Polski, Nederlands — und jede selbst hinzugefügte Sprache (siehe [Turtlefin übersetzen](#turtlefin-übersetzen)).
 
-> **Zu dieser Version.** 1.9.7 „Cast Update“ wurde unter Windows, Linux (Raspberry Pi 5 am Fernseher) und
-> Android (Smartphone) getestet. Einiges muss noch überarbeitet werden — der Entwickler weiß, dass noch
-> Probleme bestehen (siehe die Hinweise zu den [Versionen](https://github.com/Xelopteryx/Turtlefin/releases)
-> und die bekannten Probleme in [HANDOFF.de.md](HANDOFF.de.md)) —, aber es war Zeit, eine deutlich weiter
-> entwickelte Version als 1.2.0 zu veröffentlichen. Rückmeldungen sind in den
-> [Issues](https://github.com/Xelopteryx/Turtlefin/issues) willkommen.
+> **Zu dieser Version.** 2.0.0 wurde unter Windows, auf einem an einen Fernseher angeschlossenen Raspberry Pi 5, unter
+> Linux und auf Android (Smartphone) getestet. Einiges ist noch zu überarbeiten (siehe die Hinweise zu den
+> [Versionen](https://github.com/Xelopteryx/Turtlefin/releases) und die bekannten Probleme in
+> [HANDOFF.de.md](HANDOFF.de.md)). Rückmeldungen sind in den [Issues](https://github.com/Xelopteryx/Turtlefin/issues)
+> willkommen.
 
 ## Was er kann
 
@@ -67,6 +66,15 @@ Polski, Nederlands — und jede selbst hinzugefügte Sprache (siehe [Turtlefin �
   Sprachwechsel), einzeln einstellbar unter Einstellungen → Animationen, mit Presets (Alle, Leicht, Keine) und
   eigenen, die sich exportieren und importieren lassen.
 - **Rundgang**: beim ersten Start angeboten, erneut unter Einstellungen → Über.
+- **Demo**: „Turtlefin entdecken“ (bei der Serverauswahl) öffnet eine Tour auf einem eingebauten Demo-Server, mit
+  echten freien Filmen der Blender Foundation; nichts wird gespeichert. Über die Kommandozeile: `--demo`.
+- **Tag- und Nachtkulissen**: Jedes Design hat eine animierte Kulisse, die der Uhrzeit folgt (Aeros Lagune, Turtlefins
+  Farbschleier, Nerds Platine), oder immer Tag, oder immer Nacht.
+- **Flüssigkeit**: Turtlefin misst, was das Gerät schafft, und vereinfacht die Kulisse von selbst, um 60 Bilder pro
+  Sekunde zu halten (Einstellungen → Anzeige → Detail der Kulisse).
+- **Discord-Status**: die geöffnete Seite und das angeschaute Medium im Discord-Profil (standardmäßig aus).
+- **Administratoren**: ein Medium auf seiner Seite bearbeiten (Informationen, Bilder), Identifizieren, Aktualisieren,
+  Server-Dashboard.
 
 ## Installieren
 

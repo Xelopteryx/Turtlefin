@@ -1,4 +1,4 @@
-# Turtlefin: projectoverdracht (stand op 29 oktober 2026, versie 1.9.7 „Cast Update”)
+# Turtlefin: projectoverdracht (stand op 22 november 2026, versie 2.0.0, nog niet gepubliceerd)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · **Nederlands** · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -194,6 +194,31 @@ beveiligingsaudit, sneller compileren (`codegen-units = 16`). De naam volgt de G
 (`watch_server`, elke 6 s): de app verliest en vindt zijn server zelf terug, in beide richtingen en op elke
 pagina; tijdens het afspelen alleen één melding, thema en pagina wisselen pas daarna. Getest op Windows, Linux
 (Raspberry Pi 5) en Android; er blijven problemen.
+
+## 6 ter. Versie 2.0.0 (november 2026, klaar, nog niet gepubliceerd)
+
+De Franse [HANDOFF.md](HANDOFF.md) is de volledige, actuele referentie (secties 6 octies tot 6 septdecies).
+Samenvatting:
+- **Demo** (`demo.rs`): „Turtlefin ontdekken” (serverkeuze) en „Rondleiding” (Instellingen →
+  Over) openen de rondleiding op een ingebouwde demoserver (127.0.0.1:8097), in de app zelf (ook Android). Niets
+  van de demosessie wordt bewaard (`config::demo()`); 8 echte vrije films van de Blender Foundation (CC BY / CC0,
+  vermeldingen in `src/demo-assets/CREDITS.txt`). `--demo` (demo + rondleiding), `--demo-only` (metingen,
+  schermafbeeldingen voor de README).
+- **Dag- en nachtdecors** van de drie thema's (`daynight.rs`): de lagune van Aero (`lagoon.rs`), de kleurwolken
+  van Turtlefin, de printplaat van Nerd (`board.rs`). Geanimeerde start per thema.
+- **Vloeiendheid** (`decor.rs`): bij het starten meet Turtlefin 40 beelden inclusief de grafische kaart
+  (glFinish); boven 14,5 ms wordt het decor lichter, daarna stilstaand. Niveau onthouden per grafische kaart,
+  driver en decor; softwarerendering: stilstaand. Instelling „Detail van het decor”. Raspberry Pi 5 in 1080p:
+  Turtlefin 10 ms, Nerd 6 ms, Aero 17 → 13,5 ms (lichter).
+- **Discord-status** (`discord.rs`, applicatie 1573772885674168492): „Kijkt Turtlefin” met titel en resterende
+  tijd tijdens het afspelen; standaard uit. Afbeeldingen in het portaal: `rp-turtlefin`, `rp-play`, `rp-pause`.
+- Startpagina die na het inloggen stukje bij beetje verschijnt; nieuwe tv-zoekfunctie; instellingen in
+  subcategorieën met zoeken en tekstgrootte; media wijzigen voor beheerders (`editor.rs`); mods in een sandbox;
+  Android TV op de juiste schaal, 32-bits-APK.
+- **De app spreekt de gebruiker met u aan** in alle talen (Frans „vous”, Duits Sie, Spaans usted, Italiaans Lei,
+  Nederlands u, Portugees beleefdheidsvorm, Pools „Ty” met hoofdletter). Nieuwe teksten volgen deze regel.
+- Versienotities voor het tagbericht: `packaging/notes/v2.0.0.md`. Testbinaries: `--profile essai` (release
+  zonder thin-LTO); kosten van een beeld: `TURTLEFIN_DEBUG_FINISH=1`.
 
 ## 7. Compileren, pakketten bouwen, publiceren
 

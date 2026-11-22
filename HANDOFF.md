@@ -1,10 +1,10 @@
-# Turtlefin : passation de projet (état au 13 novembre 2026, version 1.9.9, correctif de la 1.9.8)
+# Turtlefin : passation de projet (état au 22 novembre 2026, version 2.0.0, pas encore publiée)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 1.9.9 (correctifs de la 1.9.7 « Cast Update » :
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 2.0.0 (prête, pas encore publiée : section 6 septdecies ; avant elle, la 1.9.9, correctifs de la 1.9.7 « Cast Update » :
 1.9.8 et 1.9.7 le 29 octobre 2026, 1.9.9 le 30 ; versions publiées avant : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
 Détail : 1.9.8 en section 6 quater (« Lignes sur NVIDIA », « Journal de mpv sans jeton »), 1.9.9 en 6 septies.
 L'APK Android reste en 1.9.7 (les correctifs ne concernent pas Android).
@@ -74,7 +74,17 @@ src/paths.rs        dossiers config / cache / données ; mode portable ; quiet_c
 src/update.rs       mise à jour selon l'installation (Kind : Source, WinInstalled, WinPortable, AppImage, Deb)
 src/winfull.rs      Windows : écran / zone de travail, fenêtre animée pendant un déplacement
 src/theme.rs        thèmes intégrés, fichiers .tftheme (ThemeDef), application au global Theme
-ui/sky.slint        décors (ciel et bulles · « Harmony » de Windows 7), statiques, gardés en cache
+src/daynight.rs     heure du décor (global Sky : nuit, aube, soleil, lune), réglages jour / nuit
+src/lagoon.rs       décor d'Aero (lagon : méduses, poissons, plancton ; images dans ui/lagoon/, tools/lagoon/)
+src/board.rs        décor de Nerd (schéma de carte, signaux, oscilloscope, fenêtre tty0)
+src/decor.rs        détail du décor (complet, allégé, figé), mesuré au lancement (60 images/s visées)
+src/demo.rs         serveur de démonstration intégré (127.0.0.1:8097) : visite guidée, essai des thèmes ;
+                    films libres de la Blender Foundation dans src/demo-assets/ (CREDITS.txt)
+src/discord.rs      statut Discord (Rich Presence, tube local de Discord ; images rp-turtlefin, rp-play, rp-pause)
+src/dashboard.rs    tableau de bord des administrateurs ; src/editor.rs fenêtre « Modifier » d'un média
+src/creator.rs      Turtlefin Theme Creator (fenêtre à part) ; src/mods.rs mods Lua en bac à sable ;
+                    src/music.rs musique de fond d'un thème
+ui/sky.slint        décors (Nappes de Turtlefin, Lagon d'Aero, Schematic de Nerd, ciel et bulles), en cache
 packaging/          windows/ (turtlefin.iss, build.ps1), linux/ (build-appimage.sh, .desktop),
                     flatpak/ (manifeste, fiche AppStream, cargo-sources.json),
                     icons/ (ICO, PNG, make-icons.py), turtlefin.svg (logo), install.ps1 / install.sh
@@ -869,6 +879,44 @@ en portrait.
   utilisées par le manifeste) et `packaging/tv/<thème>-landscape.png` (1920 x 1080), `-poster.png` (1000 x 1500).
 - `packaging/flatpak/cargo-sources.json` régénéré (667 crates).
 
+## 6 septdecies. Version 2.0.0 (13 au 22 novembre 2026, prête, pas encore publiée)
+
+Tout ce qui est décrit en 6 octies à 6 sexdecies, plus :
+- **Recherche** en interface TV (suggestions au-dessus du clavier à l'écran, filtres en pastilles, « Recherche
+  avancée »), nombre de résultats, Seerr interrogé même avec des filtres ; une lettre tapée sur l'accueil ouvre la
+  recherche. **Mods** dans un bac à sable (ni fichiers, ni programmes, ni réseau). **Modifier un média** depuis sa
+  fiche (administrateurs, `editor.rs`). **Paramètres** en sous-catégories, recherche d'un réglage, taille des
+  textes (`Theme.text-scale`). Android TV à l'échelle de l'écran, APK armeabi-v7a (Skia hors de `target`).
+- **Décors jour et nuit** des trois thèmes (`daynight.rs` ; réglages : selon l'heure / toujours le jour / toujours
+  la nuit, heures de passage, durée) : Turtlefin = Nappes, Aero = Lagon (`lagoon.rs`), Nerd = Schematic
+  (`board.rs`, veille ambrée la nuit, redémarrage à l'aube). Démarrage animé par thème, passable d'une touche.
+- **Entrée de l'accueil** après la connexion : la photo du compte finit de partir (dézoom), puis la barre glisse
+  depuis la gauche, ses icônes apparaissent une à une (le logo joue son animation), la bannière monte, les rangées
+  arrivent nom puis cartes (`intro-ms`, `intro-hold` dans app.slint). Une fois par session.
+- **Démonstration** (`demo.rs`, `config::demo()`) : « Découvrir Turtlefin » (choix du serveur) et « Visite guidée »
+  (Paramètres → À propos) ouvrent la visite guidée sur le serveur intégré, dans l'appli même (Android
+  compris). Rien de la session de démo n'est enregistré (session, comptes, pistes, vu / favoris), pas de watch
+  party ni de bascule d'adresse ; pastille « Démonstration » dans la barre ; à la fin de la visite, retour au
+  compte quitté (ou au choix du serveur au premier lancement) ; « Qui regarde ? » ouvert pendant la démo la
+  termine. Catalogue : 8 vrais films libres (Blender Foundation / Blender Studio, CC BY / CC0, crédit dans chaque
+  résumé) et des séries fictives. Visite à 14 étapes (menu d'une affiche, recherche, réglages ajoutés).
+  `--demo` (démo + visite) et `--demo-only` (démo seule : mesures, captures du README, sans aucun jeton).
+- **Fluidité** (`decor.rs`) : au lancement, sur l'accueil, Turtlefin chronomètre 40 images carte graphique
+  comprise (glFinish) ; au-delà de 14,5 ms, le décor s'allège (Aero : sans plancton, poissons, bulles ni bords
+  assombris), puis se fige. Niveau retenu par carte graphique, pilote et décor (`decor_auto`, `decor_gpu` dans
+  prefs.json) ; rendu sans accélération graphique (llvmpipe…) : figé d'office. Réglage « Détail du décor »
+  (Affichage → Thème). Mesures sur le Pi 5 en 1080p : Turtlefin 10 ms, Nerd 6 ms, Aero 17 ms puis 13,5 ms allégé.
+- **Statut Discord** (`discord.rs`, application `1573772885674168492`) : « Regarde Turtlefin » pendant une
+  lecture (titre, temps restant, petite icône lecture / pause), hors lecture « Ne sait pas quoi regarder »,
+  « Hésite devant une fiche »… avec le temps écoulé. Coupé par défaut (Paramètres → Affichage → Partage).
+  Images du portail Discord : `rp-turtlefin`, `rp-play`, `rp-pause`.
+- **Vouvoiement** : l'appli vouvoie (français « vous », allemand Sie, espagnol usted, italien Lei, néerlandais
+  u, portugais forme polie, polonais « Ty » en majuscule de respect). Tout nouveau texte suit cette règle.
+- Divers : revenir aux flèches après la souris reprend depuis l'affiche survolée ; boutons du choix du serveur et
+  bulle de la visite adaptés au téléphone tenu droit.
+
+Notes de version prêtes à coller dans le message de l'étiquette : `packaging/notes/v2.0.0.md`.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
@@ -938,6 +986,12 @@ cargo-ndk : voir `android/README.md`) ; compilation dans `%LOCALAPPDATA%\turtlef
 - `--open=ID|settings|downloads`, `--play=ID@SECONDES`, `--test-video=fichier` (lecteur sans serveur).
 - `TURTLEFIN_DEBUG_FRAMES=1` (images > 25 ms) ; `TURTLEFIN_DEBUG_GAPS=1` avec
   `SLINT_DEBUG_PERFORMANCE=refresh_full_speed` : pauses de plus de 40 ms entre deux images.
+- `--demo` / `--demo-only` : serveur de démonstration intégré, sans compte (rien n'est enregistré).
+- Mesures de fluidité : `TURTLEFIN_DEBUG_FINISH=1` avec `TURTLEFIN_DEBUG_FRAMES=0.6` (coût réel de chaque image,
+  carte graphique comprise) ; `TURTLEFIN_PERF_OFF=<bits>` masque des couches (4 décor, 16 accueil, 1/2 fond,
+  8 barre, 32 dégradé, 64 reflets ; lagon : 128 lumières, 256 petits éléments, 512 tracés, 1024 récif, 2048 bords).
+  Sur le Pi sans écran : `xrandr --fb 1920x1080` sur `DISPLAY=:0`, `vblank_mode=0`.
+- `TURTLEFIN_DEBUG_DISCORD=1` : connexion et envois du statut Discord.
 - `TURTLEFIN_DEBUG_SYNCPLAY=1` : messages de la watch party. Deux instances sur un même PC : deux
   `TURTLEFIN_CONFIG_DIR` différents, `--desktop`.
 - Un `prefs.json` écrit par PowerShell 5 a un BOM : la lecture des fichiers de config l'ignore.
@@ -992,3 +1046,7 @@ cargo-ndk : voir `android/README.md`) ; compilation dans `%LOCALAPPDATA%\turtlef
 - Essais avec une copie de la config (`TURTLEFIN_CONFIG_DIR`), jamais la vraie ; comptes de test `test` / `test2`.
 - Après chaque lot de changements : installeur de test sur le Bureau du mainteneur
   (`Turtlefin-test-<commit>-windows-x64-setup.exe`, l'ancien supprimé).
+- L'appli vouvoie l'utilisateur (jamais de tutoiement), dans toutes les langues.
+- Compilations sur tous les cœurs (`RUSTC_BOOTSTRAP=1`, `-Zthreads=16`) ; compilations croisées du Pi et de
+  Linux x86_64 lancées en même temps ; binaires d'essai en `--profile essai` (release sans thin-LTO).
+- Fermer seulement le Turtlefin qu'on a lancé pour un essai (par son PID), jamais tous les `turtlefin.exe`.
