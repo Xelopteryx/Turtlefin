@@ -917,6 +917,19 @@ Tout ce qui est décrit en 6 octies à 6 sexdecies, plus :
 
 Notes de version prêtes à coller dans le message de l'étiquette : `packaging/notes/v2.0.0.md`.
 
+**Reste à faire avant de publier** (demandé par le mainteneur le 22 novembre 2026) :
+1. Installeurs : une mise à jour supprime et recrée le raccourci du Bureau (il perd l'emplacement choisi) ; le
+   garder tel quel (`packaging/windows/turtlefin.iss`), et revoir les installeurs en général.
+2. Logo du thème Turtlefin sur PC (fenêtre, barre des tâches, raccourcis) : retirer son fond, comme pour Aero et Nerd.
+3. « Qui regarde ? » : les comptes apparaissent un par un, de gauche à droite (pas dans le désordre).
+4. Changement de thème : icônes buguées (à reproduire).
+5. Thème Turtlefin : les boutons non sélectionnés ont l'air sélectionnés (« Voir la fiche » de la bannière,
+   signet de la fiche…).
+6. Animations manquantes : clic sur la bannière (ouverture de la fiche), « Reprendre » (lancement de la vidéo).
+7. Paramètres : la liste ne doit pas passer sous ni sur le champ « Rechercher un réglage ».
+8. Meilleure transition d'une page à l'autre (accueil, recherche, favoris…).
+Puis les captures du README, puis la publication.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
