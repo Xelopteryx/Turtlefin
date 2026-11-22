@@ -117,7 +117,7 @@ fn defs(tab: usize) -> Vec<Def> {
         ],
         _ => vec![
             d("music", "Musique de fond", "Jouée en boucle dans Turtlefin, coupée dès qu'un média est ouvert (même en pause).", Music),
-            d("", "Chaque appareil peut la couper ou baisser son volume (Paramètres → Affichage). Choisis une musique que tu as le droit de partager si tu partages le thème.", "", Info),
+            d("", "Chaque appareil peut la couper ou baisser son volume (Paramètres → Affichage). Choisissez une musique que vous avez le droit de partager si vous partagez le thème.", "", Info),
         ],
     }
 }
@@ -313,7 +313,7 @@ pub fn run() -> anyhow::Result<()> {
     ui.on_edit_text(with!(|u, s, key, text| {
         let is_color = defs(s.tab).iter().any(|d| d.key == key.as_str() && matches!(d.kind, Kind::Color));
         if is_color && theme::parse(text.as_str()).is_none() {
-            u.set_status(trf("« {} » n'est pas une couleur : écris #rrggbb ou #rrggbbaa.", &[&text]).into());
+            u.set_status(trf("« {} » n'est pas une couleur : écrivez #rrggbb ou #rrggbbaa.", &[&text]).into());
             return;
         }
         set(&mut s.theme, key.as_str(), serde_json::Value::String(text.to_string()));
@@ -377,7 +377,7 @@ pub fn run() -> anyhow::Result<()> {
             }
             "save" | "install" => {
                 if s.theme.name.trim().is_empty() {
-                    u.set_status(tr("Donne d'abord un nom au thème (onglet Général).").into());
+                    u.set_status(tr("Donnez d'abord un nom au thème (onglet Général).").into());
                     return;
                 }
                 match theme::export_package(&s.theme) {
@@ -409,7 +409,7 @@ pub fn run() -> anyhow::Result<()> {
                 match std::env::current_exe().and_then(|exe| crate::paths::quiet_command(exe).arg(arg).spawn()) {
                     Ok(_) => {
                         s.trial = Some(path);
-                        u.set_status(tr("Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct.").into());
+                        u.set_status(tr("Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Vos changements s'y appliquent en direct.").into());
                     }
                     Err(e) => u.set_status(trf("Essai impossible : {}", &[&e]).into()),
                 }

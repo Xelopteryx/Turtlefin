@@ -10,10 +10,10 @@ msgid_plural "{n} participants"
 msgstr[0] "{n} deelnemer"
 msgstr[1] "{n} deelnemers"
 
-msgid "{n} serveur trouvé sur tes réseaux"
+msgid "{n} serveur trouvé sur vos réseaux"
 msgid_plural "{n} serveurs trouvés sur tes réseaux"
-msgstr[0] "{n} server gevonden in je netwerken"
-msgstr[1] "{n} servers gevonden in je netwerken"
+msgstr[0] "{n} server gevonden in uw netwerken"
+msgstr[1] "{n} servers gevonden in uw netwerken"
 
 msgid "En attente"
 msgstr "In afwachting"
@@ -45,16 +45,16 @@ msgstr "Downloads"
 msgid "Ajouter un compte"
 msgstr "Account toevoegen"
 
-msgid "Saisis au moins l'adresse principale du serveur."
+msgid "Saisissez au moins l'adresse principale du serveur."
 msgstr "Vul minstens het hoofdadres van de server in."
 
 msgid "Enregistré"
 msgstr "Opgeslagen"
 
-msgid "Saisis un nom d'utilisateur."
+msgid "Saisissez un nom d'utilisateur."
 msgstr "Vul een gebruikersnaam in."
 
-msgid "Choisis un compte à retirer de cet appareil"
+msgid "Choisissez un compte à retirer de cet appareil"
 msgstr "Kies een account om van dit apparaat te verwijderen"
 
 msgid "Qui regarde ?"
@@ -72,7 +72,7 @@ msgstr "Accounts beheren"
 msgid "Connexion…"
 msgstr "Aanmelden…"
 
-msgid "Choisis un champ puis appuie sur Entrée pour écrire."
+msgid "Choisissez un champ puis appuyez sur Entrée pour écrire."
 msgstr "Kies een veld en druk op Enter om te typen."
 
 msgid "Le mot de passe peut rester vide si le compte n'en a pas."
@@ -117,10 +117,10 @@ msgstr "Nog geen verzoeken."
 msgid "Rien à afficher."
 msgstr "Niets te tonen."
 
-msgid "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
-msgstr "Je zit in „{}”. Start een film of een aflevering: die begint voor de hele groep tegelijk. Pauzeren en spoelen worden gedeeld."
+msgid "Vous êtes dans « {} ». Lancez un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
+msgstr "U zit in „{}”. Start een film of een aflevering: die begint voor de hele groep tegelijk. Pauzeren en spoelen worden gedeeld."
 
-msgid "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une."
+msgid "Regardez la même chose en même temps que d'autres comptes : créez une watch party ou rejoignez-en une."
 msgstr "Kijk tegelijk hetzelfde als andere accounts: maak een watch party of doe mee met een."
 
 msgid "En lecture"
@@ -132,7 +132,7 @@ msgstr "Gepauzeerd"
 msgid "Regarde : {}"
 msgstr "Kijkt naar: {}"
 
-msgid "Rien pour l'instant : lance un film ou un épisode."
+msgid "Rien pour l'instant : lancez un film ou un épisode."
 msgstr "Nog niets: start een film of een aflevering."
 
 msgid "REJOINDRE"
@@ -183,10 +183,10 @@ msgstr "Laden…"
 msgid "Choisir un serveur"
 msgstr "Kies een server"
 
-msgid "Recherche sur tes réseaux"
-msgstr "Zoeken in je netwerken"
+msgid "Recherche sur vos réseaux"
+msgstr "Zoeken in uw netwerken"
 
-msgid "Aucun serveur trouvé : saisis son adresse."
+msgid "Aucun serveur trouvé : saisissez son adresse."
 msgstr "Geen server gevonden: vul het adres in."
 
 msgid "Actuel"
@@ -232,7 +232,7 @@ msgid "Aucun téléchargement : rien à regarder hors ligne."
 msgstr "Geen downloads: niets om offline te bekijken."
 
 msgid "Aucun téléchargement.\nSur la fiche d'un film ou d'une série, le bouton Télécharger permet de regarder hors ligne."
-msgstr "Geen downloads.\nOp de pagina van een film of serie kun je met de knop Downloaden offline kijken."
+msgstr "Geen downloads.\nOp de pagina van een film of serie kunt u met de knop Downloaden offline kijken."
 
 msgid "Compte"
 msgstr "Account"
@@ -279,7 +279,7 @@ msgstr "Reserveadres"
 msgid "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
 msgstr "Wordt eerst gebruikt. Zonder „http://” of „https://” worden beide geprobeerd."
 
-msgid "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune."
+msgid "Essayée quand la principale ne répond pas (autre réseau…). Laissez vide pour n'en avoir aucune."
 msgstr "Geprobeerd als het hoofdadres niet antwoordt (ander netwerk…). Laat leeg voor geen."
 
 msgid "Enregistrer"
@@ -477,7 +477,7 @@ msgstr "Op dit adres antwoordt een andere Jellyfin-server."
 msgid "Continuer"
 msgstr "Doorgaan"
 
-msgid "Indique le serveur avec --server=URL (ou choisis-le ci-dessous)."
+msgid "Indiquez le serveur avec --server=URL (ou choisissez-le ci-dessous)."
 msgstr "Geef de server op met --server=URL (of kies hem hieronder)."
 
 msgid "le serveur refuse le téléchargement ({})"
@@ -498,8 +498,8 @@ msgstr "de server antwoordt niet (staat hij aan? is het netwerk beschikbaar?)"
 msgid "réponse du serveur illisible"
 msgstr "onleesbaar antwoord van de server"
 
-msgid "session expirée, reconnecte-toi"
-msgstr "sessie verlopen, meld je opnieuw aan"
+msgid "session expirée, reconnectez-vous"
+msgstr "sessie verlopen, meld u opnieuw aan"
 
 msgid "Autre compte"
 msgstr "Ander account"
@@ -516,7 +516,7 @@ msgstr "Aanmelden mislukt: {}."
 msgid "Reconnexion de {}"
 msgstr "Opnieuw aanmelden als {}"
 
-msgid "Session expirée : entre le mot de passe."
+msgid "Session expirée : entrez le mot de passe."
 msgstr "Sessie verlopen: vul het wachtwoord in."
 
 msgid "Mes médias"
@@ -615,7 +615,7 @@ msgstr "Actie mislukt: {}"
 msgid "En attente des participants"
 msgstr "Wachten op deelnemers"
 
-msgid "Prêt : lance un film ou un épisode"
+msgid "Prêt : lancez un film ou un épisode"
 msgstr "Klaar: start een film of een aflevering"
 
 msgid "Watch party · {} en ligne"
@@ -631,7 +631,7 @@ msgid "À demander (Seerr)"
 msgstr "Aan te vragen (Seerr)"
 
 msgid "Plus rien à découvrir : tout a été vu !"
-msgstr "Niets meer te ontdekken: je hebt alles gezien!"
+msgstr "Niets meer te ontdekken: u hebt alles gezien!"
 
 msgid "Seerr : {}"
 msgstr "Seerr: {}"
@@ -663,7 +663,7 @@ msgstr "Geen Jellyfin-server antwoordt op „{}”."
 msgid "Les deux adresses mènent à deux serveurs différents."
 msgstr "De twee adressen leiden naar twee verschillende servers."
 
-msgid "Indique au moins une adresse."
+msgid "Indiquez au moins une adresse."
 msgstr "Vul minstens één adres in."
 
 msgid "Connecté à {}"
@@ -735,8 +735,8 @@ msgstr "Gebruikt volgens de modus hieronder."
 msgid "Quand afficher les sous-titres"
 msgstr "Wanneer ondertitels tonen"
 
-msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."
-msgstr "Standaard: volgens het bestand · Slim: als de audio niet in jouw taal is."
+msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans votre langue."
+msgstr "Standaard: volgens het bestand · Slim: als de audio niet in uw taal is."
 
 msgid "Taille des sous-titres"
 msgstr "Grootte van ondertitels"
@@ -819,8 +819,8 @@ msgstr "Nu verbonden via {}"
 msgid "Rechercher un autre serveur"
 msgstr "Andere server zoeken"
 
-msgid "Serveurs Jellyfin trouvés sur tes réseaux."
-msgstr "Jellyfin-servers gevonden in je netwerken."
+msgid "Serveurs Jellyfin trouvés sur vos réseaux."
+msgstr "Jellyfin-servers gevonden in uw netwerken."
 
 msgid "Rechercher une mise à jour"
 msgstr "Naar updates zoeken"
@@ -919,7 +919,7 @@ msgstr "Reserveadres verwijderd."
 msgid "Cette adresse mène à un autre serveur ({}). Pour en changer : « Rechercher un autre serveur »."
 msgstr "Dit adres leidt naar een andere server ({}). Om te wisselen: „Andere server zoeken”."
 
-msgid "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses »."
+msgid "C'est déjà l'adresse de secours : utilisez « Échanger les deux adresses »."
 msgstr "Dat is al het reserveadres: gebruik „De twee adressen omwisselen”."
 
 msgid "C'est déjà l'adresse principale."
@@ -940,8 +940,8 @@ msgstr "Server kiezen"
 msgid "Application"
 msgstr "Applicatie"
 
-msgid "Pas (encore) dans ta bibliothèque Jellyfin."
-msgstr "(Nog) niet in je Jellyfin-bibliotheek."
+msgid "Pas (encore) dans votre bibliothèque Jellyfin."
+msgstr "(Nog) niet in uw Jellyfin-bibliotheek."
 
 msgid "Demander la saison {}"
 msgstr "Seizoen {} aanvragen"
@@ -1006,7 +1006,7 @@ msgstr "Afspelen mislukt: OpenGL-weergave is niet beschikbaar (SLINT_BACKEND?)."
 msgid "Serveur injoignable : nouvel essai automatique toutes les 5 s…"
 msgstr "Server onbereikbaar: elke 5 s automatisch opnieuw proberen…"
 
-msgid "Ce compte n'est plus valable : choisis un compte."
+msgid "Ce compte n'est plus valable : choisissez un compte."
 msgstr "Dit account is niet meer geldig: kies een account."
 
 msgid "Téléchargement annulé."
@@ -1015,7 +1015,7 @@ msgstr "Download geannuleerd."
 msgid "{} téléchargements annulés."
 msgstr "{} downloads geannuleerd."
 
-msgid "Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler."
+msgid "Ajouté aux téléchargements ({}). Appuyez de nouveau sur Télécharger pour annuler."
 msgstr "Toegevoegd aan downloads ({}). Druk nogmaals op Downloaden om te annuleren."
 
 msgid "Téléchargement en cours : {} %."
@@ -1072,7 +1072,7 @@ msgstr "Server weer bereikbaar: weer online."
 msgid "place libmpv-2.dll à côté de turtlefin.exe"
 msgstr "zet libmpv-2.dll naast turtlefin.exe"
 
-msgid "installe-la avec « sudo apt install libmpv2 »"
+msgid "installez-la avec « sudo apt install libmpv2 »"
 msgstr "installeer het met „sudo apt install libmpv2”"
 
 msgid "libmpv introuvable ({}). Détail : {}"
@@ -1153,7 +1153,7 @@ msgstr "GitHub onbereikbaar (internetverbinding?)"
 msgid "introuvable sur GitHub"
 msgstr "niet gevonden op GitHub"
 
-msgid "GitHub limite les vérifications : réessaie dans une heure"
+msgid "GitHub limite les vérifications : réessayez dans une heure"
 msgstr "GitHub beperkt het aantal controles: probeer het over een uur opnieuw"
 
 msgid "GitHub a répondu {}"
@@ -1296,7 +1296,7 @@ msgstr "De tabbladen"
 msgid "Non merci"
 msgstr "Nee, bedankt"
 
-msgid "Oui, montre-moi"
+msgid "Oui, montrez-moi"
 msgstr "Ja, laat zien"
 
 msgid "Passer la visite"
@@ -1335,7 +1335,7 @@ msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause,
 msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen."
 
 msgid "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos."
-msgstr "Taal, ondertitels, tv-interface… alles stel je in via het menu, Instellingen. Deze rondleiding start je opnieuw via Instellingen → Over."
+msgstr "Taal, ondertitels, tv-interface… alles stelt u in via het menu, Instellingen. Deze rondleiding start u opnieuw via Instellingen → Over."
 
 msgid "Flèches et OK"
 msgstr "Pijlen en OK"
@@ -1346,17 +1346,17 @@ msgstr "Met een toetsenbord: Enter = OK, Esc = Terug. Muis en aanraken werken oo
 msgid "Watch party : regarder la même chose, en même temps, sur plusieurs appareils."
 msgstr "Watch party: hetzelfde kijken, op hetzelfde moment, op meerdere apparaten."
 
-msgid "Au hasard : Turtlefin choisit un média pour toi."
-msgstr "Willekeurig: Turtlefin kiest iets voor je."
+msgid "Au hasard : Turtlefin choisit un média pour vous."
+msgstr "Willekeurig: Turtlefin kiest iets voor u."
 
-msgid "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque."
-msgstr "Zoeken: in je bibliotheek, en een manier om aan te vragen wat ontbreekt."
+msgid "Recherche : dans votre bibliothèque, et de quoi demander ce qui manque."
+msgstr "Zoeken: in uw bibliotheek, en een manier om aan te vragen wat ontbreekt."
 
-msgid "Ton profil : changer de compte ou de photo."
-msgstr "Je profiel: wissel van account of foto."
+msgid "Votre profil : changer de compte ou de photo."
+msgstr "Uw profiel: wissel van account of foto."
 
 msgid "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
-msgstr "Met deze rondleiding probeer je de app uit. Alles gaat met de afstandsbediening: de pijlen om te bewegen, OK om te openen of te bevestigen, Terug om terug te gaan."
+msgstr "Met deze rondleiding probeert u de app uit. Alles gaat met de afstandsbediening: de pijlen om te bewegen, OK om te openen of te bevestigen, Terug om terug te gaan."
 
 msgid "Commencer"
 msgstr "Beginnen"
@@ -1369,39 +1369,39 @@ msgid "Changer de rangée"
 msgstr "Van rij wisselen"
 
 
-msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
-msgstr "Druk op ↑ tot je in de bovenste balk bent."
+msgid "Appuyez sur ↑ jusqu'à monter dans la barre du haut."
+msgstr "Druk op ↑ tot u in de bovenste balk bent."
 
 
 
 msgid "Dans le menu"
 msgstr "In het menu"
 
-msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →."
+msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcourez-le avec ↑ ↓, puis refermez-le avec →."
 msgstr "Bibliotheken, downloads (om zonder verbinding te kijken), watch party, account, server en Instellingen. Blader erdoor met ↑ ↓ en sluit het met →."
 
 msgid "Ouvrir un média"
 msgstr "Een item openen"
 
-msgid "Choisis une affiche et appuie sur OK pour l'ouvrir."
+msgid "Choisissez une affiche et appuyez sur OK pour l'ouvrir."
 msgstr "Kies een poster en druk op OK om hem te openen."
 
 msgid "Revenir"
 msgstr "Teruggaan"
 
-msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
-msgstr "Een pagina (film, serie) of een hele bibliotheek: alles blader je op dezelfde manier door. Druk op Terug om naar het startscherm te gaan."
+msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuyez sur Retour pour revenir à l'accueil."
+msgstr "Een pagina (film, serie) of een hele bibliotheek: alles bladert u op dezelfde manier door. Druk op Terug om naar het startscherm te gaan."
 
-msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgid "Essayez : déplacez-vous deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
 msgstr "Probeer het: beweeg twee keer met de pijlen, ← → in een rij, ↑ ↓ van rij naar rij."
 
-msgid "Change de rangée avec ↓ ou ↑."
+msgid "Changez de rangée avec ↓ ou ↑."
 msgstr "Wissel van rij met ↓ of ↑."
 
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
-msgstr "Loop erdoor met → tot je profiel, helemaal rechts: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen."
+msgstr "Loop erdoor met → tot uw profiel, helemaal rechts: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen."
 
-msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
 msgstr "Open het menu: ga in de bovenste balk helemaal naar links naar ≡ en druk op OK; bij de posters ← aan het begin van een rij (of Terug)."
 
 msgid "Retour : quitter la visite"
@@ -1413,8 +1413,8 @@ msgstr "Onthouden voor deze film"
 msgid "Photo de profil : modifiable quand le serveur répond."
 msgstr "Profielfoto: te wijzigen zodra de server antwoordt."
 
-msgid "C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici."
-msgstr "Dit is de sjabloon: kopieer hem onder de naam van je taal (sv.po, ja.po…), vertaal hem en kies hem hier."
+msgid "C'est le modèle : copiez-le sous le nom de votre langue (sv.po, ja.po…), traduisez-le, puis choisissez-le ici."
+msgstr "Dit is de sjabloon: kopieer hem onder de naam van uw taal (sv.po, ja.po…), vertaal hem en kies hem hier."
 
 msgid "Ce dossier est vide."
 msgstr "Deze map is leeg."
@@ -1422,10 +1422,10 @@ msgstr "Deze map is leeg."
 msgid "Ce fichier n'est pas une traduction de Turtlefin."
 msgstr "Dit bestand is geen Turtlefin-vertaling."
 
-msgid "Choisis une langue, ou Retour pour remonter."
+msgid "Choisissez une langue, ou Retour pour remonter."
 msgstr "Kies een taal, of Terug om omhoog te gaan."
 
-msgid "Choisis une traduction (.po) dans le dossier « {} »."
+msgid "Choisissez une traduction (.po) dans le dossier « {} »."
 msgstr "Kies een vertaling (.po) in de map ‘{}’."
 
 msgid "Créer le modèle"
@@ -1437,8 +1437,8 @@ msgstr "Talenmap niet gevonden."
 msgid "Dossier parent"
 msgstr "Bovenliggende map"
 
-msgid "Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici."
-msgstr "Zet je vertaalbestanden (.po) in deze map en kies de taal hier."
+msgid "Déposez vos fichiers de traduction (.po) dans ce dossier, puis choisissez la langue ici."
+msgstr "Zet uw vertaalbestanden (.po) in deze map en kies de taal hier."
 
 msgid "Impossible d'ouvrir le dossier : {}"
 msgstr "Kan de map niet openen: {}"
@@ -1449,7 +1449,7 @@ msgstr "Taal: {}"
 msgid "Langue actuelle"
 msgstr "Huidige taal"
 
-msgid "Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)"
+msgid "Modèle à traduire : copiez-le sous le nom <code>.po (sv.po, ja.po…)"
 msgstr "Sjabloon om te vertalen: kopieer als <code>.po (sv.po, ja.po…)"
 
 msgid "Modèle écrit : modele.po, dans le dossier des langues."
@@ -1472,8 +1472,8 @@ msgstr "Animaties"
 msgid "Arrivée des pages"
 msgstr "Aankomst van pagina's"
 
-msgid "Aucun preset à exporter : enregistre d'abord tes réglages comme preset."
-msgstr "Geen preset om te exporteren: sla eerst je instellingen op als preset."
+msgid "Aucun preset à exporter : enregistrez d'abord vos réglages comme preset."
+msgstr "Geen preset om te exporteren: sla eerst uw instellingen op als preset."
 
 msgid "Barre qui recouvre puis réécrit les textes."
 msgstr "Balk die de teksten bedekt en daarna herschrijft."
@@ -1487,11 +1487,11 @@ msgstr "Ballonnen en kaders van de rondleiding."
 msgid "Changement de langue"
 msgstr "Taalwissel"
 
-msgid "Choisis un fichier de preset (.json) dans ce dossier."
+msgid "Choisissez un fichier de preset (.json) dans ce dossier."
 msgstr "Kies een presetbestand (.json) in deze map."
 
-msgid "Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué."
-msgstr "Kies een animatiepreset (.json): hij wordt aan je presets toegevoegd en toegepast."
+msgid "Choisissez un preset d'animations (.json) : il est ajouté à vos presets et appliqué."
+msgstr "Kies een animatiepreset (.json): hij wordt aan uw presets toegevoegd en toegepast."
 
 msgid "Commandes, panneaux et boutons pendant la lecture."
 msgstr "Bediening, panelen en knoppen tijdens het afspelen."
@@ -1618,14 +1618,14 @@ msgstr "Kleuren en stijl van de interface."
 msgid "Importer un thème"
 msgstr "Thema importeren"
 
-msgid "Choisis un fichier de thème (.tftheme) dans le dossier « {} »."
+msgid "Choisissez un fichier de thème (.tftheme) dans le dossier « {} »."
 msgstr "Kies een themabestand (.tftheme) in de map „{}”."
 
 msgid "Exporter le thème"
 msgstr "Thema exporteren"
 
-msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."
-msgstr "Schrijft het huidige thema naar deze map: een sjabloon om je eigen thema te maken."
+msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le vôtre."
+msgstr "Schrijft het huidige thema naar deze map: een sjabloon om uw eigen thema te maken."
 
 msgid "Supprimer ce thème"
 msgstr "Dit thema verwijderen"
@@ -1642,8 +1642,8 @@ msgstr "Thema verwijderd: {}"
 msgid "Pas un thème de Turtlefin"
 msgstr "Geen Turtlefin-thema"
 
-msgid "Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué."
-msgstr "Kies een thema (.tftheme): het wordt aan je thema's toegevoegd en toegepast."
+msgid "Choisissez un thème (.tftheme) : il est ajouté à vos thèmes et appliqué."
+msgstr "Kies een thema (.tftheme): het wordt aan uw thema's toegevoegd en toegepast."
 
 msgid "Thème importé : {}"
 msgstr "Thema geïmporteerd: {}"
@@ -1700,8 +1700,8 @@ msgstr "antwoord van de server te groot"
 msgid "élément inconnu"
 msgstr "onbekend item"
 
-msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
-msgstr "Let op: dit http://-adres gaat onversleuteld over internet, je wachtwoord zou leesbaar verstuurd worden. Gebruik liever een https://-adres (of een vpn). Bevestig nogmaals om toch in te loggen."
+msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préférez une adresse en https:// (ou un VPN). Validez encore pour vous connecter quand même."
+msgstr "Let op: dit http://-adres gaat onversleuteld over internet, uw wachtwoord zou leesbaar verstuurd worden. Gebruik liever een https://-adres (of een vpn). Bevestig nogmaals om toch in te loggen."
 
 msgid "Débit maximal"
 msgstr "Maximale bitrate"
@@ -1736,8 +1736,8 @@ msgstr "Wachtwoord geweigerd (of account zonder beheerdersrechten)."
 msgid "Bon"
 msgstr "Goed"
 
-msgid "C'est le mot de passe actuel : choisis-en un autre."
-msgstr "Dat is je huidige wachtwoord: kies een ander."
+msgid "C'est le mot de passe actuel : choisissez-en un autre."
+msgstr "Dat is uw huidige wachtwoord: kies een ander."
 
 msgid "Changement du mot de passe…"
 msgstr "Wachtwoord wordt gewijzigd…"
@@ -1751,8 +1751,8 @@ msgstr "Wachtwoord wijzigen"
 msgid "Correct"
 msgstr "Redelijk"
 
-msgid "Entre ton mot de passe actuel."
-msgstr "Voer je huidige wachtwoord in."
+msgid "Entrez votre mot de passe actuel."
+msgstr "Voer uw huidige wachtwoord in."
 
 msgid "Faible"
 msgstr "Zwak"
@@ -1790,28 +1790,28 @@ msgstr "Komen nog niet overeen"
 msgid "Solide"
 msgstr "Sterk"
 
-msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
-msgstr "Je wachtwoord is te eenvoudig: wijzig het (accountfoto → Wachtwoord wijzigen)."
+msgid "Votre mot de passe est trop simple : changez-le (photo du compte → Changer le mot de passe)."
+msgstr "Uw wachtwoord is te eenvoudig: wijzig het (accountfoto → Wachtwoord wijzigen)."
 
-msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
-msgstr "Je wachtwoord is te eenvoudig: iedereen kan dit account openen. Wijzig het."
+msgid "Votre mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Changez-le."
+msgstr "Uw wachtwoord is te eenvoudig: iedereen kan dit account openen. Wijzig het."
 
 msgid "Trop court : 8 caractères au moins."
 msgstr "Te kort: minstens 8 tekens."
 
-msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
-msgstr "Te makkelijk te raden (veelgebruikt woord, reeks of je naam). Maak het langer of mix letters, cijfers en tekens."
+msgid "Trop facile à deviner (mot courant, suite, ou votre nom). Allongez-le ou mélangez lettres, chiffres et signes."
+msgstr "Te makkelijk te raden (veelgebruikt woord, reeks of uw naam). Maak het langer of mix letters, cijfers en tekens."
 
 msgid "Trop simple"
 msgstr "Te eenvoudig"
 
-msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
-msgstr "Stap 1 van 3 · Je huidige wachtwoord, om te bevestigen dat jij het bent."
+msgid "Étape 1 sur 3 · Votre mot de passe actuel, pour confirmer que c'est bien vous."
+msgstr "Stap 1 van 3 · Uw huidige wachtwoord, om te bevestigen dat u het bent."
 
 msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
-msgstr "Stap 2 van 3 · Minstens 8 tekens. Een korte zin (‘regen-op-de-zee’) onthoud je makkelijk en blijft sterk."
+msgstr "Stap 2 van 3 · Minstens 8 tekens. Een korte zin (‘regen-op-de-zee’) onthoudt u makkelijk en blijft sterk."
 
-msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
+msgid "Étape 3 sur 3 · Retapez le nouveau mot de passe."
 msgstr "Stap 3 van 3 · Typ het nieuwe wachtwoord nog een keer."
 
 msgid "Arrêter de piloter {}"
@@ -1850,14 +1850,14 @@ msgstr "Afstandsbediening · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} reageert niet: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvrez-le sur l'autre appareil (télé, ordinateur…), puis revenez ici."
 msgstr "Er is geen andere Turtlefin open met dit account. Open hem op het andere apparaat (tv, computer…) en kom dan hier terug."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Kies het scherm waar video's naartoe gaan: ‘Afspelen op’ verschijnt dan op de detailpagina's."
 
-msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
-msgstr "Kies de Turtlefin die je wilt bedienen: dit apparaat wordt de afstandsbediening."
+msgid "Choisissez le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Kies de Turtlefin die u wilt bedienen: dit apparaat wordt de afstandsbediening."
 
 msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
 msgstr "Video's gestart met ‘Afspelen op’ (op de detailpagina's) spelen op dit scherm."
@@ -1880,7 +1880,7 @@ msgstr "Afstandsbediening"
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: de video wordt erheen gestuurd"
 
-msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
+msgid "Aucun écran vu pour l'instant. Allumez la télé, puis cherchez."
 msgstr "Nog geen scherm gevonden. Zet de tv aan en zoek dan."
 
 msgid "Chercher"
@@ -1910,7 +1910,7 @@ msgstr "Willekeurig"
 msgid "Arrêter la diffusion"
 msgstr "Casten stoppen"
 
-msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilisez les boutons recul et avance."
 msgstr "Dit scherm geeft de lengte van een omgezette video niet door: gebruik de knoppen terug en vooruit."
 
 msgid "En lecture sur {}"
@@ -1937,7 +1937,7 @@ msgstr "Oorspronkelijke naam: {}"
 msgid "Nom du serveur"
 msgstr "Servernaam"
 
-msgid "Renomme-le pour le reconnaître dans la liste des serveurs."
+msgid "Renommez-le pour le reconnaître dans la liste des serveurs."
 msgstr "Geef hem een naam om hem in de serverlijst te herkennen."
 
 msgid "Renommer le serveur"
@@ -1982,8 +1982,8 @@ msgstr "geen trailer voor deze titel"
 msgid "vidéo YouTube indisponible ({})"
 msgstr "YouTube-video niet beschikbaar ({})"
 
-msgid "Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."
-msgstr "Trailers: die van de server. Voor YouTube-trailers (zonder reclame of account) installeer je yt-dlp op dit apparaat."
+msgid "Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installez yt-dlp sur cet appareil."
+msgstr "Trailers: die van de server. Voor YouTube-trailers (zonder reclame of account) installeert u yt-dlp op dit apparaat."
 
 msgid "Bandes-annonces YouTube"
 msgstr "YouTube-trailers"
@@ -2000,7 +2000,7 @@ msgstr "Hun adressen en gekozen namen; het zoeken begint opnieuw (de verbonden s
 msgid "Oublier les serveurs trouvés"
 msgstr "Gevonden servers vergeten"
 
-msgid "Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."
+msgid "Quand l'écran ne joint pas le serveur (télé hors de chez vous), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."
 msgstr "Als het scherm de server niet bereikt (tv buiten de deur), gaat de video via dit apparaat, dat aan moet blijven op hetzelfde netwerk als het scherm."
 
 msgid "Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."
@@ -2021,16 +2021,16 @@ msgstr "Daarboven wordt niets meer gedownload. Geen limiet: zoveel als de bestan
 msgid "Aucun réseau"
 msgstr "Geen netwerk"
 
-msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgid "Aucun écran. Allumez un Chromecast sur ce réseau, ou ouvrez Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
 msgstr "Geen scherm. Zet een Chromecast aan op dit netwerk, of open Turtlefin (of een Jellyfin-app) op de tv met hetzelfde account."
 
 msgid "Choisir ce dossier"
 msgstr "Deze map kiezen"
 
-msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
+msgid "Choisissez un disque, puis le dossier où ranger les films et séries téléchargés."
 msgstr "Kies een schijf en daarna de map voor gedownloade films en series."
 
-msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgid "Choisissez un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
 msgstr "Kies een map die niet in de oude map ligt en er ook niet boven."
 
 msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
@@ -2078,7 +2078,7 @@ msgstr "Server weer bereikbaar."
 msgid "Téléchargements : {}"
 msgstr "Downloads: {}"
 
-msgid "Un téléchargement est en cours : change de dossier quand il est fini."
+msgid "Un téléchargement est en cours : changez de dossier quand il est fini."
 msgstr "Er loopt een download: wissel van map als die klaar is."
 
 msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
@@ -2145,11 +2145,11 @@ msgstr "Nieuwe map"
 msgid "Serveur de nouveau joignable"
 msgstr "Server weer bereikbaar"
 
-msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
+msgid "Serveur injoignable : cherchez-le sur le réseau, ou choisissez-en un autre."
 msgstr "Server onbereikbaar: zoek hem op het netwerk of kies een andere."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
-msgstr "Server onbereikbaar: bekijk je downloads offline of wacht tot hij terug is (nieuwe poging elke 5 s)."
+msgstr "Server onbereikbaar: bekijk uw downloads offline of wacht tot hij terug is (nieuwe poging elke 5 s)."
 
 msgid "Distribution"
 msgstr "Cast"
@@ -2157,10 +2157,10 @@ msgstr "Cast"
 msgid "Lire la suite"
 msgstr "Lees meer"
 
-msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
+msgid "Plus aucun téléchargement : cherchez le serveur, ou attendez son retour."
 msgstr "Geen downloads meer: zoek de server of wacht tot hij terug is."
 
-msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
+msgid "Serveur injoignable : choisissez un compte pour regarder ses téléchargements, ou attendez son retour (nouvel essai toutes les 5 s)."
 msgstr "Server onbereikbaar: kies een account om zijn downloads te bekijken, of wacht tot hij terug is (nieuwe poging elke 5 s)."
 
 msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
@@ -2208,7 +2208,7 @@ msgstr "Informatie vernieuwen"
 msgid "Identifier"
 msgstr "Identificeren"
 
-msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
+msgid "Choisissez le bon titre : le serveur reprendra ses informations et ses images."
 msgstr "Kies de juiste titel: de server neemt de informatie en afbeeldingen over."
 
 msgid "Titre"
@@ -2220,7 +2220,7 @@ msgstr "Jaar"
 msgid "Rechercher"
 msgstr "Zoeken"
 
-msgid "Aucun résultat : modifie le titre ou l'année."
+msgid "Aucun résultat : modifiez le titre ou l'année."
 msgstr "Geen resultaten: pas de titel of het jaar aan."
 
 msgid "Actualisation demandée : le serveur relit les informations."
@@ -2598,7 +2598,7 @@ msgstr "Tag: {}"
 msgid "Le bouton Lecture envoie les vidéos sur cet écran."
 msgstr "De afspeelknop stuurt video's naar dit scherm."
 
-msgid "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
+msgid "Choisissez l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
 msgstr "Kies het scherm voor de video's: de afspeelknop stuurt ze daarheen."
 
 msgid "Diffusion en cours sur {}"
@@ -2660,7 +2660,7 @@ msgstr "Overige"
 msgid "Dans {} s"
 msgstr "Over {} s"
 
-msgid "Le serveur met trop de temps à répondre. Réessaie dans un instant."
+msgid "Le serveur met trop de temps à répondre. Réessayez dans un instant."
 msgstr "De server doet er te lang over om te antwoorden. Probeer het zo meteen opnieuw."
 
 msgid "Demande acceptée"
@@ -2706,16 +2706,16 @@ msgstr "Nog een keer, ter bevestiging"
 msgid "Avec les flèches du clavier, de la télécommande ou ci-dessous."
 msgstr "Met de pijlen van het toetsenbord, de afstandsbediening of hieronder."
 
-msgid "Trop d'essais : réessaie dans {} s."
+msgid "Trop d'essais : réessayez dans {} s."
 msgstr "Te veel pogingen: probeer het over {} s opnieuw."
 
 msgid "Code incorrect."
 msgstr "Verkeerde code."
 
-msgid "Code incorrect. Réessaie dans {} s."
+msgid "Code incorrect. Réessayez dans {} s."
 msgstr "Verkeerde code. Probeer het over {} s opnieuw."
 
-msgid "Les deux codes ne sont pas les mêmes. Recommence."
+msgid "Les deux codes ne sont pas les mêmes. Recommencez."
 msgstr "De twee codes zijn niet gelijk. Begin opnieuw."
 
 msgid "Code enregistré."
@@ -2727,10 +2727,10 @@ msgstr "Combinatie opgeslagen."
 msgid "Code du compte retiré."
 msgstr "Code van het account verwijderd."
 
-msgid "Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte."
-msgstr "Code van het account verwijderd. Je kunt een nieuwe kiezen in Instellingen → Account."
+msgid "Code du compte retiré. Vous pouvez en choisir un nouveau dans Paramètres → Compte."
+msgstr "Code van het account verwijderd. U kunt een nieuwe kiezen in Instellingen → Account."
 
-msgid "Code oublié ? Entre le mot de passe du compte"
+msgid "Code oublié ? Entrez le mot de passe du compte"
 msgstr "Code vergeten? Voer het wachtwoord van het account in"
 
 msgid "OK : boutons du bas"
@@ -3042,8 +3042,8 @@ msgstr "Voorbeelden maken tijdens het scannen"
 msgid "Créer une sauvegarde"
 msgstr "Back-up maken"
 
-msgid "Dans ta bibliothèque"
-msgstr "In je bibliotheek"
+msgid "Dans votre bibliothèque"
+msgstr "In uw bibliotheek"
 
 msgid "Dates de lecture, vu ou non, favoris."
 msgstr "Afspeeldatums, bekeken of niet, favorieten."
@@ -3054,7 +3054,7 @@ msgstr "Laatste account"
 msgid "Dernière fois : {} le {}"
 msgstr "Laatste keer: {} op {}"
 
-msgid "Donne d'abord un nom au thème (onglet Général)."
+msgid "Donnez d'abord un nom au thème (onglet Général)."
 msgstr "Geef het thema eerst een naam (tabblad Algemeen)."
 
 msgid "Données du serveur"
@@ -3138,7 +3138,7 @@ msgstr "Al bekeken"
 msgid "Délai d'extraction (min)"
 msgstr "Extractievertraging (min)"
 
-msgid "Dépose un mod dans « {} », puis reviens sur cette page."
+msgid "Déposez un mod dans « {} », puis revenez sur cette page."
 msgstr "Zet een mod in “{}” en kom dan terug naar deze pagina."
 
 msgid "Dépôt ajouté."
@@ -3201,8 +3201,8 @@ msgstr "Bericht sturen"
 msgid "Essai impossible : {}"
 msgstr "Proef starten mislukt: {}"
 
-msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct."
-msgstr "Proef gestart: Turtlefin opent op een demoserver. Je wijzigingen gelden meteen."
+msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Vos changements s'y appliquent en direct."
+msgstr "Proef gestart: Turtlefin opent op een demoserver. Uw wijzigingen gelden meteen."
 
 msgid "Exclure"
 msgstr "Uitsluiten"
@@ -3354,8 +3354,8 @@ msgstr "Wijzigingen gelden bij de volgende start van Turtlefin."
 msgid "Les fichiers restent sur le disque."
 msgstr "De bestanden blijven op de schijf."
 
-msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."
-msgstr "Mods worden door anderen geschreven: Turtlefin controleert ze niet en de maker is er niet verantwoordelijk voor. Elke mod draait in een sandbox: hij kan je bestanden niet lezen, geen programma's starten en geen gegevens via internet versturen; hij kan alleen het uiterlijk veranderen, berichten tonen en de media van de server lezen. Kies toch liever betrouwbare bronnen."
+msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire vos fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préférez quand même des sources de confiance."
+msgstr "Mods worden door anderen geschreven: Turtlefin controleert ze niet en de maker is er niet verantwoordelijk voor. Elke mod draait in een sandbox: hij kan uw bestanden niet lezen, geen programma's starten en geen gegevens via internet versturen; hij kan alleen het uiterlijk veranderen, berichten tonen en de media van de server lezen. Kies toch liever betrouwbare bronnen."
 
 msgid "Les médias au-dessus sont cachés à ce compte."
 msgstr "Media daarboven zijn verborgen voor dit account."
@@ -3519,7 +3519,7 @@ msgstr "Trager: betere beelden bij dezelfde bitrate."
 msgid "Plusieurs choix possibles."
 msgstr "Meerdere keuzes mogelijk."
 
-msgid "Plusieurs choix · tape pour filtrer · → : index A–Z"
+msgid "Plusieurs choix · tapez pour filtrer · → : index A–Z"
 msgstr "Meerdere keuzes · typ om te filteren · →: index A–Z"
 
 msgid "Plusieurs choix · → : index A–Z"
@@ -3864,10 +3864,10 @@ msgstr "en hoger"
 msgid "il faut un nombre"
 msgstr "er is een getal nodig"
 
-msgid "{} médias lus. Appuie pour arrêter."
+msgid "{} médias lus. Appuyez pour arrêter."
 msgstr "{} media gelezen. Druk om te stoppen."
 
-msgid "« {} » n'est pas une couleur : écris #rrggbb ou #rrggbbaa."
+msgid "« {} » n'est pas une couleur : écrivez #rrggbb ou #rrggbbaa."
 msgstr "“{}” is geen kleur: schrijf #rrggbb of #rrggbbaa."
 
 msgid "« {} » passe avant le mod précédent (ordre de chargement)."
@@ -3891,7 +3891,7 @@ msgstr "Schrijft een waarschuwing in het logboek."
 msgid "État"
 msgstr "Status"
 
-msgid "écris une heure, par exemple 3:30"
+msgid "écrivez une heure, par exemple 3:30"
 msgstr "schrijf een tijd, bijvoorbeeld 3:30"
 
 msgid "{n} résultat"
@@ -4137,8 +4137,8 @@ msgstr "In de downloads"
 msgid "Les avatars GIF bougent. À couper si l'appareil est lent (ils restent sur leur première image)."
 msgstr "GIF-avatars bewegen. Uitzetten als het apparaat traag is (ze blijven op hun eerste beeld)."
 
-msgid "Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
-msgstr "Toont op je Discord-profiel de open pagina en wat je kijkt (Discord open op deze computer)."
+msgid "Montre sur votre profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
+msgstr "Toont op uw Discord-profiel de open pagina en wat u kijkt (Discord open op deze computer)."
 
 msgid "Parcourt une bibliothèque"
 msgstr "Bladert door een bibliotheek"
@@ -4152,7 +4152,7 @@ msgstr "Nog niet beschikbaar: de Discord-applicatie-ID van Turtlefin ontbreekt."
 msgid "Rechercher un réglage"
 msgstr "Instelling zoeken"
 
-msgid "Rechercher un réglage (tape un mot)"
+msgid "Rechercher un réglage (tapez un mot)"
 msgstr "Instelling zoeken (typ een woord)"
 
 msgid "Regarde une fiche"
@@ -4284,11 +4284,11 @@ msgstr "Automatisch ({})"
 msgid "Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."
 msgstr "Automatisch: lichter, of stilstaand, als dit apparaat geen 60 beelden per seconde haalt."
 
-msgid "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos."
-msgstr "Dat was het! Voeg nu je Jellyfin-server toe om je films en series terug te vinden. Je start deze rondleiding opnieuw via Instellingen → Over."
+msgid "C'est tout ! Ajoutez maintenant votre serveur Jellyfin pour retrouver vos films et vos séries. Cette visite se relance depuis Paramètres → À propos."
+msgstr "Dat was het! Voeg nu uw Jellyfin-server toe om uw films en series terug te vinden. U start deze rondleiding opnieuw via Instellingen → Over."
 
-msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
-msgstr "Met deze rondleiding probeer je de app uit. Afstandsbediening of toetsenbord: de pijlen om te bewegen, OK (Enter) om te openen of te bevestigen, Terug (Esc) om terug te gaan."
+msgid "Cette visite vous fait essayer l'app. Télécommande ou clavier : les flèches pour vous déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
+msgstr "Met deze rondleiding probeert u de app uit. Afstandsbediening of toetsenbord: de pijlen om te bewegen, OK (Enter) om te openen of te bevestigen, Terug (Esc) om terug te gaan."
 
 msgid "Cherche quoi regarder"
 msgstr "Zoekt iets om te kijken"
@@ -4335,8 +4335,8 @@ msgstr "Organiseert een watch party"
 msgid "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom."
 msgstr "Instellingen: thema's en hun dag- en nachtdecor, tekstgrootte, animaties, taal, tv-interface… Het veld bovenaan in Instellingen vindt een instelling op naam."
 
-msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
-msgstr "Loop er met → doorheen tot je profiel, helemaal rechts: de tabbladen (Start, Favorieten…), dan Casten naar een tv, watch party, iets willekeurigs en zoeken."
+msgid "Parcourez-la avec → jusqu'à votre profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
+msgstr "Loop er met → doorheen tot uw profiel, helemaal rechts: de tabbladen (Start, Favorieten…), dan Casten naar een tv, watch party, iets willekeurigs en zoeken."
 
 msgid "Peaufine ses réglages"
 msgstr "Schaaft aan de instellingen"
@@ -4344,14 +4344,14 @@ msgstr "Schaaft aan de instellingen"
 msgid "Prépare de quoi regarder hors ligne"
 msgstr "Zet iets klaar om offline te kijken"
 
-msgid "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
-msgstr "Typ ergens op de startpagina een letter, of kies het vergrootglas: zoeken opent en vindt films, series, afleveringen en personen terwijl je typt."
+msgid "Tapez une lettre n'importe où sur l'accueil, ou choisissez la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
+msgstr "Typ ergens op de startpagina een letter, of kies het vergrootglas: zoeken opent en vindt films, series, afleveringen en personen terwijl u typt."
 
-msgid "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. "
-msgstr "Alles wat je hier ziet komt van een demoserver: er wordt niets bewaard, probeer gerust alles. "
+msgid "Tout ce que vous voyez ici vient d'un serveur de démonstration : rien n'est enregistré, essayez sans crainte. "
+msgstr "Alles wat u hier ziet komt van een demoserver: er wordt niets bewaard, probeer gerust alles. "
 
-msgid "À ton goût"
-msgstr "Naar jouw smaak"
+msgid "À votre goût"
+msgstr "Naar uw smaak"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen. Drie intro's na elkaar overgeslagen: de volgende worden vanzelf overgeslagen."

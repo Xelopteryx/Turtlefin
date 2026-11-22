@@ -1374,7 +1374,7 @@ export component PlayerView inherits Rectangle {
             }
             if root.remote-busy != "" || root.remote-nodur: Text {
                 text: root.remote-busy != "" ? root.remote-busy
-                    : Tr.t(Tr.k, "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance.");
+                    : Tr.t(Tr.k, "Cet écran ne donne pas la durée d'une vidéo convertie : utilisez les boutons recul et avance.");
                 color: Theme.player-ink.with-alpha(0.7);
                 font-size: (13px * root.k) * Theme.text-scale;
                 horizontal-alignment: center;

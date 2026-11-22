@@ -709,7 +709,7 @@ fn human_err(e: &anyhow::Error) -> String {
         }
     }
     if e.downcast_ref::<api::Unauthorized>().is_some() {
-        return tr("session expirée, reconnecte-toi").into();
+        return tr("session expirée, reconnectez-vous").into();
     }
     redact(&format!("{e}"))
 }
@@ -1406,7 +1406,7 @@ async fn login_flow(app: Arc<App>, server: String, user: String, pw: String) {
     }
     if *app.plain_ok.lock().unwrap() != norm && discovery::plain_over_internet(&norm).await {
         *app.plain_ok.lock().unwrap() = norm;
-        show_login_error(&app.ui(), tr("Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même.").into());
+        show_login_error(&app.ui(), tr("Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préférez une adresse en https:// (ou un VPN). Validez encore pour vous connecter quand même.").into());
         return;
     }
     match api::Client::login(&server, &user, &pw, &app.device_id).await {
@@ -1470,13 +1470,13 @@ async fn start_session(app: Arc<App>, client: api::Client, weak: Option<bool>) {
             // « Code oublié » puis mot de passe correct : le code de ce compte est retiré.
             if app.lock_reset.lock().unwrap().take().is_some_and(|uid| uid == client.user_id) {
                 config::set_lock(&client.user_id, "");
-                let _ = app.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte.").into()));
+                let _ = app.ui().upgrade_in_event_loop(|u| u.set_toast(tr("Code du compte retiré. Vous pouvez en choisir un nouveau dans Paramètres → Compte.").into()));
             }
             let _ = app.ui().upgrade_in_event_loop(move |u| u.global::<Alert>().set_weak_pw(weak));
             load_home(app.clone(), client).await;
             if weak {
                 let _ = app.ui().upgrade_in_event_loop(|u| {
-                    u.set_toast(tr("Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe).").into());
+                    u.set_toast(tr("Votre mot de passe est trop simple : changez-le (photo du compte → Changer le mot de passe).").into());
                 });
             }
         }
@@ -1723,7 +1723,7 @@ fn login_pick(app: &Arc<App>, action: String) {
                     u.set_login_user(name.into());
                     u.set_login_field(1);
                     u.set_login_mode("form".into());
-                    u.set_error_text(tr("Session expirée : entre le mot de passe.").into());
+                    u.set_error_text(tr("Session expirée : entrez le mot de passe.").into());
                 });
             }
         }
@@ -3476,7 +3476,7 @@ fn screen_rows(p: &config::UiPrefs) -> Vec<(String, String, String, String, &'st
         "screens_scan".to_string(),
         tr("Écrans de diffusion").to_string(),
         if p.cast_screens.is_empty() {
-            tr("Aucun écran vu pour l'instant. Allume la télé, puis cherche.").to_string()
+            tr("Aucun écran vu pour l'instant. Allumez la télé, puis cherchez.").to_string()
         } else {
             tr("Renomme un écran pour le reconnaître dans « Diffuser » (deux télés au même nom…).").to_string()
         },
@@ -4433,7 +4433,7 @@ fn refresh_party(app: &Arc<App>) {
             "Playing" => tr("En lecture"),
             "Paused" => tr("En pause"),
             "Waiting" => tr("En attente des participants"),
-            _ => tr("Prêt : lance un film ou un épisode"),
+            _ => tr("Prêt : lancez un film ou un épisode"),
         };
         (s.group.clone(), s.participants.clone(), st.to_string(), s.item_id.clone())
     };
@@ -6024,7 +6024,7 @@ fn manual_submit(app: &Arc<App>, local: String, remote: String) {
         if l.is_empty() && r.is_empty() {
             let _ = app2.ui().upgrade_in_event_loop(|u| {
                 u.set_manual_busy(false);
-                u.set_manual_error(tr("Indique au moins une adresse.").into());
+                u.set_manual_error(tr("Indiquez au moins une adresse.").into());
             });
             return;
         }
@@ -6423,7 +6423,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             if !srv.is_empty() {
                 let weak = app.ui().upgrade().is_some_and(|u| u.global::<Alert>().get_weak_pw());
                 let hint = if weak {
-                    tr("Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le.")
+                    tr("Votre mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Changez-le.")
                 } else {
                     tr("Le mot de passe de ce compte sur le serveur.")
                 };
@@ -6472,19 +6472,19 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             head(tr("Bandes-annonces")),
             match ytdlp() {
                 Some(_) => row("yttrailers", tr("Bandes-annonces YouTube"), tr("Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."), String::new(), "toggle", !prefs.no_yt_trailers),
-                None => row("info", "", tr("Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."), String::new(), "info", false),
+                None => row("info", "", tr("Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installez yt-dlp sur cet appareil."), String::new(), "info", false),
             },
         ],
         2 => vec![
             row("slang", tr("Langue des sous-titres préférée"), tr("Utilisée selon le mode ci-dessous."), label_of(&LANGS, &s("SubtitleLanguagePreference")).into(), "choice", false),
-            row("submode", tr("Quand afficher les sous-titres"), tr("Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."), label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
+            row("submode", tr("Quand afficher les sous-titres"), tr("Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans votre langue."), label_of(&SUB_MODES, &s("SubtitleMode")).into(), "choice", false),
             row("subsize", tr("Taille des sous-titres"), tr("Appliquée à la prochaine vidéo."), tr(sub_size_label(prefs.sub_scale)).into(), "choice", false),
         ],
         3 => vec![
             head(tr("Texte et langue")),
             row("textsize", tr("Taille des textes"), tr("Tous les textes de l'interface. Barre du haut trop pleine : les onglets passent en icônes."), tr(text_size_label(prefs.text_scale)).into(), "choice", false),
             row("language", tr("Langue de l'interface"), "Language", crate::i18n::languages().into_iter().find(|l| l.0 == i18n::current()).map(|l| l.1).unwrap_or_else(|| "Français".into()), "choice", false),
-            row("addlang", tr("Ajouter une langue"), &trf("Choisis une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
+            row("addlang", tr("Ajouter une langue"), &trf("Choisissez une traduction (.po) dans le dossier « {} ».", &[&i18n::LANG_DIR_NAME]), String::new(), "action", false),
             head(tr("Écran")),
             row("tvmode", tr("Interface TV"), tr("Grands éléments et plein écran, pour la télé (--tv et --desktop priment)."), String::new(), "toggle", app.tv()),
             row("fullscreen", tr("Plein écran"), tr("La fenêtre couvre tout l'écran. F11 bascule aussi, partout."), String::new(), "toggle", app.full_flag.load(Ordering::Relaxed)),
@@ -6497,8 +6497,8 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("dnspan", tr("Durée de l'aube et du crépuscule"), tr("Le temps que met le décor à passer du jour à la nuit, et inversement."), trf("{} min", &[&prefs.daynight_span]), "choice", false),
             row("decor", tr("Détail du décor"), tr("Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."), decor_label(app, &prefs.decor_mode), "choice", false),
             row("themecreate", tr("Créer un thème"), tr("Ouvre le Turtlefin Theme Creator : couleurs, formes, fond, logo, musique, essai en direct."), String::new(), "action", false),
-            row("themeimport", tr("Importer un thème"), &trf("Choisis un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
-            row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."), String::new(), "action", false),
+            row("themeimport", tr("Importer un thème"), &trf("Choisissez un fichier de thème (.tftheme) dans le dossier « {} ».", &[&theme::THEMES_DIR_NAME]), String::new(), "action", false),
+            row("themeexport", tr("Exporter le thème"), tr("Écrit le thème actuel dans ce dossier : un modèle pour créer le vôtre."), String::new(), "action", false),
             row("music", tr("Musique de fond du thème"), tr("Si le thème en a une. Elle se coupe dès qu'un média est ouvert, même en pause."), String::new(), "toggle", prefs.music),
             row("music_volume", tr("Volume de la musique de fond"), tr("← → ou glisser sur la barre."), prefs.music_volume.to_string(), "slider", false),
             head(tr("Affiches et fond")),
@@ -6511,7 +6511,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 "discord",
                 tr("Statut Discord"),
                 if cfg!(target_os = "android") || discord_ready() {
-                    tr("Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur).")
+                    tr("Montre sur votre profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur).")
                 } else {
                     tr("Pas encore disponible : il manque l'identifiant de l'application Discord de Turtlefin.")
                 },
@@ -6550,11 +6550,11 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             let now = if current.is_empty() { tr("Hors ligne : aucune adresse ne répond.").to_string() } else { trf("Connecté en ce moment par {}", &[&current]) };
             v.push(row("info", "", &now, String::new(), "info", false));
             v.push(head(tr("Serveurs")));
-            v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur tes réseaux."), String::new(), "action", false));
+            v.push(row("server", tr("Rechercher un autre serveur"), tr("Serveurs Jellyfin trouvés sur vos réseaux."), String::new(), "action", false));
             // Serveurs déjà trouvés : un nom à soi pour s'y retrouver (deux serveurs au même nom…).
             for (id, k) in &prefs.known_servers {
                 let shown = if k.custom.is_empty() { k.name.clone() } else { k.custom.clone() };
-                let hint = if k.custom.is_empty() { tr("Renomme-le pour le reconnaître dans la liste des serveurs.").to_string() } else { trf("Nom d'origine : {}", &[&k.name]) };
+                let hint = if k.custom.is_empty() { tr("Renommez-le pour le reconnaître dans la liste des serveurs.").to_string() } else { trf("Nom d'origine : {}", &[&k.name]) };
                 v.push(row(&format!("srvname:{id}"), &shown, &hint, tr("Renommer").into(), "action", false));
             }
             if !prefs.known_servers.is_empty() {
@@ -6564,7 +6564,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
         }
         5 => {
             let mut v: Vec<SettingRow> = screen_rows(&prefs).into_iter().map(|(k, l, h, v, kind)| row(&k, &l, &h, v, kind, false)).collect();
-            v.push(row("relay", tr("Relais par cet appareil"), tr("Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."), relay_label(&prefs.relay_mode).into(), "choice", false));
+            v.push(row("relay", tr("Relais par cet appareil"), tr("Quand l'écran ne joint pas le serveur (télé hors de chez vous), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."), relay_label(&prefs.relay_mode).into(), "choice", false));
             v.push(row("info", "", tr("Chromecast : les sous-titres changent sans recharger la vidéo."), String::new(), "info", false));
             v
         }
@@ -6576,7 +6576,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 v.push(row("animdel", tr("Supprimer ce preset"), &prefs.anim_preset, String::new(), "action", false));
             }
             v.push(row("animexport", tr("Exporter les presets"), &trf("Un fichier par preset, dans le dossier « {} ».", &[&"Turtlefin Presets"]), String::new(), "action", false));
-            v.push(row("animimport", tr("Importer un preset"), tr("Choisis un fichier de preset (.json) dans ce dossier."), String::new(), "action", false));
+            v.push(row("animimport", tr("Importer un preset"), tr("Choisissez un fichier de preset (.json) dans ce dossier."), String::new(), "action", false));
             v.push(head(tr("Animations une par une")));
             for k in config::AnimFlags::KEYS {
                 let (label, hint) = anim_label(k);
@@ -6640,7 +6640,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 {
                     let n = app.pre_done.load(Ordering::SeqCst);
                     if app.pre_on.load(Ordering::SeqCst) {
-                        row("precache", tr("Tout mettre en cache"), &trf("{} médias lus. Appuie pour arrêter.", &[&n]), tr("Arrêter").to_string(), "action", false)
+                        row("precache", tr("Tout mettre en cache"), &trf("{} médias lus. Appuyez pour arrêter.", &[&n]), tr("Arrêter").to_string(), "action", false)
                     } else {
                         row("precache", tr("Tout mettre en cache"), tr("Pages et images de toutes les bibliothèques de ce compte : tout s'ouvre ensuite sans attendre. Peut durer longtemps."), tr("Lancer").to_string(), "action", false)
                     }
@@ -6658,12 +6658,12 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
                 row(
                     "info",
                     "",
-                    tr("Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."),
+                    tr("Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire vos fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préférez quand même des sources de confiance."),
                     String::new(),
                     "info",
                     false,
                 ),
-                row("modsdir", tr("Dossier des mods"), &trf("Dépose un mod dans « {} », puis reviens sur cette page.", &[&mods::DIR_NAME]), tr("Ouvrir").to_string(), "action", false),
+                row("modsdir", tr("Dossier des mods"), &trf("Déposez un mod dans « {} », puis revenez sur cette page.", &[&mods::DIR_NAME]), tr("Ouvrir").to_string(), "action", false),
             ];
             if edit.is_empty() {
                 v.push(row("info", "", tr("Aucun mod installé."), String::new(), "info", false));
@@ -7618,7 +7618,7 @@ fn settings_activate(app: &Arc<App>, key: &str) {
         "animexport" => {
             let p = config::ui_prefs();
             let msg = match presets_dir() {
-                _ if p.anim_presets.is_empty() => tr("Aucun preset à exporter : enregistre d'abord tes réglages comme preset.").to_string(),
+                _ if p.anim_presets.is_empty() => tr("Aucun preset à exporter : enregistrez d'abord vos réglages comme preset.").to_string(),
                 Some(dir) => {
                     let mut n = 0;
                     for c in &p.anim_presets {
@@ -7992,7 +7992,7 @@ fn pw_step(app: &Arc<App>, which: i32, text: String) {
     match which {
         4 => {
             if text.is_empty() {
-                u.set_addr_err(tr("Entre ton mot de passe actuel.").into());
+                u.set_addr_err(tr("Entrez votre mot de passe actuel.").into());
                 return;
             }
             *app.pw_cur.lock().unwrap() = text;
@@ -8000,11 +8000,11 @@ fn pw_step(app: &Arc<App>, which: i32, text: String) {
         }
         5 => {
             if text == *app.pw_cur.lock().unwrap() {
-                u.set_addr_err(tr("C'est le mot de passe actuel : choisis-en un autre.").into());
+                u.set_addr_err(tr("C'est le mot de passe actuel : choisissez-en un autre.").into());
             } else if text.chars().count() < 8 {
                 u.set_addr_err(tr("Trop court : 8 caractères au moins.").into());
             } else if password::is_weak(&user, &text) {
-                u.set_addr_err(tr("Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes.").into());
+                u.set_addr_err(tr("Trop facile à deviner (mot courant, suite, ou votre nom). Allongez-le ou mélangez lettres, chiffres et signes.").into());
             } else {
                 *app.pw_new.lock().unwrap() = text;
                 next(&u, 6);
@@ -8184,7 +8184,7 @@ fn addr_save(app: &Arc<App>, which: i32, text: String) {
         }
         let other = if which == 1 { &s.server_backup } else { &s.server_main };
         if *other == url {
-            fail(&app2, if which == 1 { tr("C'est déjà l'adresse de secours : utilise « Échanger les deux adresses ».").into() } else { tr("C'est déjà l'adresse principale.").into() });
+            fail(&app2, if which == 1 { tr("C'est déjà l'adresse de secours : utilisez « Échanger les deux adresses ».").into() } else { tr("C'est déjà l'adresse principale.").into() });
             return;
         }
         if which == 1 {
@@ -8295,7 +8295,7 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
                 i18n::trn("{n} fichier de langue", "{n} fichiers de langue", n)
             }
             "lang" => format!("{}.po", e.code),
-            "template" => tr("Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)").to_string(),
+            "template" => tr("Modèle à traduire : copiez-le sous le nom <code>.po (sv.po, ja.po…)").to_string(),
             "preset" => trf("{} animations sur {}", &[&e.code, &config::AnimFlags::KEYS.len()]),
             "theme" => e.code.clone(),
             _ if presets => tr("Pas un preset de Turtlefin").to_string(),
@@ -8317,13 +8317,13 @@ fn lx_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path::P
         None => place,
     };
     let hint = if presets {
-        tr("Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué.").to_string()
+        tr("Choisissez un preset d'animations (.json) : il est ajouté à vos presets et appliqué.").to_string()
     } else if themes {
-        tr("Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué.").to_string()
+        tr("Choisissez un thème (.tftheme) : il est ajouté à vos thèmes et appliqué.").to_string()
     } else if dir == root {
-        tr("Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici.").to_string()
+        tr("Déposez vos fichiers de traduction (.po) dans ce dossier, puis choisissez la langue ici.").to_string()
     } else {
-        tr("Choisis une langue, ou Retour pour remonter.").to_string()
+        tr("Choisissez une langue, ou Retour pour remonter.").to_string()
     };
     *app.lx_dir.lock().unwrap() = dir;
     *app.lx_paths.lock().unwrap() = paths;
@@ -8385,7 +8385,7 @@ fn dldir_show(app: &Arc<App>, dir: std::path::PathBuf, select: Option<&std::path
     let sel = select.and_then(|s| paths.iter().position(|(p, _)| p == s)).unwrap_or(0) as i32;
     let place = if dir.as_os_str().is_empty() { tr("Ordinateur").to_string() } else { dir.display().to_string() };
     let hint = if dir.as_os_str().is_empty() {
-        tr("Choisis un disque, puis le dossier où ranger les films et séries téléchargés.").to_string()
+        tr("Choisissez un disque, puis le dossier où ranger les films et séries téléchargés.").to_string()
     } else {
         trf("« Choisir ce dossier » : les téléchargements iront ici ({}). Ceux déjà faits y sont déplacés.", &[&free(&dir)])
     };
@@ -8414,12 +8414,12 @@ fn change_download_dir(app: &Arc<App>, new: std::path::PathBuf, default: bool) {
         return;
     }
     if app.dl_current.lock().unwrap().is_some() {
-        u.set_toast(tr("Un téléchargement est en cours : change de dossier quand il est fini.").into());
+        u.set_toast(tr("Un téléchargement est en cours : changez de dossier quand il est fini.").into());
         return;
     }
     // L'un dans l'autre : le déplacement repasserait sur ses propres fichiers.
     if new.starts_with(&old) || old.starts_with(&new) {
-        u.set_toast(tr("Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui.").into());
+        u.set_toast(tr("Choisissez un dossier qui n'est ni dans l'ancien, ni au-dessus de lui.").into());
         return;
     }
     // Le dossier doit accepter l'écriture (disque en lecture seule, droits…).
@@ -8502,7 +8502,7 @@ fn lx_activate(app: &Arc<App>, i: usize) {
                 u.set_toast(trf("Thème importé : {}", &[&name]).into());
             }
         }
-        "template" => u.set_toast(tr("C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici.").into()),
+        "template" => u.set_toast(tr("C'est le modèle : copiez-le sous le nom de votre langue (sv.po, ja.po…), traduisez-le, puis choisissez-le ici.").into()),
         _ => u.set_toast(tr("Ce fichier n'est pas une traduction de Turtlefin.").into()),
     }
 }
@@ -8745,7 +8745,7 @@ fn push_detail(app: &Arc<App>, id: String) {
     }
     if id.is_empty() {
         if let Some(u) = app.ui().upgrade() {
-            u.set_toast(tr("Pas (encore) dans ta bibliothèque Jellyfin.").into());
+            u.set_toast(tr("Pas (encore) dans votre bibliothèque Jellyfin.").into());
         }
         return;
     }
@@ -11914,7 +11914,7 @@ async fn open_saved_session(a: Arc<App>, mut saved: config::Saved) {
                     config::clear_token();
                     let _ = a.ui().upgrade_in_event_loop(|u| {
                         u.set_screen("login".into());
-                        u.set_error_text(i18n::tr("Ce compte n'est plus valable : choisis un compte.").into());
+                        u.set_error_text(i18n::tr("Ce compte n'est plus valable : choisissez un compte.").into());
                     });
                     return;
                 }
@@ -11939,7 +11939,7 @@ fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
         u.set_login_mode("pick".into());
         u.set_busy(false);
         u.set_offline_ok(true);
-        let msg = tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s).");
+        let msg = tr("Serveur injoignable : choisissez un compte pour regarder ses téléchargements, ou attendez son retour (nouvel essai toutes les 5 s).");
         u.set_error_text(msg.into());
         if autostart {
             retry_start(app.clone());
@@ -11947,7 +11947,7 @@ fn unreachable_start(app: &Arc<App>, u: &AppWindow, autostart: bool) {
         watch_server_back(app.clone(), msg);
     } else {
         open_servers(app);
-        u.set_toast(tr("Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre.").into());
+        u.set_toast(tr("Serveur injoignable : cherchez-le sur le réseau, ou choisissez-en un autre.").into());
         watch_server_found(app.clone(), autostart);
     }
 }
@@ -12131,7 +12131,7 @@ fn start_download(app: &Arc<App>) {
             }
         }
         let msg = if added > 0 {
-            trf("Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler.", &[&added])
+            trf("Ajouté aux téléchargements ({}). Appuyez de nouveau sur Télécharger pour annuler.", &[&added])
         } else if let Some(p) = app2.dl_current.lock().unwrap().as_ref().filter(|c| c.0 == id).map(|c| c.2) {
             trf("Téléchargement en cours : {} %.", &[&format!("{:.0}", p * 100.0)])
         } else if downloads::exists(&id) {
@@ -12844,7 +12844,7 @@ fn check_offline_empty(app: &Arc<App>) {
     open_servers(app);
     if let Some(u) = app.ui().upgrade() {
         u.set_offline(false);
-        u.set_toast(tr("Plus aucun téléchargement : cherche le serveur, ou attends son retour.").into());
+        u.set_toast(tr("Plus aucun téléchargement : cherchez le serveur, ou attendez son retour.").into());
     }
 }
 
@@ -12962,7 +12962,7 @@ fn server_lost(app: &Arc<App>, screen: &str) {
             if has_dl {
                 set_core(&a, 2);
                 u.set_offline_ok(true);
-                let msg = tr("Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s).");
+                let msg = tr("Serveur injoignable : choisissez un compte pour regarder ses téléchargements, ou attendez son retour (nouvel essai toutes les 5 s).");
                 u.set_error_text(msg.into());
                 watch_server_back(a.clone(), msg);
             } else {

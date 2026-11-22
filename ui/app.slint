@@ -4004,7 +4004,7 @@ export component AppWindow inherits Window {
     in-out property <string> login-pass;
     in-out property <int> login-field;  // 0 utilisateur · 1 mot de passe · 2 Se connecter · 3 Retour
     in-out property <bool> login-osk;   // mode TV : le clavier à l'écran a la sélection
-    in-out property <string> login-user-err; // « Saisis un nom d'utilisateur. »
+    in-out property <string> login-user-err; // « Saisissez un nom d'utilisateur. »
     property <int> login-focus-tick;         // bureau : le curseur retourne au nom d'utilisateur
     in property <string> server-name;
     in-out property <bool> busy;
@@ -6114,7 +6114,7 @@ export component AppWindow inherits Window {
     }
     function manual-go() {
         if (root.manual-local == "" && root.manual-remote == "") {
-            root.manual-local-err = Tr.t(Tr.k, "Saisis au moins l'adresse principale du serveur.");
+            root.manual-local-err = Tr.t(Tr.k, "Saisissez au moins l'adresse principale du serveur.");
             root.manual-field = 0;
             return;
         }
@@ -6932,7 +6932,7 @@ export component AppWindow inherits Window {
         function submit() {
             // Un compte a toujours un nom d'utilisateur (le mot de passe peut être vide sur Jellyfin).
             if (root.login-user == "") {
-                root.login-user-err = Tr.t(Tr.k, "Saisis un nom d'utilisateur.");
+                root.login-user-err = Tr.t(Tr.k, "Saisissez un nom d'utilisateur.");
                 root.login-field = 0;
                 root.login-focus-tick += 1;
                 return;
@@ -7147,7 +7147,7 @@ export component AppWindow inherits Window {
                 opacity: lg.in-e(1);
                 width: parent.width;
                 text: lg.arm-id != "" ? Tr.t(Tr.k, "Encore une fois pour retirer ce compte et fermer sa session")
-                    : root.login-edit ? Tr.t(Tr.k, "Choisis un compte à retirer de cet appareil") : Tr.t(Tr.k, "Qui regarde ?");
+                    : root.login-edit ? Tr.t(Tr.k, "Choisissez un compte à retirer de cet appareil") : Tr.t(Tr.k, "Qui regarde ?");
                 color: Theme.fg;
                 font-size: 30 * lg.u;
                 font-weight: 700;
@@ -7448,7 +7448,7 @@ export component AppWindow inherits Window {
                     font-weight: 700;
                 }
                 Text {
-                    text: root.tv-mode ? Tr.t(Tr.k, "Choisis un champ puis appuie sur Entrée pour écrire.")
+                    text: root.tv-mode ? Tr.t(Tr.k, "Choisissez un champ puis appuyez sur Entrée pour écrire.")
                         : Tr.t(Tr.k, "Le mot de passe peut rester vide si le compte n'en a pas.");
                     visible: !lg.one;
                     height: lg.one ? 0px : self.preferred-height;
@@ -7854,7 +7854,7 @@ export component AppWindow inherits Window {
             if root.sections.length == 0: EmptyNote {
                 k: root.k;
                 font: (20px * root.k) * Theme.text-scale;
-                text: root.tab-failed ? Tr.t(Tr.k, "Le serveur met trop de temps à répondre. Réessaie dans un instant.")
+                text: root.tab-failed ? Tr.t(Tr.k, "Le serveur met trop de temps à répondre. Réessayez dans un instant.")
                     : root.tab == "favorites" ? Tr.t(Tr.k, "Aucun favori pour l'instant.")
                     : root.tab == "watchlist" ? Tr.t(Tr.k, "Rien à regarder pour l'instant : le signet d'une fiche y ajoute un film ou une série.")
                     : root.tab == "requests" ? Tr.t(Tr.k, "Aucune demande pour l'instant.") : Tr.t(Tr.k, "Rien à afficher.");
@@ -8864,7 +8864,7 @@ export component AppWindow inherits Window {
                     overflow: elide;
                     text: root.sf-single ? Tr.t(Tr.k, "Un seul choix.")
                         : Nav.touch ? Tr.t(Tr.k, "Plusieurs choix possibles.")
-                        : root.tv-mode ? Tr.t(Tr.k, "Plusieurs choix · → : index A–Z") : Tr.t(Tr.k, "Plusieurs choix · tape pour filtrer · → : index A–Z");
+                        : root.tv-mode ? Tr.t(Tr.k, "Plusieurs choix · → : index A–Z") : Tr.t(Tr.k, "Plusieurs choix · tapez pour filtrer · → : index A–Z");
                     color: Theme.muted;
                     font-size: (12px * root.k) * Theme.text-scale;
                 }
@@ -10482,7 +10482,7 @@ export component AppWindow inherits Window {
             // Distribution : le nom de l'onglet suffit. « Plus de ce genre » : une seule rangée, pas de titre ;
             // plusieurs, chacune le sien (celle de la bibliothèque : « Dans ta bibliothèque »).
             title: root.d-tab-eff == 1 || (root.d-tab-eff == 3 && root.detail-rows.length == 1) ? ""
-                : row.title == Tr.t(Tr.k, "Plus de ce genre") ? Tr.t(Tr.k, "Dans ta bibliothèque") : row.title;
+                : row.title == Tr.t(Tr.k, "Plus de ce genre") ? Tr.t(Tr.k, "Dans votre bibliothèque") : row.title;
             items: row.items;
             card-w: root.card-w;
             ratio: 1.5;
@@ -11086,9 +11086,9 @@ export component AppWindow inherits Window {
                 spacing: 8px * root.k;
                 alignment: start;
                 Text {
-                    text: root.srv-searching ? Tr.t(Tr.k, "Recherche sur tes réseaux")
-                        : root.servers.length == 0 ? Tr.t(Tr.k, "Aucun serveur trouvé : saisis son adresse.")
-                        : Tr.p(Tr.k, "{n} serveur trouvé sur tes réseaux", "{n} serveurs trouvés sur tes réseaux", root.servers.length);
+                    text: root.srv-searching ? Tr.t(Tr.k, "Recherche sur vos réseaux")
+                        : root.servers.length == 0 ? Tr.t(Tr.k, "Aucun serveur trouvé : saisissez son adresse.")
+                        : Tr.p(Tr.k, "{n} serveur trouvé sur vos réseaux", "{n} serveurs trouvés sur tes réseaux", root.servers.length);
                     color: Theme.muted;
                     font-size: (15px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
@@ -12539,7 +12539,7 @@ export component AppWindow inherits Window {
             if root.set-q == "": Text {
                 x: 44px * root.k;
                 height: parent.height;
-                text: root.tv-mode ? Tr.t(Tr.k, "Rechercher un réglage") : Tr.t(Tr.k, "Rechercher un réglage (tape un mot)");
+                text: root.tv-mode ? Tr.t(Tr.k, "Rechercher un réglage") : Tr.t(Tr.k, "Rechercher un réglage (tapez un mot)");
                 color: Theme.fg.with-alpha(0.45);
                 font-size: (15px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
@@ -13805,13 +13805,13 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.ad-mode == 1 ? Tr.t(Tr.k, "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés.")
                             : root.ad-mode == 3 ? Tr.t(Tr.k, "La mise à jour s'installe en administrateur (sudo). Le mot de passe n'est pas enregistré.")
-                            : root.ad-mode == 4 ? Tr.t(Tr.k, "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi.")
+                            : root.ad-mode == 4 ? Tr.t(Tr.k, "Étape 1 sur 3 · Votre mot de passe actuel, pour confirmer que c'est bien vous.")
                             : root.ad-mode == 5 ? Tr.t(Tr.k, "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide.")
-                            : root.ad-mode == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retape le nouveau mot de passe.")
+                            : root.ad-mode == 6 ? Tr.t(Tr.k, "Étape 3 sur 3 · Retapez le nouveau mot de passe.")
                             : root.ad-mode == 7 ? Tr.f(Tr.k, "Nom affiché dans « Diffuser ». Vide : son nom d'origine ({}).", root.addr-hint, "")
                             : root.ad-mode == 8 ? Tr.f(Tr.k, "Nom affiché dans la liste des serveurs et à la connexion. Vide : son nom d'origine ({}).", root.addr-hint, "")
                             : root.ad-mode == 9 ? Tr.t(Tr.k, "Créé dans le dossier affiché, puis choisi dans la liste.")
-                            : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune.");
+                            : Tr.t(Tr.k, "Essayée quand la principale ne répond pas (autre réseau…). Laissez vide pour n'en avoir aucune.");
                         color: Theme.muted;
                         font-size: (13px * root.k) * Theme.text-scale;
                         wrap: word-wrap;
@@ -15011,8 +15011,8 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: root.remote-busy && root.remote-items.length == 0 ? Tr.t(Tr.k, "Recherche des appareils…")
-                        : root.remote-items.length == 0 ? Tr.t(Tr.k, "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici.")
-                        : Tr.t(Tr.k, "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande.");
+                        : root.remote-items.length == 0 ? Tr.t(Tr.k, "Aucun autre Turtlefin ouvert avec ce compte. Ouvrez-le sur l'autre appareil (télé, ordinateur…), puis revenez ici.")
+                        : Tr.t(Tr.k, "Choisissez le Turtlefin à piloter : cet appareil devient sa télécommande.");
                     color: Theme.muted;
                     font-size: (13px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
@@ -15722,9 +15722,9 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: root.cast-busy && root.cast-items.length == 0 ? Tr.t(Tr.k, "Recherche des écrans…")
-                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
+                        : root.cast-items.length == 0 ? Tr.t(Tr.k, "Aucun écran. Allumez un Chromecast sur ce réseau, ou ouvrez Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte.")
                         : root.cast-on ? Tr.t(Tr.k, "Le bouton Lecture envoie les vidéos sur cet écran.")
-                        : Tr.t(Tr.k, "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra.");
+                        : Tr.t(Tr.k, "Choisissez l'écran où envoyer les vidéos : le bouton Lecture les y enverra.");
                     color: Theme.muted;
                     font-size: (13px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
@@ -15905,8 +15905,8 @@ export component AppWindow inherits Window {
             Text {
                 opacity: party.step(0);
                 text: root.sp-active
-                    ? Tr.f(Tr.k, "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
-                    : Tr.t(Tr.k, "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une.");
+                    ? Tr.f(Tr.k, "Vous êtes dans « {} ». Lancez un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés.", root.sp-name, "")
+                    : Tr.t(Tr.k, "Regardez la même chose en même temps que d'autres comptes : créez une watch party ou rejoignez-en une.");
                 color: Theme.muted;
                 font-size: (15px * root.k) * Theme.text-scale;
                 wrap: word-wrap;
@@ -15941,7 +15941,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     Text {
-                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lance un film ou un épisode.");
+                        text: root.sp-now != "" ? Tr.f(Tr.k, "Regarde : {}", root.sp-now, "") : Tr.t(Tr.k, "Rien pour l'instant : lancez un film ou un épisode.");
                         color: root.sp-now != "" ? Theme.accent2 : Theme.muted;
                         font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 600;
@@ -16732,7 +16732,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Dans le menu") : root.tour-last == 7 ? Tr.t(Tr.k, "Ouvrir un média")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Revenir") : root.tour-last == 9 ? Tr.t(Tr.k, "Pendant la lecture")
                     : root.tour-last == 10 ? Tr.t(Tr.k, "Le menu d'une affiche") : root.tour-last == 11 ? Tr.t(Tr.k, "Chercher")
-                    : root.tour-last == 12 ? Tr.t(Tr.k, "À ton goût")
+                    : root.tour-last == 12 ? Tr.t(Tr.k, "À votre goût")
                     : Tr.t(Tr.k, "C'est parti !");
                 color: Theme.fg;
                 font-size: (24px * root.k) * Theme.text-scale;
@@ -16768,21 +16768,21 @@ export component AppWindow inherits Window {
                 y: max(66px * root.k, tour-title.y + tour-title.preferred-height + 10px * root.k);
                 width: parent.width - 56px * root.k;
                 wrap: word-wrap;
-                text: root.tour-last == 0 ? (root.demo-on ? Tr.t(Tr.k, "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. ") : "")
-                        + Tr.t(Tr.k, "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière.")
-                    : root.tour-last == 1 ? Tr.t(Tr.k, "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre.")
-                    : root.tour-last == 2 ? Tr.t(Tr.k, "Change de rangée avec ↓ ou ↑.")
-                    : root.tour-last == 3 ? Tr.t(Tr.k, "Appuie sur ↑ jusqu'à monter dans la barre du haut.")
-                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche.")
-                    : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
-                    : root.tour-last == 6 ? Tr.t(Tr.k, "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →.")
-                    : root.tour-last == 7 ? Tr.t(Tr.k, "Choisis une affiche et appuie sur OK pour l'ouvrir.")
-                    : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil.")
+                text: root.tour-last == 0 ? (root.demo-on ? Tr.t(Tr.k, "Tout ce que vous voyez ici vient d'un serveur de démonstration : rien n'est enregistré, essayez sans crainte. ") : "")
+                        + Tr.t(Tr.k, "Cette visite vous fait essayer l'app. Télécommande ou clavier : les flèches pour vous déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière.")
+                    : root.tour-last == 1 ? Tr.t(Tr.k, "Essayez : déplacez-vous deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre.")
+                    : root.tour-last == 2 ? Tr.t(Tr.k, "Changez de rangée avec ↓ ou ↑.")
+                    : root.tour-last == 3 ? Tr.t(Tr.k, "Appuyez sur ↑ jusqu'à monter dans la barre du haut.")
+                    : root.tour-last == 4 ? Tr.t(Tr.k, "Parcourez-la avec → jusqu'à votre profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche.")
+                    : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
+                    : root.tour-last == 6 ? Tr.t(Tr.k, "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcourez-le avec ↑ ↓, puis refermez-le avec →.")
+                    : root.tour-last == 7 ? Tr.t(Tr.k, "Choisissez une affiche et appuyez sur OK pour l'ouvrir.")
+                    : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuyez sur Retour pour revenir à l'accueil.")
                     : root.tour-last == 9 ? Tr.t(Tr.k, "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules.")
                     : root.tour-last == 10 ? Tr.t(Tr.k, "Clic droit, appui long ou OK maintenu sur une affiche : l'ouvrir, la marquer vue ou non vue ; les administrateurs y trouvent aussi Identifier, Actualiser et Modifier. Dans une bibliothèque, l'index A–Z est sur le côté et une lettre tapée filtre la liste.")
-                    : root.tour-last == 11 ? Tr.t(Tr.k, "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe.")
+                    : root.tour-last == 11 ? Tr.t(Tr.k, "Tapez une lettre n'importe où sur l'accueil, ou choisissez la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe.")
                     : root.tour-last == 12 ? Tr.t(Tr.k, "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom.")
-                    : root.demo-on ? Tr.t(Tr.k, "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos.")
+                    : root.demo-on ? Tr.t(Tr.k, "C'est tout ! Ajoutez maintenant votre serveur Jellyfin pour retrouver vos films et vos séries. Cette visite se relance depuis Paramètres → À propos.")
                     : Tr.t(Tr.k, "Langue, sous-titres, interface TV… tout se règle dans le menu, Paramètres. Cette visite se relance depuis Paramètres → À propos.");
                 color: Theme.fg.with-alpha(0.85);
                 font-size: (17px * root.k) * Theme.text-scale;
@@ -16894,9 +16894,9 @@ export component AppWindow inherits Window {
                 for it[i] in [
                     { icon: "cast", text: Tr.t(Tr.k, "Diffuser : envoyer la vidéo vers une télé, ou piloter un autre appareil.") },
                     { icon: "party", text: Tr.t(Tr.k, "Watch party : regarder la même chose, en même temps, sur plusieurs appareils.") },
-                    { icon: "dice", text: Tr.t(Tr.k, "Au hasard : Turtlefin choisit un média pour toi.") },
-                    { icon: "search", text: Tr.t(Tr.k, "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque.") },
-                    { icon: "profile", text: Tr.t(Tr.k, "Ton profil : changer de compte ou de photo.") },
+                    { icon: "dice", text: Tr.t(Tr.k, "Au hasard : Turtlefin choisit un média pour vous.") },
+                    { icon: "search", text: Tr.t(Tr.k, "Recherche : dans votre bibliothèque, et de quoi demander ce qui manque.") },
+                    { icon: "profile", text: Tr.t(Tr.k, "Votre profil : changer de compte ou de photo.") },
                 ]: HorizontalLayout {
                     spacing: 14px * root.k;
                     property <bool> on: root.h-focus && root.h-sel == root.right-base + i;
@@ -17578,7 +17578,7 @@ export component AppWindow inherits Window {
                     overflow: elide;
                 }
                 Text {
-                    text: Tr.t(Tr.k, "Choisis le bon titre : le serveur reprendra ses informations et ses images.");
+                    text: Tr.t(Tr.k, "Choisissez le bon titre : le serveur reprendra ses informations et ses images.");
                     color: Theme.muted;
                     font-size: (14px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
@@ -17630,7 +17630,7 @@ export component AppWindow inherits Window {
                         root.ident-results.length * self.step - 14px * root.k - self.width));
                     animate shift { duration: Motion.scroll ? 180ms : 0ms; easing: ease-out; }
                     if root.ident-results.length == 0: Text {
-                        text: root.ident-busy ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Aucun résultat : modifie le titre ou l'année.");
+                        text: root.ident-busy ? Tr.t(Tr.k, "Recherche…") : Tr.t(Tr.k, "Aucun résultat : modifiez le titre ou l'année.");
                         color: Theme.muted;
                         font-size: (16px * root.k) * Theme.text-scale;
                         horizontal-alignment: center;
@@ -18348,7 +18348,7 @@ export component AppWindow inherits Window {
                             x: 12px * root.k;
                             width: parent.width - 24px * root.k;
                             y: (parent.height - self.height) / 2;
-                            text: Tr.t(Tr.k, "Code oublié ? Entre le mot de passe du compte");
+                            text: Tr.t(Tr.k, "Code oublié ? Entrez le mot de passe du compte");
                             color: parent.lit ? Theme.on-accent : Theme.text;
                             font-size: (15px * root.k) * Theme.text-scale;
                             font-weight: 600;

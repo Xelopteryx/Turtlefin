@@ -342,7 +342,7 @@ pub async fn run(app: Arc<App>, mut start: Start) {
         let cli_demo = std::env::args().any(|a| a == "--demo" || a == "--demo-only");
         if i == 0 && animate && !cli_demo && !config::ui_prefs().tutorial_offered {
             let items = vec![
-                TrackData { id: "yes".into(), label: tr("Oui, montre-moi").into(), current: false },
+                TrackData { id: "yes".into(), label: tr("Oui, montrez-moi").into(), current: false },
                 TrackData { id: "no".into(), label: tr("Non merci").into(), current: false },
             ];
             let title = tr("Visite guidée ?");
@@ -467,7 +467,7 @@ fn route(app: &Arc<App>, start: &Start, u: &AppWindow) {
     if let (Some(user), Some(pw)) = (start.user.clone(), start.pass.clone()) {
         if start.server.is_empty() {
             u.set_screen("login".into());
-            u.set_error_text(tr("Indique le serveur avec --server=URL (ou choisis-le ci-dessous).").into());
+            u.set_error_text(tr("Indiquez le serveur avec --server=URL (ou choisissez-le ci-dessous).").into());
         } else {
             u.set_screen("login".into());
             u.set_busy(true);

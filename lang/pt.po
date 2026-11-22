@@ -10,10 +10,10 @@ msgid_plural "{n} participants"
 msgstr[0] "{n} participante"
 msgstr[1] "{n} participantes"
 
-msgid "{n} serveur trouvé sur tes réseaux"
+msgid "{n} serveur trouvé sur vos réseaux"
 msgid_plural "{n} serveurs trouvés sur tes réseaux"
-msgstr[0] "{n} servidor encontrado nas tuas redes"
-msgstr[1] "{n} servidores encontrados nas tuas redes"
+msgstr[0] "{n} servidor encontrado nas suas redes"
+msgstr[1] "{n} servidores encontrados nas suas redes"
 
 msgid "En attente"
 msgstr "Pendente"
@@ -45,17 +45,17 @@ msgstr "Transferências"
 msgid "Ajouter un compte"
 msgstr "Adicionar uma conta"
 
-msgid "Saisis au moins l'adresse principale du serveur."
-msgstr "Introduz pelo menos o endereço principal do servidor."
+msgid "Saisissez au moins l'adresse principale du serveur."
+msgstr "Introduza pelo menos o endereço principal do servidor."
 
 msgid "Enregistré"
 msgstr "Guardada"
 
-msgid "Saisis un nom d'utilisateur."
-msgstr "Introduz um nome de utilizador."
+msgid "Saisissez un nom d'utilisateur."
+msgstr "Introduza um nome de utilizador."
 
-msgid "Choisis un compte à retirer de cet appareil"
-msgstr "Escolhe uma conta para remover deste dispositivo"
+msgid "Choisissez un compte à retirer de cet appareil"
+msgstr "Escolha uma conta para remover deste dispositivo"
 
 msgid "Qui regarde ?"
 msgstr "Quem está a ver?"
@@ -72,8 +72,8 @@ msgstr "Gerir contas"
 msgid "Connexion…"
 msgstr "A iniciar sessão…"
 
-msgid "Choisis un champ puis appuie sur Entrée pour écrire."
-msgstr "Escolhe um campo e prime Enter para escrever."
+msgid "Choisissez un champ puis appuyez sur Entrée pour écrire."
+msgstr "Escolha um campo e prima Enter para escrever."
 
 msgid "Le mot de passe peut rester vide si le compte n'en a pas."
 msgstr "A palavra-passe pode ficar vazia se a conta não tiver."
@@ -117,11 +117,11 @@ msgstr "Ainda sem pedidos."
 msgid "Rien à afficher."
 msgstr "Nada para mostrar."
 
-msgid "Tu es dans « {} ». Lance un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
-msgstr "Estás em «{}». Inicia um filme ou um episódio: vai começar para todo o grupo ao mesmo tempo. A pausa e os saltos são partilhados."
+msgid "Vous êtes dans « {} ». Lancez un film ou un épisode : il démarrera pour tout le groupe, en même temps. Pause et sauts sont partagés."
+msgstr "Está em «{}». Inicie um filme ou um episódio: vai começar para todo o grupo ao mesmo tempo. A pausa e os saltos são partilhados."
 
-msgid "Regarde la même chose en même temps que d'autres comptes : crée une watch party ou rejoins-en une."
-msgstr "Vê a mesma coisa ao mesmo tempo que outras contas: cria uma watch party ou junta-te a uma."
+msgid "Regardez la même chose en même temps que d'autres comptes : créez une watch party ou rejoignez-en une."
+msgstr "Veja a mesma coisa ao mesmo tempo que outras contas: crie uma watch party ou junte-se a uma."
 
 msgid "En lecture"
 msgstr "A reproduzir"
@@ -132,8 +132,8 @@ msgstr "Em pausa"
 msgid "Regarde : {}"
 msgstr "A ver: {}"
 
-msgid "Rien pour l'instant : lance un film ou un épisode."
-msgstr "Nada por agora: inicia um filme ou um episódio."
+msgid "Rien pour l'instant : lancez un film ou un épisode."
+msgstr "Nada por agora: inicie um filme ou um episódio."
 
 msgid "REJOINDRE"
 msgstr "JUNTAR-ME"
@@ -183,11 +183,11 @@ msgstr "A carregar…"
 msgid "Choisir un serveur"
 msgstr "Escolher um servidor"
 
-msgid "Recherche sur tes réseaux"
-msgstr "A procurar nas tuas redes"
+msgid "Recherche sur vos réseaux"
+msgstr "A procurar nas suas redes"
 
-msgid "Aucun serveur trouvé : saisis son adresse."
-msgstr "Nenhum servidor encontrado: introduz o endereço."
+msgid "Aucun serveur trouvé : saisissez son adresse."
+msgstr "Nenhum servidor encontrado: introduza o endereço."
 
 msgid "Actuel"
 msgstr "Atual"
@@ -279,8 +279,8 @@ msgstr "Endereço alternativo"
 msgid "Utilisée en priorité. Sans « http:// » ni « https:// », les deux sont essayés."
 msgstr "Usado primeiro. Sem «http://» nem «https://», são testados os dois."
 
-msgid "Essayée quand la principale ne répond pas (autre réseau…). Laisse vide pour n'en avoir aucune."
-msgstr "Testado quando o principal não responde (outra rede…). Deixa vazio para não ter nenhum."
+msgid "Essayée quand la principale ne répond pas (autre réseau…). Laissez vide pour n'en avoir aucune."
+msgstr "Testado quando o principal não responde (outra rede…). Deixe vazio para não ter nenhum."
 
 msgid "Enregistrer"
 msgstr "Guardar"
@@ -477,8 +477,8 @@ msgstr "Outro servidor Jellyfin responde neste endereço."
 msgid "Continuer"
 msgstr "Continuar"
 
-msgid "Indique le serveur avec --server=URL (ou choisis-le ci-dessous)."
-msgstr "Indica o servidor com --server=URL (ou escolhe-o abaixo)."
+msgid "Indiquez le serveur avec --server=URL (ou choisissez-le ci-dessous)."
+msgstr "Indique o servidor com --server=URL (ou escolha-o abaixo)."
 
 msgid "le serveur refuse le téléchargement ({})"
 msgstr "o servidor recusa a transferência ({})"
@@ -498,8 +498,8 @@ msgstr "o servidor não responde (está ligado? a rede está disponível?)"
 msgid "réponse du serveur illisible"
 msgstr "resposta do servidor ilegível"
 
-msgid "session expirée, reconnecte-toi"
-msgstr "sessão expirada, inicia sessão de novo"
+msgid "session expirée, reconnectez-vous"
+msgstr "sessão expirada, inicie sessão de novo"
 
 msgid "Autre compte"
 msgstr "Outra conta"
@@ -516,8 +516,8 @@ msgstr "Impossível iniciar sessão: {}."
 msgid "Reconnexion de {}"
 msgstr "Novo início de sessão de {}"
 
-msgid "Session expirée : entre le mot de passe."
-msgstr "Sessão expirada: introduz a palavra-passe."
+msgid "Session expirée : entrez le mot de passe."
+msgstr "Sessão expirada: introduza a palavra-passe."
 
 msgid "Mes médias"
 msgstr "Os meus conteúdos"
@@ -615,8 +615,8 @@ msgstr "Ação impossível: {}"
 msgid "En attente des participants"
 msgstr "À espera dos participantes"
 
-msgid "Prêt : lance un film ou un épisode"
-msgstr "Pronto: inicia um filme ou um episódio"
+msgid "Prêt : lancez un film ou un épisode"
+msgstr "Pronto: inicie um filme ou um episódio"
 
 msgid "Watch party · {} en ligne"
 msgstr "Watch party · {} online"
@@ -663,8 +663,8 @@ msgstr "Nenhum servidor Jellyfin responde em «{}»."
 msgid "Les deux adresses mènent à deux serveurs différents."
 msgstr "Os dois endereços levam a dois servidores diferentes."
 
-msgid "Indique au moins une adresse."
-msgstr "Indica pelo menos um endereço."
+msgid "Indiquez au moins une adresse."
+msgstr "Indique pelo menos um endereço."
 
 msgid "Connecté à {}"
 msgstr "Ligado a {}"
@@ -735,8 +735,8 @@ msgstr "Usado segundo o modo abaixo."
 msgid "Quand afficher les sous-titres"
 msgstr "Quando mostrar as legendas"
 
-msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans ta langue."
-msgstr "Predefinição: segundo o ficheiro · Inteligente: se o áudio não estiver no teu idioma."
+msgid "Par défaut : selon le fichier · Intelligent : si l'audio n'est pas dans votre langue."
+msgstr "Predefinição: segundo o ficheiro · Inteligente: se o áudio não estiver no seu idioma."
 
 msgid "Taille des sous-titres"
 msgstr "Tamanho das legendas"
@@ -819,8 +819,8 @@ msgstr "Ligado neste momento através de {}"
 msgid "Rechercher un autre serveur"
 msgstr "Procurar outro servidor"
 
-msgid "Serveurs Jellyfin trouvés sur tes réseaux."
-msgstr "Servidores Jellyfin encontrados nas tuas redes."
+msgid "Serveurs Jellyfin trouvés sur vos réseaux."
+msgstr "Servidores Jellyfin encontrados nas suas redes."
 
 msgid "Rechercher une mise à jour"
 msgstr "Procurar atualizações"
@@ -919,8 +919,8 @@ msgstr "Endereço alternativo removido."
 msgid "Cette adresse mène à un autre serveur ({}). Pour en changer : « Rechercher un autre serveur »."
 msgstr "Este endereço leva a outro servidor ({}). Para mudar: «Procurar outro servidor»."
 
-msgid "C'est déjà l'adresse de secours : utilise « Échanger les deux adresses »."
-msgstr "Já é o endereço alternativo: usa «Trocar os dois endereços»."
+msgid "C'est déjà l'adresse de secours : utilisez « Échanger les deux adresses »."
+msgstr "Já é o endereço alternativo: use «Trocar os dois endereços»."
 
 msgid "C'est déjà l'adresse principale."
 msgstr "Já é o endereço principal."
@@ -940,8 +940,8 @@ msgstr "Selecionar um servidor"
 msgid "Application"
 msgstr "Aplicação"
 
-msgid "Pas (encore) dans ta bibliothèque Jellyfin."
-msgstr "Ainda não está na tua biblioteca Jellyfin."
+msgid "Pas (encore) dans votre bibliothèque Jellyfin."
+msgstr "Ainda não está na sua biblioteca Jellyfin."
 
 msgid "Demander la saison {}"
 msgstr "Pedir a temporada {}"
@@ -1006,8 +1006,8 @@ msgstr "Reprodução impossível: o rendering OpenGL não está disponível (SLI
 msgid "Serveur injoignable : nouvel essai automatique toutes les 5 s…"
 msgstr "Servidor inacessível: nova tentativa automática a cada 5 s…"
 
-msgid "Ce compte n'est plus valable : choisis un compte."
-msgstr "Esta conta já não é válida: escolhe uma conta."
+msgid "Ce compte n'est plus valable : choisissez un compte."
+msgstr "Esta conta já não é válida: escolha uma conta."
 
 msgid "Téléchargement annulé."
 msgstr "Transferência cancelada."
@@ -1015,8 +1015,8 @@ msgstr "Transferência cancelada."
 msgid "{} téléchargements annulés."
 msgstr "{} transferências canceladas."
 
-msgid "Ajouté aux téléchargements ({}). Appuie de nouveau sur Télécharger pour annuler."
-msgstr "Adicionado às transferências ({}). Prime Transferir de novo para cancelar."
+msgid "Ajouté aux téléchargements ({}). Appuyez de nouveau sur Télécharger pour annuler."
+msgstr "Adicionado às transferências ({}). Prima Transferir de novo para cancelar."
 
 msgid "Téléchargement en cours : {} %."
 msgstr "Transferência em curso: {} %."
@@ -1072,8 +1072,8 @@ msgstr "Servidor de novo acessível: de volta online."
 msgid "place libmpv-2.dll à côté de turtlefin.exe"
 msgstr "coloca libmpv-2.dll ao lado de turtlefin.exe"
 
-msgid "installe-la avec « sudo apt install libmpv2 »"
-msgstr "instala-a com «sudo apt install libmpv2»"
+msgid "installez-la avec « sudo apt install libmpv2 »"
+msgstr "instale-a com «sudo apt install libmpv2»"
 
 msgid "libmpv introuvable ({}). Détail : {}"
 msgstr "libmpv não encontrada ({}). Detalhe: {}"
@@ -1153,8 +1153,8 @@ msgstr "GitHub inacessível (ligação à Internet?)"
 msgid "introuvable sur GitHub"
 msgstr "não encontrado no GitHub"
 
-msgid "GitHub limite les vérifications : réessaie dans une heure"
-msgstr "o GitHub limita as verificações: tenta de novo dentro de uma hora"
+msgid "GitHub limite les vérifications : réessayez dans une heure"
+msgstr "o GitHub limita as verificações: tente de novo dentro de uma hora"
 
 msgid "GitHub a répondu {}"
 msgstr "o GitHub respondeu {}"
@@ -1296,8 +1296,8 @@ msgstr "Os separadores"
 msgid "Non merci"
 msgstr "Não, obrigado"
 
-msgid "Oui, montre-moi"
-msgstr "Sim, mostra-me"
+msgid "Oui, montrez-moi"
+msgstr "Sim, mostre-me"
 
 msgid "Passer la visite"
 msgstr "Saltar a visita"
@@ -1346,17 +1346,17 @@ msgstr "No teclado: Enter = OK, Esc = Voltar. O rato e o ecrã tátil também fu
 msgid "Watch party : regarder la même chose, en même temps, sur plusieurs appareils."
 msgstr "Watch party: ver a mesma coisa, ao mesmo tempo, em vários dispositivos."
 
-msgid "Au hasard : Turtlefin choisit un média pour toi."
-msgstr "Ao acaso: o Turtlefin escolhe algo para ti."
+msgid "Au hasard : Turtlefin choisit un média pour vous."
+msgstr "Ao acaso: o Turtlefin escolhe algo para si."
 
-msgid "Recherche : dans ta bibliothèque, et de quoi demander ce qui manque."
-msgstr "Pesquisa: na tua biblioteca, e uma forma de pedir o que falta."
+msgid "Recherche : dans votre bibliothèque, et de quoi demander ce qui manque."
+msgstr "Pesquisa: na sua biblioteca, e uma forma de pedir o que falta."
 
-msgid "Ton profil : changer de compte ou de photo."
-msgstr "O teu perfil: mudar de conta ou de foto."
+msgid "Votre profil : changer de compte ou de photo."
+msgstr "O seu perfil: mudar de conta ou de foto."
 
 msgid "Cette visite te fait essayer l'app. Tout se fait avec la télécommande : les flèches pour se déplacer, OK pour ouvrir ou valider, Retour pour revenir en arrière."
-msgstr "Esta visita deixa-te experimentar a app. Tudo se faz com o comando: as setas para mover, OK para abrir ou confirmar, Voltar para regressar."
+msgstr "Esta visita deixa-o experimentar a app. Tudo se faz com o comando: as setas para mover, OK para abrir ou confirmar, Voltar para regressar."
 
 msgid "Commencer"
 msgstr "Começar"
@@ -1369,40 +1369,40 @@ msgid "Changer de rangée"
 msgstr "Mudar de fila"
 
 
-msgid "Appuie sur ↑ jusqu'à monter dans la barre du haut."
-msgstr "Carrega em ↑ até subires à barra de cima."
+msgid "Appuyez sur ↑ jusqu'à monter dans la barre du haut."
+msgstr "Carregue em ↑ até subir à barra de cima."
 
 
 
 msgid "Dans le menu"
 msgstr "No menu"
 
-msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcours-le avec ↑ ↓, puis referme-le avec →."
-msgstr "Bibliotecas, transferências (para ver sem ligação), watch party, conta, servidor e Definições. Percorre-o com ↑ ↓ e fecha-o com →."
+msgid "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcourez-le avec ↑ ↓, puis refermez-le avec →."
+msgstr "Bibliotecas, transferências (para ver sem ligação), watch party, conta, servidor e Definições. Percorra-o com ↑ ↓ e feche-o com →."
 
 msgid "Ouvrir un média"
 msgstr "Abrir um título"
 
-msgid "Choisis une affiche et appuie sur OK pour l'ouvrir."
-msgstr "Escolhe um cartaz e carrega em OK para o abrir."
+msgid "Choisissez une affiche et appuyez sur OK pour l'ouvrir."
+msgstr "Escolha um cartaz e carregue em OK para o abrir."
 
 msgid "Revenir"
 msgstr "Regressar"
 
-msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuie sur Retour pour revenir à l'accueil."
-msgstr "Uma ficha (filme, série) ou uma biblioteca inteira: tudo se percorre da mesma maneira. Carrega em Voltar para regressar ao início."
+msgid "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuyez sur Retour pour revenir à l'accueil."
+msgstr "Uma ficha (filme, série) ou uma biblioteca inteira: tudo se percorre da mesma maneira. Carregue em Voltar para regressar ao início."
 
-msgid "Essaie : déplace-toi deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
-msgstr "Experimenta: desloca-te duas vezes com as setas, ← → numa fila, ↑ ↓ de uma fila para outra."
+msgid "Essayez : déplacez-vous deux fois avec les flèches, ← → dans une rangée, ↑ ↓ d'une rangée à l'autre."
+msgstr "Experimente: desloque-se duas vezes com as setas, ← → numa fila, ↑ ↓ de uma fila para outra."
 
-msgid "Change de rangée avec ↓ ou ↑."
-msgstr "Muda de fila com ↓ ou ↑."
+msgid "Changez de rangée avec ↓ ou ↑."
+msgstr "Mude de fila com ↓ ou ↑."
 
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
-msgstr "Percorre-a com → até ao teu perfil, à direita de tudo: os separadores Início, Favoritos e Pedidos, e depois estes ícones."
+msgstr "Percorra-a com → até ao seu perfil, à direita de tudo: os separadores Início, Favoritos e Pedidos, e depois estes ícones."
 
-msgid "Ouvre le menu : dans la barre du haut, va tout à gauche sur ≡ et appuie sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Abre o menu: na barra de cima, vai à esquerda de tudo até ≡ e carrega em OK; a partir dos cartazes, ← no início de uma fila (ou Voltar)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Abra o menu: na barra de cima, vá à esquerda de tudo até ≡ e carregue em OK; a partir dos cartazes, ← no início de uma fila (ou Voltar)."
 
 msgid "Retour : quitter la visite"
 msgstr "Voltar: sair da visita"
@@ -1413,8 +1413,8 @@ msgstr "Guardado para este filme"
 msgid "Photo de profil : modifiable quand le serveur répond."
 msgstr "Foto de perfil: pode ser alterada quando o servidor responder."
 
-msgid "C'est le modèle : copie-le sous le nom de ta langue (sv.po, ja.po…), traduis-le, puis choisis-le ici."
-msgstr "É o modelo: copia-o com o nome da tua língua (sv.po, ja.po…), traduz e escolhe-o aqui."
+msgid "C'est le modèle : copiez-le sous le nom de votre langue (sv.po, ja.po…), traduisez-le, puis choisissez-le ici."
+msgstr "É o modelo: copie-o com o nome da sua língua (sv.po, ja.po…), traduza-o e escolha-o aqui."
 
 msgid "Ce dossier est vide."
 msgstr "Esta pasta está vazia."
@@ -1422,11 +1422,11 @@ msgstr "Esta pasta está vazia."
 msgid "Ce fichier n'est pas une traduction de Turtlefin."
 msgstr "Este ficheiro não é uma tradução do Turtlefin."
 
-msgid "Choisis une langue, ou Retour pour remonter."
-msgstr "Escolhe uma língua, ou Voltar para subir."
+msgid "Choisissez une langue, ou Retour pour remonter."
+msgstr "Escolha uma língua, ou Voltar para subir."
 
-msgid "Choisis une traduction (.po) dans le dossier « {} »."
-msgstr "Escolhe uma tradução (.po) na pasta «{}»."
+msgid "Choisissez une traduction (.po) dans le dossier « {} »."
+msgstr "Escolha uma tradução (.po) na pasta «{}»."
 
 msgid "Créer le modèle"
 msgstr "Criar o modelo"
@@ -1437,8 +1437,8 @@ msgstr "Pasta das línguas não encontrada."
 msgid "Dossier parent"
 msgstr "Pasta superior"
 
-msgid "Dépose tes fichiers de traduction (.po) dans ce dossier, puis choisis la langue ici."
-msgstr "Coloca os teus ficheiros de tradução (.po) nesta pasta e escolhe a língua aqui."
+msgid "Déposez vos fichiers de traduction (.po) dans ce dossier, puis choisissez la langue ici."
+msgstr "Coloque os seus ficheiros de tradução (.po) nesta pasta e escolha a língua aqui."
 
 msgid "Impossible d'ouvrir le dossier : {}"
 msgstr "Não foi possível abrir a pasta: {}"
@@ -1449,8 +1449,8 @@ msgstr "Língua: {}"
 msgid "Langue actuelle"
 msgstr "Língua atual"
 
-msgid "Modèle à traduire : copie-le sous le nom <code>.po (sv.po, ja.po…)"
-msgstr "Modelo a traduzir: copia-o como <código>.po (sv.po, ja.po…)"
+msgid "Modèle à traduire : copiez-le sous le nom <code>.po (sv.po, ja.po…)"
+msgstr "Modelo a traduzir: copie-o como <código>.po (sv.po, ja.po…)"
 
 msgid "Modèle écrit : modele.po, dans le dossier des langues."
 msgstr "Modelo escrito: modele.po, na pasta das línguas."
@@ -1472,8 +1472,8 @@ msgstr "Animações"
 msgid "Arrivée des pages"
 msgstr "Chegada das páginas"
 
-msgid "Aucun preset à exporter : enregistre d'abord tes réglages comme preset."
-msgstr "Nenhum preset para exportar: guarda primeiro as tuas definições como preset."
+msgid "Aucun preset à exporter : enregistrez d'abord vos réglages comme preset."
+msgstr "Nenhum preset para exportar: guarde primeiro as suas definições como preset."
 
 msgid "Barre qui recouvre puis réécrit les textes."
 msgstr "Barra que cobre e depois reescreve os textos."
@@ -1487,11 +1487,11 @@ msgstr "Balões e molduras da visita."
 msgid "Changement de langue"
 msgstr "Mudança de língua"
 
-msgid "Choisis un fichier de preset (.json) dans ce dossier."
-msgstr "Escolhe um ficheiro de preset (.json) nesta pasta."
+msgid "Choisissez un fichier de preset (.json) dans ce dossier."
+msgstr "Escolha um ficheiro de preset (.json) nesta pasta."
 
-msgid "Choisis un preset d'animations (.json) : il est ajouté à tes presets et appliqué."
-msgstr "Escolhe um preset de animações (.json): é adicionado aos teus presets e aplicado."
+msgid "Choisissez un preset d'animations (.json) : il est ajouté à vos presets et appliqué."
+msgstr "Escolha um preset de animações (.json): é adicionado aos seus presets e aplicado."
 
 msgid "Commandes, panneaux et boutons pendant la lecture."
 msgstr "Controlos, painéis e botões durante a reprodução."
@@ -1618,14 +1618,14 @@ msgstr "Cores e estilo da interface."
 msgid "Importer un thème"
 msgstr "Importar um tema"
 
-msgid "Choisis un fichier de thème (.tftheme) dans le dossier « {} »."
-msgstr "Escolhe um ficheiro de tema (.tftheme) na pasta «{}»."
+msgid "Choisissez un fichier de thème (.tftheme) dans le dossier « {} »."
+msgstr "Escolha um ficheiro de tema (.tftheme) na pasta «{}»."
 
 msgid "Exporter le thème"
 msgstr "Exportar o tema"
 
-msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le tien."
-msgstr "Escreve o tema atual nesta pasta: um modelo para criares o teu."
+msgid "Écrit le thème actuel dans ce dossier : un modèle pour créer le vôtre."
+msgstr "Escreve o tema atual nesta pasta: um modelo para criar o seu."
 
 msgid "Supprimer ce thème"
 msgstr "Eliminar este tema"
@@ -1642,8 +1642,8 @@ msgstr "Tema eliminado: {}"
 msgid "Pas un thème de Turtlefin"
 msgstr "Não é um tema do Turtlefin"
 
-msgid "Choisis un thème (.tftheme) : il est ajouté à tes thèmes et appliqué."
-msgstr "Escolhe um tema (.tftheme): é acrescentado aos teus temas e aplicado."
+msgid "Choisissez un thème (.tftheme) : il est ajouté à vos thèmes et appliqué."
+msgstr "Escolha um tema (.tftheme): é acrescentado aos seus temas e aplicado."
 
 msgid "Thème importé : {}"
 msgstr "Tema importado: {}"
@@ -1700,8 +1700,8 @@ msgstr "resposta do servidor demasiado grande"
 msgid "élément inconnu"
 msgstr "elemento desconhecido"
 
-msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préfère une adresse en https:// (ou un VPN). Valide encore pour te connecter quand même."
-msgstr "Atenção: este endereço http:// passa pela Internet sem cifra, a palavra-passe circularia em claro. Prefere um endereço https:// (ou uma VPN). Confirma de novo para entrar mesmo assim."
+msgid "Attention : cette adresse en http:// passe par Internet sans chiffrement, le mot de passe y circulerait en clair. Préférez une adresse en https:// (ou un VPN). Validez encore pour vous connecter quand même."
+msgstr "Atenção: este endereço http:// passa pela Internet sem cifra, a palavra-passe circularia em claro. Prefira um endereço https:// (ou uma VPN). Confirme de novo para entrar mesmo assim."
 
 msgid "Débit maximal"
 msgstr "Taxa de bits máxima"
@@ -1736,8 +1736,8 @@ msgstr "Palavra-passe recusada (ou conta sem direitos de administrador)."
 msgid "Bon"
 msgstr "Boa"
 
-msgid "C'est le mot de passe actuel : choisis-en un autre."
-msgstr "É a tua palavra-passe atual: escolhe outra."
+msgid "C'est le mot de passe actuel : choisissez-en un autre."
+msgstr "É a sua palavra-passe atual: escolha outra."
 
 msgid "Changement du mot de passe…"
 msgstr "A alterar a palavra-passe…"
@@ -1751,8 +1751,8 @@ msgstr "Alterar palavra-passe"
 msgid "Correct"
 msgstr "Razoável"
 
-msgid "Entre ton mot de passe actuel."
-msgstr "Introduz a tua palavra-passe atual."
+msgid "Entrez votre mot de passe actuel."
+msgstr "Introduza a sua palavra-passe atual."
 
 msgid "Faible"
 msgstr "Fraca"
@@ -1790,29 +1790,29 @@ msgstr "Ainda não coincidem"
 msgid "Solide"
 msgstr "Forte"
 
-msgid "Ton mot de passe est trop simple : change-le (photo du compte → Changer le mot de passe)."
-msgstr "A tua palavra-passe é demasiado simples: altera-a (foto da conta → Alterar palavra-passe)."
+msgid "Votre mot de passe est trop simple : changez-le (photo du compte → Changer le mot de passe)."
+msgstr "A sua palavra-passe é demasiado simples: altere-a (foto da conta → Alterar palavra-passe)."
 
-msgid "Ton mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Change-le."
-msgstr "A tua palavra-passe é demasiado simples: qualquer pessoa poderia abrir esta conta. Altera-a."
+msgid "Votre mot de passe est trop simple : n'importe qui pourrait ouvrir ce compte. Changez-le."
+msgstr "A sua palavra-passe é demasiado simples: qualquer pessoa poderia abrir esta conta. Altere-a."
 
 msgid "Trop court : 8 caractères au moins."
 msgstr "Demasiado curta: pelo menos 8 caracteres."
 
-msgid "Trop facile à deviner (mot courant, suite, ou ton nom). Allonge-le ou mélange lettres, chiffres et signes."
-msgstr "Demasiado fácil de adivinhar (palavra comum, sequência ou o teu nome). Torna-a mais longa ou mistura letras, algarismos e símbolos."
+msgid "Trop facile à deviner (mot courant, suite, ou votre nom). Allongez-le ou mélangez lettres, chiffres et signes."
+msgstr "Demasiado fácil de adivinhar (palavra comum, sequência ou o seu nome). Torne-a mais longa ou misture letras, algarismos e símbolos."
 
 msgid "Trop simple"
 msgstr "Demasiado simples"
 
-msgid "Étape 1 sur 3 · Ton mot de passe actuel, pour confirmer que c'est bien toi."
-msgstr "Passo 1 de 3 · A tua palavra-passe atual, para confirmar que és mesmo tu."
+msgid "Étape 1 sur 3 · Votre mot de passe actuel, pour confirmer que c'est bien vous."
+msgstr "Passo 1 de 3 · A sua palavra-passe atual, para confirmar que é mesmo o próprio."
 
 msgid "Étape 2 sur 3 · 8 caractères au moins. Une petite phrase (« pluie-sur-la-mer ») se retient bien et reste solide."
 msgstr "Passo 2 de 3 · Pelo menos 8 caracteres. Uma frase curta («chuva-sobre-o-mar») memoriza-se bem e continua segura."
 
-msgid "Étape 3 sur 3 · Retape le nouveau mot de passe."
-msgstr "Passo 3 de 3 · Escreve de novo a nova palavra-passe."
+msgid "Étape 3 sur 3 · Retapez le nouveau mot de passe."
+msgstr "Passo 3 de 3 · Escreva de novo a nova palavra-passe."
 
 msgid "Arrêter de piloter {}"
 msgstr "Parar de controlar {}"
@@ -1850,14 +1850,14 @@ msgstr "Comando · {}"
 msgid "{} ne répond pas : {}"
 msgstr "{} não responde: {}"
 
-msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvre-le sur l'autre appareil (télé, ordinateur…), puis reviens ici."
-msgstr "Nenhum outro Turtlefin aberto com esta conta. Abre-o no outro dispositivo (TV, computador…) e volta aqui."
+msgid "Aucun autre Turtlefin ouvert avec ce compte. Ouvrez-le sur l'autre appareil (télé, ordinateur…), puis revenez ici."
+msgstr "Nenhum outro Turtlefin aberto com esta conta. Abra-o no outro dispositivo (TV, computador…) e volte aqui."
 
 msgid "Choisis l'écran où envoyer les vidéos : « Lire sur » apparaît ensuite sur les fiches."
 msgstr "Escolhe o ecrã para onde enviar os vídeos: «Reproduzir em» aparece depois nas fichas."
 
-msgid "Choisis le Turtlefin à piloter : cet appareil devient sa télécommande."
-msgstr "Escolhe o Turtlefin a controlar: este dispositivo torna-se o seu comando."
+msgid "Choisissez le Turtlefin à piloter : cet appareil devient sa télécommande."
+msgstr "Escolha o Turtlefin a controlar: este dispositivo torna-se o seu comando."
 
 msgid "Les vidéos lancées avec « Lire sur » (sur les fiches) passent sur cet écran."
 msgstr "Os vídeos iniciados com «Reproduzir em» (nas fichas) passam neste ecrã."
@@ -1880,8 +1880,8 @@ msgstr "Comando"
 msgid "Chromecast : la vidéo y est envoyée"
 msgstr "Chromecast: o vídeo é enviado para lá"
 
-msgid "Aucun écran vu pour l'instant. Allume la télé, puis cherche."
-msgstr "Ainda nenhum ecrã encontrado. Liga a TV e procura."
+msgid "Aucun écran vu pour l'instant. Allumez la télé, puis cherchez."
+msgstr "Ainda nenhum ecrã encontrado. Ligue a TV e procure."
 
 msgid "Chercher"
 msgstr "Procurar"
@@ -1910,8 +1910,8 @@ msgstr "Ao acaso"
 msgid "Arrêter la diffusion"
 msgstr "Parar a transmissão"
 
-msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilise les boutons recul et avance."
-msgstr "Este ecrã não indica a duração de um vídeo convertido: usa os botões recuar e avançar."
+msgid "Cet écran ne donne pas la durée d'une vidéo convertie : utilisez les boutons recul et avance."
+msgstr "Este ecrã não indica a duração de um vídeo convertido: use os botões recuar e avançar."
 
 msgid "En lecture sur {}"
 msgstr "A reproduzir em {}"
@@ -1937,8 +1937,8 @@ msgstr "Nome original: {}"
 msgid "Nom du serveur"
 msgstr "Nome do servidor"
 
-msgid "Renomme-le pour le reconnaître dans la liste des serveurs."
-msgstr "Muda-lhe o nome para o reconheceres na lista de servidores."
+msgid "Renommez-le pour le reconnaître dans la liste des serveurs."
+msgstr "Mude-lhe o nome para o reconhecer na lista de servidores."
 
 msgid "Renommer le serveur"
 msgstr "Mudar o nome do servidor"
@@ -1982,8 +1982,8 @@ msgstr "nenhum trailer para este título"
 msgid "vidéo YouTube indisponible ({})"
 msgstr "vídeo do YouTube indisponível ({})"
 
-msgid "Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installe yt-dlp sur cet appareil."
-msgstr "Trailers: os do servidor. Para os do YouTube (sem anúncios nem conta), instala o yt-dlp neste dispositivo."
+msgid "Bandes-annonces : celles du serveur. Pour celles de YouTube (sans publicité ni compte), installez yt-dlp sur cet appareil."
+msgstr "Trailers: os do servidor. Para os do YouTube (sem anúncios nem conta), instale o yt-dlp neste dispositivo."
 
 msgid "Bandes-annonces YouTube"
 msgstr "Trailers do YouTube"
@@ -2000,7 +2000,7 @@ msgstr "Os endereços e os nomes escolhidos; a pesquisa recomeça do zero (o ser
 msgid "Oublier les serveurs trouvés"
 msgstr "Esquecer os servidores encontrados"
 
-msgid "Quand l'écran ne joint pas le serveur (télé hors de chez toi), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."
+msgid "Quand l'écran ne joint pas le serveur (télé hors de chez vous), la vidéo passe par cet appareil, qui doit rester allumé sur le même réseau que l'écran."
 msgstr "Quando o ecrã não chega ao servidor (televisão fora de casa), o vídeo passa por este dispositivo, que tem de ficar ligado na mesma rede que o ecrã."
 
 msgid "Quand le serveur n'en a pas : lues par yt-dlp (installé sur cet appareil), sans publicité ni compte."
@@ -2021,17 +2021,17 @@ msgstr "Acima disso, nada mais é transferido. Sem limite: o que os ficheiros pe
 msgid "Aucun réseau"
 msgstr "Sem rede"
 
-msgid "Aucun écran. Allume un Chromecast sur ce réseau, ou ouvre Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
-msgstr "Nenhum ecrã. Liga um Chromecast nesta rede, ou abre o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta."
+msgid "Aucun écran. Allumez un Chromecast sur ce réseau, ou ouvrez Turtlefin (ou une appli Jellyfin) sur la télé avec le même compte."
+msgstr "Nenhum ecrã. Ligue um Chromecast nesta rede, ou abra o Turtlefin (ou uma app Jellyfin) na TV com a mesma conta."
 
 msgid "Choisir ce dossier"
 msgstr "Escolher esta pasta"
 
-msgid "Choisis un disque, puis le dossier où ranger les films et séries téléchargés."
-msgstr "Escolhe um disco e depois a pasta onde guardar os filmes e séries transferidos."
+msgid "Choisissez un disque, puis le dossier où ranger les films et séries téléchargés."
+msgstr "Escolha um disco e depois a pasta onde guardar os filmes e séries transferidos."
 
-msgid "Choisis un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
-msgstr "Escolhe uma pasta que não esteja dentro da antiga nem acima dela."
+msgid "Choisissez un dossier qui n'est ni dans l'ancien, ni au-dessus de lui."
+msgstr "Escolha uma pasta que não esteja dentro da antiga nem acima dela."
 
 msgid "Chromecast : les sous-titres changent sans recharger la vidéo."
 msgstr "Chromecast: as legendas mudam sem recarregar o vídeo."
@@ -2078,8 +2078,8 @@ msgstr "Servidor novamente acessível."
 msgid "Téléchargements : {}"
 msgstr "Transferências: {}"
 
-msgid "Un téléchargement est en cours : change de dossier quand il est fini."
-msgstr "Há uma transferência em curso: muda de pasta quando terminar."
+msgid "Un téléchargement est en cours : changez de dossier quand il est fini."
+msgstr "Há uma transferência em curso: mude de pasta quando terminar."
 
 msgid "limite de place atteinte ({} sur {} ; Paramètres → Stockage)"
 msgstr "limite de espaço atingido ({} de {}; Definições → Armazenamento)"
@@ -2145,11 +2145,11 @@ msgstr "Nova pasta"
 msgid "Serveur de nouveau joignable"
 msgstr "Servidor acessível de novo"
 
-msgid "Serveur injoignable : cherche-le sur le réseau, ou choisis-en un autre."
-msgstr "Servidor inacessível: procura-o na rede ou escolhe outro."
+msgid "Serveur injoignable : cherchez-le sur le réseau, ou choisissez-en un autre."
+msgstr "Servidor inacessível: procure-o na rede ou escolha outro."
 
 msgid "Serveur injoignable : regarde tes téléchargements hors ligne, ou attends son retour (nouvel essai toutes les 5 s)."
-msgstr "Servidor inacessível: vê as tuas transferências offline ou espera que volte (nova tentativa a cada 5 s)."
+msgstr "Servidor inacessível: veja as suas transferências offline ou espere que volte (nova tentativa a cada 5 s)."
 
 msgid "Distribution"
 msgstr "Elenco"
@@ -2157,11 +2157,11 @@ msgstr "Elenco"
 msgid "Lire la suite"
 msgstr "Ler mais"
 
-msgid "Plus aucun téléchargement : cherche le serveur, ou attends son retour."
-msgstr "Já não há transferências: procura o servidor ou espera que volte."
+msgid "Plus aucun téléchargement : cherchez le serveur, ou attendez son retour."
+msgstr "Já não há transferências: procure o servidor ou espere que volte."
 
-msgid "Serveur injoignable : choisis un compte pour regarder ses téléchargements, ou attends son retour (nouvel essai toutes les 5 s)."
-msgstr "Servidor inacessível: escolhe uma conta para ver as suas transferências ou espera que volte (nova tentativa a cada 5 s)."
+msgid "Serveur injoignable : choisissez un compte pour regarder ses téléchargements, ou attendez son retour (nouvel essai toutes les 5 s)."
+msgstr "Servidor inacessível: escolha uma conta para ver as transferências dela ou espere que volte (nova tentativa a cada 5 s)."
 
 msgid "Serveur de nouveau joignable (retour en ligne à la fin de la lecture)."
 msgstr "Servidor acessível de novo (volta a ficar online no fim da reprodução)."
@@ -2208,8 +2208,8 @@ msgstr "Atualizar as informações"
 msgid "Identifier"
 msgstr "Identificar"
 
-msgid "Choisis le bon titre : le serveur reprendra ses informations et ses images."
-msgstr "Escolhe o título certo: o servidor vai buscar as suas informações e imagens."
+msgid "Choisissez le bon titre : le serveur reprendra ses informations et ses images."
+msgstr "Escolha o título certo: o servidor vai buscar as respetivas informações e imagens."
 
 msgid "Titre"
 msgstr "Título"
@@ -2220,8 +2220,8 @@ msgstr "Ano"
 msgid "Rechercher"
 msgstr "Pesquisar"
 
-msgid "Aucun résultat : modifie le titre ou l'année."
-msgstr "Sem resultados: altera o título ou o ano."
+msgid "Aucun résultat : modifiez le titre ou l'année."
+msgstr "Sem resultados: altere o título ou o ano."
 
 msgid "Actualisation demandée : le serveur relit les informations."
 msgstr "Atualização pedida: o servidor volta a ler as informações."
@@ -2598,8 +2598,8 @@ msgstr "Etiqueta: {}"
 msgid "Le bouton Lecture envoie les vidéos sur cet écran."
 msgstr "O botão Reproduzir envia os vídeos para este ecrã."
 
-msgid "Choisis l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
-msgstr "Escolhe o ecrã para onde enviar os vídeos: o botão Reproduzir enviá-los-á para lá."
+msgid "Choisissez l'écran où envoyer les vidéos : le bouton Lecture les y enverra."
+msgstr "Escolha o ecrã para onde enviar os vídeos: o botão Reproduzir enviá-los-á para lá."
 
 msgid "Diffusion en cours sur {}"
 msgstr "A transmitir para {}"
@@ -2660,8 +2660,8 @@ msgstr "Outros"
 msgid "Dans {} s"
 msgstr "Em {} s"
 
-msgid "Le serveur met trop de temps à répondre. Réessaie dans un instant."
-msgstr "O servidor está a demorar demasiado a responder. Tenta novamente daqui a pouco."
+msgid "Le serveur met trop de temps à répondre. Réessayez dans un instant."
+msgstr "O servidor está a demorar demasiado a responder. Tente novamente daqui a pouco."
 
 msgid "Demande acceptée"
 msgstr "Pedido aceite"
@@ -2706,17 +2706,17 @@ msgstr "Mais uma vez, para confirmar"
 msgid "Avec les flèches du clavier, de la télécommande ou ci-dessous."
 msgstr "Com as setas do teclado, do comando ou abaixo."
 
-msgid "Trop d'essais : réessaie dans {} s."
-msgstr "Demasiadas tentativas: tenta de novo dentro de {} s."
+msgid "Trop d'essais : réessayez dans {} s."
+msgstr "Demasiadas tentativas: tente de novo dentro de {} s."
 
 msgid "Code incorrect."
 msgstr "Código incorreto."
 
-msgid "Code incorrect. Réessaie dans {} s."
-msgstr "Código incorreto. Tenta de novo dentro de {} s."
+msgid "Code incorrect. Réessayez dans {} s."
+msgstr "Código incorreto. Tente de novo dentro de {} s."
 
-msgid "Les deux codes ne sont pas les mêmes. Recommence."
-msgstr "Os dois códigos não são iguais. Recomeça."
+msgid "Les deux codes ne sont pas les mêmes. Recommencez."
+msgstr "Os dois códigos não são iguais. Recomece."
 
 msgid "Code enregistré."
 msgstr "Código guardado."
@@ -2727,11 +2727,11 @@ msgstr "Combinação guardada."
 msgid "Code du compte retiré."
 msgstr "Código da conta removido."
 
-msgid "Code du compte retiré. Tu peux en choisir un nouveau dans Paramètres → Compte."
-msgstr "Código da conta removido. Podes escolher um novo em Definições → Conta."
+msgid "Code du compte retiré. Vous pouvez en choisir un nouveau dans Paramètres → Compte."
+msgstr "Código da conta removido. Pode escolher um novo em Definições → Conta."
 
-msgid "Code oublié ? Entre le mot de passe du compte"
-msgstr "Código esquecido? Escreve a palavra-passe da conta"
+msgid "Code oublié ? Entrez le mot de passe du compte"
+msgstr "Código esquecido? Escreva a palavra-passe da conta"
 
 msgid "OK : boutons du bas"
 msgstr "OK: botões em baixo"
@@ -3042,8 +3042,8 @@ msgstr "Criar as pré-visualizações durante a análise"
 msgid "Créer une sauvegarde"
 msgstr "Criar uma cópia de segurança"
 
-msgid "Dans ta bibliothèque"
-msgstr "Na tua biblioteca"
+msgid "Dans votre bibliothèque"
+msgstr "Na sua biblioteca"
 
 msgid "Dates de lecture, vu ou non, favoris."
 msgstr "Datas de reprodução, visto ou não, favoritos."
@@ -3054,8 +3054,8 @@ msgstr "Última conta"
 msgid "Dernière fois : {} le {}"
 msgstr "Última vez: {} em {}"
 
-msgid "Donne d'abord un nom au thème (onglet Général)."
-msgstr "Dá primeiro um nome ao tema (separador Geral)."
+msgid "Donnez d'abord un nom au thème (onglet Général)."
+msgstr "Dê primeiro um nome ao tema (separador Geral)."
 
 msgid "Données du serveur"
 msgstr "Dados do servidor"
@@ -3138,8 +3138,8 @@ msgstr "Já vistos"
 msgid "Délai d'extraction (min)"
 msgstr "Atraso de extração (min)"
 
-msgid "Dépose un mod dans « {} », puis reviens sur cette page."
-msgstr "Coloca um mod em «{}» e volta a esta página."
+msgid "Déposez un mod dans « {} », puis revenez sur cette page."
+msgstr "Coloque um mod em «{}» e volte a esta página."
 
 msgid "Dépôt ajouté."
 msgstr "Repositório adicionado."
@@ -3201,8 +3201,8 @@ msgstr "Enviar uma mensagem"
 msgid "Essai impossible : {}"
 msgstr "Não foi possível iniciar o teste: {}"
 
-msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Tes changements s'y appliquent en direct."
-msgstr "Teste iniciado: o Turtlefin abre num servidor de demonstração. As tuas alterações aplicam-se em direto."
+msgid "Essai lancé : Turtlefin s'ouvre sur un serveur de démonstration. Vos changements s'y appliquent en direct."
+msgstr "Teste iniciado: o Turtlefin abre num servidor de demonstração. As suas alterações aplicam-se em direto."
 
 msgid "Exclure"
 msgstr "Excluir"
@@ -3354,8 +3354,8 @@ msgstr "As alterações aplicam-se no próximo arranque do Turtlefin."
 msgid "Les fichiers restent sur le disque."
 msgstr "Os ficheiros ficam no disco."
 
-msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire tes fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préfère quand même des sources de confiance."
-msgstr "Os mods são escritos por outras pessoas: o Turtlefin não os verifica e o seu autor não se responsabiliza por eles. Cada mod corre numa sandbox: não pode ler os teus ficheiros, iniciar programas nem enviar dados pela Internet; só pode mudar a aparência, mostrar mensagens e ler os conteúdos do servidor. Mesmo assim, prefere fontes de confiança."
+msgid "Les mods sont écrits par d'autres personnes : Turtlefin ne les vérifie pas et son auteur n'en est pas responsable. Chaque mod tourne dans un bac à sable : il ne peut ni lire vos fichiers, ni lancer de programme, ni envoyer de données sur Internet ; il peut seulement changer l'apparence, afficher des messages et lire les médias du serveur. Préférez quand même des sources de confiance."
+msgstr "Os mods são escritos por outras pessoas: o Turtlefin não os verifica e o seu autor não se responsabiliza por eles. Cada mod corre numa sandbox: não pode ler os seus ficheiros, iniciar programas nem enviar dados pela Internet; só pode mudar a aparência, mostrar mensagens e ler os conteúdos do servidor. Mesmo assim, prefira fontes de confiança."
 
 msgid "Les médias au-dessus sont cachés à ce compte."
 msgstr "Os conteúdos acima ficam ocultos para esta conta."
@@ -3519,8 +3519,8 @@ msgstr "Mais lento: melhores imagens com a mesma taxa de bits."
 msgid "Plusieurs choix possibles."
 msgstr "Várias escolhas possíveis."
 
-msgid "Plusieurs choix · tape pour filtrer · → : index A–Z"
-msgstr "Várias escolhas · escreve para filtrar · →: índice A–Z"
+msgid "Plusieurs choix · tapez pour filtrer · → : index A–Z"
+msgstr "Várias escolhas · escreva para filtrar · →: índice A–Z"
 
 msgid "Plusieurs choix · → : index A–Z"
 msgstr "Várias escolhas · →: índice A–Z"
@@ -3864,11 +3864,11 @@ msgstr "ou mais"
 msgid "il faut un nombre"
 msgstr "é preciso um número"
 
-msgid "{} médias lus. Appuie pour arrêter."
-msgstr "{} conteúdos lidos. Carrega para parar."
+msgid "{} médias lus. Appuyez pour arrêter."
+msgstr "{} conteúdos lidos. Carregue para parar."
 
-msgid "« {} » n'est pas une couleur : écris #rrggbb ou #rrggbbaa."
-msgstr "«{}» não é uma cor: escreve #rrggbb ou #rrggbbaa."
+msgid "« {} » n'est pas une couleur : écrivez #rrggbb ou #rrggbbaa."
+msgstr "«{}» não é uma cor: escreva #rrggbb ou #rrggbbaa."
 
 msgid "« {} » passe avant le mod précédent (ordre de chargement)."
 msgstr "«{}» carrega agora antes do mod anterior (ordem de carregamento)."
@@ -3891,8 +3891,8 @@ msgstr "Escreve um aviso no registo."
 msgid "État"
 msgstr "Estado"
 
-msgid "écris une heure, par exemple 3:30"
-msgstr "escreve uma hora, por exemplo 3:30"
+msgid "écrivez une heure, par exemple 3:30"
+msgstr "escreva uma hora, por exemplo 3:30"
 
 msgid "{n} résultat"
 msgid_plural "{n} résultats"
@@ -4137,8 +4137,8 @@ msgstr "Nas transferências"
 msgid "Les avatars GIF bougent. À couper si l'appareil est lent (ils restent sur leur première image)."
 msgstr "Os avatares GIF mexem-se. Desliga se o dispositivo for lento (ficam na primeira imagem)."
 
-msgid "Montre sur ton profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
-msgstr "Mostra no teu perfil do Discord a página aberta e o que estás a ver (Discord aberto neste computador)."
+msgid "Montre sur votre profil Discord la page ouverte et le média regardé (Discord ouvert sur cet ordinateur)."
+msgstr "Mostra no seu perfil do Discord a página aberta e o que está a ver (Discord aberto neste computador)."
 
 msgid "Parcourt une bibliothèque"
 msgstr "Explora uma biblioteca"
@@ -4152,8 +4152,8 @@ msgstr "Ainda não disponível: falta o identificador da aplicação Discord do 
 msgid "Rechercher un réglage"
 msgstr "Procurar uma definição"
 
-msgid "Rechercher un réglage (tape un mot)"
-msgstr "Procurar uma definição (escreve uma palavra)"
+msgid "Rechercher un réglage (tapez un mot)"
+msgstr "Procurar uma definição (escreva uma palavra)"
 
 msgid "Regarde une fiche"
 msgstr "Vê uma ficha"
@@ -4284,11 +4284,11 @@ msgstr "Automático ({})"
 msgid "Automatique : allégé, ou figé, si cet appareil ne tient pas 60 images par seconde."
 msgstr "Automático: aligeirado, ou parado, se este aparelho não aguentar 60 imagens por segundo."
 
-msgid "C'est tout ! Ajoute maintenant ton serveur Jellyfin pour retrouver tes films et tes séries. Cette visite se relance depuis Paramètres → À propos."
-msgstr "É tudo! Agora adiciona o teu servidor Jellyfin para encontrares os teus filmes e séries. Esta visita volta a abrir-se em Definições → Acerca."
+msgid "C'est tout ! Ajoutez maintenant votre serveur Jellyfin pour retrouver vos films et vos séries. Cette visite se relance depuis Paramètres → À propos."
+msgstr "É tudo! Agora adicione o seu servidor Jellyfin para encontrar os seus filmes e séries. Esta visita volta a abrir-se em Definições → Acerca."
 
-msgid "Cette visite te fait essayer l'app. Télécommande ou clavier : les flèches pour se déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
-msgstr "Esta visita deixa-te experimentar a app. Comando ou teclado: as setas para te deslocares, OK (Enter) para abrir ou validar, Voltar (Esc) para recuar."
+msgid "Cette visite vous fait essayer l'app. Télécommande ou clavier : les flèches pour vous déplacer, OK (Entrée) pour ouvrir ou valider, Retour (Échap) pour revenir en arrière."
+msgstr "Esta visita deixa-o experimentar a app. Comando ou teclado: as setas para se deslocar, OK (Enter) para abrir ou validar, Voltar (Esc) para recuar."
 
 msgid "Cherche quoi regarder"
 msgstr "Procura o que ver"
@@ -4335,8 +4335,8 @@ msgstr "Organiza uma watch party"
 msgid "Paramètres : thèmes et leur décor de jour et de nuit, taille des textes, animations, langue, interface TV… Le champ en haut des Paramètres retrouve un réglage par son nom."
 msgstr "Definições: temas e o seu cenário de dia e de noite, tamanho do texto, animações, idioma, interface TV… O campo no topo das Definições encontra uma definição pelo nome."
 
-msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
-msgstr "Percorre-a com → até ao teu perfil, mesmo à direita: os separadores (Início, Favoritos…), depois Transmitir para uma TV, watch party, algo ao acaso e a pesquisa."
+msgid "Parcourez-la avec → jusqu'à votre profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche."
+msgstr "Percorra-a com → até ao seu perfil, mesmo à direita: os separadores (Início, Favoritos…), depois Transmitir para uma TV, watch party, algo ao acaso e a pesquisa."
 
 msgid "Peaufine ses réglages"
 msgstr "Afina as definições"
@@ -4344,14 +4344,14 @@ msgstr "Afina as definições"
 msgid "Prépare de quoi regarder hors ligne"
 msgstr "Prepara algo para ver offline"
 
-msgid "Tape une lettre n'importe où sur l'accueil, ou choisis la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
-msgstr "Escreve uma letra em qualquer sítio da página inicial, ou escolhe a lupa: a pesquisa abre-se e encontra filmes, séries, episódios e pessoas enquanto escreves."
+msgid "Tapez une lettre n'importe où sur l'accueil, ou choisissez la loupe : la recherche s'ouvre et trouve films, séries, épisodes et personnes au fil de la frappe."
+msgstr "Escreva uma letra em qualquer sítio da página inicial, ou escolha a lupa: a pesquisa abre-se e encontra filmes, séries, episódios e pessoas enquanto escreve."
 
-msgid "Tout ce que tu vois ici vient d'un serveur de démonstration : rien n'est enregistré, essaie sans crainte. "
-msgstr "Tudo o que vês aqui vem de um servidor de demonstração: nada é guardado, experimenta sem receio. "
+msgid "Tout ce que vous voyez ici vient d'un serveur de démonstration : rien n'est enregistré, essayez sans crainte. "
+msgstr "Tudo o que vê aqui vem de um servidor de demonstração: nada é guardado, experimente sem receio. "
 
-msgid "À ton goût"
-msgstr "Ao teu gosto"
+msgid "À votre goût"
+msgstr "Ao seu gosto"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s para trás ou para a frente. OK ou ↓: os comandos (pausa, volume, áudio, legendas); ↓ outra vez: os episódios da temporada. Voltar: parar a reprodução. Três intros saltadas seguidas: as seguintes são saltadas sozinhas."

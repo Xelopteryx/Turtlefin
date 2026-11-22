@@ -174,7 +174,7 @@ fn show(app: &Arc<App>, msg: &str, error: bool) {
     let waiting = until > now();
     if waiting && msg.is_empty() {
         let left = until - now();
-        msg = if f.wrong { trf("Code incorrect. Réessaie dans {} s.", &[&left]) } else { trf("Trop d'essais : réessaie dans {} s.", &[&left]) };
+        msg = if f.wrong { trf("Code incorrect. Réessayez dans {} s.", &[&left]) } else { trf("Trop d'essais : réessayez dans {} s.", &[&left]) };
         error |= f.wrong;
     }
     if msg.is_empty() && f.step == Step::New && kind == "keys" {
@@ -315,7 +315,7 @@ pub fn key(app: &Arc<App>, k: &str) {
                 f.step = Step::New;
                 drop(flow);
                 shake(app);
-                return show(app, tr("Les deux codes ne sont pas les mêmes. Recommence."), true);
+                return show(app, tr("Les deux codes ne sont pas les mêmes. Recommencez."), true);
             }
             let kind = f.kind();
             config::set_lock(&f.uid, &make(&kind, &code));

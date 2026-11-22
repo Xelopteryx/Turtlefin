@@ -240,7 +240,7 @@ fn api() -> Result<&'static Api> {
         let hint = if cfg!(windows) {
             tr("place libmpv-2.dll à côté de turtlefin.exe")
         } else {
-            tr("installe-la avec « sudo apt install libmpv2 »")
+            tr("installez-la avec « sudo apt install libmpv2 »")
         };
         anyhow!("{}", trf("libmpv introuvable ({}). Détail : {}", &[&hint, &e]))
     })

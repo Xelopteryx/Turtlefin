@@ -1630,7 +1630,7 @@ pub fn answer(app: &Arc<App>, what: String, text: String) {
             .await,
             ("trigday", id) => match text.split_once(':').and_then(|(h, m)| Some((h.trim().parse::<u64>().ok()?, m.trim().parse::<u64>().ok()?))) {
                 Some((h, m)) if h < 24 && m < 60 => add_trigger(&client, id, serde_json::json!({ "Type": "DailyTrigger", "TimeOfDayTicks": (h * 3600 + m * 60) * 10_000_000 })).await,
-                _ => Err(anyhow::anyhow!("{}", tr("écris une heure, par exemple 3:30"))),
+                _ => Err(anyhow::anyhow!("{}", tr("écrivez une heure, par exemple 3:30"))),
             },
             ("trighours", id) => match text.parse::<u64>() {
                 Ok(h) if h > 0 => add_trigger(&client, id, serde_json::json!({ "Type": "IntervalTrigger", "IntervalTicks": h * 36_000_000_000u64 })).await,

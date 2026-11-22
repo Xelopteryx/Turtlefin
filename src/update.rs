@@ -116,7 +116,7 @@ async fn github(path: &str) -> Result<serde_json::Value> {
         .map_err(|_| anyhow!("{}", tr("GitHub injoignable (connexion Internet ?)")))?;
     match resp.status().as_u16() {
         404 => Err(NotFound.into()),
-        403 | 429 => Err(anyhow!("{}", tr("GitHub limite les vérifications : réessaie dans une heure"))),
+        403 | 429 => Err(anyhow!("{}", tr("GitHub limite les vérifications : réessayez dans une heure"))),
         s if !(200..300).contains(&s) => Err(anyhow!("{}", trf("GitHub a répondu {}", &[&s]))),
         _ => Ok(serde_json::from_slice(&crate::api::body_limited(resp, 8 << 20).await?)?),
     }
