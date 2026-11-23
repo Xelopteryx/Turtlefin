@@ -1535,8 +1535,7 @@ export component Lagon inherits Rectangle {
     property <float> dark: Sky.night;
     property <float> t: root.live ? root.ph : 0;
     // Image du média affichée dessous (0 à 1, suit son fondu) : l'eau devient un voile teinté à travers
-    // lequel on la voit ; lumières, poissons, récif et bulles restent au premier plan, les méduses passent
-    // derrière (voir Méduses).
+    // lequel on la voit ; lumières, poissons, méduses, récif et bulles restent au premier plan.
     in property <float> see;
     property <float> wa: 1 - root.see * 0.62;
 
@@ -1678,11 +1677,9 @@ export component Lagon inherits Rectangle {
             opacity: 0.55 * (1 - root.dark * 0.4);
         }
     }
-    // Méduses : derrière l'image du média (jamais au premier plan, devant le texte des cadres translucides) ;
-    // elles s'effacent pendant son fondu, et ne sont plus dessinées une fois l'image là.
+    // Méduses.
     for j in Lagoon.jellies: Rectangle {
-        visible: j.on && !Perf.hide(512) && root.see < 0.99;
-        opacity: 1 - root.see;
+        visible: j.on && !Perf.hide(512);
         if Lagoon.ready: Image {
             x: root.ox + (j.gx - j.gr) * root.s;
             y: root.oy + (j.gy - j.gr) * root.s;
