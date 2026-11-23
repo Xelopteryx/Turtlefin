@@ -730,7 +730,9 @@ enum Reply {
 
 fn serve(stream: TcpStream) -> std::io::Result<()> {
     stream.set_read_timeout(Some(std::time::Duration::from_secs(10)))?;
-    let mut reader = BufReader::new(stream.try_clone()?);
+    // Requête bornée (ligne, en-têtes : 64 Kio ; corps : 1 Mio) : n'importe quel programme de la
+    // machine, ou une page web, peut écrire sur 127.0.0.1.
+    let mut reader = BufReader::new(stream.try_clone()?.take(64 << 10));
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let mut it = line.split_whitespace();
@@ -752,6 +754,7 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
             _ => {}
         }
     }
+    reader.get_mut().set_limit(1 << 20);
     let mut body = vec![0u8; length.min(1 << 20)];
     reader.read_exact(&mut body)?;
     let (path, query) = target.split_once('?').unwrap_or((&target, ""));
@@ -776,7 +779,11 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
         Reply::Video => {
             let total = video_len();
             let (from, to) = match range {
-                Some((a, b)) => (a.min(total), b.map(|b| b + 1).unwrap_or(total).min(total)),
+                // Plage à l'envers (« bytes=100-50 ») : vide, sans débordement.
+                Some((a, b)) => {
+                    let from = a.min(total);
+                    (from, b.map(|b| b.saturating_add(1)).unwrap_or(total).min(total).max(from))
+                }
                 None => (0, total),
             };
             let extra = format!("Accept-Ranges: bytes\r\n{}", if range.is_some() { format!("Content-Range: bytes {from}-{}/{total}\r\n", to.saturating_sub(1)) } else { String::new() });

@@ -50,6 +50,17 @@ struct ModDirs(Vec<PathBuf>);
 /// Dossier du mod en cours de chargement (`require`, fichiers).
 static LOADING: Mutex<Option<PathBuf>> = Mutex::new(None);
 
+/// Chemin que `turtlefin.api` accepte : un de `API_PATHS` (ou en dessous), fait seulement de lettres,
+/// chiffres, `/`, `-`, `_` : `%2e%2e`, ou « . » coupé par une tabulation, deviennent « .. » à l'analyse de
+/// l'adresse (`/Items/%2e%2e/Auth/Keys` lisait les clés d'API) ; requête sans caractère de contrôle.
+fn mod_api_path_ok(path: &str) -> bool {
+    let (base, query) = path.split_once('?').unwrap_or((path, ""));
+    API_PATHS.iter().any(|p| base == *p || base.starts_with(&format!("{p}/")))
+        && base.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_'))
+        && !base.contains("//")
+        && !query.chars().any(|c| c.is_control() || c == '#')
+}
+
 /// Lua sans rien qui touche à l'appareil (voir l'en-tête du module).
 fn sandbox() -> mlua::Result<Lua> {
     let lua = Lua::new_with(StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH | StdLib::COROUTINE, LuaOptions::default())?;
@@ -432,9 +443,7 @@ fn install_api(lua: &Lua, app: &Arc<App>) -> mlua::Result<()> {
         lua.create_function(move |lua, path: String| {
             let Some(c) = a.client() else { return Ok(Value::Nil) };
             // Lecture seulement, chemins des médias seulement (voir API_PATHS) ; pas de « .. » ni d'adresse.
-            let base = path.split('?').next().unwrap_or("");
-            let allowed = API_PATHS.iter().any(|p| base == *p || base.starts_with(&format!("{p}/")));
-            if !allowed || path.contains("..") || path.contains("://") || path.contains('\\') {
+            if !mod_api_path_ok(&path) {
                 return Err(mlua::Error::runtime(format!("api : chemin non autorisé aux mods ({path})")));
             }
             match a.rt.block_on(c.get_json(&path)) {
@@ -556,6 +565,15 @@ mod tests {
         assert!(r.is_err());
         assert!(inside(std::path::Path::new("."), "../secret").is_none());
         assert!(inside(std::path::Path::new("."), "/etc/passwd").is_none());
+    }
+
+    #[test]
+    fn mod_api_paths() {
+        assert!(mod_api_path_ok("/Items/abc123/Images"));
+        assert!(mod_api_path_ok("/Search/Hints?searchTerm=la mer&Limit=5"));
+        for bad in ["/Items/%2e%2e/Auth/Keys", "/Items/.\t./Users", "/Items/../Users", "/Users", "/Items//x", "/Items\\..", "/Itemsx", "/Items?x=\n"] {
+            assert!(!mod_api_path_ok(bad), "{bad:?}");
+        }
     }
 
     #[test]
