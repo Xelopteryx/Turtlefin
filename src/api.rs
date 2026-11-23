@@ -219,6 +219,8 @@ pub struct Item {
     pub parent_backdrop_item_id: Option<String>,
     pub parent_backdrop_image_tags: Option<Vec<String>>,
     pub user_data: Option<UserData>,
+    /// Série, saison : nombre d'épisodes (avec `UserData.UnplayedItemCount` : combien sont vus).
+    pub recursive_item_count: Option<i64>,
     pub media_sources: Option<Vec<MediaSource>>,
     pub people: Option<Vec<Person>>,
     pub provider_ids: Option<HashMap<String, String>>,
@@ -431,7 +433,14 @@ fn seerr_card(r: &serde_json::Value) -> Option<CardInfo> {
         progress: 0.0,
         rating: r["voteAverage"].as_f64().filter(|v| *v > 0.0).map(|v| format!("{v:.1}")).unwrap_or_default(),
         seerr: true,
-        status: 0,
+        // Déjà demandé (par n'importe quel compte) : la pastille de la demande, comme dans l'onglet Demandes
+        // (sans elle, un média demandé restait « à demander » et une seconde demande échouait).
+        status: match r["mediaInfo"]["status"].as_i64() {
+            Some(2) => 1,
+            Some(3) => 2,
+            Some(4 | 5) => 4,
+            _ => 0,
+        },
         count: 0,
         played: false,
         deck: false,
@@ -761,7 +770,8 @@ impl Item {
     /// classification (« 10+ », « PG »…). Une valeur vide n'est pas affichée.
     pub fn stats(&self) -> (f32, String, String, String) {
         let score = self.community_rating.filter(|c| *c > 0.0).unwrap_or(-1.0);
-        let time = match self.minutes().filter(|m| *m > 0) {
+        // Série, saison : la case « Épisodes vus » prend la place de la durée (celle d'un épisode).
+        let time = match self.minutes().filter(|m| *m > 0 && self.seen().is_none()) {
             Some(m) if m >= 60 => format!("{}h{:02}", m / 60, m % 60),
             Some(m) => format!("{m} min"),
             None => String::new(),
@@ -796,8 +806,23 @@ impl Item {
         String::new()
     }
 
+    /// Série, saison : (épisodes vus, épisodes en tout) ; None pour le reste ou sans épisode.
+    pub fn seen(&self) -> Option<(i64, i64)> {
+        if !matches!(self.kind.as_str(), "Series" | "Season") {
+            return None;
+        }
+        let total = self.recursive_item_count.filter(|n| *n > 0)?;
+        let u = self.user_data.as_ref();
+        let unplayed = if u.is_some_and(|u| u.played) { 0 } else { u.and_then(|u| u.unplayed_item_count).unwrap_or(total) };
+        Some(((total - unplayed).clamp(0, total), total))
+    }
+
     pub fn misc_line(&self) -> String {
         let mut parts: Vec<String> = Vec::new();
+        // Série, saison : épisodes vus (écran étroit : les chiffres de l'en-tête n'y sont pas).
+        if let Some((n, total)) = self.seen() {
+            parts.push(trf("{} / {} épisodes vus", &[&n, &total]));
+        }
         if let Some(y) = self.production_year {
             parts.push(y.to_string());
         }

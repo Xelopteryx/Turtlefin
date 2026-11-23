@@ -2413,7 +2413,7 @@ export component PlayerView inherits Rectangle {
         ia-text := Text {
             x: 18px * root.k;
             height: parent.height;
-            text: "⏭ " + Tr.t(Tr.k, "Intros passées automatiquement");
+            text: "» " + Tr.t(Tr.k, "Intros passées automatiquement");
             color: Theme.player-ink.with-alpha(0.9);
             font-size: (14px * root.k) * Theme.text-scale;
             vertical-alignment: center;
@@ -2747,7 +2747,7 @@ export component PlayerView inherits Rectangle {
                 Text {
                     y: 94px * root.k;
                     width: parent.width;
-                    text: p.subtitle + (p.rating != "" ? "   ★ " + p.rating : "");
+                    text: p.subtitle + (p.rating != "" ? "   ·   " + p.rating + "/10" : "");
                     color: Theme.player-ink.with-alpha(0.7);
                     font-size: (15px * root.k) * Theme.text-scale;
                     font-weight: 600;

@@ -1040,11 +1040,10 @@ pub fn apply_shortcuts(key: &str, t: &ThemeDef) {
             h = (h ^ *b as u64).wrapping_mul(1099511628211);
         }
         let ico = dir.join(format!("turtlefin-{:08x}.ico", h as u32));
-        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-            if e.path() != ico && e.file_name().to_string_lossy().starts_with("turtlefin-") {
-                let _ = std::fs::remove_file(e.path());
-            }
-        }
+        // Les anciennes icônes sont effacées par le script, seulement si plus aucun raccourci ne s'en sert :
+        // avant, tout Turtlefin qui appliquait son thème effaçait toutes les autres, et le raccourci d'un
+        // autre Turtlefin du même compte (version installée et version compilée, qui partagent ce
+        // dossier) se retrouvait avec une icône vide.
         let icon = if default {
             format!("{},0", exe.display())
         } else {
@@ -1054,17 +1053,27 @@ pub fn apply_shortcuts(key: &str, t: &ThemeDef) {
             format!("{},0", ico.display())
         };
         let script = r#"
-$exe = $env:TF_EXE; $icon = $env:TF_ICON
+$exe = $env:TF_EXE; $icon = $env:TF_ICON; $icodir = $env:TF_ICODIR
 $sh = New-Object -ComObject WScript.Shell
+$used = @{}
 $dirs = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'),
   [Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('CommonPrograms'),
   (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar'))
 foreach ($d in $dirs) {
   if ($d -and (Test-Path -LiteralPath $d)) {
     Get-ChildItem -LiteralPath $d -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-      try { $l = $sh.CreateShortcut($_.FullName); if ($l.TargetPath -ieq $exe -and $l.IconLocation -ne $icon) { $l.IconLocation = $icon; $l.Save() } } catch {}
+      try {
+        $l = $sh.CreateShortcut($_.FullName)
+        # Seulement l'appli elle-même : pas le raccourci du Theme Creator (même programme, avec --theme-creator).
+        if ($l.TargetPath -ieq $exe -and -not $l.Arguments -and $l.IconLocation -ne $icon) { $l.IconLocation = $icon; $l.Save() }
+        # Par le nom seul (turtlefin-<empreinte>.ico) : un chemin court (XELOPT~1) ne s'écrit pas comme le long.
+        $used[(Split-Path -Leaf ($l.IconLocation -replace ',-?\d+$', '')).ToLower()] = 1
+      } catch {}
     }
   }
+}
+Get-ChildItem -LiteralPath $icodir -Filter 'turtlefin-*.ico' -ErrorAction SilentlyContinue | ForEach-Object {
+  if (-not $used.ContainsKey($_.Name.ToLower())) { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
 }
 try { Start-Process -WindowStyle Hidden ie4uinit.exe -ArgumentList '-show' } catch {}
 "#;
@@ -1072,6 +1081,7 @@ try { Start-Process -WindowStyle Hidden ie4uinit.exe -ArgumentList '-show' } cat
             .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
             .env("TF_EXE", &exe)
             .env("TF_ICON", &icon)
+            .env("TF_ICODIR", &dir)
             .status();
     }
     #[cfg(not(windows))]
@@ -1240,5 +1250,17 @@ mod tests {
         // Fichier minimal : le reste vient du thème Turtlefin.
         let min: super::ThemeDef = serde_json::from_str(r##"{"turtlefin_theme": 1, "name": "X", "accent1": "#ff0000"}"##).unwrap();
         assert_eq!(min.accent2, "#00a4db");
+    }
+
+    /// Logos du README (`packaging/icons/turtlefin-aero-256.png`, `turtlefin-nerd-256.png`) : les icônes que
+    /// l'appli dessine pour la fenêtre, à l'identique. `TURTLEFIN_EXPORT_ICONS=<dossier> cargo test export_icons`.
+    #[test]
+    fn export_icons() {
+        let Some(dir) = std::env::var_os("TURTLEFIN_EXPORT_ICONS") else { return };
+        for (key, t) in super::builtin() {
+            let b = super::icon(&t, 256);
+            let name = if key == "turtlefin" { "turtlefin-256.png".to_string() } else { format!("turtlefin-{key}-256.png") };
+            image::save_buffer(std::path::Path::new(&dir).join(name), b.as_bytes(), 256, 256, image::ExtendedColorType::Rgba8).unwrap();
+        }
     }
 }

@@ -774,8 +774,8 @@ msgstr "Vervaagde afbeelding achter de pagina's. Uitzetten op trage apparaten."
 msgid "Notes sur les affiches"
 msgstr "Beoordelingen op posters"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "De beoordeling van de community (★) rechtsonder op posters."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "De beoordeling van de community rechtsonder op posters."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Te lange namen laten scrollen"
@@ -1410,8 +1410,8 @@ msgstr "Wissel van rij met ↓ of ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "Loop erdoor met → tot uw profiel, helemaal rechts: de tabbladen Start, Favorieten en Verzoeken, daarna deze pictogrammen."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Open het menu: ga in de bovenste balk helemaal naar links naar ≡ en druk op OK; bij de posters ← aan het begin van een rij (of Terug)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Open het menu: ga in de bovenste balk helemaal naar links naar het pictogram met drie streepjes en druk op OK; bij de posters ← aan het begin van een rij (of Terug)."
 
 msgid "Retour : quitter la visite"
 msgstr "Terug: rondleiding verlaten"
@@ -4465,3 +4465,9 @@ msgstr "Aan te vragen: films van {}"
 
 msgid "À demander : séries {}"
 msgstr "Aan te vragen: series van {}"
+
+msgid "Épisodes vus"
+msgstr "Bekeken afleveringen"
+
+msgid "{} / {} épisodes vus"
+msgstr "{} / {} afleveringen bekeken"

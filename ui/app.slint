@@ -3,6 +3,10 @@ import { ThemeCreator } from "creator.slint";
 export { ThemeCreator }
 // Montserrat, la police de JellySkin (licence OFL : ui/fonts/OFL.txt), intégrée au programme.
 import "fonts/Montserrat-Regular.ttf";
+// Turtlefin Symbols : ★ ✓ ✕ ⋯ ● ⌫ ␣ ⇧… absents de Montserrat, tirés de DejaVu Sans (fonts/DejaVu-LICENSE.txt,
+// tools/make-symbols-font.py). Android ne fournit pas ces caractères : sans elle, carrés vides (étoile des notes).
+import "fonts/TurtlefinSymbols-Regular.ttf";
+import "fonts/TurtlefinSymbols-Bold.ttf";
 import "fonts/Montserrat-Medium.ttf";
 import "fonts/Montserrat-SemiBold.ttf";
 import "fonts/Montserrat-Bold.ttf";
@@ -179,6 +183,8 @@ export struct DetailData {
     stat-time: string,    // durée
     stat-date: string,    // date de sortie
     stat-age: string,     // classification (« 10+ », « PG »)
+    seen: int,            // série, saison : épisodes vus…
+    seen-total: int,      // … sur tant d'épisodes (0 : rien à montrer)
     facts: [FactData],
     fact-chips: int,      // nombre de pastilles de l'onglet Détails
     overview: string,
@@ -667,8 +673,8 @@ component CardArt inherits Rectangle {
         }
     }
 
-    // Note de la communauté
-    if root.data.rating != "" && Prefs.ratings: Rectangle {
+    // Note de la communauté (pas avec la pastille d'une demande, au même endroit : média Seerr demandé)
+    if root.data.rating != "" && Prefs.ratings && (root.data.status <= 0 || root.data.status >= 10): Rectangle {
         opacity: root.badge-a;
         x: parent.width - self.width - 8px * root.k;
         y: parent.height - self.height - 7px * root.k;
@@ -683,6 +689,8 @@ component CardArt inherits Rectangle {
 
             Text {
                 text: "★";
+                // Android n'a pas ce caractère dans ses polices : celle des symboles (voir l'import en tête).
+                font-family: "Turtlefin Symbols";
                 color: #f5c518;
                 font-size: (11px * root.k) * Theme.text-scale;
                 vertical-alignment: center;
@@ -2777,6 +2785,72 @@ component ScoreRing inherits Rectangle {
     }
 }
 
+// Série, saison : épisodes vus. Anneau d'accent rempli selon la part vue (pourcentage au centre),
+// « 8 / 24 » en grand à côté, intitulé dessous ; coche quand tout est vu.
+component SeenBox inherits HorizontalLayout {
+    in property <int> seen;
+    in property <int> total;
+    in property <float> k: 1.0;
+    property <float> f: root.total > 0 ? clamp(root.seen / root.total, 0, 1) : 0;
+    property <angle> a: root.f * 360deg;
+    property <string> arc: root.f >= 0.999 ? "M 50 8 A 42 42 0 1 1 49.99 8"
+        : "M 50 8 A 42 42 0 " + (root.f > 0.5 ? "1" : "0") + " 1 " + (50 + 42 * sin(root.a)) + " " + (50 - 42 * cos(root.a));
+    spacing: 10px * root.k;
+    alignment: center;
+    Rectangle {
+        width: 52px * root.k;
+        height: self.width;
+        y: (parent.height - self.height) / 2;
+        Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            fill: Theme.bg.with-alpha(0.55);
+            stroke: Theme.fg.with-alpha(0.14);
+            stroke-width: 7px * root.k;
+            commands: "M 50 8 A 42 42 0 1 1 49.99 8 Z";
+        }
+        if root.f > 0.005: Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            fill: transparent;
+            stroke: @linear-gradient(135deg, Theme.accent1 0%, Theme.accent2 100%);
+            stroke-width: 7px * root.k;
+            stroke-line-cap: round;
+            commands: root.arc;
+        }
+        Text {
+            text: root.f >= 0.999 ? "✓" : round(root.f * 100) + "%";
+            font-family: root.f >= 0.999 ? "Turtlefin Symbols" : Theme.font-name;
+            color: Theme.text;
+            font-size: (root.f >= 0.999 ? 20px : 13px) * root.k * Theme.text-scale;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px * root.k;
+        Text {
+            text: root.seen + " / " + root.total;
+            color: Theme.text;
+            font-size: (22px * root.k) * Theme.text-scale;
+            font-weight: 700;
+        }
+        Text {
+            text: Tr.t(Tr.k, "Épisodes vus");
+            color: Theme.muted;
+            font-size: (11px * root.k) * Theme.text-scale;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+    }
+}
+
 // Chiffre de l'en-tête de la fiche : valeur en grand, intitulé dessous.
 component StatBox inherits VerticalLayout {
     in property <string> value;
@@ -3471,6 +3545,7 @@ component HeaderRight inherits Rectangle {
                 alignment: start;
                 Text {
                     text: "●";
+                    font-family: "Turtlefin Symbols";
                     color: #fbbf24;
                     font-size: (11px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
@@ -9474,7 +9549,7 @@ export component AppWindow inherits Window {
                         x: 12px * root.k;
                         width: parent.width - 24px * root.k;
                         height: parent.height;
-                        text: root.sf-query != "" ? root.sf-query + "▏" : Tr.t(Tr.k, "Filtrer… (ex. : surv)");
+                        text: root.sf-query != "" ? root.sf-query + "|" : Tr.t(Tr.k, "Filtrer… (ex. : surv)");
                         color: root.sf-query != "" ? Theme.text : Theme.muted;
                         font-size: (14px * root.k) * Theme.text-scale;
                         vertical-alignment: center;
@@ -9819,8 +9894,10 @@ export component AppWindow inherits Window {
         opacity: root.hero-page-a;
         // Chiffres à droite du titre (note, durée, sortie, public) : seulement s'il reste au titre 300 px x k.
         property <int> stats-n: (root.detail.score >= 0 ? 1 : 0) + (root.detail.stat-time != "" ? 1 : 0)
-            + (root.detail.stat-date != "" ? 1 : 0) + (root.detail.stat-age != "" ? 1 : 0);
-        property <length> stats-w: min(root.info-w - 320px * root.k, (root.detail.score >= 0 ? 94px : 0px) * root.k + 3 * 132px * root.k);
+            + (root.detail.stat-date != "" ? 1 : 0) + (root.detail.stat-age != "" ? 1 : 0) + (root.detail.seen-total > 0 ? 1 : 0);
+        // Épisodes vus (série, saison) : à la place de la durée, un peu plus large qu'une case.
+        property <length> stats-w: min(root.info-w - 320px * root.k, (root.detail.score >= 0 ? 94px : 0px) * root.k + 3 * 132px * root.k
+            + (root.detail.seen-total > 0 ? 60px : 0px) * root.k);
         property <bool> stats-on: !root.narrow && self.stats-n > 0 && self.stats-w >= 200px * root.k;
         // Logo du média : plus large que haut (1,3:1 ou plus, 160 px ou plus) à la place du titre ; sinon le titre en texte, et
         // le logo en petit à côté s'il est assez net (120 px ou plus).
@@ -10357,6 +10434,7 @@ export component AppWindow inherits Window {
                 score: root.detail.score;
                 k: root.k;
             }
+            if root.detail.seen-total > 0: SeenBox { seen: root.detail.seen; total: root.detail.seen-total; k: root.k; }
             if root.detail.stat-time != "": StatBox { value: root.detail.stat-time; label: Tr.t(Tr.k, "Durée"); k: root.k; }
             if root.detail.stat-date != "": StatBox { value: root.detail.stat-date; label: Tr.t(Tr.k, "Sortie"); k: root.k; }
             if root.detail.stat-age != "": StatBox { value: root.detail.stat-age; label: Tr.t(Tr.k, "Public"); k: root.k; }
@@ -10844,17 +10922,21 @@ export component AppWindow inherits Window {
             alignment: start;
             spacing: 10px * root.k;
             opacity: root.rev(3) * root.tab-e;
-            for f in root.detail.facts: HorizontalLayout {
-                spacing: 20px * root.k;
-                // Hauteur selon la longueur du texte (une valeur à la ligne compte pour une seule ligne dans
+            // Pas de HorizontalLayout : sa hauteur préférée mesurait les pastilles sur toute la largeur de la
+            // ligne (libellé compris), donc avec moins de lignes qu'à l'écran : sur téléphone, les pastilles
+            // d'une ligne passaient sur celles de la suivante. La valeur a ici sa largeur exacte.
+            for f in root.detail.facts: Rectangle {
+                property <length> lab-w: (root.narrow ? 110px : 170px) * root.k;
+                property <length> val-x: self.lab-w + 20px * root.k;
+                property <length> val-w: max(1px, self.width - self.val-x);
+                // Texte : hauteur selon sa longueur (une valeur à la ligne compte pour une seule ligne dans
                 // la hauteur préférée d'un texte : la page ne descendait pas assez pour montrer les tags).
-                property <length> val-w: min(root.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k)
-                    - (root.narrow ? 110px : 170px) * root.k - 20px * root.k;
                 // Pastilles : hauteur donnée par leur disposition (une ou plusieurs lignes).
-                height: f.chips.length > 0 ? max(30px * root.k, self.preferred-height)
-                    : max(1, ceil(f.value.character-count * 8.8px * root.k / max(1px, self.val-w))) * 22px * root.k;
+                height: f.chips.length > 0 ? max(30px * root.k, fx.preferred-height)
+                    : max(1, ceil(f.value.character-count * 8.8px * root.k / self.val-w)) * 22px * root.k;
                 Text {
-                    width: (root.narrow ? 110px : 170px) * root.k;
+                    x: 0px;
+                    width: parent.lab-w;
                     text: f.label;
                     color: Theme.muted;
                     font-size: (13px * root.k) * Theme.text-scale;
@@ -10864,15 +10946,23 @@ export component AppWindow inherits Window {
                     vertical-alignment: top;
                 }
                 if f.chips.length == 0: Text {
-                    horizontal-stretch: 1;
+                    x: parent.val-x;
+                    y: 0px;
+                    width: parent.val-w;
+                    height: parent.height;
+                    vertical-alignment: top;
                     text: f.value;
                     color: Theme.text;
                     font-size: (16px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
                 }
                 // Genres, studios, tags : pastilles qui vont à la ligne ; touchée, la recherche filtrée.
-                if f.chips.length > 0: FlexboxLayout {
-                    horizontal-stretch: 1;
+                // Toujours là (vide sans pastilles) : sa hauteur préférée donne celle de la ligne.
+                fx := FlexboxLayout {
+                    x: parent.val-x;
+                    y: 0px;
+                    width: parent.val-w;
+                    height: self.preferred-height;
                     spacing: 8px * root.k;
                     for c[j] in f.chips: chip-r := Rectangle {
                         property <bool> lit: (!root.h-focus && root.d-zone == 10 && root.d-chip == f.first + j && Nav.kb)
@@ -11045,6 +11135,7 @@ export component AppWindow inherits Window {
                         background: Theme.accent2;
                         Text {
                             text: "✓";
+                            font-family: "Turtlefin Symbols";
                             color: Theme.on-accent;
                             font-size: (13px * root.k) * Theme.text-scale;
                             font-weight: 800;
@@ -15664,7 +15755,7 @@ export component AppWindow inherits Window {
                     }
                     Text {
                         text: root.sr.length + (root.sr.length != "" && root.sr.genres != "" ? "   ·   " : "") + root.sr.genres
-                            + (root.sr.rating != "" ? "   ·   ★ " + root.sr.rating : "");
+                            + (root.sr.rating != "" ? "   ·   " + root.sr.rating + "/10" : "");
                         color: Theme.fg.with-alpha(0.82);
                         font-size: ((srp.tall ? 22 : 16) * srp.u) * Theme.text-scale;
                         wrap: word-wrap;
@@ -16709,7 +16800,7 @@ export component AppWindow inherits Window {
                         x: 16px * root.k;
                         y: 8px * root.k;
                         width: parent.width - 32px * root.k;
-                        text: (c.kind != "jf" ? "📺  " : "") + c.name + (parent.chosen ? "  ✓" : "");
+                        text: (c.kind != "jf" ? "•  " : "") + c.name + (parent.chosen ? "  •" : "");
                         color: parent.lit ? Theme.on-accent : Theme.fg;
                         font-size: (16px * root.k) * Theme.text-scale;
                         font-weight: 700;
@@ -17883,7 +17974,7 @@ export component AppWindow inherits Window {
                     : root.tour-last == 2 ? Tr.t(Tr.k, "Changez de rangée avec ↓ ou ↑.")
                     : root.tour-last == 3 ? Tr.t(Tr.k, "Appuyez sur ↑ jusqu'à monter dans la barre du haut.")
                     : root.tour-last == 4 ? Tr.t(Tr.k, "Parcourez-la avec → jusqu'à votre profil, tout à droite : les onglets (Accueil, Favoris…), puis Diffuser vers une télé, watch party, un média au hasard et la recherche.")
-                    : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
+                    : root.tour-last == 5 ? Tr.t(Tr.k, "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour).")
                     : root.tour-last == 6 ? Tr.t(Tr.k, "Bibliothèques, téléchargements (à regarder sans connexion), watch party, compte, serveur et Paramètres. Parcourez-le avec ↑ ↓, puis refermez-le avec →.")
                     : root.tour-last == 7 ? Tr.t(Tr.k, "Choisissez une affiche et appuyez sur OK pour l'ouvrir.")
                     : root.tour-last == 8 ? Tr.t(Tr.k, "Une fiche (film, série) ou une bibliothèque entière : tout se parcourt de la même façon. Appuyez sur Retour pour revenir à l'accueil.")
@@ -19758,7 +19849,10 @@ export component AppWindow inherits Window {
             height: cm-col.preferred-height;
             // Clavier (cm-x < 0) : au centre ; souris, doigt : sur la carte, sans sortir de la fenêtre.
             x: root.cm-x < 0 ? (parent.width - self.width) / 2 : clamp(root.cm-x - self.width / 2, 8px, parent.width - self.width - 8px);
-            y: root.cm-y < 0 ? (parent.height - self.height) / 2 : clamp(root.cm-y, 8px, parent.height - self.height - 8px);
+            // Téléphone en portrait : au-dessus de la barre de navigation d'Android, dessinée sur l'appli (la
+            // dernière entrée, dessous, ne se touchait pas).
+            property <length> bot: max(root.safe-area-insets.bottom, Nav.phone && root.height > root.width ? 48px : 0px);
+            y: root.cm-y < 0 ? (parent.height - self.height) / 2 : clamp(root.cm-y, 8px, parent.height - self.height - 8px - self.bot);
             border-radius: Theme.win7 ? 8px : Theme.term ? 2px : 14px * root.k;
             // Opaque, quel que soit le thème (les cartes dessous ne doivent pas se voir à travers).
             background: Theme.win7 ? transparent : Theme.term ? #020d08 : Theme.bg-mid;

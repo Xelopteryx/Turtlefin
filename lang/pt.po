@@ -774,8 +774,8 @@ msgstr "Imagem desfocada atrás das páginas. Desativa se o dispositivo for lent
 msgid "Notes sur les affiches"
 msgstr "Classificações nos cartazes"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "A classificação da comunidade (★) em baixo à direita dos cartazes."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "A classificação da comunidade em baixo à direita dos cartazes."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Deslizar os nomes demasiado longos"
@@ -1410,8 +1410,8 @@ msgstr "Mude de fila com ↓ ou ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "Percorra-a com → até ao seu perfil, à direita de tudo: os separadores Início, Favoritos e Pedidos, e depois estes ícones."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Abra o menu: na barra de cima, vá à esquerda de tudo até ≡ e carregue em OK; a partir dos cartazes, ← no início de uma fila (ou Voltar)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Abra o menu: na barra de cima, vá à esquerda de tudo até ao ícone de três traços e carregue em OK; a partir dos cartazes, ← no início de uma fila (ou Voltar)."
 
 msgid "Retour : quitter la visite"
 msgstr "Voltar: sair da visita"
@@ -4465,3 +4465,9 @@ msgstr "Para pedir: filmes {}"
 
 msgid "À demander : séries {}"
 msgstr "Para pedir: séries {}"
+
+msgid "Épisodes vus"
+msgstr "Episódios vistos"
+
+msgid "{} / {} épisodes vus"
+msgstr "{} / {} episódios vistos"

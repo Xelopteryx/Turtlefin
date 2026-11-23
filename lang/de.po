@@ -774,8 +774,8 @@ msgstr "Unscharfes Bild hinter den Seiten. Auf langsamen Geräten ausschalten."
 msgid "Notes sur les affiches"
 msgstr "Bewertungen auf Postern"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "Die Community-Bewertung (★) unten rechts auf den Postern."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "Die Community-Bewertung unten rechts auf den Postern."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Zu lange Namen durchlaufen lassen"
@@ -1410,8 +1410,8 @@ msgstr "Wechseln Sie die Reihe mit ↓ oder ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "Gehen Sie sie mit → bis zu Ihrem Profil ganz rechts durch: die Tabs Start, Favoriten und Anfragen, dann diese Symbole."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Öffnen Sie das Menü: in der oberen Leiste ganz nach links auf ≡ und OK drücken; bei den Postern ← am Anfang einer Reihe (oder Zurück)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Öffnen Sie das Menü: in der oberen Leiste ganz nach links auf das Symbol mit drei Strichen und OK drücken; bei den Postern ← am Anfang einer Reihe (oder Zurück)."
 
 msgid "Retour : quitter la visite"
 msgstr "Zurück: Tour verlassen"
@@ -4465,3 +4465,9 @@ msgstr "Anfragbar: Filme von {}"
 
 msgid "À demander : séries {}"
 msgstr "Anfragbar: Serien von {}"
+
+msgid "Épisodes vus"
+msgstr "Gesehene Folgen"
+
+msgid "{} / {} épisodes vus"
+msgstr "{} / {} Folgen gesehen"

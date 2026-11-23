@@ -776,8 +776,8 @@ msgstr "Rozmyty obraz za stronami. Wyłącz na wolnym urządzeniu."
 msgid "Notes sur les affiches"
 msgstr "Oceny na plakatach"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "Ocena społeczności (★) w prawym dolnym rogu plakatów."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "Ocena społeczności w prawym dolnym rogu plakatów."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Przewijaj zbyt długie nazwy"
@@ -1412,8 +1412,8 @@ msgstr "Zmień rząd strzałką ↓ lub ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "Przejdź po nim strzałką → aż do swojego profilu, całkiem po prawej: karty Start, Ulubione i Prośby, a potem te ikony."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Otwórz menu: na górnym pasku przejdź całkiem w lewo na ≡ i naciśnij OK; przy plakatach ← na początku rzędu (lub Wstecz)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Otwórz menu: na górnym pasku przejdź całkiem w lewo na ikonę z trzema kreskami i naciśnij OK; przy plakatach ← na początku rzędu (lub Wstecz)."
 
 msgid "Retour : quitter la visite"
 msgstr "Wstecz: zakończ prezentację"
@@ -4478,3 +4478,9 @@ msgstr "Do poproszenia: filmy {}"
 
 msgid "À demander : séries {}"
 msgstr "Do poproszenia: seriale {}"
+
+msgid "Épisodes vus"
+msgstr "Obejrzane odcinki"
+
+msgid "{} / {} épisodes vus"
+msgstr "Obejrzane odcinki: {} / {}"

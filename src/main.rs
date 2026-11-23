@@ -2376,6 +2376,48 @@ fn sync_tabs(app: &Arc<App>) {
 fn store_reqs(app: &Arc<App>, reqs: Vec<api::SeerrRequest>) {
     *app.seerr_reqs.lock().unwrap() = reqs;
     sync_tabs(app);
+    show_requested(app);
+}
+
+/// État de chaque demande du compte (pastille des cartes : voir SeerrRequest::card), par identifiant de carte Seerr.
+fn requested_map(app: &App) -> std::collections::HashMap<String, i32> {
+    app.seerr_reqs.lock().unwrap().iter().map(|r| (api::seerr_id(r.tv, r.tmdb), r.card().status)).collect()
+}
+
+/// Après une demande : les cartes Seerr déjà à l'écran (grille, rangées) et les rangées gardées pour la grille
+/// (`search_more`) prennent tout de suite la pastille de leur demande (sinon il fallait refaire la recherche).
+fn show_requested(app: &Arc<App>) {
+    let by_id = requested_map(app);
+    if by_id.is_empty() {
+        return;
+    }
+    for c in app.search_more.lock().unwrap().iter_mut().flat_map(|m| m.1.iter_mut()) {
+        if c.seerr && c.status == 0 {
+            if let Some(st) = by_id.get(&c.id) {
+                c.status = *st;
+            }
+        }
+    }
+    let _ = app.ui().upgrade_in_event_loop(move |u| {
+        let fix = |m: ModelRc<CardData>| {
+            for i in 0..m.row_count() {
+                let Some(mut c) = m.row_data(i) else { continue };
+                if c.seerr && c.status == 0 {
+                    if let Some(st) = by_id.get(c.id.as_str()) {
+                        c.status = *st;
+                        m.set_row_data(i, c);
+                    }
+                }
+            }
+        };
+        fix(u.get_lib_items());
+        let secs = u.get_sections();
+        for s in 0..secs.row_count() {
+            if let Some(r) = secs.row_data(s) {
+                fix(r.items);
+            }
+        }
+    });
 }
 
 async fn home_sections(app: &Arc<App>, client: &api::Client) -> anyhow::Result<Vec<SectionData>> {
@@ -4911,7 +4953,7 @@ fn filter_chips(app: &Arc<App>, u: &AppWindow) {
         FilterOpt { name: n(tr("Studios"), &f.studios).into(), on: !f.studios.is_empty() },
         FilterOpt { name: n(tr("Exclus"), &f.exclude).into(), on: !f.exclude.is_empty() },
         FilterOpt { name: menu(if f.decade == 0 { tr("Année").to_string() } else { decade_label(f.decade) }).into(), on: f.decade != 0 },
-        FilterOpt { name: menu(if f.rating == 0 { tr("Note").to_string() } else { format!("★ {}+", f.rating) }).into(), on: f.rating != 0 },
+        FilterOpt { name: menu(if f.rating == 0 { tr("Note").to_string() } else { format!("{} {}+", tr("Note"), f.rating) }).into(), on: f.rating != 0 },
         FilterOpt { name: menu(if f.status == 0 { tr("État").to_string() } else { status_label(f.status).to_string() }).into(), on: f.status != 0 },
     ];
     u.set_sf_chips(ModelRc::new(VecModel::from(chips)));
@@ -4942,7 +4984,7 @@ fn filter_tokens(f: &SearchFilter) -> Vec<(String, bool, u8, String)> {
         t.push((decade_label(f.decade), false, 5, String::new()));
     }
     if f.rating != 0 {
-        t.push((format!("★ {}+", f.rating), false, 6, String::new()));
+        t.push((format!("{} {}+", tr("Note"), f.rating), false, 6, String::new()));
     }
     if f.status != 0 {
         t.push((status_label(f.status).to_string(), false, 7, String::new()));
@@ -4987,7 +5029,7 @@ fn single_options(f: &SearchFilter, which: u64) -> Vec<(String, bool)> {
         PICK_KIND => (0..4u8).map(|k| (kind_label(k).to_string(), f.kind == k)).collect(),
         PICK_DECADE => std::iter::once(0).chain(decades()).map(|d| (decade_label(d), f.decade == d)).collect(),
         PICK_RATING => std::iter::once((tr("Toutes les notes").to_string(), f.rating == 0))
-            .chain(RATINGS.iter().map(|r| (format!("★ {r} {}", tr("et plus")), f.rating == *r)))
+            .chain(RATINGS.iter().map(|r| (format!("{} {r} {}", tr("Note"), tr("et plus")), f.rating == *r)))
             .collect(),
         _ => (0..4u8).map(|s| (status_label(s).to_string(), f.status == s)).collect(),
     }
@@ -5427,6 +5469,7 @@ fn search_changed(app: &Arc<App>, text: String) {
                 }
             }
         }
+        mark_requested(&app2, &mut sections);
         show_search_counts(&app2, &sections, true, ask_seerr);
         // Ajout : la sélection reste où elle est.
         if !first {
@@ -5435,6 +5478,22 @@ fn search_changed(app: &Arc<App>, text: String) {
             present_rows(&app2, &client, sections, true, Some(String::new()));
         }
     });
+}
+
+/// Cartes Seerr déjà demandées par ce compte : la pastille de leur demande. La recherche de Seerr peut
+/// servir un résultat mis en cache avant la demande, sans son état (le média restait « à demander »).
+fn mark_requested(app: &App, sections: &mut [SectionData]) {
+    let by_id = requested_map(app);
+    if by_id.is_empty() {
+        return;
+    }
+    for c in sections.iter_mut().flat_map(|s| s.cards.iter_mut()) {
+        if c.seerr && c.status == 0 {
+            if let Some(st) = by_id.get(&c.id) {
+                c.status = *st;
+            }
+        }
+    }
 }
 
 fn random_pick(app: &Arc<App>) {
@@ -6497,22 +6556,26 @@ fn apply_ui_prefs(u: &AppWindow, p: &config::UiPrefs) {
     thread_local! { static SHORTCUTS: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
     let t = theme::find(&p.theme, &p.themes);
     let sig = format!("{}|{}|{}|{}|{}", p.theme, t.bg, t.accent1, t.accent2, t.logo);
-    let changed = SHORTCUTS.with(|s| {
+    let (changed, first) = SHORTCUTS.with(|s| {
         let mut s = s.borrow_mut();
         let first = s.is_empty();
         let changed = *s != sig;
         *s = sig;
         // Au démarrage, rien à faire pour le thème par défaut (raccourcis d'origine).
-        changed && !(first && p.theme == "turtlefin")
+        (changed && !(first && p.theme == "turtlefin"), first)
     });
+    // Android : l'icône du lanceur reste toujours celle de Turtlefin. Changer d'entrée de lanceur selon le
+    // thème (activity-alias) faisait apparaître deux icônes sur beaucoup de lanceurs (vu dans MEmu le
+    // 23 novembre 2026). Au premier passage, une appli dont l'icône avait été changée revient à l'entrée
+    // d'origine (appliqué quand elle passe à l'arrière-plan ; rien à faire si c'est déjà le cas).
+    #[cfg(target_os = "android")]
+    if first {
+        android_entry::set_launcher_icon("turtlefin");
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = first;
     if changed {
         let key = p.theme.clone();
-        // Android : icône du lanceur aux couleurs du thème (thème importé : celle par défaut).
-        #[cfg(target_os = "android")]
-        {
-            let icon = if theme::builtin().iter().any(|(k, _)| *k == key) { key.clone() } else { "turtlefin".to_string() };
-            android_entry::set_launcher_icon(&icon);
-        }
         std::thread::spawn(move || theme::apply_shortcuts(&key, &t));
     }
     let g = u.global::<Prefs>();
@@ -6832,7 +6895,7 @@ fn settings_rows_all(app: &Arc<App>, cat: i32) -> Vec<SettingRow> {
             row("music_volume", tr("Volume de la musique de fond"), tr("← → ou glisser sur la barre."), prefs.music_volume.to_string(), "slider", false),
             head(tr("Affiches et fond")),
             row("backdrop", tr("Fond d'écran du média sélectionné"), tr("Image floutée derrière les pages. À couper si l'appareil est lent."), String::new(), "toggle", !NO_BACKDROP.load(Ordering::Relaxed)),
-            row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté (★) en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
+            row("ratings", tr("Notes sur les affiches"), tr("La note de la communauté en bas à droite des affiches."), String::new(), "toggle", prefs.show_ratings),
             row("card_info", tr("Résumé sur les affiches"), tr("Sur l'affiche sélectionnée, après un instant."), String::new(), "toggle", prefs.card_info),
             row("marquee", tr("Faire défiler les noms trop longs"), tr("Sur l'élément sélectionné seulement."), String::new(), "toggle", prefs.marquee),
             head(tr("Partage")),
@@ -9678,6 +9741,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let misc = item.misc_line();
     let misc_short = item.misc_short();
     let (score, stat_time, stat_date, stat_age) = item.stats();
+    let (seen, seen_total) = item.seen().unwrap_or((0, 0));
     let facts = detail_facts(&item);
     let overview = item.overview.clone().unwrap_or_default();
     let logo = item.logo_candidate();
@@ -9726,6 +9790,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             stat_time: stat_time.into(),
             stat_date: stat_date.into(),
             stat_age: stat_age.into(),
+            seen: seen as i32,
+            seen_total: seen_total as i32,
             facts: ModelRc::new(VecModel::from(fact_rows.0)),
             fact_chips: fact_rows.1,
             overview: overview.into(),
@@ -12970,7 +13036,7 @@ fn dl_details(e: &downloads::Entry) -> String {
         v.push(fmt_mins(e.runtime_secs));
     }
     if let Some(r) = e.rating {
-        v.push(format!("★ {r:.1}"));
+        v.push(format!("{r:.1}/10"));
     }
     if e.played {
         v.push("Vu".into());

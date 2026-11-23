@@ -1109,6 +1109,82 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
   média donne l'identifiant TMDB par sa fiche Seerr (`local_studios`). Vérifié : La Planète au trésor,
   Cars 1-3 dans la liste.
 
+**Encore le 23 novembre 2026 (après 1be66d4)** :
+- **Épisodes vus** (série, saison) : case « Épisodes vus » dans les chiffres de la fiche (`SeenBox` : anneau d'accent
+  avec le pourcentage, coche à 100 %, « 8 / 24 »), à la place de la durée ; ligne d'infos « 8 / 24 épisodes vus » sur
+  écran étroit (`Item::seen`, `RecursiveItemCount` et `UserData.UnplayedItemCount`, `DetailData.seen` / `seen-total`).
+- **Bug des icônes au changement de thème, trouvé et corrigé** :
+  1. Windows : chaque Turtlefin qui appliquait son thème effaçait toutes les `icons/turtlefin-*.ico` du dossier de
+     données, y compris celle d'un autre Turtlefin du même compte (version installée et version compilée « turtlefin à
+     jour.lnk ») : raccourci à l'icône vide. Le script de `theme::apply_shortcuts` n'efface plus qu'une icône qu'aucun
+     raccourci n'utilise (comparaison par nom de fichier : le chemin court `XELOPT~1` ne s'écrit pas comme le long), et
+     ne touche plus au raccourci du Theme Creator (même programme, avec `--theme-creator`). Vérifié sur des raccourcis
+     factices.
+  2. Android : changer d'entrée de lanceur selon le thème (`activity-alias`) faisait apparaître deux icônes Turtlefin et
+     fermait l'appli (vu dans MEmu). L'icône du lanceur reste maintenant toujours celle de Turtlefin ; une appli déjà
+     touchée revient à `Icon_turtlefin` au premier passage en arrière-plan (vérifié : une seule icône). Les alias restent
+     dans le manifeste (nécessaires à cette réparation).
+  3. Android : ★ ✓ ● et les autres symboles absents de Montserrat s'affichaient en carrés vides (étoile des notes
+     absente des cartes) : Skia ne cherche pas ces caractères dans une autre police de l'appli. Police « Turtlefin
+     Symbols » tirée de DejaVu Sans (`tools/make-symbols-font.py`, `ui/fonts/TurtlefinSymbols-*.ttf`, licence
+     `ui/fonts/DejaVu-LICENSE.txt`), posée explicitement (`font-family`) sur les symboles isolés ; textes mélangés
+     reformulés sans symbole (« Note 7+ », « 7.3/10 », « l'icône à trois traits » dans la visite, « (★) » retiré du
+     réglage des notes), ⏭ et 📺 remplacés.
+- **Configuration requise** (README) mesurée dans MEmu (instance « Faible », clone de l'instance 0 : 1 cœur, 1 Go,
+  `MEmuManage modifyvm MEmu_1 --cpuexecutioncap 30`, `TURTLEFIN_DEBUG_FPS=1` par `debug.turtlefin.env`, script de
+  scénario : accueil, défilement, fiche, retour) : 1 cœur à 30 % = utilisable, animations à 15–50 images/s ; 1 cœur
+  complet = 60 images/s. Le GPU de MEmu est celui du PC : seule la limite du processeur est mesurée. Minimale : 4 cœurs
+  vers 1,5 GHz, 2 Go, animations coupées ; recommandée : 4 cœurs récents vers 2 GHz (Pi 5), 4 Go.
+- **README** refait dans les 8 langues (vouvoiement et formes polies, listes à la place des tableaux, captures en
+  largeur proportionnelle : même rendu sur téléphone et sur PC), logos Aero et Nerd remplacés par ceux que l'appli
+  dessine (test `export_icons` de theme.rs : `TURTLEFIN_EXPORT_ICONS=<dossier> cargo test export_icons`). Captures dans
+  `docs/screenshots/` (`fr-*` pour le README français, `en-*` pour les autres), prises sur **Abydos**.
+- **Abydos** (Jellyfin d'essai de ce PC, `%LOCALAPPDATA%\jellyfin-test`, port 8096, Jellyfin 12.4) : démarrage
+  `server-12.4\jellyfin\jellyfin.exe --datadir <jellyfin-test> --ffmpeg <…>\ffmpeg.exe` (journal `JELLYFIN_LOG_DIR`).
+  Compte `test` (administrateur) rouvert par « mot de passe oublié » depuis le réseau local (le code PIN est écrit dans
+  le dossier du serveur), mot de passe remis à `test` ; compte `Xelopteryx` créé (mot de passe `test`, photo « Ma
+  magnifique PP.jpg », dessin d'une artiste qu'il connaît) avec un historique d'essai. Extensions ajoutées : Intro
+  Skipper 12.0.8 (dépôt `intro-skipper/manifest/main/12`), GetAvatar 1.7.5 (actif, mais aucun avatar proposé : à
+  garnir) ; Jellyfin Enhanced et Turtlefin Trailers y étaient. Seerr : conteneur Docker `seerr-abydos` (Docker Desktop
+  à lancer). Sauvegarde de la config avant tout ça : `config.avant-reset-20261123-1609`.
+- **Pi 5, le soir même** (binaire croisé `--profile essai`, ancien gardé en `turtlefin.avant-23nov`, script
+  `~/leaktest/pi-check.sh`, télé débranchée : `xrandr --fb 1920x1080`) : Aero, image du média visible sous l'eau,
+  0 image > 20 ms au repos (Aero et Turtlefin) ; case « 8 / 24 · 33 % » ; écran de fin correct, 2 images de 28 et 36 ms
+  pendant son arrivée. Pas remesuré : le retour fiche → accueil depuis la bannière (toujours lent).
+- Installeur de test : `Turtlefin-test-1be66d4-modif-23nov-windows-x64-setup.exe` (Bureau). Aperçu local des README :
+  `docs/preview/` (exclu de git par `.git/info/exclude`, rendu par un script de la session). Rien de commité depuis
+  1be66d4.
+
+**Soir du 23 novembre 2026** :
+- **README** (8 langues) : section « Remerciements » pour LainX84 (ticket n° 2 : index A–Z et barre de défilement,
+  filtre au clavier, défilement à ressort, distribution des cartes une fois par session, menu des cartes) ;
+  Turtlefin Trailers marqué « en cours de développement, pas encore publié ».
+- **Pi 5 sur un vrai écran 1366x768** (script `~/leaktest/ps.sh`) : accueil, bannière → fiche → retour, écran de
+  fin : rendu correct. Retour fiche → accueil : ~20 images de 20 à 55 ms (plus léger qu'en 1920x1080).
+- **Téléphone (APK -Release)** : étoiles des notes visibles (police Turtlefin Symbols), bannière → fiche, case
+  « 2 / 24 épisodes vus ». Deux bugs trouvés et corrigés (`ui/app.slint`) :
+  1. Onglet Détails : les pastilles (genres, studios, tags) d'une ligne passaient sur celles de la suivante. La
+     hauteur préférée du `HorizontalLayout` (libellé + `FlexboxLayout`) mesurait les pastilles sur toute la largeur
+     de la ligne, libellé compris, donc avec moins de lignes qu'à l'écran. Chaque ligne est maintenant un
+     `Rectangle` dont le `FlexboxLayout` (`fx`) a sa largeur exacte (`val-w`).
+  2. Menu des cartes (appui long) : sa dernière entrée passait sous la barre de navigation d'Android ; il reste
+     au-dessus (`bot`, même règle que le menu latéral).
+- **Demander / Télécharger en sélection, essayés sur Abydos** (compte `test`, config et données à part ; le Seerr
+  d'Abydos n'a ni Radarr ni Sonarr : les demandes y restent) : 3 séries choisies au Ctrl + clic dans la grille
+  « Afficher plus » → « Demander la sélection (3) » → 3 demandes acceptées dans Seerr, toutes saisons ; un film
+  par le menu (clic droit → Demander). Grille Films : 2 films → « Télécharger la sélection (2) » → fichiers,
+  images et métadonnées ; série entière (menu → Télécharger) : ses 3 épisodes. Bugs trouvés et corrigés :
+  1. Un média déjà demandé restait « à demander », sans état : `seerr_card` mettait toujours `status: 0`. Il lit
+     maintenant `mediaInfo.status` (2 → En attente, 3 → Acceptée, 4/5 → Disponible) ; et comme Seerr (ou le
+     proxy de Jellyfin Enhanced) peut servir une recherche mise en cache avant la demande, sans `mediaInfo`, la
+     recherche ajoute l'état des demandes du compte (`mark_requested`, `App::seerr_reqs`).
+  2. Cette pastille d'état passait sous la note (même coin) : la note est cachée quand une demande est affichée.
+  3. Juste après une demande, la grille ouverte et les rangées déjà affichées restaient sans pastille :
+     `store_reqs` appelle maintenant `show_requested`, qui la pose sur les cartes à l'écran (`lib-items`,
+     `sections`) et sur les rangées gardées pour la grille (`search_more`). Vérifié : 2 séries demandées dans la
+     grille, « Acceptée » aussitôt ; retour aux rangées, pastilles présentes.
+  Demandes d'essai laissées dans le Seerr d'Abydos.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :

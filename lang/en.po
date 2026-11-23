@@ -774,8 +774,8 @@ msgstr "Blurred image behind pages. Turn off on slow devices."
 msgid "Notes sur les affiches"
 msgstr "Ratings on posters"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "The community rating (★) at the bottom right of posters."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "The community rating at the bottom right of posters."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Scroll names that are too long"
@@ -1410,8 +1410,8 @@ msgstr "Change row with ↓ or ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "Move along it with → up to your profile, far right: the Home, Favorites and Requests tabs, then these icons."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Open the menu: in the top bar, go far left to ≡ and press OK; from the posters, ← at the start of a row (or Back)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Open the menu: in the top bar, go far left to the three-line icon and press OK; from the posters, ← at the start of a row (or Back)."
 
 msgid "Retour : quitter la visite"
 msgstr "Back: leave the tour"
@@ -4465,3 +4465,9 @@ msgstr "To request: {} movies"
 
 msgid "À demander : séries {}"
 msgstr "To request: {} series"
+
+msgid "Épisodes vus"
+msgstr "Episodes watched"
+
+msgid "{} / {} épisodes vus"
+msgstr "{} / {} episodes watched"

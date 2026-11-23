@@ -774,8 +774,8 @@ msgstr "Immagine sfocata dietro le pagine. Da disattivare se il dispositivo è l
 msgid "Notes sur les affiches"
 msgstr "Voti sulle locandine"
 
-msgid "La note de la communauté (★) en bas à droite des affiches."
-msgstr "Il voto della comunità (★) in basso a destra delle locandine."
+msgid "La note de la communauté en bas à droite des affiches."
+msgstr "Il voto della comunità in basso a destra delle locandine."
 
 msgid "Faire défiler les noms trop longs"
 msgstr "Far scorrere i nomi troppo lunghi"
@@ -1410,8 +1410,8 @@ msgstr "Cambi riga con ↓ o ↑."
 msgid "Parcours-la avec → jusqu'à ton profil, tout à droite : les onglets Accueil, Favoris et Demandes, puis ces icônes."
 msgstr "La percorra con → fino al Suo profilo, tutto a destra: le schede Home, Preferiti e Richieste, poi queste icone."
 
-msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur ≡ et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
-msgstr "Apra il menu: nella barra in alto vada tutto a sinistra su ≡ e prema OK; dalle locandine, ← all'inizio di una riga (o Indietro)."
+msgid "Ouvrez le menu : dans la barre du haut, allez tout à gauche sur l'icône à trois traits et appuyez sur OK ; depuis les affiches, ← au début d'une rangée (ou Retour)."
+msgstr "Apra il menu: nella barra in alto vada tutto a sinistra sull'icona a tre linee e prema OK; dalle locandine, ← all'inizio di una riga (o Indietro)."
 
 msgid "Retour : quitter la visite"
 msgstr "Indietro: esci dalla visita"
@@ -4465,3 +4465,9 @@ msgstr "Da richiedere: film {}"
 
 msgid "À demander : séries {}"
 msgstr "Da richiedere: serie {}"
+
+msgid "Épisodes vus"
+msgstr "Episodi visti"
+
+msgid "{} / {} épisodes vus"
+msgstr "{} / {} episodi visti"

@@ -1,78 +1,107 @@
-<p align="center"><img src="packaging/icons/turtlefin-aero-256.png" width="96" alt="Turtlefin logo (Frutiger Aero theme)">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-256.png" width="128" alt="Turtlefin logo">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-nerd-256.png" width="96" alt="Turtlefin logo (Nerd theme)"></p>
+<p align="center"><img src="packaging/icons/turtlefin-aero-256.png" width="96" alt="Logo Turtlefin (motyw Frutiger Aero)">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-256.png" width="128" alt="Logo Turtlefin">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-nerd-256.png" width="96" alt="Logo Turtlefin (motyw Nerd)"></p>
 
 # Turtlefin
 
 [English](README.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [Italiano](README.it.md) · [Nederlands](README.nl.md) · **Polski** · [Português](README.pt.md)
 
-**Natywny, lekki i animowany klient Jellyfin, stworzony zarówno do salonu, jak i do biurka.** Napisany w Rust ze
-Slint (interfejs) i libmpv (odtwarzanie): bez Qt i bez wbudowanej przeglądarki. Działa na każdym komputerze z
-Windows lub Linuksem, od starego laptopa po małe pudełko podłączone do telewizora, i równie dobrze obsługuje się
-go pilotem, jak klawiaturą i myszą — a także na Androidzie (telefon, tablet, telewizor), palcem.
+**Natywny, lekki i animowany klient Jellyfin, stworzony zarówno do salonu, jak i do biurka.** Napisany w Ruście ze
+Slint (interfejs) i libmpv (odtwarzanie): bez Qt, bez wbudowanej przeglądarki. Działa na każdym komputerze z Windows
+lub Linuksem, od starego laptopa po małe pudełko podłączone do telewizora, i obsługuje się go równie dobrze pilotem,
+jak klawiaturą i myszą — a na Androidzie (telefon, tablet, telewizor) palcem.
 
-> **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja
-> (Claude od Anthropic), prowadzona i testowana przez człowieka, który sam go nie programował.
+> **Projekt w całości „vibecodowany”**: cały kod, teksty i tłumaczenia napisała sztuczna inteligencja (Claude, od
+> Anthropic), prowadzona i testowana przez człowieka, który sam nie napisał kodu.
 
-Aktualna wersja: **2.0.0** · Języki interfejsu: Polski, English, Français, Español, Deutsch, Italiano, Português,
-Nederlands — oraz każdy język dodany samodzielnie (zob. [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
+Obecna wersja: **2.0.0** · Języki interfejsu: Français, English, Español, Deutsch, Italiano, Português, Polski,
+Nederlands — oraz każdy język, który dodasz Ty sam (zobacz [Tłumaczenie Turtlefin](#tłumaczenie-turtlefin)).
 
-> **O tej wersji.** Wersja 2.0.0 została przetestowana w systemie Windows, na Raspberry Pi 5 podłączonym do
-> telewizora, w systemie Linux i na Androidzie (telefon). Niektóre rzeczy wymagają jeszcze poprawek (zob. informacje o
-> [wersjach](https://github.com/Xelopteryx/Turtlefin/releases) i znane problemy w [HANDOFF.pl.md](HANDOFF.pl.md)).
-> Uwagi są mile widziane w [zgłoszeniach](https://github.com/Xelopteryx/Turtlefin/issues).
+> **O tej wersji.** Wersja 2.0.0 była testowana w Windows, na Raspberry Pi 5 podłączonym do telewizora, w Linuksie i na
+> Androidzie (telefon, emulator telewizora). Niektóre rzeczy wymagają jeszcze poprawek (zobacz notatki
+> [wydań](https://github.com/Xelopteryx/Turtlefin/releases) i znane problemy w [HANDOFF.pl.md](HANDOFF.pl.md)). Twoje
+> uwagi są mile widziane w [zgłoszeniach](https://github.com/Xelopteryx/Turtlefin/issues).
+
+<p align="center"><img src="docs/screenshots/en-home-turtlefin.jpg" width="100%" alt="Ekran główny Turtlefin, motyw Turtlefin"></p>
+
+## Zrzuty ekranu
+
+Trzy motywy, każdy z własną animowaną scenerią dzienną i nocną (tu na serwerze testowym z wolnymi filmami Blender
+Foundation):
+
+<p align="center"><img src="docs/screenshots/en-home-turtlefin.jpg" width="32%" alt="Motyw Turtlefin">&nbsp;<img src="docs/screenshots/en-home-aero.jpg" width="32%" alt="Motyw Frutiger Aero">&nbsp;<img src="docs/screenshots/en-home-nerd.jpg" width="32%" alt="Motyw Nerd"></p>
+
+Strona filmu, ekran końcowy (to, co właśnie skończyłeś oglądać, i co obejrzeć dalej) oraz „Kto ogląda?”:
+
+<p align="center"><img src="docs/screenshots/en-detail.jpg" width="32%" alt="Strona filmu">&nbsp;<img src="docs/screenshots/en-end-screen.jpg" width="32%" alt="Ekran końcowy">&nbsp;<img src="docs/screenshots/en-who-is-watching.jpg" width="32%" alt="Kto ogląda?"></p>
+
+Ta sama aplikacja na telefonie:
+
+<p align="center"><img src="docs/screenshots/en-phone-home.jpg" width="24%" alt="Ekran główny na telefonie">&nbsp;<img src="docs/screenshots/en-phone-detail.jpg" width="24%" alt="Strona filmu na telefonie">&nbsp;<img src="docs/screenshots/en-phone-settings.jpg" width="24%" alt="Ustawienia na telefonie"></p>
 
 ## Co potrafi
 
-- **Konta**: ekran „Kto ogląda?” ze zdjęciami profilowymi (także animowanymi GIF-ami, w pamięci podręcznej), do
-  12 kont zapisanych na urządzeniu (tylko token, nigdy hasło), zmiana konta bez ponownego wpisywania,
-  „Zarządzaj kontami”, aby je usuwać. Wyszukiwanie serwerów we wszystkich sieciach urządzenia; adres główny i
-  adres zapasowy, próbowany, gdy główny nie odpowiada.
-- **Uruchamianie**: animowane logo, którego siedem punktów to prawdziwe kontrole (język, wyświetlanie,
-  odtwarzacz wideo, pamięć, konfiguracja, sieć i — w środku — serwer), a potem „Kto ogląda?” — albo od razu konto
-  wybrane w Ustawienia → Konto → **Otwieraj to konto przy starcie**.
-- **Strona główna**: Moje media, Oglądaj dalej, Następne, Ostatnio dodane; karty Ulubione i Prośby (Seerr).
-  Plakaty z liczbą pozostałych odcinków, znacznikiem „obejrzane” i oceną; tło z wybranego materiału.
-- **Strony szczegółów**: film, serial, sezon, odcinek; odtwarzanie, ulubione, obejrzane, pobieranie, wybór
-  dźwięku / napisów zapamiętany dla całego serialu; „Więcej podobnych” i propozycje Seerr; prośba o brakujące
-  sezony.
-- **Odtwarzanie** (libmpv): rozdziały, odcinki sezonu, „Pomiń intro”, następny odcinek, propozycje na koniec
-  serialu, własna głośność Turtlefin, maksymalna przepływność (powyżej serwer konwertuje wideo); pozycja i „obejrzane” wysyłane do serwera.
+- **Konta**: ekran „Kto ogląda?” ze zdjęciami profilowymi (także animowane GIF-y), do 12 kont zapisanych na urządzeniu
+  (tylko token, nigdy hasło), opcjonalny kod dla konta, zmiana konta bez ponownego wpisywania. Wyszukiwanie serwerów
+  we wszystkich sieciach urządzenia; adres główny i zapasowy, próbowany, gdy główny nie odpowiada.
+- **Uruchamianie**: animowane logo, którego siedem punktów to prawdziwe sprawdzenia (język, ekran, odtwarzacz wideo,
+  pamięć, konfiguracja, sieć i w środku serwer), potem „Kto ogląda?” — albo od razu wybrane konto przez Ustawienia →
+  Konto → **Otwieraj to konto przy starcie**.
+- **Ekran główny**: baner, Moje media, Oglądaj dalej, Następne, Ostatnio dodane; karty Ulubione, Do obejrzenia i Prośby
+  (Seerr). Plakaty z liczbą pozostałych odcinków, znacznikiem „obejrzane” i oceną; tło pochodzi z wybranego elementu.
+- **Strony**: film, serial, sezon, odcinek; odtwarzanie, ulubione, obejrzane, pobieranie, wybór dźwięku / napisów
+  zapamiętany dla całego serialu; ocena, czas trwania, premiera, a dla serialu lub sezonu **obejrzane odcinki**
+  („8 / 24” i procent); karta Szczegóły (gatunki, studia, osoby, języki dźwięku z flagą); „Więcej podobnych” i
+  propozycje Seerr; prośba o brakujące sezony.
+- **Odtwarzanie** (libmpv): rozdziały, odcinki sezonu, „Pomiń intro”, następny odcinek, maksymalna przepływność
+  (powyżej niej serwer konwertuje wideo), własna głośność; animowany **ekran końcowy**: to, co właśnie skończyłeś, i
+  trzy propozycje ze streszczeniem wybranej; pozycja i „obejrzane” odsyłane do serwera.
+- **Wyszukiwanie** w bibliotece i w Seerr: tytuły, osoby (z ich filmografią, której brak na serwerze) oraz **studia lub
+  stacje** („disney”, „pixar”, „netflix”: ich filmy i seriale do poproszenia); filtry, wyszukiwanie zaawansowane,
+  losowy element.
+- **Zaznaczanie wielu kart** w siatkach (długie przytrzymanie, przeciągnięcie myszą, przytrzymanie OK na pilocie),
+  a potem poproszenie o nie lub pobranie wszystkich naraz.
 - **Watch party** (SyncPlay): oglądanie tego samego w tym samym czasie na kilku urządzeniach.
-- **Android** (telefon, tablet, Android TV): ta sama aplikacja, w pionie i w poziomie, obsługa palcem
-  (przesuwanie rzędów, obsady, odcinków; od lewej krawędzi: wstecz), głośność telefonu, pilot i pad Android TV.
-- **Przesyłanie**: wysłanie filmu na inny ekran — inny Turtlefin, aplikację Jellyfin konta albo Chromecast (z
-  przekaźnikiem przez urządzenie, gdy telewizor nie łączy się z serwerem) — i sterowanie nim z odtwarzacza.
-  **Pilot**: sterowanie innym Turtlefinem konta jak jego pilotem.
-- **Strony Seerr**: media, których nie ma na serwerze, otwierają się na własnej stronie (opis, informacje,
-  obsada, „Czytaj dalej”), z Poproś i **Zwiastunem** (przygotowanym na serwerze przez wtyczkę Turtlefin
-  Trailers, w języku konta, przechowywanym najwyżej 24 godziny).
-- **Zwiastuny**: ikona na stronach szczegółów; zwiastuny serwera (w języku konta, jeśli jest ich kilka), w
-  przeciwnym razie YouTube przez yt-dlp, jeśli jest zainstalowany.
-- **Motywy**: Turtlefin, Frutiger Aero i Nerd, każdy z własnym logo, startem i animowanym tłem; własny motyw
-  (zob. Motywy niżej). Offline cały interfejs staje się bursztynowy.
-- **Pamięć**: folder pobrań i limit miejsca; **sprawdzanie hasła** (ostrzeżenie, gdy jest zbyt proste, zmiana w
-  aplikacji).
-- **Offline**: pobrane materiały zastępują stronę główną, z pełnymi stronami szczegółów bez serwera; to, co
-  obejrzano lub dodano do ulubionych offline, trafia do konta po ponownym połączeniu.
-- **Wyszukiwanie** (biblioteka + Seerr) i losowy materiał.
-- **Pilot, klawiatura i mysz wszędzie**: interfejs TV (duże elementy, klawiatura ekranowa) lub interfejs
-  komputerowy (okno lub pełny ekran, F11), kliknięcia i kółko myszy na każdej stronie, a fizyczna klawiatura
-  pisze bezpośrednio w polach tekstowych w obu trybach.
-- **Ustawienia**: zdjęcie profilowe (awatary GetAvatar według kategorii), język interfejsu, języki dźwięku i
-  napisów, rozmiar napisów, automatyczny następny odcinek i pomijanie intro, interfejs TV, pełny ekran, tło,
-  oceny, godzina, adresy serwera, pamięć podręczna obrazów, **aktualizacja z GitHuba**.
-- **Animacje** wszędzie (plakat lecący do strony szczegółów, wysuwane menu, rzędy kaskadą, animowane logowanie,
-  zmiana języka), regulowane pojedynczo w Ustawienia → Animacje, z presetami (Wszystkie, Lekkie, Brak) i
-  własnymi, które można eksportować i importować.
-- **Przewodnik**: proponowany przy pierwszym uruchomieniu, do obejrzenia ponownie w Ustawienia → Informacje.
-- **Demonstracja**: „Poznaj Turtlefin” (przy wyborze serwera) otwiera prezentację na wbudowanym serwerze
-  demonstracyjnym, z prawdziwymi wolnymi filmami Blender Foundation; nic nie jest zapisywane. Z wiersza poleceń:
-  `--demo`.
-- **Tła dzienne i nocne**: każdy motyw ma animowane tło, które podąża za porą dnia (laguna Aero, barwne mgławice
-  Turtlefin, płytka drukowana Nerd), albo zawsze dzień, albo zawsze noc.
-- **Płynność**: Turtlefin sprawdza możliwości urządzenia i sam upraszcza tło, aby utrzymać 60 klatek na sekundę
-  (Ustawienia → Wyświetlanie → Szczegółowość tła).
-- **Status Discord**: otwarta strona i oglądany materiał w profilu Discord (domyślnie wyłączony).
-- **Administratorzy**: zmiana materiału z jego strony (informacje, obrazy), Identyfikuj, Odśwież, panel serwera.
+- **Android** (telefon, tablet, Android TV): ta sama aplikacja, w pionie i w poziomie, palcem (przesunięcie od lewej
+  krawędzi: wstecz), głośność telefonu, pilot i pad Android TV.
+- **Przesyłanie**: wysłanie wideo na inny ekran — inny Turtlefin, aplikację Jellyfin konta lub Chromecast — i
+  sterowanie nim z odtwarzacza. **Pilot**: sterowanie innym Turtlefin konta.
+- **Strony Seerr**: element, którego brak na serwerze, otwiera się na własnej stronie (streszczenie, informacje,
+  obsada), z przyciskami Poproś i **Zwiastun**.
+- **Motywy**: Turtlefin, Frutiger Aero i Nerd, każdy z własnym logo, uruchamianiem i animowaną scenerią zależną od pory
+  dnia; własny motyw (zobacz [Motywy](#motywy)). Offline cały interfejs zmienia kolor na bursztynowy.
+- **Offline**: pobrane pliki zastępują ekran główny, z pełnymi stronami bez serwera; to, co obejrzano lub dodano do
+  ulubionych offline, trafia na konto po ponownym połączeniu.
+- **Pilot, klawiatura, mysz i palec wszędzie**: interfejs TV (duże elementy, klawiatura ekranowa) lub interfejs
+  komputerowy (okno lub pełny ekran, F11).
+- **Ustawienia** według kategorii, z wyszukiwaniem: zdjęcie profilowe (GetAvatar), języki, napisy, odtwarzanie,
+  wyświetlanie, rozmiar tekstu, sieć, pamięć, animacje, mody, **aktualizacja z GitHuba**.
+- **Animacje** wszędzie (plakat lecący do swojej strony, otwierający się baner, rzędy kaskadą, przejścia między
+  stronami), regulowane pojedynczo, z ustawieniami (Wszystkie, Lekkie, Brak).
+- **Płynność**: Turtlefin mierzy możliwości urządzenia i sam upraszcza scenerię, aby utrzymać 60 klatek na sekundę.
+- Wbudowane **oprowadzanie** i **demo** („Poznaj Turtlefin” przy pierwszym uruchomieniu), z prawdziwymi wolnymi
+  filmami; nic nie jest zapisywane.
+- **Status Discord** (domyślnie wyłączony); **administratorzy**: edycja elementu z jego strony, panel.
+
+## Wymagania systemowe
+
+Zmierzone na Raspberry Pi 5, tanim telefonie (Galaxy A12s) i spowolnionym emulatorze Androida (jeden rdzeń ograniczony
+do 30 %: da się używać, animacje 15–50 klatek na sekundę; ten sam rdzeń bez ograniczenia: animacje 60 klatek na sekundę).
+
+**Minimalne** — wszystko działa, animacje wyłączone (Ustawienia → Animacje → **Brak**); sceneria sama się zatrzymuje,
+jeśli urządzenie nie nadąża:
+
+- 64-bitowy procesor 4-rdzeniowy około 1,5 GHz (Cortex-A53 / A55 telewizora lub taniego telefonu, nowszy Intel Celeron
+  lub Atom);
+- 2 GB pamięci (Turtlefin używa od 200 do 500 MB);
+- akceleracja grafiki OpenGL (Windows, Linux na PC) lub OpenGL ES (Android, Raspberry Pi); zalecane sprzętowe
+  dekodowanie wideo;
+- Windows 10 lub 11, Linux z 2022 roku lub nowszy (Ubuntu 22.04, Debian 12…), Android 8 lub nowszy.
+
+**Zalecane** — wszystkie animacje w 60 klatkach na sekundę:
+
+- nowszy procesor 4-rdzeniowy około 2 GHz lub szybszy (Cortex-A76 z Raspberry Pi 5, Intel Core i3 8. generacji,
+  AMD Ryzen 3 lub lepszy);
+- 4 GB pamięci;
+- sprzętowe dekodowanie HEVC 10-bit dla 4K.
 
 ## Instalacja
 
@@ -93,128 +122,130 @@ irm https://raw.githubusercontent.com/Xelopteryx/Turtlefin/main/packaging/instal
 curl -fsSL https://raw.githubusercontent.com/Xelopteryx/Turtlefin/main/packaging/install.sh | sh
 ```
 
-W Windows najnowszy instalator jest pobierany i uruchamiany dla twojego konta użytkownika (bez uprawnień
-administratora). W Debianie, Ubuntu, Linux Mint i innych dystrybucjach z apt instalowany jest pakiet `.deb`
-(pojawi się prośba o hasło); w pozostałych AppImage trafia do `~/.local/bin`, z wpisem w menu aplikacji.
+W Windows najnowszy instalator jest pobierany i uruchamiany dla Twojego konta użytkownika (bez uprawnień
+administratora). W Debianie, Ubuntu, Linux Mint i innych dystrybucjach z apt instalowany jest pakiet `.deb` (zostaniesz
+poproszony o hasło); w pozostałych AppImage trafia do `~/.local/bin` z wpisem w menu aplikacji.
 
 ### Ręcznie
 
-| System | Plik | Uwagi |
-|---|---|---|
-| Windows 64-bit | `Turtlefin-<version>-windows-x64-setup.exe` | Instalator: język, folder i tryb **zainstalowany** (menu Start, odinstalowanie) lub **przenośny** |
-| Windows 64-bit, bez instalacji | `Turtlefin-<version>-windows-x64-portable.zip` | Rozpakować w dowolnym miejscu (pendrive…) i uruchomić `turtlefin.exe` |
-| Windows 32-bit | `…-windows-x86-setup.exe` / `…-windows-x86-portable.zip` | Dla starszych komputerów |
-| Linux, wszystkie dystrybucje (x86_64) | `Turtlefin-<version>-linux-x86_64.AppImage` | Nadać prawo wykonywania (`chmod +x`) i uruchomić |
-| Linux z Flatpakiem (x86_64) | `Turtlefin-<version>-linux-x86_64.flatpak` | `flatpak install --user ./Turtlefin-….flatpak` (środowisko uruchomieniowe pochodzi z Flathub) |
-| Linux, ARM 64-bit | `Turtlefin-<version>-linux-aarch64.AppImage` | Tak samo |
-| Debian, Ubuntu, Mint… | `turtlefin_<version>_amd64.deb` / `_arm64.deb` | Dwuklik albo `sudo apt install ./turtlefin_….deb` |
-| Android (telefon, tablet, telewizor) | `Turtlefin-<version>-android-arm64.apk` | Zezwolić na instalację z tego źródła, a potem otworzyć plik (Android 8 lub nowszy) |
+- **Windows 64-bit**: `Turtlefin-<version>-windows-x64-setup.exe` — instalator: język, folder i tryb **zainstalowany**
+  (menu Start, odinstalowanie) lub **przenośny**.
+- **Windows 64-bit, bez instalacji**: `Turtlefin-<version>-windows-x64-portable.zip` — rozpakuj, gdzie chcesz
+  (pendrive…), potem uruchom `turtlefin.exe`.
+- **Windows 32-bit** (stare komputery): `…-windows-x86-setup.exe` lub `…-windows-x86-portable.zip`.
+- **Linux, każda dystrybucja (x86_64)**: `Turtlefin-<version>-linux-x86_64.AppImage` — nadaj prawo wykonywania
+  (`chmod +x`), potem uruchom. ARM 64-bit: `…-linux-aarch64.AppImage`.
+- **Linux z Flatpakiem (x86_64)**: `Turtlefin-<version>-linux-x86_64.flatpak` —
+  `flatpak install --user ./Turtlefin-….flatpak` (środowisko pochodzi z Flathub).
+- **Debian, Ubuntu, Mint…**: `turtlefin_<version>_amd64.deb` lub `_arm64.deb` — dwuklik lub
+  `sudo apt install ./turtlefin_….deb`.
+- **Android** (telefon, tablet, telewizor): `Turtlefin-<version>-android-arm64.apk` (telewizor 32-bit:
+  `…-android-androidtv-armv7.apk`) — zezwól na instalację z tego źródła, potem otwórz plik.
 
-Wersje dla Windows i AppImage zawierają wszystko (łącznie z odtwarzaczem libmpv). Pakiet `.deb` korzysta z libmpv
-systemu (`libmpv2`, instalowanej automatycznie przez apt). AppImage i pakiety wymagają dystrybucji z 2022 roku lub
-nowszej (Ubuntu 22.04, Debian 12…).
+Wersje dla Windows i AppImage zawierają wszystko (łącznie z odtwarzaczem libmpv). Pakiet `.deb` korzysta z systemowej
+libmpv (`libmpv2`, instalowanej automatycznie przez apt).
 
-**Wersja przenośna**: plik `portable` obok `turtlefin.exe` sprawia, że konfiguracja, konta, pamięć podręczna i
-pobrane pliki zostają w folderze `data` obok programu; nic nie jest zapisywane gdzie indziej.
+**Wersja przenośna**: plik o nazwie `portable` obok `turtlefin.exe` sprawia, że konfiguracja, konta, pamięć podręczna
+i pobrane pliki zostają w folderze `data` obok programu; nic nie jest zapisywane gdzie indziej.
 
 ### Aktualizacja
 
-**Ustawienia → Informacje → Sprawdź aktualizacje** porównuje zainstalowaną wersję z najnowszą opublikowaną, a
-potem **Aktualizuj** robi wszystko, zależnie od sposobu instalacji Turtlefin:
+**Ustawienia → Informacje → Sprawdź aktualizacje** porównuje zainstalowaną wersję z najnowszą, a potem **Aktualizuj**
+zajmuje się wszystkim w zależności od sposobu instalacji Turtlefin:
 
-| Instalacja | Aktualizacja |
-|---|---|
-| Windows, zainstalowany | nowy instalator jest pobierany i uruchamiany po cichu w tym samym folderze |
-| Windows, przenośny | nowe archiwum jest pobierane, a jego pliki zastępują stare |
-| AppImage | nowy plik zastępuje stary |
-| Flatpak | nie automatycznie: pobrać nowy plik `.flatpak` i zainstalować go tak samo |
-| Pakiet .deb | pakiet jest instalowany przez `pkexec` (pojawi się prośba o hasło administratora) |
+- **Windows, zainstalowany**: nowy instalator jest pobierany i uruchamiany po cichu w tym samym folderze;
+- **Windows, przenośny**: nowe archiwum jest pobierane, a jego pliki zastępują stare;
+- **AppImage**: nowy plik zastępuje stary;
+- **Pakiet .deb**: pakiet jest instalowany przez `pkexec` (pojawi się prośba o hasło administratora);
+- **Flatpak**: nie automatycznie — pobierz nowy plik `.flatpak` i zainstaluj go w ten sam sposób.
 
-**Uruchom ponownie Turtlefin** otwiera potem nową wersję.
+**Uruchom ponownie Turtlefin** uruchamia potem nową wersję.
 
 ## Zalecane wtyczki serwera
 
-Turtlefin działa ze zwykłym serwerem Jellyfin (10.11 lub nowszym). Te wtyczki, instalowane na **serwerze**,
-dodają funkcje:
+Turtlefin działa ze zwykłym serwerem Jellyfin (10.11 lub nowszym). Te wtyczki, instalowane na **serwerze**, dodają
+funkcje:
 
-| Wtyczka | Co daje Turtlefin |
-|---|---|
-| [Jellyfin Enhanced](https://github.com/n00bcodr/Jellyfin-Enhanced) | Karta Prośby, wyniki Seerr w wyszukiwaniu, propozycje i prośby Seerr na stronach szczegółów — przez logowanie Jellyfin, bez klucza Seerr w kliencie |
-| [Seerr](https://github.com/seerr-team/seerr) (dawniej Jellyseerr) | Sam menedżer próśb, używany przez Jellyfin Enhanced |
-| [Intro Skipper](https://github.com/intro-skipper/intro-skipper) | Wykrywa czołówki i napisy końcowe: przycisk „Pomiń intro”, automatyczne pomijanie, „Następny odcinek” we właściwej chwili |
-| [GetAvatar](https://github.com/cedev-1/jellyfin-plugin-GetAvatar) | Galeria zdjęć profilowych do wyboru w Ustawienia → Konto |
-| Turtlefin Trailers (publikowana osobno) | Pobiera na serwer brakujące zwiastuny, w języku każdej biblioteki i każdego konta, i przygotowuje zwiastuny stron Seerr |
+- [**Jellyfin Enhanced**](https://github.com/n00bcodr/Jellyfin-Enhanced): karta Prośby, wyniki Seerr w wyszukiwaniu
+  (tytuły, osoby, studia), propozycje i prośby Seerr na stronach — przez logowanie Jellyfin, bez klucza Seerr w
+  kliencie.
+- [**Seerr**](https://github.com/seerr-team/seerr) (dawniej Jellyseerr): sam menedżer próśb, używany przez Jellyfin
+  Enhanced.
+- [**Intro Skipper**](https://github.com/intro-skipper/intro-skipper): wykrywa intro i napisy końcowe — przycisk „Pomiń
+  intro”, automatyczne pomijanie, „Następny odcinek” we właściwym momencie.
+- [**GetAvatar**](https://github.com/cedev-1/jellyfin-plugin-GetAvatar): galeria zdjęć profilowych do wyboru w
+  Ustawienia → Konto.
+- **Turtlefin Trailers** (w trakcie tworzenia, jeszcze niewydany): pobiera na serwer brakujące zwiastuny, w języku
+  każdej biblioteki i każdego konta, i przygotowuje te dla stron Seerr.
 
 ## Uruchamianie
 
-```
-turtlefin                                  animacja startowa, potem „Kto ogląda?” (lub konto startowe)
-turtlefin "Nazwa"                          zapisane konto „Nazwa”
-turtlefin "Nazwa" --server=http://…        bezpośrednie logowanie (hasło: zmienna TURTLEFIN_PASSWORD=…)
-turtlefin --tv                             interfejs TV: pełny ekran, duże elementy
-turtlefin --desktop                        interfejs komputerowy (ma pierwszeństwo przed ustawieniem „Interfejs TV”)
-turtlefin --no-intro                       bez animacji startowej
-turtlefin --sub=fr --audio=ja             napisy / język dźwięku dla tego uruchomienia (--sub=off: brak)
-turtlefin --fullscreen                     pełny ekran bez interfejsu TV
-turtlefin --console                        okno dziennika (Windows)
-turtlefin --tutorial                       przewodnik po otwarciu strony głównej
-```
+- `turtlefin`: animacja startowa, potem „Kto ogląda?” (lub konto startowe).
+- `turtlefin "Nazwa"`: zapisane konto „Nazwa”.
+- `turtlefin "Nazwa" --server=http://…`: bezpośrednie logowanie (hasło w zmiennej `TURTLEFIN_PASSWORD`).
+- `turtlefin --tv`: interfejs TV (pełny ekran, duże elementy); `--desktop`: interfejs komputerowy.
+- `turtlefin --fullscreen`: pełny ekran bez interfejsu TV; `--no-intro`: bez animacji startowej.
+- `turtlefin --sub=fr --audio=ja`: napisy i język dźwięku dla tego uruchomienia (`--sub=off`: bez napisów).
+- `turtlefin --lang=en`, `--theme=nerd`: język i motyw (zachowywane potem).
+- `turtlefin "Nazwa" --play="Bleach S1E3"`: odtwarza odcinek (sam „Tytuł”: film lub wznowienie serialu);
+  `--open="Dragon Ball"`: otwiera stronę.
+- `turtlefin --demo`: wbudowane demo; `--theme-creator`: Turtlefin Theme Creator; `--console`: okno dziennika
+  (Windows); `--help`: wszystkie opcje.
 
 Wiersz poleceń zawsze ma pierwszeństwo przed ustawieniami (konto startowe, interfejs TV).
 
 ## Klawisze i mysz
 
-- **Strzałki** do poruszania się, **Enter**, aby otworzyć / aktywować, **Esc** lub **Backspace**, aby wrócić
-  (przytrzymany: tylko jeden krok wstecz).
-- Strona główna: **←** na pierwszej karcie (lub Wstecz) otwiera menu; w menu **→** lub Esc je zamyka.
-- **↑** z górnej części strony: górny pasek (wstecz, start, menu, watch party, losowo, wyszukiwanie, konto).
-- Odtwarzanie, ukryte sterowanie: **← →** cofnij / przewiń o 10 s, **↑ ↓** lub Enter pokazują sterowanie, ↓ z
-  przycisków: odcinki sezonu. **Spacja**: pauza · `a` dźwięk · `s` napisy · `f` pełny ekran.
-- **F11**, wszędzie: pełny ekran (także w Ustawienia → Wyświetlanie → **Pełny ekran**, zapamiętywany między
-  uruchomieniami poza interfejsem TV).
-- **Pilot telewizora**: Stop, następny / poprzedni odcinek, przewijanie do przodu / do tyłu, Menu (lewe menu)
-  i pad (Android, Raspberry Pi przez XeLauncher) działają jak klawiatura.
-- **Mysz**: kliknięcie otwiera, kółko przechodzi z rzędu do rzędu (Shift + kółko: w obrębie rzędu).
-- **Dotyk i przeciąganie**: dotknięcie otwiera; przesunięcie palcem (lub przeciąganie lewym przyciskiem myszy) przewija rząd lub stronę, szybki ruch sięga dalej; od lewej krawędzi: wstecz.
-- **Tekst**: litera wpisana na klawiaturze trafia od razu do pola (wyszukiwanie, logowanie, adres), także w
-  interfejsie TV; tam kliknięcie pola wyszukiwania otwiera klawiaturę ekranową.
+- **Strzałki** do poruszania się, **Enter** do otwierania / aktywowania, **Esc** lub **Backspace**, aby wrócić.
+- Ekran główny: **←** na pierwszej karcie (lub Wstecz) otwiera menu; **↑** z góry strony: górny pasek.
+- Odtwarzanie, ukryte sterowanie: **← →** 10 s do tyłu / do przodu, **↑ ↓** lub Enter pokazują sterowanie; **Spacja**:
+  pauza · `a` dźwięk · `s` napisy · `f` pełny ekran.
+- **F11**, wszędzie: pełny ekran (także w Ustawienia → Wyświetlanie, zachowywany między uruchomieniami).
+- **Pilot**: Stop, następny / poprzedni odcinek, przewijanie do przodu / do tyłu, Menu; przytrzymanie OK na karcie: jej
+  menu (lub zaznaczenie wielu kart w siatce).
+- **Mysz**: kliknięcie otwiera, prawy przycisk to menu karty, kółko przechodzi między rzędami (Shift + kółko: w obrębie
+  rzędu).
+- **Palec**: dotknięcie otwiera, przesunięcie przewija, od lewej krawędzi: wstecz; w siatce długie przytrzymanie karty
+  rozpoczyna zaznaczanie wielu kart.
+- **Tekst**: litera wpisana na klawiaturze trafia od razu do pola (wyszukiwanie, logowanie), także w interfejsie TV.
 
 ## Pliki
 
-| Gdzie | Co |
-|---|---|
-| folder konfiguracji, `turtlefin/` | `session.json` (bieżąca sesja), `accounts.json` (zapisane konta), `prefs.json` (ustawienia urządzenia), `tracks.json` (ścieżki dla seriali), `userdata.json` (obejrzane / ulubione offline) |
-| folder danych, `turtlefin/downloads/` | pobrane pliki ułożone jak biblioteka: `<biblioteka>/<serial>/Season 01/<serial> S01E01.mkv` (z plikiem `.json`, obrazem i napisami), obrazy serialu wspólne; `queue.json` (kolejka) |
-| folder pamięci podręcznej, `turtlefin/img/` | obrazy i zdjęcia profilowe (do wyczyszczenia w Informacje) |
-| **Dokumenty** | `Turtlefin Languages` (dodane języki) i `Turtlefin Presets` (wyeksportowane presety animacji) |
+- **Folder konfiguracji** (`turtlefin/`): `session.json` (bieżąca sesja), `accounts.json` (zapisane konta),
+  `prefs.json` (ustawienia urządzenia), `tracks.json` (ścieżki dla seriali), `userdata.json` (obejrzane / ulubione
+  offline).
+- **Folder danych** (`turtlefin/downloads/`): pobrane pliki ułożone jak biblioteka
+  (`<biblioteka>/<serial>/Season 01/<serial> S01E01.mkv`, z obrazem i napisami); `queue.json` (kolejka).
+- **Folder pamięci podręcznej** (`turtlefin/img/`): obrazy i zdjęcia profilowe (można wyczyścić w Informacje).
+- **Dokumenty**: `Turtlefin Languages` (dodane języki), `Turtlefin Themes` (motywy), `Turtlefin Mods` (mody) i
+  `Turtlefin Presets` (wyeksportowane ustawienia animacji).
 
-W Linuksie: `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`.
-W Windows: `%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`.
-Wersja przenośna: wszystko w `data\` obok `turtlefin.exe` (`config`, `cache`, `downloads`), a foldery języków i
-presetów obok programu.
+W Linuksie: `~/.config/turtlefin`, `~/.local/share/turtlefin`, `~/.cache/turtlefin`. W Windows:
+`%APPDATA%\turtlefin\config`, `%APPDATA%\turtlefin\data`, `%LOCALAPPDATA%\turtlefin\cache`. Wersja przenośna: wszystko
+w `data\` obok `turtlefin.exe`.
 
-## W razie problemów
+## Rozwiązywanie problemów
 
 - `turtlefin --console` (Windows) lub uruchomienie z terminala (Linux) pokazuje dziennik.
 - `TURTLEFIN_MPV_LOG=/tmp/mpv.log`: dziennik mpv · `TURTLEFIN_MPV_ARGS="…"`: dodatkowe opcje mpv.
-- `TURTLEFIN_HWDEC=no`: dekodowanie programowe (domyślnie sprzętowe, `drm-copy` na Raspberry Pi) · `TURTLEFIN_AO=alsa`: wyjście dźwięku.
-- Linie lub zakłócenia w obrazie (NVIDIA): Ustawienia → Odtwarzanie → **Dekodowanie sprzętowe** wyłączone (wszystko dekoduje procesor).
-- `TURTLEFIN_LIBMPV=ścieżka`: inne położenie libmpv · `TURTLEFIN_DEBUG_FRAMES=1`: zgłasza wolne klatki.
-- Renderowanie musi używać OpenGL (wybierane automatycznie): z `SLINT_BACKEND=winit-software` nie ma obrazu wideo.
+- `TURTLEFIN_HWDEC=no`: dekodowanie programowe · `TURTLEFIN_AO=alsa`: wyjście dźwięku.
+- Linie lub zakłócenia w obrazie (NVIDIA): Ustawienia → Odtwarzanie → **Dekodowanie sprzętowe** wyłączone.
+- Wolne urządzenie: Ustawienia → Animacje → **Lekkie** lub **Brak**, oraz Ustawienia → Wyświetlanie → Motyw →
+  **Szczegółowość tła** → Nieruchome.
+- Renderowanie musi używać OpenGL (wybierane automatycznie): z `SLINT_BACKEND=winit-software` nie ma wideo.
 
 ## Motywy
 
-Ustawienia → Wyświetlanie → **Motyw**: **Turtlefin** (domyślny: sześciokąty, fiolet → błękit), **Frutiger Aero**
-(w duchu Windows 7: niebo i bańki, niebieskawe szkło, błyszczące przyciski, logo w kuli) i **Nerd** (płyta główna
-nocą: serwer to procesor, prąd płynie ścieżkami do każdego elementu) — albo własny motyw. „Animowane tło”
-(Ustawienia → Animacje) ożywia każde tło; na Raspberry Pi jest domyślnie wyłączone.
+Ustawienia → Wyświetlanie → **Motyw**: **Turtlefin** (domyślny: sześciokąty, fiolet → niebieski, dryfujące plamy
+koloru), **Frutiger Aero** (w duchu Windows 7: niebieskawe szkło, błyszczące przyciski, laguna, przez której wodę widać
+obraz elementu) i **Nerd** (płytka drukowana: serwer jest procesorem, prąd płynie ścieżkami) — lub własny motyw. Każda
+sceneria podąża za porą dnia (dzień, zmierzch, noc, świt) albo zawsze zostaje dzienna lub nocna.
 
-- **Utwórz motyw** otwiera *Turtlefin Theme Creator* w przeglądarce: każdy kolor, zaokrąglenie, połysk, niebo i
-  bańki, z podglądem na żywo; zapisuje plik `.tftheme`.
-- Ten plik należy umieścić w folderze **Turtlefin Themes** (Dokumenty, lub obok `turtlefin.exe` w wersji
-  przenośnej), a potem wybrać **Importuj motyw**. **Eksportuj motyw** zapisuje bieżący motyw w tym folderze jako
-  punkt wyjścia.
-- Kreator jest też w repozytorium, `tools/theme-creator.html`: jeden plik, który działa offline.
+- **Utwórz motyw** otwiera *Turtlefin Theme Creator* (osobne okno, także w menu Start): każdy kolor, zaokrąglenie,
+  odblaski, tło (obraz, GIF lub wideo), logo i muzyka, z podglądem na żywo. **Zapisz** zapisuje motyw w folderze
+  **Turtlefin Themes**; **Zainstaluj** dodaje go i wybiera.
+- **Importuj motyw** dodaje otrzymany motyw (jego folder lub plik `.tftheme`); **Eksportuj motyw** zapisuje bieżący
+  motyw w tym folderze jako punkt wyjścia.
 
 ## Tłumaczenie Turtlefin
 
@@ -222,25 +253,33 @@ Bez programowania i kompilowania. Dodane języki znajdują się w jednym folderz
 **Dokumentach** (wersja zainstalowana) lub obok `turtlefin.exe` (wersja przenośna).
 
 1. **Ustawienia → Wyświetlanie → Dodaj język** otwiera eksplorator tego folderu; **Utwórz szablon** zapisuje w nim
-   `modele.po`, z tekstami po angielsku oraz, jako uwagi, oryginałem francuskim i bieżącym językiem.
-2. Zrobić jego kopię o nazwie `<kod>.po` (`sv.po` dla szwedzkiego, `ja.po` dla japońskiego…), w tym folderze lub
-   podfolderze, i wypełnić każde `msgstr ""` tłumaczeniem angielskiego `msgid` powyżej. Zachować `{}` i `{n}`.
-   Wypełnić też `X-Language-Name` (wyświetlana nazwa) i w razie potrzeby `Plural-Forms` (reguła gettext danego
-   języka). Nada się każdy edytor `.po`, na przykład [Poedit](https://poedit.net).
-3. Ponownie **Dodaj język**: tłumaczenie pojawi się z informacją, ile już przetłumaczono; wybranie go je
-   zastosuje. Teksty pozostawione puste są wyświetlane po angielsku.
+   `modele.po`, z tekstami po angielsku i oryginałem francuskim w notatce.
+2. Zrób kopię o nazwie `<kod>.po` (`sv.po` dla szwedzkiego, `ja.po` dla japońskiego…) i wypełnij każde `msgstr ""`
+   tłumaczeniem angielskiego `msgid` powyżej. Zachowaj `{}` i `{n}`. Wypełnij też `X-Language-Name` (wyświetlana
+   nazwa) i w razie potrzeby `Plural-Forms`. Nada się każdy edytor `.po`, na przykład [Poedit](https://poedit.net).
+3. Ponownie **Dodaj język**: tłumaczenie pojawi się z przetłumaczoną częścią; wybranie go je stosuje. Teksty
+   pozostawione puste wyświetlają się po angielsku.
 
 Aby udostępnić je wszystkim: pull request dodający plik do `lang/` (i do `BUILTIN` w `src/i18n.rs`);
 `python tools/lang-check.py` sprawdza, czy niczego nie brakuje.
 
 ## Rozwój
 
-Zob. [HANDOFF.pl.md](HANDOFF.pl.md) (także po [Français](HANDOFF.md), [English](HANDOFF.en.md),
+Zobacz [HANDOFF.pl.md](HANDOFF.pl.md) (także po [Français](HANDOFF.md), [English](HANDOFF.en.md),
 [Deutsch](HANDOFF.de.md), [Español](HANDOFF.es.md), [Italiano](HANDOFF.it.md), [Nederlands](HANDOFF.nl.md),
-[Português](HANDOFF.pt.md)): stan projektu, decyzje, kompilacja, pakiety, publikacja, tłumaczenia, znane
-problemy.
+[Português](HANDOFF.pt.md)): stan projektu, decyzje, kompilacja, pakiety, publikacja, tłumaczenia, znane problemy.
+
+## Podziękowania
+
+Dziękujemy [LainX84](https://github.com/LainX84): szczegółowe sugestie
+([zgłoszenie nr 2](https://github.com/Xelopteryx/Turtlefin/issues/2)) ukształtowały dużą część wersji 2.0 — indeks A–Z
+i dobrze widoczny pasek przewijania dla dużych bibliotek, filtrowanie przez wpisanie pierwszych liter tytułu,
+sprężyste przewijanie, karty rozdawane tylko raz na sesję (z ustawieniem wyłączającym animację) oraz menu kart
+(obejrzane / nieobejrzane, by zacząć od nowa, Identyfikuj, Odśwież, Edytuj tytuł). Dziękujemy za poświęcony czas!
 
 ## Licencja
 
-Turtlefin jest udostępniany na licencji [GNU GPL v3](LICENSE) (lub późniejszej): każdy może go używać,
-badać, zmieniać i rozpowszechniać, pod warunkiem zachowania tej samej licencji i udostępnienia kodu swoich zmian.
+Turtlefin jest udostępniony na licencji [GNU GPL v3](LICENSE) (lub późniejszej wersji): każdy może go używać, badać,
+modyfikować i rozpowszechniać, pod warunkiem zachowania tej samej licencji i udostępnienia kodu swoich zmian. Zrzuty
+ekranu pokazują wolne filmy Blender Foundation (CC BY). Czcionka Turtlefin Symbols pochodzi z DejaVu Sans (licencja w
+`ui/fonts/DejaVu-LICENSE.txt`).
