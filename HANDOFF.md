@@ -1181,7 +1181,7 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
   2. Cette pastille d'état passait sous la note (même coin) : la note est cachée quand une demande est affichée.
   3. Juste après une demande, la grille ouverte et les rangées déjà affichées restaient sans pastille :
      `store_reqs` appelle maintenant `show_requested`, qui la pose sur les cartes à l'écran (`lib-items`,
-     `sections`) et sur les rangées gardées pour la grille (`search_more`). Vérifié : 2 séries demandées dans la
+     `sections`, `search-sections`) et sur les rangées gardées pour la grille (`search_more`). Vérifié : 2 séries demandées dans la
      grille, « Acceptée » aussitôt ; retour aux rangées, pastilles présentes.
   Demandes d'essai laissées dans le Seerr d'Abydos.
 

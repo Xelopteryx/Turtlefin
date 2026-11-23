@@ -2411,10 +2411,12 @@ fn show_requested(app: &Arc<App>) {
             }
         };
         fix(u.get_lib_items());
-        let secs = u.get_sections();
-        for s in 0..secs.row_count() {
-            if let Some(r) = secs.row_data(s) {
-                fix(r.items);
+        // Rangées de l'accueil et de la recherche (chacune les siennes).
+        for secs in [u.get_sections(), u.get_search_sections()] {
+            for s in 0..secs.row_count() {
+                if let Some(r) = secs.row_data(s) {
+                    fix(r.items);
+                }
             }
         }
     });
