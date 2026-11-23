@@ -467,8 +467,8 @@ pub struct Render {
     ctx: *mut c_void,
     // Fonction appelée par mpv quand une nouvelle image est prête (gardée en vie ici).
     _wake: Box<Box<dyn Fn() + Send + Sync>>,
-    // Le lecteur doit survivre au contexte de rendu.
-    _mpv: Arc<Mpv>,
+    // Le lecteur doit survivre au contexte de rendu (Option : rendu libéré, il part sur un autre thread).
+    mpv: Option<Arc<Mpv>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -621,7 +621,7 @@ impl Render {
         unsafe {
             (api.render_set_update_callback)(ctx, Some(wake_trampoline), &*wake as *const _ as *mut c_void);
         }
-        Ok(Render { api, ctx, _wake: wake, _mpv: mpv })
+        Ok(Render { api, ctx, _wake: wake, mpv: Some(mpv) })
     }
 
     /// Prend connaissance d'une nouvelle image sans la dessiner (diagnostic).
@@ -661,6 +661,14 @@ impl Render {
     }
 }
 
+impl Render {
+    /// Plus personne d'autre ne tient le lecteur (il a fini de s'arrêter : son thread d'événements est
+    /// terminé). Libérer le rendu ne fait alors plus attendre mpv (voir video::before_rendering).
+    pub fn player_done(&self) -> bool {
+        self.mpv.as_ref().is_none_or(|m| Arc::strong_count(m) == 1)
+    }
+}
+
 impl Drop for Render {
     fn drop(&mut self) {
         // SAFETY : on retire le rappel avant de libérer le contexte (contexte OpenGL courant).
@@ -669,6 +677,12 @@ impl Drop for Render {
             (self.api.render_free)(self.ctx);
         }
         release_leaked_fences();
+        // Dernière référence (vidéo de fond d'une fiche quittée…) : mpv_terminate_destroy attend la fin
+        // de ses threads et du réseau, jusqu'à 300 ms d'image figée sur le Pi 5. Pas sur le thread de
+        // l'interface : le contexte de rendu, lui, est déjà libéré ci-dessus.
+        if let Some(m) = self.mpv.take() {
+            let _ = std::thread::Builder::new().name("mpv-fin".into()).spawn(move || drop(m));
+        }
     }
 }
 

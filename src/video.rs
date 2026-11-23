@@ -156,6 +156,9 @@ struct State {
     /// Contexte de rendu mpv + identité du lecteur auquel il appartient.
     render: Option<(usize, mpv::Render)>,
     target: Option<Target>,
+    /// Rendus de lecteurs quittés, libérés quand le lecteur a fini de s'arrêter (1 à 3 s) :
+    /// mpv_render_context_free attend mpv, jusqu'à 300 ms d'image figée sur le Pi 5 à la sortie du lecteur.
+    retiring: Vec<(std::time::Instant, mpv::Render)>,
 }
 
 /// Branche le rendu vidéo sur la fenêtre. Échoue si Slint n'utilise pas OpenGL
@@ -240,7 +243,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 if let Some(u) = weak.upgrade() {
                     crate::decor::gpu_known(&u, &info);
                 }
-                state = Some(State { gl, render: None, target: None });
+                state = Some(State { gl, render: None, target: None, retiring: Vec::new() });
                 gl_epoch(&weak);
             }
             slint::RenderingState::BeforeRendering => {
@@ -249,7 +252,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
                 if state.is_none() {
                     // SAFETY : le contexte OpenGL de la fenêtre est courant pendant ce rappel.
                     let gl = unsafe { glow::Context::from_loader_function_cstr(|s| get_proc_address(s)) };
-                    state = Some(State { gl, render: None, target: None });
+                    state = Some(State { gl, render: None, target: None, retiring: Vec::new() });
                     gl_epoch(&weak);
                 }
                 probe_t0 = Some(std::time::Instant::now());
@@ -273,6 +276,7 @@ pub fn install(ui: &AppWindow) -> Result<(), slint::SetRenderingNotifierError> {
             }
             slint::RenderingState::RenderingTeardown => {
                 if let Some(mut st) = state.take() {
+                    st.retiring.clear();
                     st.render = None;
                     free_target(&st.gl, &mut st.target);
                 }
@@ -305,9 +309,23 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
     let current = guard.as_ref().map(|(m, _)| m.clone());
     let cur_id = current.as_ref().map(|m| Arc::as_ptr(m) as usize);
 
+    // Libéré quand le lecteur est seul à se tenir ET qu'une seconde est passée : après « quit », son
+    // cœur détruit encore la sortie vidéo (~200 ms sur le Pi 5) alors que son thread d'événements a
+    // déjà fini ; mpv_render_context_free attendrait cette fin. Trois secondes au plus.
+    st.retiring.retain(|(t, r)| {
+        let e = t.elapsed();
+        e < std::time::Duration::from_secs(3) && (e < std::time::Duration::from_secs(1) || !r.player_done())
+    });
+
     if st.render.as_ref().map(|(id, _)| *id) != cur_id {
         // Lecteur changé ou lecture terminée : on libère l'ancien rendu (et, avec lui, le lecteur).
-        st.render = None;
+        // Lecteur encore en train de s'arrêter (fin d'une lecture) : rendu mis de côté jusqu'à son
+        // arrêt (voir State::retiring). Vidéo de fond du thème : libéré tout de suite, comme avant.
+        if let Some((id, old)) = st.render.take() {
+            if !is_background(id) {
+                st.retiring.push((std::time::Instant::now(), old));
+            }
+        }
         if let (Some(m), Some(id)) = (current, cur_id) {
             let weak = ui.as_weak();
             let on_frame = Box::new(move || {
@@ -359,6 +377,16 @@ fn before_rendering(st: &mut State, ui: &AppWindow, gpa: &dyn Fn(&CStr) -> *cons
     }
 
     drop(guard);
+    // Rendus mis de côté : une image de plus un peu plus tard pour les libérer (rien d'autre ne
+    // redessine forcément la fenêtre).
+    if !st.retiring.is_empty() {
+        let w = ui.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(200), move || {
+            if let Some(u) = w.upgrade() {
+                u.window().request_redraw();
+            }
+        });
+    }
     let Some((_, render)) = &st.render else { return };
     let size = ui.window().size();
     if size.width == 0 || size.height == 0 {

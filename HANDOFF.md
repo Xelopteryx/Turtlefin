@@ -1069,6 +1069,25 @@ Notes de version prêtes à coller dans le message de l'étiquette : `packaging/
 4. Bug des icônes au changement de thème : il doit encore le reproduire.
 5. Puis les captures du README (après son feu vert), puis la publication.
 
+**Fait le 23 novembre 2026** : point 1 commité (acd62ba). Pi 5 (télé débranchée : essais sur `DISPLAY=:0`,
+`xrandr --fb 1920x1080`, fenêtre agrandie par `xdotool`) : connexion, accueil, Reprendre (plongée puis
+lecture), Voir la fiche (vol) et retour fonctionnent. Mesures (`TURTLEFIN_DEBUG_FRAMES=1`) et profils (`perf`
+installé sur le Pi ; binaire avec symboles : `CARGO_PROFILE_RELEASE_STRIP=none
+CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `target/pi-prof`) :
+- **Sortie du lecteur : corrigé.** `mpv_render_context_free` attendait la fin de mpv (~200 ms) sur le thread
+  de l'interface, 260 à 290 ms d'image figée. Le rendu d'un lecteur quitté est mis de côté et libéré 1 à 3 s
+  plus tard (`video.rs`, `State::retiring`, `Render::player_done`) ; `mpv_terminate_destroy` sur un autre
+  thread (`mpv.rs`, `Drop for Render`). Mesuré : 77 ms au plus.
+- **Pas corrigé : retour fiche → accueil depuis la bannière** (animation du 22) : ~0,8 s à 50-90 ms par image
+  sur le Pi (l'ancienne version : 2-3 images de ~50 ms). Lent dès le départ de la fiche (rev-leave) et pendant
+  le vol. Écartés : décor, fond, barre (`TURTLEFIN_PERF_OFF`), fondu des rangées (`home-ret`, retiré sans
+  gain), image de la bannière (déjà en 1280x720). Profil : ~1/3 CPU (parcours de l'arbre, textes qui volent,
+  calques), le reste en attente du GPU. Essai raté : bannière cachée par `visible` au lieu d'une opacité 0
+  (calque inutile) : l'image ne se posait plus, accueil bloqué ; retiré. Piège des essais : sur une session
+  neuve, Échap ouvre le menu (pas le message), → le ferme, Entrée lance la LECTURE (pas la fiche) : ouvrir la
+  fiche au clic (`xdotool mousemove 450 540 click 1` sur « Voir la fiche » en 1920x1080).
+- Sécurité (cinquième passe, fa568e5) : chemins des mods (`mod_api_path_ok`), serveur de démo, url 2.5.9.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :
