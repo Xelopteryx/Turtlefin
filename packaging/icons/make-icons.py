@@ -3,7 +3,8 @@
 Même géométrie que packaging/turtlefin.svg et l'animation de démarrage (ui/boot.slint) : repère 256,
 centre (128, 128), hexagone de rayon 68 (trait 14), rayons (trait 8), hexagone central plein,
 bouts et angles arrondis, dégradé #a95bc2 -> #00a4db à 135° sur le carré [53, 203] ; le tout agrandi
-x1,4 autour du centre sur un carré sombre aux coins arrondis.
+x1,4 autour du centre, sur fond transparent (comme les icônes des thèmes Aero et Nerd, theme.rs).
+Seule l'icône du lanceur Android (turtlefin-android-256.png) garde le carré sombre aux coins arrondis.
 
 usage : python make-icons.py <dossier de sortie>
 Produit aussi les images de l'installeur Windows (wizard-*.bmp, à copier dans packaging/windows/).
@@ -36,7 +37,7 @@ def stroke(d, pts, w, closed):
         d.ellipse([x - r, y - r, x + r, y + r], fill=255)
 
 
-def logo():
+def logo(bg=False):
     mask = Image.new('L', (N, N), 0)
     d = ImageDraw.Draw(mask)
     stroke(d, OUTER, 14, True)
@@ -57,9 +58,10 @@ def logo():
     grad = small.resize((N, N), Image.BILINEAR)
 
     img = Image.new('RGBA', (N, N), (0, 0, 0, 0))
-    bg = Image.new('L', (N, N), 0)
-    ImageDraw.Draw(bg).rounded_rectangle([0, 0, N - 1, N - 1], radius=56 * K, fill=255)
-    img.paste((0x01, 0x0e, 0x18, 255), (0, 0), bg)
+    if bg:
+        m = Image.new('L', (N, N), 0)
+        ImageDraw.Draw(m).rounded_rectangle([0, 0, N - 1, N - 1], radius=56 * K, fill=255)
+        img.paste((0x01, 0x0e, 0x18, 255), (0, 0), m)
     img.paste(grad, (0, 0), mask)
     return img
 
@@ -70,6 +72,8 @@ for s in (16, 24, 32, 48, 64, 128, 256, 512):
     big.resize((s, s), Image.LANCZOS).save(os.path.join(out, f'turtlefin-{s}.png'))
 big.resize((256, 256), Image.LANCZOS).save(
     os.path.join(out, 'turtlefin.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+# Lanceur Android : icône pleine (carré sombre), comme les autres applis du téléphone.
+logo(bg=True).resize((256, 256), Image.LANCZOS).save(os.path.join(out, 'turtlefin-android-256.png'))
 
 # Icône de l'installeur : l'icône de l'appli avec un petit disque (CD) dans le coin bas droit, pour
 # qu'on voie tout de suite que c'est un installeur et pas l'appli.

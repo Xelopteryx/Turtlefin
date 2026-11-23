@@ -81,8 +81,8 @@ Name: "nl"; MessagesFile: "compiler:Languages\Dutch.isl"
 
 [CustomMessages]
 fr.ModeTitle=Type d'installation
-fr.ModeSub=Comment veux-tu utiliser Turtlefin ?
-fr.ModeText=Installation : Turtlefin s'installe sur cet ordinateur (menu Démarrer, désinstallation dans les paramètres de Windows).%nPortable : les fichiers seuls, dans le dossier de ton choix (une clé USB par exemple) ; la configuration et les téléchargements restent dans ce dossier.
+fr.ModeSub=Comment voulez-vous utiliser Turtlefin ?
+fr.ModeText=Installation : Turtlefin s'installe sur cet ordinateur (menu Démarrer, désinstallation dans les paramètres de Windows).%nPortable : les fichiers seuls, dans le dossier de votre choix (une clé USB par exemple) ; la configuration et les téléchargements restent dans ce dossier.
 fr.ModeInstall=Installation (recommandé)
 fr.ModePortable=Portable
 en.ModeTitle=Installation type
@@ -91,23 +91,23 @@ en.ModeText=Install: Turtlefin is installed on this computer (Start menu, uninst
 en.ModeInstall=Install (recommended)
 en.ModePortable=Portable
 es.ModeTitle=Tipo de instalación
-es.ModeSub=¿Cómo quieres usar Turtlefin?
-es.ModeText=Instalación: Turtlefin se instala en este equipo (menú Inicio, desinstalación desde la configuración de Windows).%nPortátil: solo los archivos, en la carpeta que elijas (una memoria USB, por ejemplo); la configuración y las descargas se quedan en esa carpeta.
+es.ModeSub=¿Cómo desea usar Turtlefin?
+es.ModeText=Instalación: Turtlefin se instala en este equipo (menú Inicio, desinstalación desde la configuración de Windows).%nPortátil: solo los archivos, en la carpeta que elija (una memoria USB, por ejemplo); la configuración y las descargas se quedan en esa carpeta.
 es.ModeInstall=Instalación (recomendado)
 es.ModePortable=Portátil
 de.ModeTitle=Installationsart
-de.ModeSub=Wie möchtest du Turtlefin verwenden?
-de.ModeText=Installation: Turtlefin wird auf diesem Computer installiert (Startmenü, Deinstallation über die Windows-Einstellungen).%nPortabel: nur die Dateien, in einem Ordner deiner Wahl (zum Beispiel ein USB-Stick); Einstellungen und Downloads bleiben in diesem Ordner.
+de.ModeSub=Wie möchten Sie Turtlefin verwenden?
+de.ModeText=Installation: Turtlefin wird auf diesem Computer installiert (Startmenü, Deinstallation über die Windows-Einstellungen).%nPortabel: nur die Dateien, in einem Ordner Ihrer Wahl (zum Beispiel ein USB-Stick); Einstellungen und Downloads bleiben in diesem Ordner.
 de.ModeInstall=Installation (empfohlen)
 de.ModePortable=Portabel
 it.ModeTitle=Tipo di installazione
-it.ModeSub=Come vuoi usare Turtlefin?
-it.ModeText=Installazione: Turtlefin viene installato su questo computer (menu Start, disinstallazione dalle impostazioni di Windows).%nPortatile: solo i file, nella cartella che scegli (una chiavetta USB, per esempio); impostazioni e download restano in quella cartella.
+it.ModeSub=Come desidera usare Turtlefin?
+it.ModeText=Installazione: Turtlefin viene installato su questo computer (menu Start, disinstallazione dalle impostazioni di Windows).%nPortatile: solo i file, nella cartella che sceglie (una chiavetta USB, per esempio); impostazioni e download restano in quella cartella.
 it.ModeInstall=Installazione (consigliato)
 it.ModePortable=Portatile
 pt.ModeTitle=Tipo de instalação
-pt.ModeSub=Como queres usar o Turtlefin?
-pt.ModeText=Instalação: o Turtlefin é instalado neste computador (menu Iniciar, desinstalação nas definições do Windows).%nPortátil: apenas os ficheiros, na pasta que escolheres (uma pen USB, por exemplo); as definições e as transferências ficam nessa pasta.
+pt.ModeSub=Como deseja usar o Turtlefin?
+pt.ModeText=Instalação: o Turtlefin é instalado neste computador (menu Iniciar, desinstalação nas definições do Windows).%nPortátil: apenas os ficheiros, na pasta que escolher (uma pen USB, por exemplo); as definições e as transferências ficam nessa pasta.
 pt.ModeInstall=Instalação (recomendado)
 pt.ModePortable=Portátil
 pl.ModeTitle=Rodzaj instalacji
@@ -116,7 +116,7 @@ pl.ModeText=Instalacja: Turtlefin zostanie zainstalowany na tym komputerze (menu
 pl.ModeInstall=Instalacja (zalecana)
 pl.ModePortable=Przenośna
 nl.ModeTitle=Installatietype
-nl.ModeSub=Hoe wil je Turtlefin gebruiken?
+nl.ModeSub=Hoe wilt u Turtlefin gebruiken?
 nl.ModeText=Installatie: Turtlefin wordt op deze computer geïnstalleerd (Startmenu, verwijderen via de Windows-instellingen).%nDraagbaar: alleen de bestanden, in een map naar keuze (bijvoorbeeld een USB-stick); instellingen en downloads blijven in die map.
 nl.ModeInstall=Installatie (aanbevolen)
 nl.ModePortable=Draagbaar
@@ -140,7 +140,9 @@ Type: files; Name: "{app}\language"
 Name: "{group}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Check: not IsPortable
 Name: "{group}\Turtlefin Theme Creator"; Filename: "{app}\turtlefin.exe"; Parameters: "--theme-creator"; Check: not IsPortable
 Name: "{group}\{cm:UninstallProgram,Turtlefin}"; Filename: "{uninstallexe}"; Check: not IsPortable
-Name: "{autodesktop}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Tasks: desktopicon
+; Raccourci du Bureau : jamais recréé s'il existe (il perdrait la place choisie), ni par la mise à jour
+; intégrée s'il a été supprimé : voir DesktopIconWanted.
+Name: "{autodesktop}\Turtlefin"; Filename: "{app}\turtlefin.exe"; Tasks: desktopicon; Check: DesktopIconWanted
 
 [Run]
 ; Lancement à la fin (aussi après une mise à jour silencieuse).
@@ -149,6 +151,31 @@ Filename: "{app}\turtlefin.exe"; Description: "{cm:LaunchProgram,Turtlefin}"; Fl
 [Code]
 var
   ModePage: TInputOptionWizardPage;
+  HadDesktopIcon: Boolean;
+
+const
+  UninstKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6D3E2F9A-6C1B-4E7B-9C1A-54B8E7F0A1C2}_is1';
+
+function InitializeSetup: Boolean;
+var
+  Tasks: String;
+begin
+  // Tâches retenues par l'installation précédente : le raccourci du Bureau y était-il demandé ?
+  if not RegQueryStringValue(HKCU, UninstKey, 'Inno Setup: Selected Tasks', Tasks) then
+    if not RegQueryStringValue(HKLM, UninstKey, 'Inno Setup: Selected Tasks', Tasks) then
+      Tasks := '';
+  HadDesktopIcon := Pos('desktopicon', Lowercase(Tasks)) > 0;
+  Result := True;
+end;
+
+// Raccourci déjà là : jamais recréé (il garderait sa place par défaut au lieu de celle choisie). Mise à jour
+// intégrée (silencieuse) : pas de raccourci s'il avait déjà été demandé (déplacé, renommé ou supprimé, on le
+// laisse tel quel). Installeur lancé à la main, case cochée : il est créé s'il manque.
+function DesktopIconWanted: Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{autodesktop}\Turtlefin.lnk'))
+    and not (WizardSilent and HadDesktopIcon);
+end;
 
 function IsPortable: Boolean;
 begin

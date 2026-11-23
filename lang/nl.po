@@ -11,7 +11,7 @@ msgstr[0] "{n} deelnemer"
 msgstr[1] "{n} deelnemers"
 
 msgid "{n} serveur trouvé sur vos réseaux"
-msgid_plural "{n} serveurs trouvés sur tes réseaux"
+msgid_plural "{n} serveurs trouvés sur vos réseaux"
 msgstr[0] "{n} server gevonden in uw netwerken"
 msgstr[1] "{n} servers gevonden in uw netwerken"
 
@@ -399,6 +399,9 @@ msgstr "De server antwoordde {} voor {}"
 msgid "{} épisodes"
 msgstr "{} afleveringen"
 
+msgid "1 épisode"
+msgstr "1 aflevering"
+
 msgid "Terminée"
 msgstr "Beëindigd"
 
@@ -629,6 +632,12 @@ msgstr "Watch party: {}"
 
 msgid "À demander (Seerr)"
 msgstr "Aan te vragen (Seerr)"
+
+msgid "À demander : avec {}"
+msgstr "Aan te vragen: met {}"
+
+msgid "À demander : apparitions de {}"
+msgstr "Aan te vragen: gastrollen van {}"
 
 msgid "Plus rien à découvrir : tout a été vu !"
 msgstr "Niets meer te ontdekken: u hebt alles gezien!"
@@ -4355,3 +4364,95 @@ msgstr "Naar uw smaak"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s terug of vooruit. OK of ↓: de bediening (pauze, volume, audio, ondertitels); nog eens ↓: de afleveringen van het seizoen. Terug: afspelen stoppen. Drie intro's na elkaar overgeslagen: de volgende worden vanzelf overgeslagen."
+
+msgid "Afficher plus"
+msgstr "Meer tonen"
+
+msgid "{} de plus"
+msgstr "{} meer"
+
+msgid "Choisissez des cartes"
+msgstr "Kies kaarten"
+
+msgid "Sélectionner"
+msgstr "Selecteren"
+
+msgid "Demander ({})"
+msgstr "Aanvragen ({})"
+
+msgid "Télécharger"
+msgstr "Downloaden"
+
+msgid "Télécharger ({})"
+msgstr "Downloaden ({})"
+
+msgid "Tout enlever"
+msgstr "Alles wissen"
+
+msgid "Tout choisir"
+msgstr "Alles kiezen"
+
+msgid "Ni à demander ni à télécharger."
+msgstr "Niet aan te vragen of te downloaden."
+
+msgid "Rien à demander dans la sélection."
+msgstr "Niets aan te vragen in de selectie."
+
+msgid "Rien à télécharger dans la sélection."
+msgstr "Niets te downloaden in de selectie."
+
+msgid "Demandes en cours…"
+msgstr "Aanvragen worden verstuurd…"
+
+msgid "Ajout aux téléchargements…"
+msgstr "Toevoegen aan downloads…"
+
+msgid "Demandes envoyées : {}."
+msgstr "Aanvragen verstuurd: {}."
+
+msgid "Demandes impossibles : {}."
+msgstr "Aanvragen mislukt: {}."
+
+msgid "Demandes envoyées : {} · impossibles : {}."
+msgstr "Aanvragen verstuurd: {} · mislukt: {}."
+
+msgid "Ajouté aux téléchargements : {}."
+msgstr "Toegevoegd aan downloads: {}."
+
+msgid "Déjà téléchargé ou dans la file."
+msgstr "Al gedownload of in de wachtrij."
+
+msgid "{n} choisie"
+msgid_plural "{n} choisies"
+msgstr[0] "{n} gekozen"
+msgstr[1] "{n} gekozen"
+
+msgid "Télécharger la sélection ({})"
+msgstr "Selectie downloaden ({})"
+
+msgid "Demander la sélection ({})"
+msgstr "Selectie aanvragen ({})"
+
+msgid "Retirer de la sélection"
+msgstr "Uit selectie halen"
+
+msgid "Ajouter à la sélection"
+msgstr "Aan selectie toevoegen"
+
+msgid "Terminer la sélection"
+msgstr "Selectie beëindigen"
+
+msgid "OK maintenu : actions"
+msgstr "OK ingedrukt houden: acties"
+
+msgid "Actions"
+msgstr "Acties"
+
+msgid "OK : arrêter"
+msgstr "OK: stoppen"
+
+msgid "relâchez OK pour finir"
+msgstr "laat OK los om te stoppen"
+
+msgid "OK maintenu + flèches"
+msgstr "OK ingedrukt + pijlen"

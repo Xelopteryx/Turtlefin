@@ -11,7 +11,7 @@ msgstr[0] "{n} Teilnehmer"
 msgstr[1] "{n} Teilnehmer"
 
 msgid "{n} serveur trouvé sur vos réseaux"
-msgid_plural "{n} serveurs trouvés sur tes réseaux"
+msgid_plural "{n} serveurs trouvés sur vos réseaux"
 msgstr[0] "{n} Server in Ihren Netzwerken gefunden"
 msgstr[1] "{n} Server in Ihren Netzwerken gefunden"
 
@@ -399,6 +399,9 @@ msgstr "Der Server antwortete {} für {}"
 msgid "{} épisodes"
 msgstr "{} Folgen"
 
+msgid "1 épisode"
+msgstr "1 Folge"
+
 msgid "Terminée"
 msgstr "Beendet"
 
@@ -629,6 +632,12 @@ msgstr "Watch Party: {}"
 
 msgid "À demander (Seerr)"
 msgstr "Anfragbar (Seerr)"
+
+msgid "À demander : avec {}"
+msgstr "Anfragbar: mit {}"
+
+msgid "À demander : apparitions de {}"
+msgstr "Anfragbar: Gastauftritte von {}"
 
 msgid "Plus rien à découvrir : tout a été vu !"
 msgstr "Nichts mehr zu entdecken: Sie haben alles gesehen!"
@@ -4355,3 +4364,95 @@ msgstr "Nach Ihrem Geschmack"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s zurück oder vor. OK oder ↓: die Bedienelemente (Pause, Lautstärke, Audio, Untertitel); noch einmal ↓: die Folgen der Staffel. Zurück: Wiedergabe beenden. Drei übersprungene Intros hintereinander: Die nächsten werden von selbst übersprungen."
+
+msgid "Afficher plus"
+msgstr "Mehr anzeigen"
+
+msgid "{} de plus"
+msgstr "{} weitere"
+
+msgid "Choisissez des cartes"
+msgstr "Wählen Sie Karten aus"
+
+msgid "Sélectionner"
+msgstr "Auswählen"
+
+msgid "Demander ({})"
+msgstr "Anfragen ({})"
+
+msgid "Télécharger"
+msgstr "Herunterladen"
+
+msgid "Télécharger ({})"
+msgstr "Herunterladen ({})"
+
+msgid "Tout enlever"
+msgstr "Alle abwählen"
+
+msgid "Tout choisir"
+msgstr "Alle auswählen"
+
+msgid "Ni à demander ni à télécharger."
+msgstr "Weder anfragbar noch herunterladbar."
+
+msgid "Rien à demander dans la sélection."
+msgstr "Nichts Anfragbares in der Auswahl."
+
+msgid "Rien à télécharger dans la sélection."
+msgstr "Nichts Herunterladbares in der Auswahl."
+
+msgid "Demandes en cours…"
+msgstr "Anfragen werden gesendet…"
+
+msgid "Ajout aux téléchargements…"
+msgstr "Wird zu den Downloads hinzugefügt…"
+
+msgid "Demandes envoyées : {}."
+msgstr "Anfragen gesendet: {}."
+
+msgid "Demandes impossibles : {}."
+msgstr "Anfragen nicht möglich: {}."
+
+msgid "Demandes envoyées : {} · impossibles : {}."
+msgstr "Anfragen gesendet: {} · nicht möglich: {}."
+
+msgid "Ajouté aux téléchargements : {}."
+msgstr "Zu den Downloads hinzugefügt: {}."
+
+msgid "Déjà téléchargé ou dans la file."
+msgstr "Bereits heruntergeladen oder in der Warteschlange."
+
+msgid "{n} choisie"
+msgid_plural "{n} choisies"
+msgstr[0] "{n} ausgewählt"
+msgstr[1] "{n} ausgewählt"
+
+msgid "Télécharger la sélection ({})"
+msgstr "Auswahl herunterladen ({})"
+
+msgid "Demander la sélection ({})"
+msgstr "Auswahl anfragen ({})"
+
+msgid "Retirer de la sélection"
+msgstr "Aus der Auswahl entfernen"
+
+msgid "Ajouter à la sélection"
+msgstr "Zur Auswahl hinzufügen"
+
+msgid "Terminer la sélection"
+msgstr "Auswahl beenden"
+
+msgid "OK maintenu : actions"
+msgstr "OK gedrückt halten: Aktionen"
+
+msgid "Actions"
+msgstr "Aktionen"
+
+msgid "OK : arrêter"
+msgstr "OK: beenden"
+
+msgid "relâchez OK pour finir"
+msgstr "OK loslassen zum Beenden"
+
+msgid "OK maintenu + flèches"
+msgstr "OK halten + Pfeile"

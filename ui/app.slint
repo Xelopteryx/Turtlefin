@@ -83,9 +83,21 @@ export struct ServerData {
     backup: string, // adresse de secours (autre réseau, VPN...), vide si inconnue
 }
 
+// Place d'où une image partagée est partie (voir hero-origin) ; `known` : faux si aucune n'est retenue.
+export struct HeroSpot {
+    x: length,
+    y: length,
+    known: bool,
+}
+
 export struct FactData {
     label: string,
     value: string,
+    // Genres, studios, tags : une pastille par nom, qui ouvre la recherche filtrée (voir fact-chip) ;
+    // `first` : numéro de la première (toutes les pastilles de la fiche sont numérotées à la suite).
+    chips: [string],
+    first: int,
+    kind: int,            // 1 genre · 2 tag · 3 studio · 4 personne · 5 langue audio (drapeau, pas de recherche)
 }
 
 export struct SeerrPage {
@@ -168,6 +180,7 @@ export struct DetailData {
     stat-date: string,    // date de sortie
     stat-age: string,     // classification (« 10+ », « PG »)
     facts: [FactData],
+    fact-chips: int,      // nombre de pastilles de l'onglet Détails
     overview: string,
     expect-logo: bool,
     has-logo: bool,
@@ -465,6 +478,46 @@ global Hero {
     in-out property <string> hide-id;  // carte cachée pendant le vol (l'image partagée la remplace)
     in-out property <string> want-id;  // retour : la carte de cet élément répond (sinon la carte sélectionnée)
     in-out property <string> want-group; // retour : à défaut, la carte d'un autre épisode de la même série
+    // Retour : place d'où l'image était partie. Le même média peut être deux fois à l'écran (bannière,
+    // plusieurs rangées) : c'est la carte la plus proche de cette place qui répond.
+    in-out property <length> ox;
+    in-out property <length> oy;
+    in-out property <bool> o-known;
+    // Meilleure réponse pour la demande en cours (numéro de la demande, distance à la place de départ).
+    in-out property <int> best-tick: -1;
+    in-out property <length> best-d;
+    // Distance d'une carte candidate à la place de départ ; une autre carte de la même série passe après.
+    public pure function spot-d(x: length, y: length, other: bool) -> length {
+        return (Hero.o-known ? abs(x - Hero.ox) + abs(y - Hero.oy) : 0px) + (other ? 100000px : 0px);
+    }
+    // La carte (place x, y) est-elle la meilleure réponse à la demande en cours ? Retenue, alors.
+    public function claim(x: length, y: length, other: bool) -> bool {
+        let d = Hero.spot-d(x, y, other);
+        if (Hero.best-tick == Hero.tick && d >= Hero.best-d) {
+            return false;
+        }
+        Hero.best-tick = Hero.tick;
+        Hero.best-d = d;
+        return true;
+    }
+}
+
+// Signale la place à l'écran de son parent (qu'il remplit) : voir les textes de la bannière qui volent.
+component Spot inherits Rectangle {
+    callback rep(length, length, length, length);
+    property <Point> at: self.absolute-position;
+    init => {
+        self.rep(self.at.x, self.at.y, self.width, self.height);
+    }
+    changed at => {
+        self.rep(self.at.x, self.at.y, self.width, self.height);
+    }
+    changed width => {
+        self.rep(self.at.x, self.at.y, self.width, self.height);
+    }
+    changed height => {
+        self.rep(self.at.x, self.at.y, self.width, self.height);
+    }
 }
 
 // Image d'une carte avec ses pastilles (avancement, Seerr, épisodes restants / vu, statut, note).
@@ -812,8 +865,10 @@ component Card inherits Rectangle {
     changed hero-tick => {
         // Retour : la carte de l'élément quitté, ou (épisode « À suivre » passé au suivant, après « vu »)
         // celle de la même série ; son image peut encore être en chargement.
-        if (Hero.want-id != "" ? root.data.id == Hero.want-id || (Hero.want-group != "" && root.data.group == Hero.want-group)
-                : root.focused) {
+        let exact = Hero.want-id != "" && root.data.id == Hero.want-id;
+        let other = Hero.want-id != "" && !exact && Hero.want-group != "" && root.data.group == Hero.want-group;
+        if ((Hero.want-id != "" ? exact || other : root.focused)
+                && Hero.claim(root.absolute-position.x, root.absolute-position.y, other)) {
             Hero.seq += 1;
             // absolute-position tient déjà compte de l'agrandissement de la carte (transform-scale,
             // centré) : c'est le coin de l'image telle qu'elle est dessinée. Taille : à l'échelle
@@ -1071,6 +1126,43 @@ component Card inherits Rectangle {
         background: #000000.with-alpha((Theme.dark ? 0.42 : 0.2) * root.dim-a);
     }
 
+    // Sélection de plusieurs cartes (grille des bibliothèques, voir pick-mode) : rond coché en haut à
+    // gauche ; une carte pas choisie est un peu voilée, une carte choisie bordée d'accent.
+    in property <bool> pick-mode;
+    in property <bool> picked;
+    if root.pick-mode && !root.picked: Rectangle {
+        border-radius: Theme.radius;
+        background: #000000.with-alpha(0.30);
+    }
+    if root.pick-mode && root.picked: Rectangle {
+        border-radius: Theme.radius;
+        border-width: 3px * root.k;
+        border-color: Theme.accent2;
+    }
+    if root.pick-mode: Rectangle {
+        // En haut à droite : la pastille Seerr (en haut à gauche) reste lisible.
+        x: root.width - self.width - 10px * root.k;
+        y: 10px * root.k;
+        width: 30px * root.k;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: root.picked ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : #000000a0;
+        border-width: 2px * root.k;
+        border-color: #ffffff;
+        if root.picked: Path {
+            x: parent.width * 0.22;
+            y: parent.height * 0.22;
+            width: parent.width * 0.56;
+            height: parent.height * 0.56;
+            viewbox-width: 18;
+            viewbox-height: 18;
+            commands: "M 3 9.5 L 7.5 14 L 15 4.5";
+            stroke: #ffffff;
+            stroke-width: 2.6px * root.k;
+            fill: transparent;
+        }
+    }
+
     // Menu de la carte (vu, non vu...) : clic droit, ou appui long au doigt (le clic qui suit est ignoré).
     callback menu-requested();
     property <bool> long-fired;
@@ -1082,18 +1174,64 @@ component Card inherits Rectangle {
             root.menu-requested();
         }
     }
+    // Souris, bouton gauche enfoncé qui glisse depuis la carte : position de la souris (dans la fenêtre),
+    // pour choisir les cartes survolées (grille des bibliothèques) ; Ctrl ou Maj + clic : choix aussi.
+    callback drag-move(length, length);
+    callback mod-click(bool, bool);         // (Ctrl, Maj)
+    callback drag-end();
+    callback drag-wheel(length);            // molette pendant le glisser (la souris tient la carte)
+    // Souris : bouton gauche tenu sans bouger (un peu plus d'une demi-seconde) sur la carte : la sélection
+    // commence (grille des bibliothèques) ; en bougeant ensuite, la plage suit la souris.
+    callback hold();
+    Timer {
+        interval: 480ms;
+        running: card-area.pressed && !Nav.touch && !root.dragged && !root.mod-done && !root.long-fired;
+        triggered => {
+            root.dragged = true;
+            root.hold();
+        }
+    }
+    property <bool> dragged;
+    property <bool> mod-done;
     card-area := TouchArea {
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {
                 root.long-fired = false;
+                root.dragged = false;
+                root.mod-done = false;
                 if (e.button == PointerEventButton.right) {
                     root.menu-requested();
+                } else if (e.button == PointerEventButton.left && (e.modifiers.control || e.modifiers.shift) && !Nav.touch) {
+                    root.mod-done = true;
+                    root.mod-click(e.modifiers.control, e.modifiers.shift);
                 }
+            } else if (e.kind == PointerEventKind.up && root.dragged) {
+                root.drag-end();
+            }
+        }
+        scroll-event(e) => {
+            if (self.pressed && root.dragged) {
+                root.drag-wheel(e.delta-y);
+                return EventResult.accept;
+            }
+            return EventResult.reject;
+        }
+        moved => {
+            // Déjà en sélection : appuyer et glisser suffit (pas d'appui long d'abord).
+            if (self.pressed && !Nav.touch && !root.dragged && !root.mod-done && root.pick-mode
+                    && abs(self.mouse-x - self.pressed-x) + abs(self.mouse-y - self.pressed-y) > 12px) {
+                root.dragged = true;
+                root.hold();
+            }
+            if (self.pressed && !Nav.touch && root.dragged) {
+                root.drag-move(root.absolute-position.x + self.mouse-x, root.absolute-position.y + self.mouse-y);
             }
         }
         clicked => {
-            if (root.long-fired) {
+            if (root.long-fired || root.dragged || root.mod-done) {
                 root.long-fired = false;
+                root.dragged = false;
+                root.mod-done = false;
                 return;
             }
             root.clicked();
@@ -1298,6 +1436,10 @@ component MenuIcon inherits Rectangle {
         : root.name == "scanall" ? "M 3.5 4 L 7.5 4 L 7.5 20 L 3.5 20 Z M 10 4 L 14 4 L 14 20 L 10 20 Z M 16.2 5.2 L 19.6 4.2 L 22 19 L 18.6 20 Z"
         : root.name == "box-on" ? "M 4 4 L 20 4 L 20 20 L 4 20 Z M 7.5 12.5 L 10.8 15.8 L 16.8 8.5"
         : root.name == "box-off" ? "M 4 4 L 20 4 L 20 20 L 4 20 Z"
+        // Télécharger : flèche vers le bas sur un plateau ; demander : plus ; choisir : rond coché.
+        : root.name == "dl" ? "M 12 4 L 12 15 M 7.5 10.5 L 12 15 L 16.5 10.5 M 5 19.5 L 19 19.5"
+        : root.name == "req" ? "M 12 5 L 12 19 M 5 12 L 19 12"
+        : root.name == "pick" ? "M 12 3.5 A 8.5 8.5 0 1 0 12 20.5 A 8.5 8.5 0 1 0 12 3.5 M 8 12.3 L 11 15.3 L 16.3 9.3"
         : "";
     if root.d != "": Path {
         width: parent.width;
@@ -2709,6 +2851,8 @@ component DetailButton inherits Rectangle {
     animate lit-s { duration: Motion.select ? 200ms : 0ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     in property <bool> chip; // pastille compacte (saison, série, pistes)
+    // Arrivée (et départ) de la fiche : le bouton grossit depuis 60 % en apparaissant (0 : absent, 1 : là).
+    in property <float> pop: 1;
     preferred-width: root.is-icon ? self.height
         : (root.two ? max(label.preferred-width, min(sub-t.preferred-width, 320px * root.k)) : label.preferred-width)
             + (root.wide ? 62px : root.chip ? 24px : 40px) * root.k;
@@ -2720,14 +2864,20 @@ component DetailButton inherits Rectangle {
         height: parent.height;
         // Windows 7 (Aero) : même bouton de verre que les autres boutons du thème.
         border-radius: Theme.win7 ? 4px : Theme.term ? 2px : root.chip || root.icon == "label" ? self.height / 2 : 10px;
-        transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop);
+        transform-scale: root.lit-s * (root.kind == 1 ? 1 - 0.16 * root.wave : 1 + 0.32 * root.hop) * (0.6 + 0.4 * root.pop);
+        opacity: min(1, root.pop * 1.6);
         // Le bouton principal est toujours aux couleurs du thème : en retrait au repos, plein une fois choisi
         // (pas de contour : la sélection se voit à la couleur et à la taille, comme les autres boutons).
+        // Thèmes sans brillance (Turtlefin…) : au repos, le bouton principal est neutre comme les autres, avec
+        // un liseré et un triangle d'accent ; un dégradé, même atténué, le faisait passer pour le bouton choisi.
+        property <bool> quiet: root.primary && !root.lit && Theme.gloss == 0 && !Theme.skinned;
         background: Theme.skinned ? transparent
             : root.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%)
-            : root.primary ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.6) 0%, Theme.accent2.with-alpha(0.6) 100%)
+            : root.primary && !self.quiet ? @linear-gradient(130deg, Theme.accent1.with-alpha(0.6) 0%, Theme.accent2.with-alpha(0.6) 100%)
             : @linear-gradient(130deg, Theme.fg.with-alpha(0.12) 0%, Theme.fg.with-alpha(0.12) 100%);
-        property <color> ink: Theme.skinned ? Theme.fg : root.lit || root.primary ? Theme.on-accent : Theme.fg;
+        border-width: self.quiet ? 1.5px : 0px;
+        border-color: Theme.accent2.with-alpha(0.7);
+        property <color> ink: Theme.skinned ? Theme.fg : self.quiet ? Theme.fg : root.lit || root.primary ? Theme.on-accent : Theme.fg;
         if Theme.win7: Win7Glass {
             lit: root.lit;
         }
@@ -2746,7 +2896,7 @@ component DetailButton inherits Rectangle {
             height: 22px * root.k;
             viewbox-width: 24;
             viewbox-height: 24;
-            fill: face.ink;
+            fill: face.quiet ? Theme.accent2 : face.ink;
             commands: "M 7 4 L 20 12 L 7 20 Z";
         }
         // Favori : le cœur se remplit en fondu pendant qu'il saute.
@@ -4021,6 +4171,17 @@ export component AppWindow inherits Window {
     property <float> page-lin: root.page-anim && Motion.pages ? clamp((animation-tick() - root.page-t0) / 520ms, 0, 1) : 1;
     out property <float> page-e: 1 - (1 - root.page-lin) * (1 - root.page-lin) * (1 - root.page-lin);
     public function page-enter() {
+        // Nouvelle page : la fiche quittée (et son départ à l'envers) n'est plus là.
+        root.rev-leave = false;
+        // Page de la barre du haut (onglet, recherche…) : sens du glissement d'après leur ordre.
+        let cur = root.page-pos();
+        if (root.leave-dir != 0 && cur == root.prev-pos && (root.loading || root.veil-hold)) {
+            return; // la page quittée est encore là : l'arrivée viendra avec la nouvelle
+        }
+        root.nav-dir = Motion.pages && root.prev-pos >= 0 && cur >= 0 && cur != root.prev-pos ? (cur > root.prev-pos ? 1 : -1) : 0;
+        root.prev-pos = cur;
+        root.leave-dir = 0;
+        root.leave-anim = false;
         // Cartes d'une bibliothèque : arrivée en vague (voir arr-lin).
         root.arr-t0 = animation-tick();
         root.arr-anim = true;
@@ -4032,6 +4193,62 @@ export component AppWindow inherits Window {
         }
         root.page-t0 = animation-tick();
         root.page-anim = true;
+    }
+    // Changement de page par la barre du haut (Accueil, Favoris, À regarder, Demandes, Collections, Playlists,
+    // Téléchargements, Recherche, Paramètres) : les pages sont rangées de gauche à droite dans l'ordre de la
+    // barre. La page quittée glisse vers un côté en s'effaçant (sous le voile), la nouvelle arrive de l'autre
+    // côté. Ailleurs (fiche, retour…) : l'arrivée habituelle, léger zoom et montée.
+    property <int> prev-pos: -1;           // place de la page affichée (-1 : hors de la barre)
+    property <int> nav-dir;                // arrivée : 1 depuis la droite, -1 depuis la gauche, 0 zoom
+    property <int> leave-dir;              // départ : 1 vers la gauche, -1 vers la droite, 0 aucun
+    property <bool> leave-anim;
+    property <duration> leave-t0;
+    property <float> leave-lin: root.leave-anim ? clamp((animation-tick() - root.leave-t0) / 260ms, 0, 1) : root.leave-dir != 0 ? 1 : 0;
+    property <length> page-slide: min(140px * root.k, root.width * 0.12);
+    out property <length> page-dx: root.leave-dir != 0 ? -root.leave-dir * root.leave-lin * root.leave-lin * root.page-slide
+        : root.nav-dir * (1 - root.page-e) * root.page-slide;
+    out property <float> page-sc: root.nav-dir != 0 || root.leave-dir != 0 ? 1 : 0.96 + 0.04 * root.page-e;
+    out property <length> page-dy: root.nav-dir != 0 || root.leave-dir != 0 ? 0px : (1 - root.page-e) * 28px * root.k;
+    function page-pos() -> int {
+        if (root.screen == "home" || (root.screen == "library" && root.lib-tab-root)) {
+            return root.tab-index();
+        }
+        return root.screen == "downloads" ? 50 : root.screen == "search" ? 60 : root.screen == "settings" ? 70 : -1;
+    }
+    // Place d'une destination du menu ou de la barre (-1 : hors de la barre).
+    function dest-pos(arg: string) -> int {
+        return arg == "home" ? 0 : arg == "favorites" ? 1 : arg == "watchlist" && root.has-watch ? root.tab-watch
+            : arg == "requests" && root.has-requests ? root.tab-req
+            : root.coll-id != "" && arg == "lib:" + root.coll-id ? root.tab-coll
+            : root.play-id != "" && arg == "lib:" + root.play-id ? root.tab-play
+            : arg == "downloads" ? 50 : arg == "search" ? 60 : arg == "settings" ? 70 : -1;
+    }
+    function leave-to(arg: string) {
+        let cur = root.page-pos();
+        let to = root.dest-pos(arg);
+        if (!Motion.pages || cur < 0 || to < 0 || to == cur) {
+            return;
+        }
+        root.leave-dir = to > cur ? 1 : -1;
+        root.leave-t0 = animation-tick();
+        root.leave-anim = true;
+    }
+    Timer {
+        interval: 300ms;
+        running: root.leave-anim;
+        triggered => {
+            root.leave-anim = false;
+        }
+    }
+    // Page quittée restée là (chargement échoué, rien d'autre n'arrive) : elle revient à sa place.
+    Timer {
+        interval: 700ms;
+        running: root.leave-dir != 0 && !root.leave-anim && !root.loading && !root.veil-hold;
+        triggered => {
+            root.leave-dir = 0;
+            root.prev-pos = -1;
+            root.page-enter();
+        }
     }
     // Relancée pendant qu'elle tourne, l'animation repart de zéro : on s'arrête sur le dernier départ
     // (une minuterie de la durée totale, elle, ne repart pas et coupait l'animation en route).
@@ -4101,8 +4318,30 @@ export component AppWindow inherits Window {
     // rev-hold : fiche demandée depuis une affiche, pas encore là : son contenu reste caché (sinon
     // il apparaissait d'un coup, puis s'animait). rev-go : la fiche est là, l'apparition commence.
     property <bool> rev-hold;
-    property <float> rev-lin: root.rev-anim && Motion.detail ? clamp((animation-tick() - root.rev-t0) / 900ms, 0, 1)
+    property <float> rev-lin: root.rev-leave && Motion.detail ? 1 - clamp((animation-tick() - root.rev-leave-t0) / 300ms, 0, 1)
+        : root.rev-anim && Motion.detail ? clamp((animation-tick() - root.rev-t0) / 900ms, 0, 1)
         : root.rev-hold && Motion.detail ? 0 : 1;
+    // Retour (fiche quittée vers une carte ou la bannière) : la fiche repart comme elle est arrivée, à
+    // l'envers (boutons qui rapetissent, informations qui glissent), pendant le voile.
+    property <bool> rev-leave;
+    property <duration> rev-leave-t0;
+    // Bouton n° j de la fiche (icônes, puis pastilles) : chacun son tour, avec un léger rebond.
+    pure function rev-at(j: int) -> float {
+        let x = clamp((root.rev-lin - 0.05 - min(j, 10) * 0.045) / 0.3, 0, 1);
+        let c = 1.70158;
+        return 1 + (c + 1) * (x - 1) * (x - 1) * (x - 1) + c * (x - 1) * (x - 1);
+    }
+    // Bannière ouverte (ou retour vers elle) : ses textes et son bouton de lecture volent (voir bgh) ;
+    // ceux de la fiche restent cachés tant qu'ils volent, puis prennent leur place d'un coup.
+    property <bool> bnr-swap: root.hero-on && root.hero-banner && root.hero-big;
+    // Retour vers la bannière : l'accueil ne se montre pas tout fait sous l'image qui revient. La bannière
+    // attend son image (qui s'y pose, puis la laisse à sa place) ; les rangées arrivent pendant le vol,
+    // l'une après l'autre (0 : cachées, 1 : à leur place).
+    property <bool> bnr-back: root.hero-on && root.hero-banner && !root.hero-dest;
+    property <float> ret-q: root.bnr-back ? (root.hero-flying ? root.hero-e : 0) : 1;
+    pure function home-ret(si: int) -> float {
+        return clamp(root.ret-q * 1.6 - min(si, 4) * 0.15, 0, 1);
+    }
     // La fiche suit l'affiche : elle commence à apparaître une fois l'affiche à mi-chemin (même si la
     // fiche était déjà prête, gardée en mémoire).
     property <bool> rev-go: root.rev-hold && root.screen == "detail" && root.detail.id == root.hero-id && !root.loading
@@ -4114,6 +4353,7 @@ export component AppWindow inherits Window {
         }
     }
     function rev-start() {
+        root.rev-leave = false;
         root.rev-t0 = animation-tick();
         root.rev-anim = true;
     }
@@ -4350,6 +4590,7 @@ export component AppWindow inherits Window {
             // bibliothèque s'efface.
             Hero.want-id = root.hero-data.id;
             Hero.want-group = root.hero-data.group;
+            root.hero-want-spot();
             root.hero-dest = false;
             root.hero-flying = false;
             root.hero-gave-up = false;
@@ -4458,7 +4699,9 @@ export component AppWindow inherits Window {
     property <bool> fade-in;
     property <bool> fade-anim;
     property <duration> fade-t0;
-    property <float> fade-q: root.fade-anim && Motion.detail ? clamp((animation-tick() - root.fade-t0) / 700ms, 0, 1) : 1;
+    // Fondu à la durée du vol (il se fait pendant le déplacement, aller comme retour).
+    property <duration> fade-len: max(380ms, root.hero-dur);
+    property <float> fade-q: root.fade-anim && Motion.detail ? clamp((animation-tick() - root.fade-t0) / root.fade-len, 0, 1) : 1;
     property <float> hero-alpha: root.fade-anim ? (root.fade-in ? root.fade-q : 1 - root.fade-q) : (root.hero-faded ? 0 : 1);
     // Destination : affiche de la fiche, affiche de la page Seerr, ou tout l'écran (16:9 -> fiche).
     property <length> sr-u: (root.narrow ? min((root.height - root.header-h) / 1180px, root.width / 720px) : min((root.height - root.header-h) / 640px, root.width / 1280px)) * 1px;
@@ -4476,7 +4719,30 @@ export component AppWindow inherits Window {
     property <length> hero-th: root.hero-deck ? root.hero-tw * root.hero-fh / max(1px, root.hero-fw) : root.hero-seerr ? root.sr-poster-w * 1.5 : root.hero-wide && !root.hero-door ? root.height : root.poster-w * 1.5;
     property <bool> hero-big: root.hero-wide && !root.hero-seerr && !root.hero-door && !root.hero-deck;
     // Lignes du haut de l'image à rogner (rayon des coins intégrés, en pixels de l'image).
-    property <int> hero-crop: root.hero-big && root.hero-fw > 0
+    // Bannière de l'accueil : image sans coins intégrés, rien à rogner.
+    property <bool> hero-banner;
+    // Grand fond (vignette 16:9, bannière) : une fois le fond d'écran de ce média affiché (voir bg-now),
+    // l'image qui vole s'y fond pendant qu'elle grandit (seconde moitié du trajet), au lieu de se poser
+    // en grand puis de s'effacer ; au retour, elle en ressort de même.
+    property <float> hero-dis: root.hero-big && root.bg-now == root.hero-data.id ? clamp((root.hero-p - 0.3) / 0.6, 0, 1) : 0;
+    property <float> hero-dis-in: root.hero-big && root.bg-now == root.hero-data.id ? 1 : 0;
+    animate hero-dis-in { duration: Motion.detail ? 200ms : 0ms; easing: ease-out; }
+    // Opacité de l'image qui vole (grand fond : moins ce qui est déjà fondu dans le fond).
+    property <float> hero-alpha-v: root.hero-alpha * (1 - root.hero-dis * root.hero-dis-in);
+    // Place de la bannière, du logo (ou titre) et du résumé de la fiche à l'écran (voir Spot) : les textes
+    // de la bannière volent de l'une aux autres.
+    property <length> bnr-ax;
+    property <length> bnr-ay;
+    property <length> bnr-w;
+    property <length> bnr-h;
+    property <length> dlog-x;
+    property <length> dlog-y;
+    property <length> dlog-w;
+    property <length> dov-x;
+    property <length> dov-y;
+    property <length> dov-w;
+    property <length> dov-h;
+    property <int> hero-crop: root.hero-big && !root.hero-banner && root.hero-fw > 0
         ? round(min(1, 5 * root.hero-p) * root.hero-img.width * Theme.radius * 1.15 / (root.hero-fw / 1.06)) : 0;
     // Fiche ouverte depuis une vignette 16:9 : opacité de la page (0 au début du vol, 1 à la fin).
     property <float> hero-page-a: root.hero-on && root.hero-big && root.hero-dest
@@ -4503,12 +4769,28 @@ export component AppWindow inherits Window {
             root.deal-t0 = animation-tick();
             root.deal-anim = true;
         }
-        if (root.hero-ready && root.hero-big && !root.hero-faded) {
-            root.fade-in = false;
-            root.fade-t0 = animation-tick();
-            root.fade-anim = true;
-            root.hero-faded = true;
+        if (root.hero-ready && root.hero-big && !root.hero-faded && root.hero-fade-ok) {
+            root.hero-fade-out();
         }
+    }
+    // Grand fond : la fiche est là (son fond flou et sombre aussi) pendant que l'image grandit encore.
+    // L'image s'efface vers ce fond dès maintenant, au rythme du vol, plutôt qu'après.
+    // Fond d'écran affiché (média, voir bg_shown) : l'image qui vole ne s'y fond qu'une fois le fond de ce
+    // média à l'écran (sinon on voyait un instant celui du média d'avant), 1,2 s d'attente au plus.
+    in property <string> bg-now;
+    property <bool> hero-fade-ok: root.bg-now == root.hero-id || root.hero-gave-up;
+    property <bool> hero-bg-ready: root.hero-on && root.hero-dest && root.hero-big && !root.loading
+        && root.screen == "detail" && root.detail.id == root.hero-id && root.hero-fade-ok;
+    changed hero-bg-ready => {
+        if (root.hero-bg-ready && !root.hero-faded) {
+            root.hero-fade-out();
+        }
+    }
+    function hero-fade-out() {
+        root.fade-in = false;
+        root.fade-t0 = animation-tick();
+        root.fade-anim = true;
+        root.hero-faded = true;
     }
     // L'affiche de la page met du temps (ou n'existe pas) : on n'attend pas plus de 1,2 s.
     property <bool> hero-gave-up;
@@ -4570,7 +4852,7 @@ export component AppWindow inherits Window {
         }
     }
     Timer {
-        interval: 720ms;
+        interval: root.fade-len + 20ms;
         running: root.fade-anim;
         triggered => {
             root.fade-anim = false;
@@ -4603,6 +4885,8 @@ export component AppWindow inherits Window {
         if (root.is-empty-card(id)) {
             return;
         }
+        root.d-from-banner = false;
+        root.backdrop-now(id, false);
         // Changement de page déjà lancé (onglet, menu) : la carte de la page quittée ne s'ouvre plus.
         if (root.veil-hold || (root.lib-wave && root.loading)) {
             return;
@@ -4762,10 +5046,17 @@ export component AppWindow inherits Window {
             root.hero-fw = Hero.w;
             root.hero-fh = Hero.h;
             root.hero-data = Hero.data;
-            Hero.hide-id = Hero.data.id;
+            // Bannière : la carte du même média (rangée Reprendre) reste visible, ce n'est pas elle qui revient.
+            Hero.hide-id = root.hero-banner ? "" : Hero.data.id;
             root.hero-t0 = animation-tick();
             root.hero-anim = true;
             root.hero-flying = true;
+            if (root.hero-big && root.hero-faded) {
+                root.fade-in = true;
+                root.fade-t0 = animation-tick();
+                root.fade-anim = true;
+                root.hero-faded = false;
+            }
             return;
         }
         // Collection ou bibliothèque qui ne se distribue pas (déjà fait dans la session, ou réglage) : pas
@@ -4789,6 +5080,7 @@ export component AppWindow inherits Window {
             root.sr-card-on = root.hero-seerr && Hero.data.has-image && !Hero.wide;
             root.sr-card-img = Hero.img;
             root.hero-wide = Hero.wide;
+            root.hero-banner = false;
             // Bibliothèque ou collection : distribuée comme des cartes la première fois de la session
             // seulement, et si le réglage le permet (sinon, voir plus haut).
             let deck = Hero.data.deck;
@@ -4815,13 +5107,87 @@ export component AppWindow inherits Window {
             root.hero-on = true;
             Hero.hide-id = Hero.data.id;
             root.hero-id = root.hero-pending;
+            root.hero-origin(root.hero-pending, Hero.x, Hero.y);
             root.hero-pending = "";
         }
     }
 
+    // Bannière de l'accueil (clic, « Voir la fiche », Entrée) : son image s'agrandit jusqu'à tout l'écran
+    // et la fiche arrive par-dessus, comme pour une vignette 16:9 d'une rangée. `bnr-tick` : la bannière
+    // répond avec sa place (open-banner), comme une carte à Hero.tick.
+    property <int> bnr-tick;
+    function banner-open() {
+        root.d-from-banner = true;
+        root.backdrop-now(root.banner.id, true);
+        root.bnr-tick += 1;
+    }
+    function open-banner(x: length, y: length, w: length, h: length) {
+        let id = root.banner.id;
+        if (!Motion.detail || !root.banner.has-image || root.veil-hold || root.screen != "home") {
+            root.open-item(id);
+            return;
+        }
+        root.lib-wave = false;
+        root.hero-id = "";
+        root.hero-pending = "";
+        root.sr-card-on = false;
+        root.hero-keep = 0px;
+        root.hero-fx = x;
+        root.hero-fy = y;
+        root.hero-fw = w;
+        root.hero-fh = h;
+        root.hero-origin(id, x, y);
+        root.hero-img = root.banner.image;
+        root.hero-data = { id: id, title: root.banner.title, image: root.banner.image, has-image: true };
+        root.hero-k = root.k;
+        root.hero-seerr = false;
+        root.hero-wide = true;
+        root.hero-banner = true;
+        root.door-mode = false;
+        root.door-has-poster = false;
+        root.rev-hold = false;
+        root.hero-from-detail = false;
+        root.hero-deck = false;
+        root.deck-back = false;
+        root.deal-anim = false;
+        root.hero-faded = false;
+        root.hero-gave-up = false;
+        root.fade-anim = false;
+        root.hero-dest = true;
+        root.hero-flying = false;
+        root.hero-out = false;
+        root.hero-t0 = animation-tick();
+        root.hero-safe-t0 = animation-tick();
+        root.hero-anim = true;
+        root.hero-on = true;
+        Hero.hide-id = "";
+        root.open-item(id);
+        root.hero-id = id;
+    }
+
     // Retour : depuis la page ouverte par une carte, l'image reste en place pendant que la page
     // s'efface, puis repart vers la carte.
+    // Retour vers la bannière : places de la fiche figées au départ (la fiche qui s'en va glisse, et les
+    // textes qui volent la suivaient avant de partir).
+    property <length> fz-lx;
+    property <length> fz-ly;
+    property <length> fz-lw;
+    property <length> fz-ox;
+    property <length> fz-oy;
+    property <length> fz-ow;
+    property <length> fz-oh;
+    property <length> fz-px;
+    property <length> fz-py;
     function hero-return() {
+        root.fz-lx = root.dlog-w > 0 ? root.dlog-x : root.col-x + root.po-right;
+        root.fz-ly = root.dlog-w > 0 ? root.dlog-y : root.header-h + 24px;
+        root.fz-lw = root.dlog-w > 0 ? root.dlog-w : root.info-w;
+        root.fz-ox = root.dov-x;
+        root.fz-oy = root.dov-y;
+        root.fz-ow = root.dov-w;
+        root.fz-oh = root.dov-h;
+        root.fz-px = root.d-low-x + root.po-right + root.page-dx;
+        root.fz-py = root.header-h + root.page-dy + 24px + 118px * root.k + root.d-low;
         // Fiche quittée : l'image attend qu'elle soit partie. Page Seerr fermée au-dessus d'une fiche :
         // la fiche reste, l'image repart tout de suite vers sa carte (sinon elle restait figée).
         root.hero-from-id = root.screen == "detail" && !root.sr-open ? root.detail.id : "";
@@ -4830,18 +5196,14 @@ export component AppWindow inherits Window {
         root.deal-anim = false;
         Hero.want-id = root.hero-data.id;
         Hero.want-group = root.hero-data.group;
+        root.hero-want-spot();
         root.hero-dest = false;
         root.hero-flying = false;
         root.hero-anim = false;
         root.hero-gave-up = false;
         root.hero-safe-t0 = animation-tick();
         root.hero-on = true;
-        if (root.hero-big) {
-            root.fade-in = true;
-            root.fade-t0 = animation-tick();
-            root.fade-anim = true;
-            root.hero-faded = false;
-        }
+        // Grand fond : l'image reparaît pendant qu'elle revole vers sa carte (voir hero-seq), pas avant.
         root.hero-id = "";
     }
     function back-anim() {
@@ -4867,6 +5229,11 @@ export component AppWindow inherits Window {
         if (root.screen == "detail" && root.back-soft) {
             root.run-action("back");
             return;
+        }
+        if (root.screen == "detail" && Motion.detail) {
+            root.rev-anim = false;
+            root.rev-leave-t0 = animation-tick();
+            root.rev-leave = true;
         }
         root.nav-out("back", "");
     }
@@ -4936,6 +5303,9 @@ export component AppWindow inherits Window {
         }
         root.nav-kind = kind;
         root.nav-arg = arg;
+        if (kind == "menu") {
+            root.leave-to(arg);
+        }
         // Onglet ou menu : on quitte la page, aucune affiche n'a à voler (une carte de la page quittée,
         // de Demandes par exemple, partait vers la place d'une fiche qui n'arrivera jamais).
         root.lib-wave = kind == "menu" && root.is-lib-tab(arg);
@@ -4985,7 +5355,7 @@ export component AppWindow inherits Window {
     // Arrivée en cascade : décalage vertical de l'élément n° i (rangées, lignes de grille).
     pure function stagger(i: int) -> length {
         // Entrée après la connexion : les rangées arrivent à leur façon (intro-row).
-        if (root.intro-live) {
+        if (root.intro-live || root.nav-dir != 0) {
             return 0px;
         }
         return (1 - clamp(root.page-lin * 1.9 - min(i, 5) * 0.18, 0, 1)) * 70px * root.k;
@@ -5020,6 +5390,7 @@ export component AppWindow inherits Window {
     property <duration> d-t0;                // arrivée de la fiche affichée
     changed screen => {
         root.ep-btn = -1;
+        root.bg-hov = "";
         // Fiche ouverte depuis une autre page : sa première mise en place n'est pas un changement de fiche
         // (pas de balayage des textes depuis ceux d'une fiche vue avant).
         if (root.screen == "detail") {
@@ -5322,14 +5693,24 @@ export component AppWindow inherits Window {
     in-out property <image> bg-b;
     in-out property <bool> bg-flip;          // false : bg-a visible · true : bg-b visible
     in-out property <bool> bg-show;
-    callback backdrop-for(string);
+    // (média, depuis la bannière : son image de bannière, pas celle de sa carte 16:9)
+    callback backdrop-for(string, bool);
+    // Carte ouverte : son fond tout de suite (pas l'attente faite pour les cartes traversées), pour ne
+    // pas revoir le fond d'avant le temps qu'il arrive.
+    callback backdrop-now(string, bool);
+    // Souris : la dernière carte survolée (accueil, grille) donne le fond, comme la sélection au clavier.
+    property <string> bg-hov;
     property <float> bg-mix: root.bg-flip ? 1 : 0;
-    animate bg-mix { duration: Motion.pages ? 800ms : 0ms; easing: ease-in-out; }
+    // Média qui s'ouvre (l'image qui vole s'y fond) : le nouveau fond arrive vite, sinon on voyait l'ancien
+    // sous l'image qui se dissout.
+    animate bg-mix { duration: !Motion.pages ? 0ms : root.hero-on ? 160ms : 800ms; easing: ease-in-out; }
     // Onglet vide : aucun média sélectionné, donc pas de fond (celui de l'onglet d'avant restait).
     property <float> bg-vis: root.bg-show && root.screen != "login" && !(root.screen == "home" && root.sections.length == 0) ? 1 : 0;
-    animate bg-vis { duration: Motion.pages ? 600ms : 0ms; easing: ease-in-out; }
+    // Média qui s'ouvre : l'ancien fond s'efface vite (le nouveau arrive), voir backdrop-now.
+    animate bg-vis { duration: !Motion.pages ? 0ms : root.hero-on ? 200ms : 600ms; easing: ease-in-out; }
     // Média sélectionné (accueil, bibliothèque, fiche) : Rust attend un instant puis charge son fond.
-    property <string> focus-id: root.screen == "home" && root.banner-now && !root.h-focus ? root.banner.id
+    property <string> focus-id: !Nav.kb && root.bg-hov != "" && (root.screen == "home" || root.screen == "library") ? root.bg-hov
+        : root.screen == "home" && root.banner-now && !root.h-focus ? root.banner.id
         : root.screen == "home" && !root.h-focus && root.sel-section < root.sections.length
             && root.sel-item < root.sections[root.sel-section].items.length
         ? root.sections[root.sel-section].items[root.sel-item].id
@@ -5337,8 +5718,16 @@ export component AppWindow inherits Window {
         : root.screen == "downloads" && root.dl-sec < root.dl-sections.length
             && root.dl-item < root.dl-sections[root.dl-sec].items.length ? root.dl-sections[root.dl-sec].items[root.dl-item].id
         : root.screen == "detail" ? root.detail.id : "";
+    // Fiche : le fond de là où elle a été ouverte (bannière ou carte), pour qu'il ne change pas à son arrivée.
+    property <bool> d-from-banner;
+    property <bool> focus-banner: root.screen == "detail" ? root.d-from-banner
+        : !(!Nav.kb && root.bg-hov != "" && (root.screen == "home" || root.screen == "library"))
+            && root.screen == "home" && root.banner-now && !root.h-focus;
     changed focus-id => {
-        root.backdrop-for(root.focus-id);
+        root.backdrop-for(root.focus-id, root.focus-banner);
+    }
+    changed focus-banner => {
+        root.backdrop-for(root.focus-id, root.focus-banner);
     }
     changed d-x => {
         root.row-seen(1000 + root.d-zone, root.d-x);
@@ -5370,6 +5759,7 @@ export component AppWindow inherits Window {
     in property <[ServerData]> servers;
     in property <bool> srv-searching;
     in-out property <int> srv-sel;
+    in property <bool> srv-first;           // tout premier démarrage : « Découvrir Turtlefin » au choix du serveur
     in-out property <bool> manual-open;
     in-out property <string> manual-error;
     in property <bool> manual-busy;
@@ -5425,7 +5815,14 @@ export component AppWindow inherits Window {
     // Hauteur de la bannière : moins haute au bureau (assez pour son contenu, le reste aux rangées).
     property <length> banner-full: root.height > root.width ? 300px * root.k
         : min(root.height * 0.46, (root.tv-mode ? 400px : 265px) * root.k);
-    property <length> banner-h: root.banner-on && root.tab == "home" && root.tour-step < 0 ? root.banner-full : 0px;
+    // Onglet des rangées affichées : `tab` change dès le clic, avant l'arrivée des nouvelles rangées (la
+    // bannière de l'Accueil apparaissait un instant au-dessus des rangées de Favoris).
+    property <string> sec-tab: "home";
+    property <[Section]> sec-now: root.sections;
+    changed sec-now => {
+        root.sec-tab = root.tab;
+    }
+    property <length> banner-h: root.banner-on && root.sec-tab == "home" && root.tour-step < 0 ? root.banner-full : 0px;
     // Portrait, page faite d'une seule rangée de tuiles (À regarder, Demandes) : la rangée devient une
     // grille qui remplit l'écran (en rangée, une ou deux cartes visibles et tout le bas de l'écran vide).
     // Colonnes : autant qu'il en tient à la largeur habituelle, cartes élargies pour remplir la ligne.
@@ -5765,6 +6162,58 @@ export component AppWindow inherits Window {
     // Bibliothèque (grille)
     in property <string> lib-title;
     in-out property <[CardData]> lib-items;
+    // Sélection de plusieurs cartes de la grille (demander à Seerr, télécharger en une fois) : Rust tient
+    // les cartes choisies (`lib-picked`, en parallèle de lib-items) et les comptes.
+    in property <bool> pick-mode;
+    in property <[bool]> lib-picked;
+    in property <int> pick-n;               // cartes choisies
+    in property <int> pick-req;             // dont à demander (Seerr)
+    in property <int> pick-dl;              // dont à télécharger (médias du serveur)
+    in-out property <int> pick-btn: -1;     // pastille de la sélection au clavier : 0 Actions, 1 ✕ (-1 : la grille)
+    // Télécommande : sélection « au pinceau » en cours (OK maintenu), depuis la carte paint-anchor.
+    in-out property <bool> pick-paint;
+    property <int> paint-anchor: -1;
+    changed pick-mode => {
+        if (!root.pick-mode) {
+            root.pick-paint = false;
+            root.paint-anchor = -1;
+        }
+    }
+    callback lib-pick(int);                 // carte n° i choisie / plus choisie
+    callback lib-pick-set(int, bool);       // carte n° i choisie (vrai) ou non
+    // Glisser à la souris : de la carte de départ (a) à celle sous la souris (b), toutes celles entre les
+    // deux (ordre de lecture) sont choisies (vrai) ou retirées ; les autres reviennent à leur état d'avant.
+    callback lib-drag(int, int, bool);
+    callback lib-drag-end();
+    property <int> drag-anchor: -1;
+    property <length> drag-ax;
+    property <length> drag-ay;
+    // "exit" | "all" | "req" | "dl" (la sélection) ; "pick|<id>" (commencer / ajouter / retirer),
+    // "one-req|<id>", "one-dl|<id>" (menu d'une carte : elle, ou la sélection si elle en fait partie),
+    // "range|<i>" (Maj + clic : de la dernière carte choisie à celle-ci).
+    callback pick-act(string);
+    // Sorte d'une carte pour la sélection : 1 à demander (Seerr), 2 à télécharger, 0 ni l'un ni l'autre.
+    pure callback pick-kind(string) -> int;
+    // Glisser à la souris : valeur posée sur les cartes survolées, dernière carte touchée.
+    property <bool> drag-val;
+    property <int> drag-last: -1;
+    function pick-press(i: int) {
+        if (!root.pick-mode) {
+            return;
+        } else if (i == 0) {
+            root.open-pick-menu();
+        } else {
+            root.pick-btn = -1;
+            root.pick-act("exit");
+        }
+    }
+    // Menu de la sélection, sous la pastille (« Actions »).
+    function open-pick-menu() {
+        if (root.l-sel < root.lib-items.length) {
+            root.cm-pill = true;
+            root.open-card-menu(root.lib-items[root.l-sel], root.width / 2, root.header-h + 62px * root.k);
+        }
+    }
     in property <int> lib-total;
     in-out property <int> l-sel;
     // Lettres tapées au clavier dans la grille : seuls les titres qui commencent ainsi (voir lib-key).
@@ -5872,10 +6321,13 @@ export component AppWindow inherits Window {
     // Cartes des rangées : pas de menu sur ce qui n'est pas un média du serveur (Seerr, personnes).
     pure callback card-menu-ok(string) -> bool;
     function row-card-menu(card: CardData, x: length, y: length) {
-        if (!card.seerr && root.card-menu-ok(card.id)) {
+        root.cm-pill = false;
+        if (root.card-menu-ok(card.id)) {
             root.open-card-menu(card, x, y);
         }
     }
+    // Menu ouvert par « Actions » de la pastille de sélection (voir cm-layer.pill).
+    property <bool> cm-pill;
     public function open-card-menu(card: CardData, x: length, y: length) {
         root.cm-page = 0;
         root.cm-card = card;
@@ -6013,6 +6465,30 @@ export component AppWindow inherits Window {
 
     callback login(string, string, string); // serveur, utilisateur, mot de passe
     callback open-item(string);
+    callback fact-chip(int);                // pastille n° i de l'onglet Détails : recherche filtrée
+    // Drapeau d'une langue audio (code de deux lettres, voir Item::audio_langs) ; inconnue : pas d'image.
+    pure function lang-flag(code: string) -> image {
+        return code == "FR" ? @image-url("icons/flags/fr.svg") : code == "EN" ? @image-url("icons/flags/en.svg")
+            : code == "JA" ? @image-url("icons/flags/ja.svg") : code == "DE" ? @image-url("icons/flags/de.svg")
+            : code == "ES" ? @image-url("icons/flags/es.svg") : code == "IT" ? @image-url("icons/flags/it.svg")
+            : code == "PT" ? @image-url("icons/flags/pt.svg") : code == "KO" ? @image-url("icons/flags/ko.svg")
+            : code == "ZH" ? @image-url("icons/flags/zh.svg") : code == "RU" ? @image-url("icons/flags/ru.svg")
+            : code == "NL" ? @image-url("icons/flags/nl.svg") : code == "PL" ? @image-url("icons/flags/pl.svg") : @image-url("");
+    }
+    callback chip-place(int, length, length); // pastille n° i placée à l'écran (x, y)
+    callback chip-step(int, int) -> int;    // ↑ (-1) / ↓ (1) depuis la pastille i : celle visée, -1 : aucune
+    // Image partagée : place de la carte (ou de la bannière) d'où part un média, retenue par média pour
+    // tout le chemin des fiches (le retour d'une fiche ouverte depuis une autre fiche, puis de celle-ci).
+    callback hero-origin(string, length, length);
+    callback hero-origin-of(string) -> HeroSpot;
+    function hero-want-spot() {
+        let o = root.hero-origin-of(Hero.want-id);
+        Hero.ox = o.x;
+        Hero.oy = o.y;
+        Hero.o-known = o.known;
+        Hero.best-tick = -1;
+    }
+    property <int> d-chip;                  // pastille choisie au clavier (onglet Détails)
     callback run-action(string);            // "play" | "back" | "open:<id>"
     // Lecture lancée depuis une fiche : la fiche s'écarte (affiche à gauche, infos à droite, rangées
     // vers le bas), le fond plonge dans le noir, puis la lecture démarre ; au retour, tout revient.
@@ -6024,6 +6500,40 @@ export component AppWindow inherits Window {
     changed playing => {
         if (!root.playing) {
             root.play-go = false;
+            root.bplay-go = false;
+        }
+    }
+    // Lecture lancée depuis la bannière de l'accueil (« Reprendre », « Lecture ») : la bannière grossit un
+    // peu, l'écran plonge dans le noir, puis la lecture démarre ; au retour, le noir s'efface.
+    property <bool> bplay-go;
+    property <float> bpo: root.bplay-go ? 1 : 0;
+    animate bpo { duration: Motion.detail ? 420ms : 0ms; easing: cubic-bezier(0.55, 0, 0.35, 1); }
+    property <string> bplay-id;
+    function banner-launch() {
+        if (root.bplay-go) {
+            return;
+        }
+        if (!Motion.detail) {
+            root.banner-play(root.banner.id);
+            return;
+        }
+        root.bplay-id = root.banner.id;
+        root.bplay-go = true;
+        bplay-launch.running = true;
+    }
+    bplay-launch := Timer {
+        interval: 400ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.banner-play(root.bplay-id);
+        }
+    }
+    Timer {
+        interval: 8s;
+        running: root.bplay-go && !root.playing;
+        triggered => {
+            root.bplay-go = false;
         }
     }
     function detail-run(action: string) {
@@ -6265,11 +6775,13 @@ export component AppWindow inherits Window {
         : root.tab == "home" ? "home" : "";
     // Déjà sur cette page (à sa racine) : rien à recharger.
     pure function at(action: string) -> bool {
+        // Onglets de l'accueil : seulement sur l'accueil (une grille ouverte depuis la recherche est une
+        // page de bibliothèque « à la racine », et Accueil n'y faisait plus rien).
         return action == root.here && (
-            ((action == "home" || action == "requests" || action == "favorites" || action == "watchlist") && root.screen == "home")
-            || (action == "downloads" && root.dl-level == 0)
-            || action == "party" || action == "settings" || action == "server"
-            || (root.screen == "library" && root.at-lib-root));
+            (action == "home" || action == "requests" || action == "favorites" || action == "watchlist") ? root.screen == "home"
+            : action == "downloads" ? root.dl-level == 0
+            : action == "party" || action == "settings" || action == "server" ? true
+            : root.screen == "library" && root.at-lib-root);
     }
     pure callback menu-find(string) -> int;  // n° de l'entrée du menu ayant cette action (-1 sinon)
 
@@ -6474,6 +6986,9 @@ export component AppWindow inherits Window {
             root.sel-section = 0;
             root.sel-item = 0;
             root.banner-sel = root.banner-full > 0px;
+        }
+        if (i != root.tab-index()) {
+            root.leave-to(i == 0 ? "home" : i == 1 ? "favorites" : root.has-watch && i == root.tab-watch ? "watchlist" : "requests");
         }
         if (i == 0) {
             root.select-tab("home");
@@ -6723,19 +7238,39 @@ export component AppWindow inherits Window {
         y: root.hero-yp - root.header-row;
         width: root.hero-wp;
         height: root.hero-hp;
+        border-radius: root.hero-banner ? Theme.radius * (1 - root.hero-p) : 0px;
+        clip: root.hero-banner;
         Image {
             width: parent.width;
             height: parent.height;
             source: root.hero-img;
             image-fit: cover;
-            opacity: root.hero-alpha;
+            opacity: root.hero-alpha-v;
             // Vignette 16:9 qui devient le fond : ses coins arrondis sont dans les pixels ; le haut
             // de l'image est rogné au fil de l'agrandissement pour qu'ils ne grandissent pas avec elle.
             source-clip-y: root.hero-crop;
             source-clip-height: root.hero-img.height - root.hero-crop;
         }
         Rectangle {
-            background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha * root.hero-p);
+            background: Theme.bg.transparentize(1 - 0.6 * root.hero-alpha-v * root.hero-p);
+        }
+        if root.hero-banner: Rectangle {
+            opacity: (1 - root.hero-p) * root.hero-alpha-v;
+            background: root.height > root.width ? @linear-gradient(180deg, #00000030 0%, #000000e0 75%)
+                : @linear-gradient(90deg, #000000e0 0%, #00000090 45%, #00000000 78%);
+        }
+
+        // Bannière : sa barre d'avancement s'efface pendant le vol (et revient au retour).
+        if root.hero-banner && root.hero-big && root.banner.progress > 0: Rectangle {
+            y: parent.height - self.height;
+            height: 5px * root.k;
+            opacity: (1 - root.hero-p) * root.hero-alpha-v;
+            background: #ffffff33;
+            Rectangle {
+                x: 0px;
+                width: parent.width * root.banner.progress;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
         }
     }
     }
@@ -7135,8 +7670,11 @@ export component AppWindow inherits Window {
         }
 
         // ---- Qui regarde ?
-        if root.login-mode == "pick" || lg.form-anim: Rectangle {
+        if root.login-mode == "pick" || lg.form-anim: pk := Rectangle {
             opacity: root.login-mode == "pick" ? 1 : 1 - lg.form-e;
+            // Tuiles déjà lancées dans la cascade : elles apparaissent une à une, de gauche à droite, même
+            // si les photos arrivent dans le désordre (une tuile attend la précédente).
+            property <int> shown: 0;
             transform-scale: root.login-mode == "pick" ? 1 : 1 + 0.05 * lg.form-e;
             // Rangée plus large que l'écran : elle défile pour garder la tuile choisie visible.
             property <length> step: lg.pk-step;
@@ -7182,7 +7720,8 @@ export component AppWindow inherits Window {
                 width: lg.tile;
                 height: lg.tile + 70 * lg.u;
                 // Arrivée : invisible tant que la photo n'est pas là (0,35 s au plus : sinon l'initiale,
-                // remplacée par la photo à son arrivée), puis un zoom élastique, chacune à son tour.
+                // remplacée par la photo à son arrivée) et que la précédente n'est pas partie, puis un zoom
+                // élastique, chacune à son tour (70 ms après la précédente).
                 property <bool> waited;
                 Timer {
                     interval: 350ms;
@@ -7192,19 +7731,28 @@ export component AppWindow inherits Window {
                     }
                 }
                 property <bool> ready: t.has-image || t.id == "other" || self.waited;
+                property <bool> turn: self.ready && i <= pk.shown;
                 property <duration> z-t0;
                 property <bool> z-live;
                 property <bool> z-done;
                 init => {
-                    if (self.ready) {
+                    if (self.turn) {
                         self.z-t0 = animation-tick();
                         self.z-live = true;
                     }
                 }
-                changed ready => {
-                    if (self.ready && !self.z-done) {
+                changed turn => {
+                    if (self.turn && !self.z-done && !self.z-live) {
                         self.z-t0 = animation-tick();
                         self.z-live = true;
+                    }
+                }
+                // La suivante part 70 ms plus tard.
+                Timer {
+                    interval: 70ms;
+                    running: tile.z-live && pk.shown == i;
+                    triggered => {
+                        pk.shown = max(pk.shown, i + 1);
                     }
                 }
                 Timer {
@@ -7216,7 +7764,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 property <float> zx: self.z-done || !Motion.login ? (self.ready ? 1 : 0)
-                    : !self.ready ? 0 : clamp((animation-tick() - self.z-t0 - min(i, 6) * 70ms) / 420ms, 0, 1);
+                    : !self.turn || !self.z-live ? 0 : clamp((animation-tick() - self.z-t0) / 420ms, 0, 1);
                 // Zoom qui dépasse un peu avant de se poser.
                 property <float> e: self.zx >= 1 ? 1 : 1 + 2.7 * (self.zx - 1) * (self.zx - 1) * (self.zx - 1) + 1.7 * (self.zx - 1) * (self.zx - 1);
                 property <bool> removable: t.subtitle == Tr.t(Tr.k, "Enregistré");
@@ -7634,7 +8182,8 @@ export component AppWindow inherits Window {
     // Après la connexion, créé seulement quand la photo du compte est partie (voir intro-hold).
     if root.screen == "home" && !root.playing && !Perf.hide(16) && !root.intro-hold: Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
         // En-tête (nom, onglets, icônes) : la barre commune à toutes les pages (plus bas), jamais recréée.
 
         FocusScope {
@@ -7758,9 +8307,9 @@ export component AppWindow inherits Window {
                         root.open-menu();
                     } else if (event.text == Key.Return) {
                         if (root.banner-btn == 0) {
-                            root.banner-play(root.banner.id);
+                            root.banner-launch();
                         } else {
-                            root.open-item(root.banner.id);
+                            root.banner-open();
                         }
                     } else {
                         return EventResult.reject;
@@ -7876,7 +8425,7 @@ export component AppWindow inherits Window {
                         property <float> ie: root.intro-e(520, 620);
                         property <float> it: root.intro-e(760, 520);
                         y: 8px * root.k + (1 - self.ie) * 40px * root.k;
-                        opacity: self.ie;
+                        opacity: root.bnr-back ? 0 : self.ie;
                         width: parent.width - 64px * root.k;
                         height: root.banner-h - 20px * root.k;
                         visible: home-view.y > -root.banner-h;
@@ -7886,6 +8435,38 @@ export component AppWindow inherits Window {
                         border-width: 1px;
                         border-color: root.banner-now && Nav.kb && !root.h-focus ? Theme.accent2 : Theme.card-border;
                         property <bool> tall: root.height > root.width;
+                        // Ouverture de la fiche : la bannière donne sa place à l'image qui vole (open-banner).
+                        property <int> open-tick: root.bnr-tick;
+                        changed open-tick => {
+                            root.open-banner(self.absolute-position.x, self.absolute-position.y, self.width, self.height);
+                        }
+                        // Retour de la fiche : l'image revient se poser sur la bannière (comme sur une carte).
+                        property <int> hero-tick: Hero.tick;
+                        changed hero-tick => {
+                            if (Hero.want-id != "" && Hero.want-id == root.banner.id && self.visible && root.banner.has-image
+                                    && Hero.claim(self.absolute-position.x, self.absolute-position.y, false)) {
+                                Hero.seq += 1;
+                                Hero.x = self.absolute-position.x;
+                                Hero.y = self.absolute-position.y;
+                                Hero.w = self.width;
+                                Hero.h = self.height;
+                                Hero.img = root.banner.image;
+                                Hero.wide = true;
+                                Hero.data = { id: root.banner.id, title: root.banner.title, image: root.banner.image, has-image: true };
+                                Hero.k = root.k;
+                            }
+                        }
+                        // Lecture lancée depuis la bannière : elle grossit un peu pendant que l'écran plonge
+                        // dans le noir (voir banner-launch).
+                        transform-scale: 1 + 0.04 * root.bpo;
+                        Spot {
+                            rep(x, y, w, h) => {
+                                root.bnr-ax = x;
+                                root.bnr-ay = y;
+                                root.bnr-w = w;
+                                root.bnr-h = h;
+                            }
+                        }
                         if root.banner.has-image: Image {
                             width: parent.width;
                             height: parent.height;
@@ -7897,7 +8478,7 @@ export component AppWindow inherits Window {
                         // Toute la bannière ouvre la fiche ; ses boutons, par-dessus, gardent leur action.
                         TouchArea {
                             clicked => {
-                                root.open-item(root.banner.id);
+                                root.banner-open();
                             }
                         }
                         // Le texte reste lisible quelle que soit l'image.
@@ -7963,7 +8544,7 @@ export component AppWindow inherits Window {
                                         focused: root.banner-now && !root.h-focus && root.banner-btn == 0;
                                         clicked => {
                                             root.banner-sel = true;
-                                            root.banner-play(root.banner.id);
+                                            root.banner-launch();
                                         }
                                     }
                                     DetailButton {
@@ -7973,7 +8554,7 @@ export component AppWindow inherits Window {
                                         focused: root.banner-now && !root.h-focus && root.banner-btn == 1;
                                         clicked => {
                                             root.banner-sel = true;
-                                            root.open-item(root.banner.id);
+                                            root.banner-open();
                                         }
                                     }
                                 }
@@ -7985,7 +8566,8 @@ export component AppWindow inherits Window {
                         // Rangée hors de l'écran : sautée au dessin (voir les cartes de SectionRow).
                         visible: section.y-px * 1px + root.banner-h + root.stagger(si) + home-view.y < home-clip.height + 60px
                             && section.y-px * 1px + root.banner-h + root.stagger(si) + root.sec-h(si) + home-view.y > -60px;
-                        y: section.y-px * 1px + root.banner-h + root.stagger(si);
+                        y: section.y-px * 1px + root.banner-h + root.stagger(si) + (1 - root.home-ret(si)) * 50px * root.k;
+                        opacity: root.home-ret(si);
                         width: parent.width;
                         height: root.sec-h(si);
                         // Entrée après la connexion : le nom de la rangée, puis ses cartes en chaîne.
@@ -8010,6 +8592,9 @@ export component AppWindow inherits Window {
                         hovered(i) => {
                             root.hov-s = i >= 0 ? si : -1;
                             root.hov-i = i;
+                            if (i >= 0 && i < section.items.length) {
+                                root.bg-hov = section.items[i].id;
+                            }
                         }
                         activated(i) => {
                             root.h-focus = false;
@@ -8035,8 +8620,9 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Recherche
     if root.screen == "search" && !root.playing: srch := Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + root.page-dy;
         height: parent.height - root.header-h;
 
         property <length> box-h: 52px * root.k;
@@ -9052,7 +9638,8 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Bientôt disponible (Recherche, Paramètres)
     if root.screen == "soon" && !root.playing: Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
@@ -9117,7 +9704,8 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Profil
     if root.screen == "profile" && !root.playing: Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
         FocusScope {
             property <int> tick: root.refocus;
             changed tick => {
@@ -9252,8 +9840,9 @@ export component AppWindow inherits Window {
             dt.chips-free = false;
         }
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + root.page-dy;
         height: parent.height - root.header-h;
         clip: true; // le contenu défile sous la barre de navigation sans la recouvrir
 
@@ -9346,16 +9935,36 @@ export component AppWindow inherits Window {
                     root.d-x = 0;
                 } else if (root.d-tab-eff == 2) {
                     root.d-zone = 10;
+                    root.d-chip = 0;
                 }
                 return true;
             }
             return true;
         }
 
-        // Zone 10 : onglet Détails (rien à choisir : la page est descendue pour tout montrer). ↑ les onglets.
+        // Zone 10 : onglet Détails (la page est descendue pour tout montrer) : ← → d'une pastille à l'autre
+        // (genres, studios, personnes, tags), ↑ ↓ d'une ligne de pastilles affichée à l'autre (chip-step),
+        // Entrée ouvre la recherche ;
+        // ↑ depuis la première ligne : les onglets.
         if (root.d-zone == 10) {
             if (t == Key.UpArrow) {
-                root.d-zone = 9;
+                let to = root.chip-step(root.d-chip, -1);
+                if (to >= 0) {
+                    root.d-chip = to;
+                } else {
+                    root.d-zone = 9;
+                }
+            } else if (t == Key.DownArrow) {
+                let to = root.chip-step(root.d-chip, 1);
+                if (to >= 0) {
+                    root.d-chip = to;
+                }
+            } else if (t == Key.LeftArrow) {
+                root.d-chip = max(0, root.d-chip - 1);
+            } else if (t == Key.RightArrow) {
+                root.d-chip = min(root.detail.fact-chips - 1, root.d-chip + 1);
+            } else if (t == Key.Return && root.detail.fact-chips > 0) {
+                root.fact-chip(root.d-chip);
             }
             return true;
         }
@@ -9731,7 +10340,7 @@ export component AppWindow inherits Window {
 
         // Chiffres à droite du titre : note dans un anneau coloré, durée, date de sortie, classification.
         if dt.stats-on: HorizontalLayout {
-            x: root.col-x + root.info-w - dt.stats-w + root.po-right;
+            x: root.col-x + root.info-w - dt.stats-w + root.po-right + (1 - root.rev(0)) * 70px * root.k;
             y: 24px + 6px * root.k;
             width: dt.stats-w;
             height: 72px * root.k;
@@ -9754,8 +10363,15 @@ export component AppWindow inherits Window {
             y: 24px;
             width: dt.stats-on ? root.info-w - dt.stats-w - 24px * root.k : root.info-w;
             height: 84px * root.k;
-            opacity: (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
+            opacity: root.bnr-swap ? 0 : (root.sw-title ? root.sw-e : 1) * root.rev(0) * (1 - root.top-out-p);
             property <length> text-x: dt.logo-small ? 74px * root.k : 0px;
+            Spot {
+                rep(x, y, w, h) => {
+                    root.dlog-x = x;
+                    root.dlog-y = y;
+                    root.dlog-w = w;
+                }
+            }
 
             if dt.logo-wide: Image {
                 x: 0px;
@@ -9830,7 +10446,7 @@ export component AppWindow inherits Window {
             y: 24px + 88px * root.k;
             width: root.info-w;
             height: 24px * root.k;
-            opacity: root.rev(0) * (1 - root.top-out-p);
+            opacity: root.bnr-swap ? 0 : root.rev(0) * (1 - root.top-out-p);
             text: root.detail.subtitle;
             text-color: Theme.accent-ink;
             font-size: (18px * root.k) * Theme.text-scale;
@@ -9843,7 +10459,7 @@ export component AppWindow inherits Window {
         // Boutons : icônes (lecture, favori, vu, téléchargement)…
         icons-row := HorizontalLayout {
             x: root.d-low-x + root.po-right;
-            opacity: (root.sw-icons ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
+            opacity: (root.sw-icons ? root.sw-e : 1) * (1 - root.top-out-p);
             y: 24px + 118px * root.k + root.d-low;
             width: root.d-low-w;
             height: 40px * root.k;
@@ -9857,6 +10473,8 @@ export component AppWindow inherits Window {
                 sub: b.icon == "play" ? root.detail.play-sub : "";
                 prog: b.icon == "play" ? root.detail.play-progress : -1;
                 icon: b.icon;
+                // Arrivée : chacun son tour ; bouton de lecture d'une bannière ouverte : celui qui vole.
+                pop: root.bnr-swap && b.icon == "play" ? 0 : root.rev-at(i);
                 active: b.active;
                 compact: root.narrow;
                 k: root.k;
@@ -9886,7 +10504,7 @@ export component AppWindow inherits Window {
             }
         }
         chips-row := HorizontalLayout {
-            opacity: (root.sw-chips ? root.sw-e : 1) * root.rev(1) * (1 - root.top-out-p);
+            opacity: (root.sw-chips ? root.sw-e : 1) * (1 - root.top-out-p);
             // Les boutons à icône masqués comptent encore dans les espacements : on les compense.
             x: root.d-low-x - root.detail.icon-count * dt.btn-gap + (root.narrow ? dt.chips-x : 0px) + root.po-right;
             y: 24px + 166px * root.k + root.d-low;
@@ -9902,6 +10520,7 @@ export component AppWindow inherits Window {
                 text: b.label;
                 icon: "";
                 k: root.k;
+                pop: root.rev-at(i + 1);
                 press: root.d-press;
                 focused: !root.h-focus && root.d-zone == 0 && root.d-button == i;
                 clicked => {
@@ -9949,6 +10568,14 @@ export component AppWindow inherits Window {
             width: root.d-low-w;
             height: root.narrow ? 80px * root.k : max(80px * root.k, 24px + root.poster-w * 1.5 - self.top);
             property <bool> lit: (!root.h-focus && root.d-zone == 1 && Nav.kb) || (ov-ta.has-hover && !Nav.touch);
+            Spot {
+                rep(x, y, w, h) => {
+                    root.dov-x = x;
+                    root.dov-y = y;
+                    root.dov-w = w;
+                    root.dov-h = h;
+                }
+            }
             property <float> lq: self.lit ? 1 : 0;
             animate lq { duration: Motion.select ? 220ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1); }
             // Marges du texte selon le style.
@@ -10044,6 +10671,7 @@ export component AppWindow inherits Window {
                 y: parent.pad-y;
                 width: parent.width - parent.pad-x - 14px * root.k;
                 height: parent.height - parent.pad-y - 10px * root.k;
+                opacity: root.bnr-swap ? 0 : 1;
                 text: root.detail.overview;
                 wrap: word-wrap;
                 overflow: elide;
@@ -10217,7 +10845,9 @@ export component AppWindow inherits Window {
                 // la hauteur préférée d'un texte : la page ne descendait pas assez pour montrer les tags).
                 property <length> val-w: min(root.width - 2 * (root.narrow ? 16px : 32px), 1000px * root.k)
                     - (root.narrow ? 110px : 170px) * root.k - 20px * root.k;
-                height: max(1, ceil(f.value.character-count * 8.8px * root.k / max(1px, self.val-w))) * 22px * root.k;
+                // Pastilles : hauteur donnée par leur disposition (une ou plusieurs lignes).
+                height: f.chips.length > 0 ? max(30px * root.k, self.preferred-height)
+                    : max(1, ceil(f.value.character-count * 8.8px * root.k / max(1px, self.val-w))) * 22px * root.k;
                 Text {
                     width: (root.narrow ? 110px : 170px) * root.k;
                     text: f.label;
@@ -10228,12 +10858,68 @@ export component AppWindow inherits Window {
                     y: 3px * root.k;
                     vertical-alignment: top;
                 }
-                Text {
+                if f.chips.length == 0: Text {
                     horizontal-stretch: 1;
                     text: f.value;
                     color: Theme.text;
                     font-size: (16px * root.k) * Theme.text-scale;
                     wrap: word-wrap;
+                }
+                // Genres, studios, tags : pastilles qui vont à la ligne ; touchée, la recherche filtrée.
+                if f.chips.length > 0: FlexboxLayout {
+                    horizontal-stretch: 1;
+                    spacing: 8px * root.k;
+                    for c[j] in f.chips: chip-r := Rectangle {
+                        property <bool> lit: (!root.h-focus && root.d-zone == 10 && root.d-chip == f.first + j && Nav.kb)
+                            || (chip-ta.has-hover && !Nav.touch && f.kind != 5);
+                        // Langue audio : son drapeau devant le code (langue sans drapeau connu : le code seul).
+                        property <image> flag: f.kind == 5 ? root.lang-flag(c) : @image-url("");
+                        property <length> flag-w: self.flag.width > 0 ? 24px * root.k : 0px;
+                        // Place à l'écran, pour ↑ ↓ d'une ligne de pastilles à l'autre (chip-step).
+                        property <Point> at: self.absolute-position;
+                        init => {
+                            root.chip-place(f.first + j, self.at.x, self.at.y);
+                        }
+                        changed at => {
+                            root.chip-place(f.first + j, self.at.x, self.at.y);
+                        }
+                        height: 30px * root.k;
+                        preferred-width: chip-t.preferred-width + 24px * root.k + (self.flag-w > 0 ? self.flag-w + 8px * root.k : 0px);
+                        border-radius: Theme.term ? 2px : Theme.win7 ? 4px : self.height / 2;
+                        background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.10);
+                        border-width: self.lit ? 0px : 1px;
+                        border-color: Theme.fg.with-alpha(0.16);
+                        animate background { duration: Motion.select ? 150ms : 0ms; }
+                        if chip-r.flag-w > 0: Rectangle {
+                            x: 12px * root.k;
+                            y: (chip-r.height - self.height) / 2;
+                            width: chip-r.flag-w;
+                            height: self.width * 2 / 3;
+                            border-radius: 2px * root.k;
+                            clip: true;
+                            Image {
+                                width: parent.width;
+                                height: parent.height;
+                                source: chip-r.flag;
+                                image-fit: fill;
+                            }
+                        }
+                        chip-t := Text {
+                            x: chip-r.flag-w > 0 ? 12px * root.k + chip-r.flag-w + 8px * root.k : (chip-r.width - self.width) / 2;
+                            text: c;
+                            color: parent.lit ? Theme.on-accent : Theme.text;
+                            font-size: (14px * root.k) * Theme.text-scale;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+                        chip-ta := TouchArea {
+                            mouse-cursor: f.kind == 5 ? MouseCursor.default : MouseCursor.pointer;
+                            clicked => {
+                                root.d-chip = f.first + j;
+                                root.fact-chip(f.first + j);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -10600,10 +11286,12 @@ export component AppWindow inherits Window {
 
     // ------------------------------------------------------------ Bibliothèque (grille)
     if root.screen == "library" && !root.playing: lib := Rectangle {
-        // Arrivée de la page : léger zoom et glissement (voir page-enter) ; ouverte par son onglet : rien,
-        // ce sont ses cartes qui arrivent (voir lib-wave).
-        transform-scale: root.lib-wave ? 1 : 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (root.lib-wave ? 0px : (1 - root.page-e) * 28px * root.k);
+        // Arrivée de la page : léger zoom et glissement (voir page-enter).
+        // Collections, Playlists (onglets de la barre) : la page glisse comme les autres onglets, et ses cartes
+        // arrivent en vague par-dessus.
+        transform-scale: root.lib-wave && root.nav-dir == 0 ? 1 : root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + (root.lib-wave && root.nav-dir == 0 ? 0px : root.page-dy);
         height: parent.height - root.header-h;
 
         // Écran étroit (téléphone en portrait) : marges et écarts réduits, au moins deux colonnes.
@@ -10611,11 +11299,12 @@ export component AppWindow inherits Window {
         property <length> gap: (self.slim ? 10px : 18px) * root.k;
         property <length> pad: (self.slim ? 12px : 32px) * root.k;
         // Marge du haut : la carte choisie, agrandie, n'est pas coupée par le bord.
-        property <length> top-pad: 20px * root.k;
+        // Sélection : la pastille en haut de la grille ne cache pas la première rangée.
+        property <length> top-pad: 20px * root.k + lib.pill-p * 54px * root.k;
         // Affiches réduites pour voir deux rangées entières et le haut de la suivante (avant : une rangée
         // et demie en interface TV) ; jamais plus grandes que les cartes des rangées ; écran étroit : deux
         // colonnes au moins (avant : une seule sur un téléphone tenu droit).
-        property <length> cw-big: min(root.card-w, max(110px * root.k, ((self.height - self.top-pad - 2 * self.gap) / 2.3 - 56px * root.k) / 1.5));
+        property <length> cw-big: min(root.card-w, max(110px * root.k, ((self.height - 20px * root.k - 2 * self.gap) / 2.3 - 56px * root.k) / 1.5));
         property <length> cw: self.slim ? min(self.cw-big, (self.width - root.az-band - 2 * self.pad - self.gap) / 2) : self.cw-big;
         property <length> ch: self.cw * 1.5 + 56px * root.k;
         // Largeur laissée aux affiches : la bande de l'index A–Z, à droite, n'en fait pas partie (la
@@ -10647,6 +11336,42 @@ export component AppWindow inherits Window {
 
         // Entrée appuyée sur une carte, pas encore relâchée (court : la fiche ; long : le menu).
         property <bool> enter-down;
+        // Défilement libre (doigt, molette, glisser au bord), sans changer la sélection ; la page suivante
+        // se charge en approchant de la fin.
+        function wheel(dy: length) {
+            let view = lib.height;
+            let max-y = max(0px, lib.top-pad + lib.rows * (lib.ch + lib.gap) - view + 24px * root.k);
+            let base = root.lib-free ? root.lib-free-y : -min(0px, view / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+            root.lib-free-y = clamp(base - dy, 0px, max-y);
+            root.lib-free = true;
+            if (root.lib-free-y > max-y - 2 * (lib.ch + lib.gap) && root.lib-items.length < root.lib-total) {
+                root.lib-more();
+            }
+        }
+        // Glisser à la souris : la carte sous (ax, ay) devient le bout de la plage choisie.
+        function drag-at(ax: length, ay: length) {
+            root.drag-ax = ax;
+            root.drag-ay = ay;
+            let col = clamp(floor((ax - grid.absolute-position.x - lib.left + lib.gap / 2) / (lib.cw + lib.gap)), 0, lib.cols - 1);
+            let row = max(0, floor((ay - grid.absolute-position.y - lib.top-pad + lib.gap / 2) / (lib.ch + lib.gap)));
+            let j = min(root.lib-items.length - 1, row * lib.cols + col);
+            if (root.drag-anchor >= 0 && j >= 0 && j != root.drag-last) {
+                root.drag-last = j;
+                root.lib-drag(root.drag-anchor, j, root.drag-val);
+            }
+        }
+        // Souris près du haut ou du bas de la grille pendant le glisser : la grille défile.
+        property <int> edge: root.drag-anchor < 0 ? 0
+            : root.drag-ay > lib-clip.absolute-position.y + lib-clip.height - 70px * root.k ? 1
+            : root.drag-ay < lib-clip.absolute-position.y + 50px * root.k ? -1 : 0;
+        Timer {
+            interval: 40ms;
+            running: lib.edge != 0;
+            triggered => {
+                lib.wheel(-lib.edge * 22px * root.k);
+                lib.drag-at(root.drag-ax, root.drag-ay);
+            }
+        }
         // Proche de la fin de ce qui est chargé : page suivante.
         function maybe-more() {
             if (root.l-sel >= root.lib-items.length - 2 * self.cols && root.lib-items.length < root.lib-total) {
@@ -10676,11 +11401,21 @@ export component AppWindow inherits Window {
                 }
                 // Entrée maintenue (télécommande : OK appuyé longtemps) : menu de la carte choisie ; la
                 // fiche ne s'ouvre qu'au relâchement d'un appui court (voir key-released).
+                // Grille : OK maintenu choisit la carte (ou la retire), et tant qu'il reste enfoncé, chaque
+                // déplacement aux flèches choisit tout jusqu'à la carte atteinte (« pinceau ») ; OK relâché
+                // l'arrête.
                 if (event.repeat && event.text == Key.Return && lib.enter-down) {
                     lib.enter-down = false;
                     if (!root.cm-open && root.l-sel < root.lib-items.length) {
-                        root.row-card-menu(root.lib-items[root.l-sel], -1px, -1px);
+                        root.drag-val = !(root.l-sel < root.lib-picked.length && root.lib-picked[root.l-sel]) || !root.pick-mode;
+                        root.paint-anchor = root.l-sel;
+                        root.pick-paint = true;
+                        root.lib-drag(root.l-sel, root.l-sel, root.drag-val);
                     }
+                    return EventResult.accept;
+                }
+                // OK tenu (pinceau) : ses répétitions ne font rien de plus.
+                if (root.pick-paint && event.text == Key.Return) {
                     return EventResult.accept;
                 }
                 // Touche maintenue : Entrée, Échap et Retour arrière ne répètent pas l'action (ouvrir, revenir...).
@@ -10690,6 +11425,29 @@ export component AppWindow inherits Window {
                 // Page en cours de chargement : Échap annule l'ouverture (on reste où l'on est).
                 if (root.loading && event.text == Key.Escape) {
                     root.cancel-open();
+                    return EventResult.accept;
+                }
+                // Barre du bas (Sélectionner, ou les actions de la sélection) : ← → d'un bouton à l'autre,
+                // ↑ la grille, Entrée.
+                // Pastille de la sélection (↑ depuis la première rangée) : ← → Actions / ✕, Entrée, ↓ la grille.
+                if (root.pick-btn >= 0 && root.pick-mode && !root.h-focus) {
+                    if (event.text == Key.LeftArrow) {
+                        root.pick-btn = 0;
+                    } else if (event.text == Key.RightArrow) {
+                        root.pick-btn = 1;
+                    } else if (event.text == Key.DownArrow || event.text == Key.Escape || event.text == Key.Backspace) {
+                        root.pick-btn = -1;
+                    } else if (event.text == Key.UpArrow) {
+                        root.pick-btn = -1;
+                        root.nav-enter();
+                    } else if (event.text == Key.Return && !event.repeat) {
+                        root.pick-press(root.pick-btn);
+                    }
+                    return EventResult.accept;
+                }
+                // Sélection en cours : Échap la quitte (pas la page).
+                if (root.pick-mode && !root.h-focus && (event.text == Key.Escape || event.text == Key.Backspace)) {
+                    root.pick-act("exit");
                     return EventResult.accept;
                 }
                 if (root.nav-key(event.text)) {
@@ -10761,20 +11519,37 @@ export component AppWindow inherits Window {
                 } else if (event.text == Key.UpArrow) {
                     if (lib.sel-row > 0) {
                         root.l-sel -= lib.cols;
+                    } else if (root.pick-mode && !root.pick-paint) {
+                        root.pick-btn = 0;
                     } else {
                         root.nav-enter();
                     }
                 } else if (event.text == Key.Return) {
                     lib.enter-down = true;
                 }
+                if (root.pick-paint && root.paint-anchor >= 0) {
+                    root.lib-drag(root.paint-anchor, root.l-sel, root.drag-val);
+                }
                 lib.maybe-more();
                 return EventResult.accept;
             }
             key-released(event) => {
+                // Pinceau : OK relâché, il s'arrête (la sélection reste).
+                if (event.text == Key.Return && root.pick-paint) {
+                    root.pick-paint = false;
+                    root.lib-drag-end();
+                    lib.enter-down = false;
+                    return EventResult.accept;
+                }
                 if (event.text == Key.Return && lib.enter-down) {
                     lib.enter-down = false;
                     if (root.l-sel < root.lib-items.length) {
-                        root.open-hero(root.lib-items[root.l-sel].id);
+                        // En sélection : OK mène aux actions (pastille, « Actions »).
+                        if (root.pick-mode) {
+                            root.pick-btn = 0;
+                        } else {
+                            root.open-hero(root.lib-items[root.l-sel].id);
+                        }
                     }
                     return EventResult.accept;
                 }
@@ -10786,16 +11561,7 @@ export component AppWindow inherits Window {
                     if (root.lib-items.length == 0 || root.h-focus) {
                         return EventResult.reject;
                     }
-                    // Défilement libre (doigt, molette), sans changer la sélection ; la page suivante se
-                    // charge en approchant de la fin.
-                    let view = self.height;
-                    let max-y = max(0px, lib.top-pad + lib.rows * (lib.ch + lib.gap) - view + 24px * root.k);
-                    let base = root.lib-free ? root.lib-free-y : -min(0px, view / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
-                    root.lib-free-y = clamp(base - e.delta-y, 0px, max-y);
-                    root.lib-free = true;
-                    if (root.lib-free-y > max-y - 2 * (lib.ch + lib.gap) && root.lib-items.length < root.lib-total) {
-                        root.lib-more();
-                    }
+                    lib.wheel(e.delta-y);
                     return EventResult.accept;
                 }
             }
@@ -10831,7 +11597,9 @@ export component AppWindow inherits Window {
                     property <float> wave: root.lib-wave ? root.arr(floor(i / lib.cols), mod(i, lib.cols)) : 1;
                     // Ligne hors de l'écran : sautée au dessin (une bibliothèque compte des centaines
                     // de cartes). Pendant la distribution d'une collection, toutes restent visibles.
-                    visible: (self.dp > 0.001 && self.dp < 1) || (self.dp >= 1 && self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch);
+                    // La carte d'où part un glisser à la souris reste là (elle tient la souris).
+                    visible: (self.dp > 0.001 && self.dp < 1) || (self.dp >= 1 && self.by + grid.y < lib-clip.height + lib.ch && self.by + grid.y > -2 * lib.ch)
+                        || i == root.drag-anchor;
                     // Départ : le centre de son morceau de carte, à la taille du morceau (l'affiche y tient).
                     property <int> pj: root.pc-j(i);
                     property <float> s0: min(root.deck-w / root.pc-cnt(self.pj) / lib.cw, root.deck-h / root.pc-rows / lib.ch);
@@ -10852,7 +11620,14 @@ export component AppWindow inherits Window {
                     data: card;
                     ratio: 1.5;
                     k: root.k;
-                    focused: !root.h-focus && !root.az-on && i == root.l-sel;
+                    focused: !root.h-focus && !root.az-on && root.pick-btn < 0 && i == root.l-sel;
+                    pick-mode: root.pick-mode;
+                    picked: i < root.lib-picked.length && root.lib-picked[i];
+                    lit-changed(on) => {
+                        if (on && !Nav.kb) {
+                            root.bg-hov = card.id;
+                        }
+                    }
                     touched => {
                         root.h-focus = false;
                         root.l-sel = i;
@@ -10860,12 +11635,56 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.h-focus = false;
                         root.l-sel = i;
-                        root.open-hero(card.id);
+                        root.pick-btn = -1;
+                        if (root.pick-mode) {
+                            root.lib-pick(i);
+                        } else {
+                            root.open-hero(card.id);
+                        }
                     }
                     menu-requested => {
                         root.h-focus = false;
                         root.l-sel = i;
-                        root.row-card-menu(card, self.absolute-position.x + lib.cw / 2, self.absolute-position.y + lib.ch * 0.4);
+                        // Doigt : un appui long commence la sélection (ensuite, un appui choisit) ; en
+                        // sélection, ou à la souris (clic droit), le menu de la carte.
+                        if (Nav.touch && !root.pick-mode && root.pick-kind(card.id) > 0) {
+                            root.pick-act("pick|" + card.id);
+                        } else {
+                            root.row-card-menu(card, self.absolute-position.x + lib.cw / 2, self.absolute-position.y + lib.ch * 0.4);
+                        }
+                    }
+                    mod-click(ctrl, shift) => {
+                        root.h-focus = false;
+                        root.l-sel = i;
+                        if (shift && root.pick-mode) {
+                            root.pick-act("range|" + i);
+                        } else {
+                            root.pick-act("pick|" + card.id);
+                        }
+                    }
+                    hold => {
+                        // Appui long : la carte est choisie (ou, en sélection, retirée si elle l'était :
+                        // la plage parcourue ensuite est alors retirée).
+                        root.h-focus = false;
+                        root.l-sel = i;
+                        root.drag-val = !(i < root.lib-picked.length && root.lib-picked[i]) || !root.pick-mode;
+                        root.drag-anchor = i;
+                        root.drag-last = i;
+                        root.lib-drag(i, i, root.drag-val);
+                    }
+                    drag-move(ax, ay) => {
+                        if (root.drag-anchor >= 0) {
+                            lib.drag-at(ax, ay);
+                        }
+                    }
+                    drag-wheel(dy) => {
+                        lib.wheel(dy);
+                        lib.drag-at(root.drag-ax, root.drag-ay);
+                    }
+                    drag-end => {
+                        root.drag-anchor = -1;
+                        root.drag-last = -1;
+                        root.lib-drag-end();
                     }
                 }
             }
@@ -10902,6 +11721,125 @@ export component AppWindow inherits Window {
             TouchArea {
                 clicked => {
                     root.lib-key(Key.Escape);
+                }
+            }
+        }
+
+        // Sélection en cours : pastille en haut de la grille (nombre de cartes choisies, « Actions » qui
+        // ouvre le menu de la sélection, ✕ qui la termine). Les actions sont dans ce menu, comme au clic
+        // droit, à l'appui long ou OK maintenu sur une carte : une seule liste, pas de doublon.
+        property <float> pill-p: root.pick-mode ? 1 : 0;
+        animate pill-p { duration: Motion.panels ? 260ms : 0ms; easing: cubic-bezier(0.2, 0.9, 0.25, 1.15); }
+        if lib.pill-p > 0.01: pill := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: 10px * root.k - (1 - lib.pill-p) * 60px * root.k;
+            opacity: lib.pill-p;
+            width: pill-row.preferred-width;
+            height: 44px * root.k;
+            border-radius: Theme.term ? 2px : Theme.win7 ? 6px : self.height / 2;
+            background: Theme.skinned ? Theme.bg-mid.with-alpha(0.94) : Theme.glass;
+            border-width: 1px;
+            border-color: Theme.accent2.with-alpha(0.55);
+            drop-shadow-blur: Nav.no-shadow ? 0px : 16px * root.k;
+            drop-shadow-color: #00000070;
+            pill-row := HorizontalLayout {
+                padding-left: 8px * root.k;
+                padding-right: 6px * root.k;
+                spacing: 6px * root.k;
+                alignment: center;
+                // Rond coché, comme sur les cartes.
+                Rectangle {
+                    width: 26px * root.k;
+                    height: 26px * root.k;
+                    y: (44px * root.k - self.height) / 2;
+                    border-radius: self.width / 2;
+                    background: @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%);
+                    Path {
+                        x: parent.width * 0.22;
+                        y: parent.height * 0.22;
+                        width: parent.width * 0.56;
+                        height: parent.height * 0.56;
+                        viewbox-width: 18;
+                        viewbox-height: 18;
+                        commands: "M 3 9.5 L 7.5 14 L 15 4.5";
+                        stroke: #ffffff;
+                        stroke-width: 2.4px * root.k;
+                        fill: transparent;
+                    }
+                }
+                Text {
+                    // Pinceau de la télécommande en cours : comment l'arrêter.
+                    text: (root.pick-n == 0 ? Tr.t(Tr.k, "Choisissez des cartes") : Tr.p(Tr.k, "{n} choisie", "{n} choisies", root.pick-n))
+                        + (root.pick-paint ? " · " + Tr.t(Tr.k, "relâchez OK pour finir")
+                            : Nav.kb ? " · " + Tr.t(Tr.k, "OK maintenu + flèches") : "");
+                    color: Theme.text;
+                    font-size: (15px * root.k) * Theme.text-scale;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    min-width: 110px * root.k;
+                }
+                // « Actions » : le menu de la sélection, sous la pastille.
+                Rectangle {
+                    property <bool> lit: (act-ta.has-hover && !Nav.touch) || (Nav.kb && !root.h-focus && root.pick-btn == 0);
+                    width: act-t.preferred-width + 34px * root.k;
+                    height: 32px * root.k;
+                    y: (44px * root.k - self.height) / 2;
+                    border-radius: Theme.term ? 2px : self.height / 2;
+                    background: self.lit ? @linear-gradient(130deg, Theme.accent1 0%, Theme.accent2 100%) : Theme.fg.with-alpha(0.10);
+                    animate background { duration: Motion.select ? 150ms : 0ms; }
+                    act-t := Text {
+                        x: 14px * root.k;
+                        text: Tr.t(Tr.k, "Actions");
+                        color: parent.lit ? Theme.on-accent : Theme.text;
+                        font-size: (14px * root.k) * Theme.text-scale;
+                        vertical-alignment: center;
+                    }
+                    Path {
+                        x: parent.width - 18px * root.k;
+                        y: (parent.height - self.height) / 2;
+                        width: 9px * root.k;
+                        height: 6px * root.k;
+                        viewbox-width: 10;
+                        viewbox-height: 6;
+                        commands: "M 1 1 L 5 5 L 9 1";
+                        stroke: parent.lit ? Theme.on-accent : Theme.text;
+                        stroke-width: 1.6px * root.k;
+                        fill: transparent;
+                    }
+                    act-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.pick-btn = -1;
+                            root.open-pick-menu();
+                        }
+                    }
+                }
+                // ✕ : fin de la sélection.
+                Rectangle {
+                    property <bool> lit: (x-ta.has-hover && !Nav.touch) || (Nav.kb && !root.h-focus && root.pick-btn == 1);
+                    width: 32px * root.k;
+                    height: 32px * root.k;
+                    y: (44px * root.k - self.height) / 2;
+                    border-radius: self.width / 2;
+                    background: self.lit ? Theme.fg.with-alpha(0.18) : transparent;
+                    Path {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 12px * root.k;
+                        height: 12px * root.k;
+                        viewbox-width: 12;
+                        viewbox-height: 12;
+                        commands: "M 1 1 L 11 11 M 11 1 L 1 11";
+                        stroke: Theme.text;
+                        stroke-width: 1.8px * root.k;
+                        fill: transparent;
+                    }
+                    x-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.pick-act("exit");
+                        }
+                    }
                 }
             }
         }
@@ -10981,8 +11919,9 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Choix du serveur
     if root.screen == "servers" && !root.playing: srv := Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + root.page-dy;
         height: parent.height - root.header-h;
 
         property <int> n: root.servers.length;
@@ -11019,23 +11958,27 @@ export component AppWindow inherits Window {
                     return EventResult.accept;
                 }
                 // Serveurs trouvés, puis « Rechercher à nouveau » et « Saisir une adresse ».
+                // Boutons : sur une ligne (← →), ou l'un sous l'autre sur un écran étroit (↑ ↓) ;
+                // « Découvrir Turtlefin » (srv.n + 2) seulement au tout premier démarrage.
+                let last = srv.n + (root.srv-first ? 2 : 1);
                 if (event.text == Key.UpArrow) {
                     if (root.srv-sel == 0) {
                         root.nav-enter();
-                    } else if (root.srv-sel == srv.n + 2) {
-                        // « Découvrir Turtlefin » (ligne du dessous) : retour aux deux boutons.
-                        root.srv-sel = srv.n;
-                    } else if (root.srv-sel > srv.n) {
+                    } else if (srv.tight && root.srv-sel > srv.n) {
+                        root.srv-sel -= 1;
+                    } else if (root.srv-sel >= srv.n) {
                         root.srv-sel = max(0, srv.n - 1);
                     } else {
                         root.srv-sel -= 1;
                     }
                 } else if (event.text == Key.DownArrow) {
-                    root.srv-sel = root.srv-sel >= srv.n ? srv.n + 2 : root.srv-sel + 1;
-                } else if (event.text == Key.LeftArrow && root.srv-sel == srv.n + 1) {
-                    root.srv-sel = srv.n;
-                } else if (event.text == Key.RightArrow && root.srv-sel == srv.n) {
-                    root.srv-sel = srv.n + 1;
+                    if (root.srv-sel < srv.n || (srv.tight && root.srv-sel < last)) {
+                        root.srv-sel += 1;
+                    }
+                } else if (event.text == Key.LeftArrow && !srv.tight && root.srv-sel > srv.n) {
+                    root.srv-sel -= 1;
+                } else if (event.text == Key.RightArrow && !srv.tight && root.srv-sel >= srv.n && root.srv-sel < last) {
+                    root.srv-sel += 1;
                 } else if (event.text == Key.Return) {
                     if (root.srv-sel < srv.n) {
                         root.srv-go(root.srv-sel);
@@ -11088,7 +12031,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.srv-searching ? Tr.t(Tr.k, "Recherche sur vos réseaux")
                         : root.servers.length == 0 ? Tr.t(Tr.k, "Aucun serveur trouvé : saisissez son adresse.")
-                        : Tr.p(Tr.k, "{n} serveur trouvé sur vos réseaux", "{n} serveurs trouvés sur tes réseaux", root.servers.length);
+                        : Tr.p(Tr.k, "{n} serveur trouvé sur vos réseaux", "{n} serveurs trouvés sur vos réseaux", root.servers.length);
                     color: Theme.muted;
                     font-size: (15px * root.k) * Theme.text-scale;
                     vertical-alignment: center;
@@ -11253,6 +12196,17 @@ export component AppWindow inherits Window {
                         root.open-manual();
                     }
                 }
+                // Tout premier démarrage (aucun compte) : la visite guidée sur un serveur de démonstration.
+                // Ensuite, elle est dans les Paramètres (« Revoir la visite »).
+                if root.srv-first: ActionButton {
+                    text: Tr.t(Tr.k, "Découvrir Turtlefin");
+                    font: (16px * root.k) * Theme.text-scale;
+                    focused: !root.h-focus && root.srv-sel == root.servers.length + 2 && Nav.kb;
+                    clicked => {
+                        root.srv-sel = root.servers.length + 2;
+                        root.demo-tour();
+                    }
+                }
             }
             // Écran étroit (téléphone tenu droit) : un bouton par ligne, sinon leurs noms étaient coupés.
             if srv.tight: VerticalLayout {
@@ -11276,14 +12230,10 @@ export component AppWindow inherits Window {
                         root.open-manual();
                     }
                 }
-            }
-            // Pas encore de serveur, ou pour voir : la visite guidée sur un serveur de démonstration. Sur sa
-            // propre ligne (trois boutons ne tenaient pas sur un téléphone tenu droit).
-            HorizontalLayout {
-                // Écran étroit : toute la largeur, comme les deux boutons du dessus.
-                alignment: srv.tight ? LayoutAlignment.stretch : LayoutAlignment.start;
-                height: 46px * root.k;
-                ActionButton {
+                // Tout premier démarrage (aucun compte) : la visite guidée sur un serveur de démonstration.
+                // Ensuite, elle est dans les Paramètres (« Revoir la visite »).
+                if root.srv-first: ActionButton {
+                    height: 46px * root.k;
                     text: Tr.t(Tr.k, "Découvrir Turtlefin");
                     font: (16px * root.k) * Theme.text-scale;
                     focused: !root.h-focus && root.srv-sel == root.servers.length + 2 && Nav.kb;
@@ -11694,8 +12644,9 @@ export component AppWindow inherits Window {
     // Comme l'accueil : rangées (Reprendre, Séries, Films) ; les fiches marchent sans serveur.
     if root.screen == "downloads" && !root.playing: dls := Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + root.page-dy;
         height: parent.height - root.header-h;
 
         property <length> top: root.dl-status != "" ? 40px * root.k : 0px;
@@ -11867,8 +12818,9 @@ export component AppWindow inherits Window {
     // ------------------------------------------------------------ Paramètres
     if root.screen == "settings" && !root.playing: sets := Rectangle {
         // Arrivée de la page : léger zoom et glissement (voir page-enter).
-        transform-scale: 0.96 + 0.04 * root.page-e;
-        y: root.header-h + (1 - root.page-e) * 28px * root.k;
+        transform-scale: root.page-sc;
+        x: root.page-dx;
+        y: root.header-h + root.page-dy;
         height: parent.height - root.header-h;
 
         // Nerd : les pistes lumineuses du décor passaient sous les textes des réglages (illisibles).
@@ -12512,11 +13464,14 @@ export component AppWindow inherits Window {
         }
         // Champ de recherche, au-dessus des lignes (pas dans le tableau de bord).
         property <length> q-h: root.set-dash || root.av-open ? 0px : 52px * root.k;
+        // Écart entre le bas du champ et le haut (rogné) de la liste : les lignes qui défilent ne passent
+        // ni sous le champ ni par-dessus.
+        property <length> q-gap: self.q-h > 0px ? 6px * root.k : 0px;
         // Incrémenté : le champ de recherche prend le clavier (curseur au bout).
         property <int> sq-tick;
         if !root.set-dash && !root.av-open: sq-box := Rectangle {
             x: set-panel.x + sets.pad;
-            y: set-panel.y + sets.pad - sets.q-h;
+            y: set-panel.y + sets.pad - sets.q-h - sets.q-gap;
             width: set-panel.width - 2 * sets.pad - 8px * root.k;
             height: 42px * root.k;
             border-radius: (Theme.term ? 2px : Theme.win7 ? 4px : 21px) * root.k;
@@ -12586,7 +13541,7 @@ export component AppWindow inherits Window {
         }
         set-panel := Rectangle {
             x: sets.one ? 16px * root.k - sets.pad + (1 - sets.one-p) * parent.width : sets.left-w + 32px * root.k - sets.pad;
-            y: (sets.one ? 64px : 16px) * root.k - sets.pad + sets.q-h;
+            y: (sets.one ? 64px : 16px) * root.k - sets.pad + sets.q-h + sets.q-gap;
             visible: !sets.one || sets.one-p > 0.01;
             width: sets.one ? parent.width - 32px * root.k + 2 * sets.pad : parent.width - self.x - 32px * root.k + sets.pad;
             height: parent.height - self.y - 24px * root.k;
@@ -14323,16 +15278,23 @@ export component AppWindow inherits Window {
                     alignment: start;
                     spacing: 10 * srp.u;
                     height: 30 * srp.u;
+                    // Trop longues pour la place (studios…) : elles rétrécissent, texte coupé par « … ».
                     for f in root.sr.facts: Rectangle {
                         border-radius: self.height / 2;
                         background: Theme.fg.with-alpha(0.1);
-                        width: fact-t.preferred-width + 24 * srp.u;
+                        preferred-width: fact-t.preferred-width + 24 * srp.u;
+                        max-width: self.preferred-width;
+                        min-width: min(self.preferred-width, 110 * srp.u);
+                        horizontal-stretch: 1;
                         fact-t := Text {
+                            x: 12 * srp.u;
+                            width: parent.width - 24 * srp.u;
                             text: f.label + " : " + f.value;
                             color: Theme.fg.with-alpha(0.88);
                             font-size: (13 * srp.u) * Theme.text-scale;
                             horizontal-alignment: center;
                             vertical-alignment: center;
+                            overflow: elide;
                         }
                     }
                 }
@@ -16145,6 +17107,12 @@ export component AppWindow inherits Window {
         height: parent.height - root.header-h;
     }
 
+    // Lecture lancée depuis la bannière : l'écran plonge dans le noir (voir banner-launch).
+    if root.bpo > 0.001 && !root.playing: Rectangle {
+        background: #000000;
+        opacity: root.bpo;
+    }
+
     // Image partagée (au-dessus du voile) pendant qu'elle vole ; un grand fond arrivé passe derrière
     // la page (voir plus haut, avant les écrans). Coins arrondis (rognage, le temps du vol) et
     // pastilles de la carte (épisodes restants, note...), qui s'effacent vers la page.
@@ -16162,10 +17130,11 @@ export component AppWindow inherits Window {
         height: root.hero-hp;
         // Carte : coins du haut arrondis, bas carrés · affiche : 4 coins arrondis · plein écran : aucun.
         // Vignette qui devient le fond : les coins du haut disparaissent dès le début du vol.
-        border-top-left-radius: root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
-        border-top-right-radius: root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
-        border-bottom-left-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
-        border-bottom-right-radius: root.hero-big ? 0px : Theme.radius * root.hero-p;
+        // Bannière : ses quatre coins arrondis s'aplatissent au rythme du vol (et reviennent au retour).
+        border-top-left-radius: root.hero-banner && root.hero-big ? Theme.radius * (1 - root.hero-p) : root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
+        border-top-right-radius: root.hero-banner && root.hero-big ? Theme.radius * (1 - root.hero-p) : root.hero-big ? Theme.radius * max(0, 1 - 5 * root.hero-p) : Theme.radius;
+        border-bottom-left-radius: root.hero-banner && root.hero-big ? Theme.radius * (1 - root.hero-p) : root.hero-big ? 0px : Theme.radius * root.hero-p;
+        border-bottom-right-radius: root.hero-banner && root.hero-big ? Theme.radius * (1 - root.hero-p) : root.hero-big ? 0px : Theme.radius * root.hero-p;
         clip: true;
         // Carte dont l'image n'est pas encore arrivée : elle vole quand même, unie.
         background: root.hero-img.width > 0 || root.hero-deck ? transparent : Theme.card-focus;
@@ -16174,7 +17143,7 @@ export component AppWindow inherits Window {
             height: parent.height;
             source: root.hero-img;
             image-fit: cover;
-            opacity: root.hero-alpha;
+            opacity: root.hero-alpha-v;
             // Vignette 16:9 qui devient le fond : ses coins arrondis sont dans les pixels ; le haut
             // de l'image est rogné au fil de l'agrandissement pour qu'ils ne grandissent pas avec elle.
             source-clip-y: root.hero-crop;
@@ -16222,9 +17191,144 @@ export component AppWindow inherits Window {
         }
         // Grand fond : assombri pour que la page reste lisible par-dessus.
         if root.hero-big: Rectangle {
-            background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha);
+            background: Theme.bg.transparentize(1 - 0.6 * root.hero-p * root.hero-alpha-v);
+        }
+        // Bannière : son ombre (sous ses textes) s'efface pendant le vol, et revient au retour.
+        if root.hero-banner && root.hero-big: Rectangle {
+            opacity: (1 - root.hero-p) * root.hero-alpha-v;
+            background: root.height > root.width ? @linear-gradient(180deg, #00000030 0%, #000000e0 75%)
+                : @linear-gradient(90deg, #000000e0 0%, #00000090 45%, #00000000 78%);
+        }
+
+        // Bannière : sa barre d'avancement s'efface pendant le vol (et revient au retour).
+        if root.hero-banner && root.hero-big && root.banner.progress > 0: Rectangle {
+            y: parent.height - self.height;
+            height: 5px * root.k;
+            opacity: (1 - root.hero-p) * root.hero-alpha-v;
+            background: #ffffff33;
+            Rectangle {
+                x: 0px;
+                width: parent.width * root.banner.progress;
+                background: @linear-gradient(90deg, Theme.accent1 0%, Theme.accent2 100%);
+            }
         }
     }
+    }
+
+    // Bannière de l'accueil ouverte (ou retour vers elle) : ses textes (logo ou titre, sous-titre, résumé)
+    // et son bouton de lecture volent de leur place sur la bannière à celle qu'ils ont sur la fiche ; ceux
+    // de la fiche restent cachés pendant ce temps (bnr-swap), puis prennent la place d'un coup (même
+    // place, même taille). « Voir la fiche » s'efface. Au retour, l'inverse. Au-dessus de la page.
+    if root.hero-on && root.hero-banner && root.hero-big && !root.playing: bgh := Rectangle {
+        y: root.header-row;
+        height: parent.height - root.header-row;
+        clip: true;
+        opacity: root.hero-out-a;
+        property <float> p: root.hero-p;
+        property <length> u: root.k * 1px;
+        // Textes de la bannière (voir sa colonne de textes : alignée en bas, marges et hauteurs fixes).
+        property <bool> tall: root.height > root.width;
+        property <length> bx: root.bnr-ax + 26 * self.u;
+        property <length> bw: root.bnr-w - 26 * self.u - (self.tall ? 26 * self.u : root.bnr-w * 0.42);
+        property <length> b-btn-y: root.bnr-ay + root.bnr-h - 62 * self.u;
+        property <length> b-ov-y: self.b-btn-y - 62 * self.u;
+        property <length> b-sub-y: (root.banner.overview != "" ? self.b-ov-y : self.b-btn-y) - 25 * self.u;
+        property <length> b-logo-h: root.banner.has-logo ? 64 * self.u : 38 * self.u;
+        property <length> b-logo-y: self.b-sub-y - 6 * self.u - self.b-logo-h;
+        // Leur place sur la fiche (donnée par la fiche affichée ; avant son arrivée, calculée).
+        // Retour : places figées au départ (voir hero-return).
+        property <bool> back: !root.hero-dest;
+        property <length> t-x: self.back ? root.fz-lx : root.dlog-w > 0 ? root.dlog-x : root.col-x + root.po-right;
+        property <length> t-y: self.back ? root.fz-ly : root.dlog-w > 0 ? root.dlog-y : root.header-h + 24px;
+        property <length> t-w: self.back ? min(root.fz-lw, 420 * self.u) : root.dlog-w > 0 ? min(root.dlog-w, 420 * self.u) : min(root.info-w, 420 * self.u);
+        // Résumé : marges du texte dans sa bulle (selon le thème, voir ov-bub).
+        property <length> pad-x: Theme.win7 || Theme.term ? 14 * self.u : 46 * self.u;
+        property <length> pad-y: Theme.term ? 30 * self.u : Theme.win7 ? 10 * self.u : 12 * self.u;
+        property <length> ov-x: self.back ? root.fz-ox : root.dov-x;
+        property <length> ov-y: self.back ? root.fz-oy : root.dov-y;
+        property <length> ov-w: self.back ? root.fz-ow : root.dov-w;
+        property <length> ov-h: self.back ? root.fz-oh : root.dov-h;
+        property <length> o-x: (self.ov-w > 0 ? self.ov-x : self.t-x) + self.pad-x;
+        property <length> o-y: (self.ov-w > 0 ? self.ov-y : root.header-h + 24px + 232 * self.u) + self.pad-y;
+        property <length> o-w: (self.ov-w > 0 ? self.ov-w : root.info-w) - self.pad-x - 14 * self.u;
+        property <length> o-h: self.ov-h > 0 ? self.ov-h - self.pad-y - 10 * self.u : 80 * self.u;
+        // Bouton de lecture de la fiche (première icône de la rangée des boutons).
+        property <length> pl-x: self.back ? root.fz-px : root.d-low-x + root.po-right + root.page-dx;
+        property <length> pl-y: self.back ? root.fz-py : root.header-h + root.page-dy + 24px + 118 * self.u + root.d-low;
+        // Logo : taille dessinée exacte (sur la bannière, calé à gauche ; sur la fiche, centré dans sa case).
+        property <float> ratio: root.banner.logo.width / max(1, root.banner.logo.height);
+        property <length> lw0: min(self.bw, self.b-logo-h * self.ratio);
+        property <length> lh0: self.lw0 / max(0.01, self.ratio);
+        property <length> lw1: min(self.t-w, 84 * self.u * self.ratio);
+        property <length> lh1: self.lw1 / max(0.01, self.ratio);
+        pure function mix(a: length, b: length) -> length {
+            return a + (b - a) * self.p;
+        }
+        if root.banner.has-logo: Image {
+            x: bgh.mix(bgh.bx, bgh.t-x + (bgh.t-w - bgh.lw1) / 2);
+            y: bgh.mix(bgh.b-logo-y + (bgh.b-logo-h - bgh.lh0) / 2, bgh.t-y + (84 * bgh.u - bgh.lh1) / 2) - root.header-row;
+            width: bgh.mix(bgh.lw0, bgh.lw1);
+            height: bgh.mix(bgh.lh0, bgh.lh1);
+            source: root.banner.logo;
+            image-fit: fill;
+        }
+        if !root.banner.has-logo: Text {
+            x: bgh.mix(bgh.bx, bgh.t-x);
+            y: bgh.mix(bgh.b-logo-y, bgh.t-y) - root.header-row;
+            width: bgh.mix(bgh.bw, bgh.t-w);
+            height: bgh.mix(bgh.b-logo-h, 84 * bgh.u);
+            text: root.banner.title;
+            color: #ffffff.mix(Theme.text, 1 - bgh.p);
+            font-size: (30 + 4 * bgh.p) * bgh.u * Theme.text-scale;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            x: bgh.mix(bgh.bx, bgh.t-x);
+            y: bgh.mix(bgh.b-sub-y, bgh.t-y + 88 * bgh.u) - root.header-row;
+            width: bgh.mix(bgh.bw, root.info-w);
+            height: 24 * bgh.u;
+            vertical-alignment: center;
+            text: root.banner.subtitle;
+            color: Theme.accent2.mix(Theme.accent-ink, 1 - bgh.p);
+            font-size: (15 + 3 * bgh.p) * bgh.u * Theme.text-scale;
+            font-weight: 600;
+            overflow: elide;
+        }
+        if root.banner.overview != "": Text {
+            x: bgh.mix(bgh.bx, bgh.o-x);
+            y: bgh.mix(bgh.b-ov-y, bgh.o-y) - root.header-row;
+            width: bgh.mix(bgh.bw, bgh.o-w);
+            height: bgh.mix(56 * bgh.u, bgh.o-h);
+            text: root.banner.overview;
+            // S'estompe au milieu du trajet : il croise le bouton de lecture (ordre inversé sur la fiche).
+            opacity: 1 - 0.85 * sin(bgh.p * 180deg);
+            color: #ffffffd9.mix(Theme.text, 1 - bgh.p);
+            font-size: (14 + bgh.p) * bgh.u * Theme.text-scale;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+        // Bouton de lecture : de la bannière à la fiche ; « Voir la fiche » s'efface en glissant.
+        gplay := DetailButton {
+            x: bgh.mix(bgh.bx, bgh.pl-x);
+            y: bgh.mix(bgh.b-btn-y, bgh.pl-y) - root.header-row;
+            height: 40 * bgh.u;
+            width: self.preferred-width;
+            text: root.banner.play-label;
+            icon: "play";
+            k: root.k;
+        }
+        DetailButton {
+            x: bgh.bx + gplay.preferred-width + 14 * bgh.u + bgh.p * 40 * bgh.u;
+            y: bgh.b-btn-y - root.header-row;
+            height: 40 * bgh.u;
+            width: self.preferred-width;
+            opacity: max(0, 1 - bgh.p * 3);
+            text: Tr.t(Tr.k, "Voir la fiche");
+            icon: "label";
+            k: root.k;
+        }
     }
 
     // Longue saison : monter en haut de la fiche / descendre à la suite (voir ep-many). Fixes à droite
@@ -18510,9 +19614,33 @@ export component AppWindow inherits Window {
         // Page 0 : actions ; page 1 : options d'actualisation.
         property <bool> opts: root.cm-page == 1;
         property <string> pl: root.cm-card.played ? "unplayed" : "played";
+        // Média de Seerr : à demander ; média du serveur : à télécharger. Dans la grille des bibliothèques,
+        // « Sélectionner » (en sélection : ajouter / retirer) ; la carte choisie : actions sur toute la sélection.
+        property <int> kind: root.pick-kind(root.cm-card.id);
+        property <bool> grid: root.screen == "library";
+        property <bool> in-sel: root.pick-mode && root.l-sel < root.lib-picked.length && root.lib-picked[root.l-sel]
+            && root.l-sel < root.lib-items.length && root.lib-items[root.l-sel].id == root.cm-card.id;
+        // En sélection (grille) : le menu de n'importe quelle carte porte les actions de toute la sélection
+        // (OK maintenu à la télécommande, sans descendre jusqu'à la barre du bas).
+        property <bool> sel-menu: root.pick-mode && self.grid && !self.opts && !self.lib;
+        // Ouvert par « Actions » (pastille de la sélection) : seulement les actions de la sélection.
+        property <bool> pill: root.cm-pill && self.sel-menu;
         property <[string]> acts: self.opts ? ["scan", "missing", "all", "t-img", "t-trick", "back"]
             : self.lib ? (root.is-admin ? ["open", "refresh", "scanall"] : ["open"])
-            : root.is-admin ? ["open", self.pl, "identify", "refresh", "edit"] : ["open", self.pl];
+            : self.pill ? (root.pick-req > 0 && root.pick-dl > 0 ? ["sreq", "sdl", "pall", "pexit"]
+                : root.pick-req > 0 ? ["sreq", "pall", "pexit"] : root.pick-dl > 0 ? ["sdl", "pall", "pexit"] : ["pall", "pexit"])
+            : self.sel-menu ? (root.pick-req > 0 && root.pick-dl > 0 ? ["open", "sreq", "sdl", "pick", "pall", "pexit"]
+                : root.pick-req > 0 ? ["open", "sreq", "pick", "pall", "pexit"]
+                : root.pick-dl > 0 ? ["open", "sdl", "pick", "pall", "pexit"] : ["open", "pick", "pall", "pexit"])
+            : self.kind == 1 ? (self.grid ? ["open", "req", "pick"] : ["open", "req"])
+            : root.is-admin ? (self.grid ? ["open", self.pl, "dl", "pick", "identify", "refresh", "edit"] : ["open", self.pl, "dl", "identify", "refresh", "edit"])
+            : (self.grid ? ["open", self.pl, "dl", "pick"] : ["open", self.pl, "dl"]);
+        property <string> dl-label: self.in-sel && root.pick-dl > 1 ? Tr.f(Tr.k, "Télécharger la sélection ({})", "\{root.pick-dl}", "") : Tr.t(Tr.k, "Télécharger");
+        property <string> req-label: self.in-sel && root.pick-req > 1 ? Tr.f(Tr.k, "Demander la sélection ({})", "\{root.pick-req}", "") : Tr.t(Tr.k, "Demander");
+        property <string> sreq-label: Tr.f(Tr.k, "Demander la sélection ({})", "\{root.pick-req}", "");
+        property <string> sdl-label: Tr.f(Tr.k, "Télécharger la sélection ({})", "\{root.pick-dl}", "");
+        property <string> pall-label: root.pick-n == root.lib-items.length ? Tr.t(Tr.k, "Tout enlever") : Tr.t(Tr.k, "Tout choisir");
+        property <string> pick-label: !root.pick-mode ? Tr.t(Tr.k, "Sélectionner") : self.in-sel ? Tr.t(Tr.k, "Retirer de la sélection") : Tr.t(Tr.k, "Ajouter à la sélection");
         property <[string]> labels: self.opts ? [
             Tr.t(Tr.k, "Rechercher les fichiers nouveaux et mis à jour"),
             Tr.t(Tr.k, "Rechercher les métadonnées manquantes"),
@@ -18524,23 +19652,63 @@ export component AppWindow inherits Window {
             Tr.t(Tr.k, "Ouvrir la bibliothèque"),
             Tr.t(Tr.k, "Actualiser la bibliothèque…"),
             Tr.t(Tr.k, "Analyser toutes les bibliothèques"),
-        ] : [Tr.t(Tr.k, "Ouvrir la bibliothèque")]) : root.is-admin ? [
+        ] : [Tr.t(Tr.k, "Ouvrir la bibliothèque")]) : self.pill ? (root.pick-req > 0 && root.pick-dl > 0 ? [
+            self.sreq-label, self.sdl-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : root.pick-req > 0 ? [
+            self.sreq-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : root.pick-dl > 0 ? [
+            self.sdl-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : [
+            self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ]) : self.sel-menu ? (root.pick-req > 0 && root.pick-dl > 0 ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"), self.sreq-label, self.sdl-label, self.pick-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : root.pick-req > 0 ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"), self.sreq-label, self.pick-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : root.pick-dl > 0 ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"), self.sdl-label, self.pick-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ] : [
+            Tr.t(Tr.k, "Ouvrir la fiche"), self.pick-label, self.pall-label, Tr.t(Tr.k, "Terminer la sélection"),
+        ]) : self.kind == 1 ? (self.grid ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            self.req-label,
+            self.pick-label,
+        ] : [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            self.req-label,
+        ]) : root.is-admin ? (self.grid ? [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+            self.dl-label,
+            self.pick-label,
             Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
             Tr.t(Tr.k, "Actualiser…"),
             Tr.t(Tr.k, "Modifier… (informations, images)"),
         ] : [
             Tr.t(Tr.k, "Ouvrir la fiche"),
             root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+            self.dl-label,
+            Tr.t(Tr.k, "Identifier… (corriger le titre reconnu)"),
+            Tr.t(Tr.k, "Actualiser…"),
+            Tr.t(Tr.k, "Modifier… (informations, images)"),
+        ]) : self.grid ? [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+            self.dl-label,
+            self.pick-label,
+        ] : [
+            Tr.t(Tr.k, "Ouvrir la fiche"),
+            root.cm-card.played ? Tr.t(Tr.k, "Marquer comme non vu (recommencer)") : Tr.t(Tr.k, "Marquer comme vu"),
+            self.dl-label,
         ];
         // Icône devant chaque action (MenuIcon) ; cases à cocher pour les options.
         pure function glyph(a: string) -> string {
-            return a == "t-img" ? (root.cm-img ? "box-on" : "box-off") : a == "t-trick" ? (root.cm-trick ? "box-on" : "box-off") : a;
+            return a == "t-img" ? (root.cm-img ? "box-on" : "box-off") : a == "t-trick" ? (root.cm-trick ? "box-on" : "box-off")
+                : a == "sreq" ? "req" : a == "sdl" ? "dl" : a == "pall" ? "pick" : a == "pexit" ? "back" : a;
         }
         // Séparateur au-dessus de ces actions (administration ; cases ; retour).
         pure function sep(a: string) -> bool {
-            return a == "identify" || a == "t-img" || a == "back" || (a == "refresh" && cm-layer.lib);
+            return a == "identify" || a == "t-img" || a == "back" || (a == "refresh" && cm-layer.lib) || a == "dl" || a == "req"
+                || a == "sreq" || (a == "sdl" && root.pick-req == 0) || (a == "pick" && cm-layer.sel-menu && root.pick-n == 0);
         }
         cm-box := Rectangle {
             callback run(int);
@@ -18564,6 +19732,17 @@ export component AppWindow inherits Window {
                         root.card-admin("refresh:" + cm-layer.acts[i] + ":" + (root.cm-img ? "1" : "0") + ":" + (root.cm-trick ? "1" : "0"), root.cm-card.id);
                     } else if (cm-layer.acts[i] == "identify" || cm-layer.acts[i] == "edit" || cm-layer.acts[i] == "scanall") {
                         root.card-admin(cm-layer.acts[i], root.cm-card.id);
+                    } else if (cm-layer.acts[i] == "dl" || cm-layer.acts[i] == "req") {
+                        root.pick-act("one-" + cm-layer.acts[i] + "|" + root.cm-card.id);
+                    } else if (cm-layer.acts[i] == "pick") {
+                        root.pick-act("pick|" + root.cm-card.id);
+                    } else if (cm-layer.acts[i] == "sreq" || cm-layer.acts[i] == "sdl") {
+                        root.pick-act(cm-layer.acts[i] == "sreq" ? "req" : "dl");
+                    } else if (cm-layer.acts[i] == "pall") {
+                        root.pick-act("all");
+                    } else if (cm-layer.acts[i] == "pexit") {
+                        root.pick-btn = -1;
+                        root.pick-act("exit");
                     } else {
                         root.card-played(root.cm-card.id, cm-layer.acts[i] == "played");
                     }
@@ -18626,7 +19805,8 @@ export component AppWindow inherits Window {
                         x: Theme.term || Theme.win7 ? 10px * root.k : 0px;
                         width: parent.width - 2 * self.x;
                         height: parent.height;
-                        text: (Theme.term ? "[ " : "") + (cm-layer.opts ? Tr.f(Tr.k, "Actualiser : {}", root.cm-card.title, "") : root.cm-card.title) + (Theme.term ? " ]" : "");
+                        text: (Theme.term ? "[ " : "") + (cm-layer.opts ? Tr.f(Tr.k, "Actualiser : {}", root.cm-card.title, "")
+                            : cm-layer.pill ? Tr.p(Tr.k, "{n} choisie", "{n} choisies", root.pick-n) : root.cm-card.title) + (Theme.term ? " ]" : "");
                         color: Theme.term ? Theme.accent2 : Theme.win7 ? #ffffff : Theme.muted;
                         font-size: (14px * root.k) * Theme.text-scale;
                         font-weight: Theme.win7 || Theme.term ? 600 : 400;

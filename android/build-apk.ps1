@@ -85,7 +85,7 @@ Remove-Item $build -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force "$build" | Out-Null
 Copy-Item "$PSScriptRoot\res" "$build\res" -Recurse
 New-Item -ItemType Directory -Force "$build\res\mipmap-xxxhdpi" | Out-Null
-Copy-Item "$root\packaging\icons\turtlefin-256.png" "$build\res\mipmap-xxxhdpi\ic_launcher.png"
+Copy-Item "$root\packaging\icons\turtlefin-android-256.png" "$build\res\mipmap-xxxhdpi\ic_launcher.png"
 & "$tools\aapt2.exe" compile --dir "$build\res" -o "$build\res.zip"
 if ($LASTEXITCODE -ne 0) { throw "aapt2 compile" }
 $code = ($version.Split('.') | ForEach-Object { [int]$_ })

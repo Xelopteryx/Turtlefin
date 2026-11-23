@@ -130,7 +130,7 @@ pub fn load(app: &Arc<App>, cat: i32) {
             }
             let stats = a3.dash_stats.lock().unwrap().clone();
             u.set_dash_stats(ModelRc::new(VecModel::from(
-                stats.into_iter().map(|(l, v)| crate::FactData { label: l.into(), value: v.into() }).collect::<Vec<_>>(),
+                stats.into_iter().map(|(l, v)| crate::FactData { label: l.into(), value: v.into(), ..Default::default() }).collect::<Vec<_>>(),
             )));
             u.set_dash_sub(!a3.dash_open.lock().unwrap().is_empty());
             crate::refresh_settings(&a3);

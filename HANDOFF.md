@@ -917,18 +917,157 @@ Tout ce qui est décrit en 6 octies à 6 sexdecies, plus :
 
 Notes de version prêtes à coller dans le message de l'étiquette : `packaging/notes/v2.0.0.md`.
 
-**Reste à faire avant de publier** (demandé par le mainteneur le 22 novembre 2026) :
-1. Installeurs : une mise à jour supprime et recrée le raccourci du Bureau (il perd l'emplacement choisi) ; le
-   garder tel quel (`packaging/windows/turtlefin.iss`), et revoir les installeurs en général.
-2. Logo du thème Turtlefin sur PC (fenêtre, barre des tâches, raccourcis) : retirer son fond, comme pour Aero et Nerd.
-3. « Qui regarde ? » : les comptes apparaissent un par un, de gauche à droite (pas dans le désordre).
-4. Changement de thème : icônes buguées (à reproduire).
-5. Thème Turtlefin : les boutons non sélectionnés ont l'air sélectionnés (« Voir la fiche » de la bannière,
-   signet de la fiche…).
-6. Animations manquantes : clic sur la bannière (ouverture de la fiche), « Reprendre » (lancement de la vidéo).
-7. Paramètres : la liste ne doit pas passer sous ni sur le champ « Rechercher un réglage ».
-8. Meilleure transition d'une page à l'autre (accueil, recherche, favoris…).
-Puis les captures du README, puis la publication.
+**Finitions avant de publier** (demandées le 22 novembre 2026 ; faites le même jour, sauf mention) :
+1. Installeurs (`packaging/windows/turtlefin.iss`, `DesktopIconWanted`) : un raccourci du Bureau présent n'est
+   jamais recréé (il garde sa place) ; la mise à jour intégrée (silencieuse) ne fait pas revenir celui qui a été
+   supprimé ou renommé ; l'installeur lancé à la main, case cochée, le crée s'il manque. Textes de l'assistant au
+   vouvoiement. Le mainteneur revoit les installeurs en général.
+2. Logo Turtlefin sans fond (`make-icons.py`, `turtlefin.svg`, ICO de l'exe, PNG), comme Aero et Nerd ; seul
+   le lanceur Android garde le carré sombre (`turtlefin-android-256.png`, repris par `build-apk.ps1`).
+3. « Qui regarde ? » : les comptes apparaissent un par un, de gauche à droite (`pk.shown` : une tuile attend
+   la précédente, 70 ms d'écart), même si les photos arrivent dans le désordre.
+4. Changement de thème : icônes buguées. **Pas fait** : à reproduire par le mainteneur.
+5. Bouton principal (Lecture / Reprendre) au repos, thèmes sans brillance : neutre comme les autres, liseré et
+   triangle d'accent (`DetailButton`, `quiet`) ; le dégradé atténué le faisait passer pour le bouton choisi
+   (bannière, fiche). Aero et Nerd inchangés.
+6. Bannière : clic ou « Voir la fiche » : son image vole jusqu'à tout l'écran puis la fiche arrive, comme une
+   vignette 16:9 (`banner-open`, `open-banner`, `hero-banner`) ; au retour, elle revient sur la bannière.
+   « Reprendre » / « Lecture » de la bannière : elle grossit, l'écran plonge dans le noir, puis la lecture
+   (`banner-launch`, `bpo`).
+7. Paramètres : la liste (rognée) commence 2 px sous le champ « Rechercher un réglage » (`q-gap`).
+8. Transitions : les pages de la barre du haut sont rangées dans son ordre (`page-pos`, `dest-pos`) ; la page
+   quittée glisse vers un côté sous le voile (`leave-to`), la nouvelle arrive de l'autre (`nav-dir`,
+   `page-dx`). Ailleurs (fiche, retour) : arrivée habituelle (zoom, montée). Collections et Playlists aussi
+   (avec, en plus, la vague de leurs cartes).
+9. Ensuite, même jour : « Autre compte » attend la liste du serveur (`login_opened`) ; bannière de l'Accueil
+   liée à l'onglet des rangées affichées (`sec-tab`, plus d'Accueil un instant au-dessus de Favoris) ; onglet
+   Détails de la fiche : genres, studios et tags en pastilles (`FlexboxLayout`), clic ou Entrée (← → au
+   clavier, zone 10) : recherche avancée sur ce seul filtre (`fact_chip`) ; recherche d'une personne : sa
+   filmographie absente du serveur vient de Seerr (`seerr_people`, route
+   `/JellyfinEnhanced/jellyseerr/person/{id}/combined_credits`), rangée « À demander : avec … ». Pastilles et
+   filmographie pas encore vues à l'écran (compte `test` protégé par un code).
+10. Après ses essais : réalisation, scénario, production, musique aussi en pastilles (sorte 4 : recherche sur
+   le nom, `search_person`) ; ↑ ↓ d'une ligne de pastilles affichée à l'autre (les tags qui vont à la ligne
+   aussi) : chaque pastille donne sa place à l'écran (`chip-place`, `App::fact_pos`), `chip_step` choisit
+   la plus proche en largeur sur la ligne d'au-dessus ou d'en dessous. Filmographie Seerr en deux rangées : « À demander :
+   avec … » (rôles) et « À demander : apparitions de … » (série en moins de 4 épisodes, ou personnage
+   « Self », « Himself », « uncredited », « cameo » ; Seerr ne donne pas le rang au générique d'un film) ;
+   la rangée « À demander (Seerr) » ne répète plus ce qui est dans une filmographie. Retour depuis une fiche
+   ouverte dans la recherche (ou les téléchargements) : la pile repart de la recherche (`open_item`), même
+   si la recherche avait été ouverte depuis une autre fiche (avant : retour sur cette fiche-là).
+11. Image partagée : chaque ouverture retient la place de sa carte ou de la bannière, par média
+   (`hero-origin`, `App::hero_origins`) ; au retour, parmi les cartes du même média (bannière et rangées),
+   la plus proche de cette place répond (`Hero.claim`, `best-tick`, `best-d`). Grand fond (vignette 16:9,
+   bannière) : le fondu vers le fond flou et sombre de la fiche commence dès que la fiche est là, pendant
+   le vol (`hero-bg-ready`), et dure le temps du vol (`fade-len`) ; au retour, l'image reparaît pendant
+   qu'elle revole (fondu lancé au départ du vol, plus avant). Pas vu à l'écran (PC occupé pendant l'essai).
+12. Page Seerr ouverte depuis la filmographie d'une personne : elle est en tête de la distribution, avec son
+   personnage (`App::seerr_roles`, `seerr_details(.., focus)`), ajoutée si Seerr ne la donne pas (une série
+   ne donne que ses rôles réguliers) ; la liste était coupée à 20 avant (Bob Odenkirk absent d'« Halloween
+   Kills »). Cartes de séries de ces rangées : « · 3 épisodes » (Seerr ne dit pas lesquels : pas de
+   SxxExx sans clé TMDB). Page Seerr en erreur (500 du proxy) : un second essai 700 ms après.
+   « Découvrir Turtlefin » au choix du serveur : seulement au tout premier démarrage (`srv-first` : aucun
+   compte, aucune session ; sinon « Revoir la visite » des Paramètres), sur la ligne des deux autres
+   boutons (l'un sous l'autre sur un écran étroit) ; ← → / ↑ ↓ en conséquence. Pluriel « serveurs trouvés
+   sur tes réseaux » passé à « vos ».
+13. Recherche : 12 cartes par rangée au plus (`SEARCH_ROW_MAX`, `cap_rows` dans `present_rows`), la
+   dernière place est « Afficher plus · N de plus » (`group:more:<n>`, rangée entière dans
+   `App::search_more`) qui ouvre toute la rangée dans la grille des bibliothèques (titre : celui de la
+   rangée). Grille : sélection de plusieurs cartes (barre du bas « Sélectionner » ; puis « N choisies »,
+   Demander, Télécharger, Tout choisir / Tout enlever, Terminer ; ↓ depuis la dernière ligne mène à la
+   barre, Échap quitte la sélection). Rust tient les cartes choisies (`App::picks`, `lib_pick`,
+   `pick_act`, `show_picks` → `lib-picked` parallèle à `lib-items`) ; Demander : Seerr, série = saisons
+   qui manquent (`pick_requests`) ; Télécharger : film, épisode, ou tous les épisodes d'une saison /
+   série (`download_list`, `enqueue_downloads`, partagés avec le bouton de la fiche). Dans toutes les
+   grilles (bibliothèques aussi). Commencer une sélection (pas de bouton permanent : la barre n'apparaît
+   qu'en sélection) : appui long au doigt sur une carte ; souris : glisser depuis une carte (les cartes
+   survolées sont choisies, `drag-move` → `lib-pick-set` ; le geste de défilement à la souris est coupé
+   dans la grille, `Swipe::touch`), Ctrl + clic, Maj + clic (plage, `pick_last`) ; menu de la carte
+   (clic droit, OK maintenu) : « Sélectionner », « Télécharger », « Demander » (cartes Seerr : menu aussi,
+   `card-menu-ok`, `pick-kind`), sur toute la sélection si la carte en fait partie (« … la sélection (N) »).
+   Hors grille (rangées), le menu propose aussi Télécharger / Demander pour la seule carte.
+   Page Seerr : pastilles d'informations trop longues (studios) rétrécies, texte coupé par « … ».
+14. Après ses essais : glisser à la souris = plage, de la carte de départ à celle sous la souris (ordre
+   de la grille), les autres revenant à leur état d'avant le geste (`lib-drag`, `App::pick_drag`) ;
+   défilement automatique près des bords (Timer de `lib.edge`) et molette pendant le glisser
+   (`drag-wheel`, `lib.wheel`) ; la carte de départ reste instanciée (`drag-anchor`). Télécommande : en
+   sélection, le menu de n'importe quelle carte (OK maintenu) porte les actions de la sélection
+   (`sel-menu` : Demander / Télécharger la sélection, ajouter / retirer, Tout choisir, Terminer), rappel
+   « OK maintenu : actions » dans la barre. Accueil (onglet) sans effet depuis une grille ouverte par la
+   recherche : `at()` ne compte plus une page de bibliothèque comme l'accueil. Bannière ouverte (et
+   retour) : l'image qui vole garde l'ombre de la bannière, qui s'efface au rythme du vol, et ses quatre
+   coins s'aplatissent progressivement (aussi sous la page, `hero-under`) ; ses textes (logo ou titre,
+   sous-titre, résumé) volent jusqu'à leur place sur la fiche (`bgh`, places données par `Spot` :
+   bannière, logo et résumé de la fiche), ses boutons s'effacent. Pas vu à l'écran (PC occupé).
+15. Après sa vidéo : bannière → fiche, le bouton de lecture vole aussi (jusqu'à la première icône de la
+   fiche) ; textes et bouton qui volent restent opaques, ceux de la fiche sont cachés pendant le vol
+   (`bnr-swap`) puis prennent la place d'un coup (logo à sa taille dessinée exacte, sous-titre et résumé
+   aux polices et couleurs de la fiche) ; le résumé s'estompe au milieu du trajet (il croise le bouton).
+   Arrivée de la fiche : plus de fondu d'ensemble, les boutons et pastilles grossissent l'un après l'autre
+   avec un rebond (`rev-at`, `DetailButton.pop`), les chiffres glissent depuis la droite. Retour : la
+   fiche repart à l'envers (`rev-leave`, 300 ms, pendant le voile), l'accueil n'est plus tout fait sous
+   l'image : la bannière attend l'atterrissage (`bnr-back`), les rangées arrivent l'une après l'autre
+   pendant le vol (`home-ret`). Ligne « Audio : … » sous les boutons retirée (`misc_short` vide,
+   `misc_line` sans audio) ; onglet Détails : langues audio en pastilles avec drapeau
+   (`ui/icons/flags/*.svg`, FR EN JA DE ES IT PT KO ZH RU NL PL ; `lang-flag`, `FactData.kind` 5).
+   Sélection : plus de barre du bas, une pastille en haut de la grille (rond coché, « N choisies »,
+   « Actions » qui ouvre le menu de la sélection sans « Ouvrir » ni « Ajouter », ✕), la grille
+   descend dessous ; rond de sélection en haut à droite des cartes (la pastille SEERR reste lisible).
+   Vu en démo : aller et retour de la bannière (rafales), plage au glisser, pastille et menu Actions.
+16. Après sa seconde vidéo : retour vers la bannière, places de la fiche figées au départ (`fz-*`, dans
+   `hero-return` : les textes qui volent suivaient la fiche qui s'en allait) ; barre d'avancement de la
+   bannière dessinée sur l'image qui vole (s'efface à l'aller, revient au retour) ; la carte du même
+   épisode (rangée Reprendre) n'est plus cachée pendant le retour (`Hero.hide-id` vide pour la bannière).
+   Sélection : à la souris, un appui long sans bouger (480 ms, `Card.hold`) la commence, la plage suit
+   ensuite la souris (plus de départ au simple glisser) ; à la télécommande, OK maintenu commence une
+   sélection « au pinceau » (`pick-paint`, `paint-anchor` : chaque déplacement choisit tout jusqu'à la
+   carte atteinte), OK ou Échap l'arrête, la pastille le rappelle ; déjà en sélection, OK maintenu =
+   menu de la carte. Pastille : ↑ depuis la première rangée (← → Actions / ✕, Entrée, ↓ la grille).
+   Pas vu à l'écran (PC occupé pendant l'essai). Vu en démo (Afficher plus, grille, choix souris et clavier, Échap) ;
+   pas essayé : Demander (pas de Seerr en démo) ni Télécharger (fichiers dans le vrai dossier de données).
+17. Sélection, après ses essais : déjà en sélection, appuyer et glisser à la souris suffit (pas d'appui
+   long) ; télécommande : le pinceau ne dure que tant qu'OK reste enfoncé (relâché : il s'arrête), et OK
+   (appui court) en sélection met le focus sur « Actions » de la pastille ; la pastille rappelle « OK
+   maintenu + flèches ». Fond d'écran : la souris le change aussi (dernière carte survolée, `bg-hov`) ;
+   le fond reste l'image de fond du média (il ne veut PAS celle de la carte : une première version qui
+   prenait la vignette 16:9 a été retirée). Carte 16:9 (ou bannière) ouverte : une fois le fond de ce
+   média affiché (`bg-now`), l'image qui vole s'y fond pendant la seconde moitié de son vol (`hero-dis`,
+   `hero-alpha-v`), à l'envers au retour (une étape « image de fond nette » a été essayée puis retirée :
+   le passage net → flou faisait croire à un autre fond) ; carte ouverte :
+   son fond est demandé sans attendre (`backdrop-now`), l'ancien n'est plus revu. Journal du fond :
+   `TURTLEFIN_DEBUG_BG=1`. Ouvrir, revenir, en ouvrir vite un autre : le fond du média d'avant se
+   revoyait (le fond demandé au survol, avec l'attente des cartes traversées, n'était pas accéléré par le
+   clic ; l'image qui vole s'effaçait sur l'ancien). Le clic force maintenant la demande si ce fond n'est
+   pas encore à l'écran (`App::bg_shown`), l'image qui vole attend que le fond de son média soit affiché
+   (`bg-now`, `hero-fade-ok`, 1,2 s au plus), une image arrivée après une demande plus récente est jetée,
+   et l'empreinte de l'image affichée (`bg_hash`) n'est notée qu'à l'affichage (avant : aussi pour une
+   demande abandonnée, qui pouvait ensuite empêcher son fond de revenir). Passage vignette → fond pas jugé à l'écran : la démo n'a pas d'images de fond
+   Fond pas encore en mémoire (média jamais ouvert, ou deux médias ouverts à quelques secondes) : il est
+   maintenant chargé dès la sélection (la pause des cartes traversées ne retarde plus que l'affichage,
+   `dwell`), les 16 derniers fonds floutés restent en mémoire (`App::bg_cache`), l'ouverture d'une carte
+   presse l'affichage du fond en cours (`bg_rush`) et efface tout de suite l'ancien fond s'il est d'un
+   autre média (fondus raccourcis à 160–200 ms pendant le vol). Mesuré sur le serveur : ~200 ms de
+   téléchargement, ~70 ms de flou. Vu sur le serveur : Bleach (affiche) et Jormungand (16:9), jamais
+   ouverts, au clavier aussitôt sélectionnés.
+   d'épisode, et le compte `test` refuse maintenant le mot de passe vide.
+   Vu sur le serveur (compte `test`, copie de la config sans jetons) : survol, ouverture d'une carte 16:9
+   et d'une affiche, sélection souris (appui long puis glisser, puis glisser direct), pinceau à OK tenu,
+   OK → Actions → menu.
+**Reste à faire avant de publier (liste du 22 novembre 2026 au soir, à reprendre le 23)** :
+1. Commiter tout le travail du 22 (rien n'est commité depuis 948a3b0 : interface, main.rs, api.rs, traductions,
+   icônes, drapeaux `ui/icons/flags/`, `packaging/icons/turtlefin-android-256.png` non suivi). Ne pas commiter
+   les vidéos d'essai à la racine (`video.mp4`, `2026-11-22 *.mp4`) : les lui signaler.
+2. Essais réels jamais faits : « Demander » sur plusieurs médias Seerr (`pick_requests`) ; « Télécharger » sur
+   plusieurs médias (`pick_downloads`, vrai dossier de données : prévenir) ; drapeaux des langues audio (onglet
+   Détails d'un média qui a des pistes avec langue) ; pastilles de personnes et rangées Seerr « avec » /
+   « apparitions de » (recherche « Bob Odenkirk »). Compte `test` du serveur : mot de passe `test`, toujours
+   avec une copie de la config SANS jetons (TURTLEFIN_CONFIG_DIR), copie effacée après.
+3. Appareils autres que le PC (tout le travail du 22 n'a été vu que sur Windows) : téléphone Android (adb : appui
+   long = sélection, animations bannière/fiche, fond d'écran), télé (MEmu, APK armeabi-v7a : OK maintenu =
+   sélection au pinceau, pastille ↑, menu), Pi 5 (il l'allume le 23 ; binaire croisé sur le PC, jamais compilé
+   sur le Pi ; fluidité des animations nouvelles : vol de la bannière, fondu dans le fond, arrivée des boutons).
+4. Bug des icônes au changement de thème : il doit encore le reproduire.
+5. Puis les captures du README (après son feu vert), puis la publication.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

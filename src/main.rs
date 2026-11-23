@@ -363,6 +363,12 @@ struct App {
     /// Fond d'écran : média affiché et génération (une demande plus récente annule les autres).
     bg_id: Mutex<String>,
     bg_gen: AtomicU64,
+    /// Fonds récents déjà chargés et floutés (média, image, empreinte), les plus récents à la fin.
+    bg_cache: Mutex<Vec<(String, SharedPixelBuffer<Rgba8Pixel>, u64)>>,
+    /// Fond demandé pressé par l'ouverture de sa carte (affiché dès qu'il est prêt).
+    bg_rush: Mutex<String>,
+    /// Fond à l'écran (clé de `bg_id` : id, ou « id#banner »), une fois vraiment affiché.
+    bg_shown: Mutex<String>,
     /// Fin de la dernière lecture : (position, durée, fin atteinte), pour les lectures hors ligne.
     last_play: Mutex<Option<(f64, f64, bool)>>,
     /// Essais : élément à lancer au démarrage (--play) et position de départ forcée.
@@ -395,6 +401,27 @@ struct App {
     pw_new: Mutex<String>,
     /// Comptes publics du serveur (nom, identifiant) vus à la dernière ouverture de la connexion.
     login_pub: Mutex<Vec<(String, String)>>,
+    /// Pastilles de l'onglet Détails de la fiche affichée (sorte de filtre : 1 genre · 2 tag · 3 studio, nom),
+    /// dans l'ordre de leur numéro (`FactData.first`) : touchées, elles ouvrent la recherche filtrée.
+    fact_chips: Mutex<Vec<(u8, String)>>,
+    /// Place à l'écran (x, y du coin) de chaque pastille, que l'interface donne (`chip-place`) ; y négatif :
+    /// pas encore placée. Sert à ↑ ↓ (`chip_step`).
+    fact_pos: Mutex<Vec<(f32, f32)>>,
+    /// Rangées de la recherche coupées (voir `cap_rows`) : (titre, toutes leurs cartes), ouvertes en entier
+    /// par leur carte « Afficher plus » (`group:more:<n>`) dans la grille des bibliothèques.
+    search_more: Mutex<Vec<(String, Vec<api::CardInfo>)>>,
+    /// Cartes choisies dans la grille des bibliothèques (sélection de plusieurs : demander, télécharger).
+    picks: Mutex<std::collections::HashSet<String>>,
+    /// Dernière carte choisie (n° dans la grille) : départ d'une plage Maj + clic.
+    pick_last: Mutex<Option<usize>>,
+    /// Glisser à la souris en cours : les cartes choisies avant lui (la plage s'y ajoute ou s'en retire).
+    pick_drag: Mutex<Option<std::collections::HashSet<String>>>,
+    /// Cartes des rangées Seerr d'une personne (identifiant) : (nom, personnage, photo), pour la mettre en
+    /// tête de la distribution de la page Seerr ouverte depuis ces rangées.
+    seerr_roles: Mutex<std::collections::HashMap<String, (String, String, Option<String>)>>,
+    /// Image partagée : place à l'écran de la carte (ou de la bannière) d'où chaque média a été ouvert. Au
+    /// retour, la carte la plus proche de cette place le reçoit (un média peut être deux fois à l'écran).
+    hero_origins: Mutex<std::collections::HashMap<String, (f32, f32)>>,
     /// Type du média de la fiche (« Movie », « Episode »...) : texte de la liste des pistes.
     detail_kind: Mutex<String>,
     /// Explorateur des langues : dossier affiché et chemins de ses éléments (même ordre que la liste).
@@ -837,34 +864,57 @@ static NO_BACKDROP: AtomicBool = AtomicBool::new(false);
 
 /// Nouvelle image de fond ? (false : la même que celle affichée, rien à faire).
 fn same_backdrop(app: &Arc<App>, bytes: &[u8]) -> bool {
+    app.bg_hash.load(Ordering::SeqCst) != backdrop_hash(bytes)
+}
+
+/// Empreinte d'une image de fond ; notée (`bg_hash`) seulement quand l'image est vraiment affichée (une
+/// demande abandonnée en route ne doit pas faire croire que son image est à l'écran).
+fn backdrop_hash(bytes: &[u8]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     bytes.hash(&mut h);
-    let v = h.finish();
-    app.bg_hash.swap(v, Ordering::SeqCst) != v
+    h.finish()
+}
+
+/// Fonds gardés en mémoire (960 x 540 : 2 Mo chacun).
+const BG_CACHE: usize = 16;
+
+/// Fond affiché : l'interface sait de quel média il est (l'image qui vole attend le bon fond avant de
+/// s'y fondre, voir hero-fade-ok).
+fn bg_shown(app: &Arc<App>, u: &AppWindow, key: &str, hash: u64) {
+    app.bg_hash.store(hash, Ordering::SeqCst);
+    *app.bg_shown.lock().unwrap() = key.to_string();
+    u.set_bg_now(key.split('#').next().unwrap_or("").into());
 }
 
 /// Animations des pages coupées : le fond de la page est préparé avant elle, pour que les deux arrivent
 /// ensemble (sinon, sans fondu, l'image saute une fois la page affichée). Au plus 0,7 s d'attente.
-async fn page_backdrop(app: &Arc<App>, client: &api::Client, id: &str) -> Option<(String, SharedPixelBuffer<Rgba8Pixel>)> {
+async fn page_backdrop(app: &Arc<App>, client: &api::Client, id: &str) -> Option<(String, SharedPixelBuffer<Rgba8Pixel>, u64)> {
     if config::ui_prefs().anim.pages || id.is_empty() || id.starts_with("seerr:") || NO_BACKDROP.load(Ordering::Relaxed) {
         return None;
     }
     let load = async {
-        let item = client.item(id).await.ok()?;
-        let bytes = client.backdrop(&item).await?;
-        same_backdrop(app, &bytes);
-        tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten()
+        let bytes = card_backdrop(client, id).await?;
+        let h = backdrop_hash(&bytes);
+        let _ = app;
+        tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten().map(|b| (b, h))
     };
-    let buf = tokio::time::timeout(std::time::Duration::from_millis(700), load).await.ok().flatten()?;
-    Some((id.to_string(), buf))
+    let (buf, h) = tokio::time::timeout(std::time::Duration::from_millis(700), load).await.ok().flatten()?;
+    Some((id.to_string(), buf, h))
+}
+
+/// Image de fond d'un média (son image « Backdrop », celle de sa série à défaut, sinon une vignette).
+async fn card_backdrop(client: &api::Client, id: &str) -> Option<Vec<u8>> {
+    let item = client.item(id).await.ok()?;
+    client.backdrop(&item).await
 }
 
 /// Pose le fond préparé par `page_backdrop`, juste avant d'afficher la page.
-fn apply_page_backdrop(app: &Arc<App>, u: &AppWindow, bg: Option<(String, SharedPixelBuffer<Rgba8Pixel>)>) {
-    let Some((id, buf)) = bg else { return };
-    *app.bg_id.lock().unwrap() = id;
+fn apply_page_backdrop(app: &Arc<App>, u: &AppWindow, bg: Option<(String, SharedPixelBuffer<Rgba8Pixel>, u64)>) {
+    let Some((id, buf, h)) = bg else { return };
+    *app.bg_id.lock().unwrap() = id.clone();
     app.bg_gen.fetch_add(1, Ordering::SeqCst);
+    bg_shown(app, u, &id, h);
     let img = slint::Image::from_rgba8(buf);
     if u.get_bg_flip() {
         u.set_bg_a(img);
@@ -878,7 +928,17 @@ fn apply_page_backdrop(app: &Arc<App>, u: &AppWindow, bg: Option<(String, Shared
 
 /// Fond d'écran du média sélectionné : chargé après une courte pause (pas à chaque carte survolée),
 /// flouté et assombri au décodage, puis affiché en fondu enchaîné.
-fn set_backdrop(app: &Arc<App>, id: String) {
+fn set_backdrop(app: &Arc<App>, id: String, banner: bool) {
+    set_backdrop_after(app, id, None, banner);
+}
+
+/// Comme `set_backdrop`, avec une autre attente (0 : carte ouverte, son fond tout de suite).
+/// `banner` : le média de la bannière (son image de bannière, pas celle de sa carte 16:9).
+fn set_backdrop_after(app: &Arc<App>, id: String, wait_ms: Option<u64>, banner: bool) {
+    let dbg = std::env::var_os("TURTLEFIN_DEBUG_BG").is_some();
+    if dbg {
+        eprintln!("turtlefin : fond demandé {id} (bannière {banner}, attente {wait_ms:?}, actuel {})", app.bg_id.lock().unwrap());
+    }
     if id.is_empty() || NO_BACKDROP.load(Ordering::Relaxed) {
         return;
     }
@@ -905,37 +965,128 @@ fn set_backdrop(app: &Arc<App>, id: String) {
         return;
     }
     {
+        // Même média, mais depuis la bannière ou depuis sa carte : pas forcément la même image.
+        let key = if banner { format!("{id}#banner") } else { id.clone() };
         let mut cur = app.bg_id.lock().unwrap();
-        if *cur == id {
+        let shown = app.bg_shown.lock().unwrap().clone();
+        // Carte ouverte (attente 0) dont le fond n'est pas encore à l'écran : l'ancien fond (un autre
+        // média) s'efface tout de suite, sans attendre le nouveau.
+        if wait_ms == Some(0) && shown != key && !shown.is_empty() {
+            if let Some(u) = app.ui().upgrade() {
+                u.set_bg_show(false);
+            }
+        }
+        if *cur == key {
+            // Déjà demandé (au survol, à la sélection) : la demande en cours est pressée (plus d'attente
+            // avant l'affichage) plutôt que relancée.
+            if wait_ms == Some(0) && shown != key {
+                *app.bg_rush.lock().unwrap() = key.clone();
+            }
             return;
         }
-        *cur = id.clone();
+        *cur = key;
     }
+    let key = if banner { format!("{id}#banner") } else { id.clone() };
     let my = app.bg_gen.fetch_add(1, Ordering::SeqCst) + 1;
     let Some(client) = app.client() else { return };
     let a = app.clone();
     app.rt.spawn(async move {
-        // Sans fondu, l'attente se verrait : juste de quoi ne pas charger chaque carte traversée.
-        let wait = if config::ui_prefs().anim.pages { 350 } else { 120 };
-        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+        // Le fond est chargé tout de suite (prêt si la carte est ouverte) ; il n'est affiché qu'après une
+        // courte pause, pour ne pas changer à chaque carte traversée. Sans fondu, l'attente se verrait.
+        let wait = wait_ms.unwrap_or(if config::ui_prefs().anim.pages { 350 } else { 120 });
+        let t0 = std::time::Instant::now();
+        let rush_key = key.clone();
+        let a_rush = a.clone();
+        let dwell = || async move {
+            // Par petits pas : une carte ouverte entre-temps presse l'affichage (voir bg_rush).
+            while t0.elapsed().as_millis() < wait as u128 {
+                if *a_rush.bg_rush.lock().unwrap() == rush_key {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        };
+        // Déjà chargé et flouté (fonds récents gardés en mémoire) : rien à télécharger.
+        let cached = a.bg_cache.lock().unwrap().iter().find(|c| c.0 == id).map(|c| (c.1.clone(), c.2));
+        if let Some((buf, h)) = cached {
+            dwell().await;
+            if a.bg_gen.load(Ordering::SeqCst) != my {
+                return;
+            }
+            if dbg {
+                eprintln!("turtlefin : fond {id} : en mémoire");
+            }
+            let a2 = a.clone();
+            let _ = a.ui().upgrade_in_event_loop(move |u| {
+                if a2.bg_gen.load(Ordering::SeqCst) != my {
+                    return;
+                }
+                let same = a2.bg_hash.load(Ordering::SeqCst) == h;
+                bg_shown(&a2, &u, &key, h);
+                if !same {
+                    let img = slint::Image::from_rgba8(buf);
+                    if u.get_bg_flip() {
+                        u.set_bg_a(img);
+                        u.set_bg_flip(false);
+                    } else {
+                        u.set_bg_b(img);
+                        u.set_bg_flip(true);
+                    }
+                }
+                u.set_bg_show(true);
+            });
+            return;
+        }
         if a.bg_gen.load(Ordering::SeqCst) != my {
             return;
         }
-        let Ok(item) = client.item(&id).await else { return };
-        let Some(bytes) = client.backdrop(&item).await else { return };
+        let Some(bytes) = card_backdrop(&client, &id).await else {
+            if dbg {
+                eprintln!("turtlefin : fond {id} : pas d'image");
+            }
+            return;
+        };
+        if dbg {
+            eprintln!("turtlefin : fond {id} : {} octets en {} ms", bytes.len(), t0.elapsed().as_millis());
+        }
+        let h = backdrop_hash(&bytes);
         if !same_backdrop(&a, &bytes) {
             // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
             // pouvait rester cachée, après un changement de compte par exemple).
+            dwell().await;
             if a.bg_gen.load(Ordering::SeqCst) == my {
-                let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+                let a2 = a.clone();
+                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                    bg_shown(&a2, &u, &key, h);
+                    u.set_bg_show(true);
+                });
             }
             return;
         }
+        let t1 = std::time::Instant::now();
         let Some(buf) = tokio::task::spawn_blocking(move || decode_backdrop(&bytes)).await.ok().flatten() else { return };
+        if dbg {
+            eprintln!("turtlefin : fond {id} : décodé et flouté en {} ms", t1.elapsed().as_millis());
+        }
+        {
+            let mut c = a.bg_cache.lock().unwrap();
+            c.retain(|x| x.0 != id);
+            c.push((id.clone(), buf.clone(), h));
+            if c.len() > BG_CACHE {
+                c.remove(0);
+            }
+        }
+        dwell().await;
         if a.bg_gen.load(Ordering::SeqCst) != my {
             return;
         }
+        let a2 = a.clone();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
+            // Une demande plus récente est partie entre-temps : cette image n'est plus la bonne.
+            if a2.bg_gen.load(Ordering::SeqCst) != my {
+                return;
+            }
+            bg_shown(&a2, &u, &key, h);
             // L'image va dans le calque caché, puis les deux calques s'échangent en fondu.
             let img = slint::Image::from_rgba8(buf);
             if u.get_bg_flip() {
@@ -1587,7 +1738,13 @@ fn login_opened(app: &Arc<App>) {
     let first = login_tiles(&config::load().server_id, &known_pub);
     // Aucun compte connu : rien tant que le serveur n'a pas répondu (« Autre compte » vient après les
     // comptes, seul s'il n'y en a aucun).
-    let first: Vec<_> = if first.len() > 1 { first } else { Vec::new() };
+    let mut first: Vec<_> = if first.len() > 1 { first } else { Vec::new() };
+    // Comptes du serveur pas encore connus (premier affichage de la session) : « Autre compte » attend
+    // leur arrivée. Posé tout de suite, il apparaissait, disparaissait à l'arrivée de la liste, puis
+    // revenait au bout.
+    if known_pub.is_empty() {
+        first.retain(|t| t.0 != "other");
+    }
     apply_login_tiles(&u, &first);
     let app2 = app.clone();
     app.rt.spawn(async move {
@@ -1840,6 +1997,9 @@ fn end_session_to(app: &Arc<App>, forget: bool, reopen: bool) {
     }
     app.bg_hash.store(0, Ordering::SeqCst);
     app.bg_id.lock().unwrap().clear();
+    app.bg_shown.lock().unwrap().clear();
+    // Fonds d'un autre compte ou serveur : plus gardés.
+    app.bg_cache.lock().unwrap().clear();
     // Fond d'une carte encore en chargement : il n'arrivera pas après la session (il restait derrière
     // le choix du serveur à la fin de la démonstration).
     app.bg_gen.fetch_add(1, Ordering::SeqCst);
@@ -2668,7 +2828,9 @@ async fn request_sections(app: &Arc<App>, client: &api::Client, seerr_user: i64)
 
 /// Médias d'une carte de groupe (« req:<état> » ou « watch:<bibliothèque> »), pour la grille.
 async fn group_cards(app: &Arc<App>, client: &api::Client, key: &str, filter: &str) -> anyhow::Result<Vec<api::CardInfo>> {
-    let mut cards = if let Some(status) = key.strip_prefix("req:") {
+    let mut cards = if let Some(n) = key.strip_prefix("more:") {
+        app.search_more.lock().unwrap().get(n.parse::<usize>().unwrap_or(usize::MAX)).map(|m| m.1.clone()).unwrap_or_default()
+    } else if let Some(status) = key.strip_prefix("req:") {
         let status: i32 = status.parse().unwrap_or(0);
         let Some(user) = *app.seerr_user.lock().unwrap() else { return Ok(Vec::new()) };
         let mut reqs = client.seerr_requests(user).await?;
@@ -2687,10 +2849,39 @@ async fn group_cards(app: &Arc<App>, client: &api::Client, key: &str, filter: &s
     Ok(cards)
 }
 
+/// Cartes affichées par rangée de la recherche ; au-delà, la dernière place est une carte « Afficher plus »
+/// qui ouvre toute la rangée dans la grille des bibliothèques.
+const SEARCH_ROW_MAX: usize = 12;
+
+/// Rangées de la recherche coupées à `SEARCH_ROW_MAX` cartes (la dernière : « Afficher plus ») ; les
+/// rangées entières sont retenues pour la grille (`search_more`).
+fn cap_rows(app: &Arc<App>, sections: Vec<SectionData>) -> Vec<SectionData> {
+    let mut more = Vec::new();
+    let out = sections
+        .into_iter()
+        .map(|mut s| {
+            if s.cards.len() > SEARCH_ROW_MAX && !s.tiles {
+                let rest = s.cards.len() - (SEARCH_ROW_MAX - 1);
+                more.push((s.title.clone(), s.cards.clone()));
+                s.cards.truncate(SEARCH_ROW_MAX - 1);
+                // Sans image : l'affiche d'un des médias cachés laissait croire à ce média.
+                let mut c = group_tile(format!("group:more:{}", more.len() - 1), tr("Afficher plus").to_string(), trf("{} de plus", &[&rest]), None);
+                c.count = rest as i32;
+                s.cards.push(c);
+            }
+            s
+        })
+        .collect();
+    *app.search_more.lock().unwrap() = more;
+    out
+}
+
 /// Ouvre une carte de groupe dans la grille des bibliothèques.
 fn open_group(app: &Arc<App>, client: &api::Client, id: &str) {
     let key = id.strip_prefix("group:").unwrap_or(id);
-    let title = if let Some(status) = key.strip_prefix("req:") {
+    let title = if let Some(n) = key.strip_prefix("more:") {
+        app.search_more.lock().unwrap().get(n.parse::<usize>().unwrap_or(usize::MAX)).map(|m| m.0.clone()).unwrap_or_default()
+    } else if let Some(status) = key.strip_prefix("req:") {
         request_state(status.parse().unwrap_or(0)).to_string()
     } else {
         let lib = key.strip_prefix("watch:").unwrap_or(key);
@@ -2733,6 +2924,7 @@ fn refresh_sections(app: &Arc<App>, client: &api::Client, sections: Vec<SectionD
 /// Rangées de cartes de l'accueil (`search` = false) ou des résultats de recherche.
 fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>, search: bool, quiet: Option<String>) {
     let ui = app.ui();
+    let sections = if search { cap_rows(app, sections) } else { sections };
 
     // Dimensions : voir card-w et SectionRow dans app.slint (rangée = 132 px x k + image).
     let k = if app.tv() { 1.4_f32 } else { 1.0 };
@@ -2872,25 +3064,99 @@ fn present_rows(app: &Arc<App>, client: &api::Client, sections: Vec<SectionData>
 // ---------------------------------------------------------------------------
 /// Informations de l'onglet « Détails » de la fiche : genres, studios, réalisation, scénario, production,
 /// tags, langues audio (ce que le serveur connaît ; un épisode ou une saison n'en portent que peu).
-fn detail_facts(item: &api::Item) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
-    let mut add = |label: &str, names: Vec<&str>| {
+/// Genres, studios et tags : en pastilles (sorte de filtre de la recherche avancée : 1 genre · 2 tag ·
+/// 3 studio) ; réalisation, scénario, production, musique : pastilles de personnes (sorte 4, recherche par
+/// nom) ; les langues audio : du texte (sorte 0).
+fn detail_facts(item: &api::Item) -> Vec<(String, String, u8, Vec<String>)> {
+    let mut out: Vec<(String, String, u8, Vec<String>)> = Vec::new();
+    let mut add = |label: &str, names: Vec<&str>, sort: u8| {
         if !names.is_empty() {
-            out.push((label.to_string(), names.join(", ")));
+            let chips = if sort > 0 { names.iter().map(|n| n.to_string()).collect() } else { Vec::new() };
+            out.push((label.to_string(), names.join(", "), sort, chips));
         }
     };
-    add(tr("Genres"), item.genres.iter().map(String::as_str).collect());
-    add(tr("Studios"), item.studios.iter().map(|s| s.name.as_str()).collect());
+    add(tr("Genres"), item.genres.iter().map(String::as_str).collect(), 1);
+    add(tr("Studios"), item.studios.iter().map(|s| s.name.as_str()).collect(), 3);
     let people = item.people.as_deref().unwrap_or_default();
     let of = |kind: &str| people.iter().filter(|p| p.kind.as_deref() == Some(kind)).map(|p| p.name.as_str()).collect::<Vec<_>>();
-    add(tr("Réalisation"), of("Director"));
-    add(tr("Scénario"), of("Writer"));
-    add(tr("Production"), of("Producer"));
-    add(tr("Musique"), of("Composer"));
-    add(tr("Tags"), item.tags.iter().map(String::as_str).collect());
+    add(tr("Réalisation"), of("Director"), 4);
+    add(tr("Scénario"), of("Writer"), 4);
+    add(tr("Production"), of("Producer"), 4);
+    add(tr("Musique"), of("Composer"), 4);
+    add(tr("Tags"), item.tags.iter().map(String::as_str).collect(), 2);
     let langs = item.audio_langs();
-    add(tr("Langues audio"), langs.iter().map(String::as_str).collect());
+    // Langues audio : pastilles avec leur drapeau (sorte 5, rien à rechercher).
+    add(tr("Langues audio"), langs.iter().map(String::as_str).collect(), 5);
     out
+}
+
+/// Lignes de l'onglet Détails pour l'interface ; retient leurs pastilles (voir `fact_chip`).
+fn fact_rows(app: &Arc<App>, facts: Vec<(String, String, u8, Vec<String>)>) -> (Vec<FactData>, i32) {
+    let mut all: Vec<(u8, String)> = Vec::new();
+    let rows = facts
+        .into_iter()
+        .map(|(label, value, sort, chips)| {
+            let first = all.len() as i32;
+            all.extend(chips.iter().map(|c| (sort, c.clone())));
+            FactData {
+                label: label.into(),
+                value: value.into(),
+                kind: sort as i32,
+                first,
+                chips: ModelRc::new(VecModel::from(chips.into_iter().map(slint::SharedString::from).collect::<Vec<_>>())),
+            }
+        })
+        .collect();
+    let n = all.len() as i32;
+    *app.fact_chips.lock().unwrap() = all;
+    *app.fact_pos.lock().unwrap() = vec![(0.0, -1.0); n as usize];
+    (rows, n)
+}
+
+/// ↑ (dir -1) ou ↓ (dir 1) depuis la pastille `from` de l'onglet Détails : la pastille de la ligne affichée
+/// juste au-dessus ou en dessous (lignes que forment les pastilles qui vont à la ligne, pas seulement les
+/// genres, studios, tags…), la plus proche en largeur. -1 : plus rien de ce côté.
+fn chip_step(app: &Arc<App>, from: i32, dir: i32) -> i32 {
+    let pos = app.fact_pos.lock().unwrap();
+    let Some(&(fx, fy)) = pos.get(from.max(0) as usize) else { return -1 };
+    let beyond = |y: f32| if dir > 0 { y > fy + 4.0 } else { y < fy - 4.0 && y >= 0.0 };
+    // Ligne visée : la plus proche de ce côté.
+    let Some(line) = pos.iter().map(|p| p.1).filter(|&y| beyond(y)).reduce(|a, b| if dir > 0 { a.min(b) } else { a.max(b) }) else {
+        return -1;
+    };
+    pos.iter()
+        .enumerate()
+        .filter(|(_, p)| (p.1 - line).abs() <= 4.0)
+        .min_by(|a, b| (a.1 .0 - fx).abs().total_cmp(&(b.1 .0 - fx).abs()))
+        .map_or(-1, |(i, _)| i as i32)
+}
+
+/// Pastille de l'onglet Détails touchée (genre, tag, studio) : la recherche s'ouvre sur ce seul filtre,
+/// sans texte (tout ce qui le porte, sur le serveur). Une personne : la recherche sur son nom.
+fn fact_chip(app: &Arc<App>, i: i32) {
+    let Some((sort, name)) = app.fact_chips.lock().unwrap().get(i.max(0) as usize).cloned() else { return };
+    // Langue audio : seulement affichée.
+    if sort == 5 {
+        return;
+    }
+    if sort == 4 {
+        search_person(app, &name);
+        return;
+    }
+    let Some(u) = app.ui().upgrade() else { return };
+    {
+        let mut f = app.search_filter.lock().unwrap();
+        *f = SearchFilter::default();
+        f.on = true;
+        f.list(sort as u64).push(name.clone());
+        f.note(sort, &name, true);
+    }
+    u.set_s_adv(true);
+    filter_chips(app, &u);
+    u.set_search_text("".into());
+    open_search(app);
+    u.set_s_field(false);
+    search_changed(app, String::new());
 }
 
 /// Personne de la distribution touchée : la recherche s'ouvre sur son nom (rangée « Avec … »).
@@ -5104,21 +5370,50 @@ fn search_changed(app: &Arc<App>, text: String) {
         }
         // Genres, tags et studios choisis ne valent que pour la bibliothèque : Seerr et les rangées par
         // personne ne sont pas interrogés. Un type choisi seul filtre aussi Seerr.
-        let (from_seerr, by_people) = tokio::join!(
+        let (from_seerr, by_people, seerr_people) = tokio::join!(
             // Seerr aussi avec des filtres (il ne connaît pas les genres et tags du serveur : la rangée le dit).
             async { if ask_seerr { client.seerr_search(&term, kind).await } else { Vec::new() } },
             async { if !lists && kind == 0 { client.search_people(&term).await } else { Vec::new() } },
+            // Personne trouvée par Seerr : toute sa filmographie absente du serveur (rangée à part).
+            async { if ask_seerr && !lists { client.seerr_people(&term, kind).await } else { Vec::new() } },
         );
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
-        let more = !from_seerr.is_empty() || !by_people.is_empty();
+        let more = !from_seerr.is_empty() || !by_people.is_empty() || !seerr_people.is_empty();
         for (title, of) in by_people {
             push_section(&mut sections, &title, false, Ok(of));
         }
+        // Ce que la recherche Seerr trouve et qui est déjà dans la filmographie d'une personne n'y est montré
+        // qu'une fois (dans la rangée de la personne).
+        let in_people: std::collections::HashSet<String> =
+            seerr_people.iter().flat_map(|p| p.main.iter().chain(&p.guest)).map(|c| c.id.clone()).collect();
+        // Page Seerr ouverte depuis ces rangées : la personne en tête de la distribution (voir open_seerr).
+        {
+            let mut roles = app2.seerr_roles.lock().unwrap();
+            for p in &seerr_people {
+                for (id, role) in &p.parts {
+                    roles.insert(id.clone(), (p.name.clone(), role.clone(), p.photo.clone()));
+                }
+            }
+        }
+        let from_seerr: Vec<_> = from_seerr.into_iter().filter(|c| !in_people.contains(&c.id)).collect();
         if !from_seerr.is_empty() {
             let title = if lists { tr("À demander (Seerr, sans les filtres)") } else { tr("À demander (Seerr)") };
             sections.push(SectionData { title: title.into(), landscape: false, tiles: false, cards: from_seerr });
+        }
+        for api::SeerrPerson { name, main, guest, .. } in seerr_people {
+            if !main.is_empty() {
+                sections.push(SectionData { title: trf("À demander : avec {}", &[&name]).into(), landscape: false, tiles: false, cards: main });
+            }
+            if !guest.is_empty() {
+                sections.push(SectionData {
+                    title: trf("À demander : apparitions de {}", &[&name]).into(),
+                    landscape: false,
+                    tiles: false,
+                    cards: guest,
+                });
+            }
         }
         show_search_counts(&app2, &sections, true, ask_seerr);
         // Ajout : la sélection reste où elle est.
@@ -5166,7 +5461,14 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
     }
     let app2 = app.clone();
     app.rt.spawn(async move {
-        let d = match client.seerr_details(tv, tmdb).await {
+        let focus = app2.seerr_roles.lock().unwrap().get(&api::seerr_id(tv, tmdb)).cloned();
+        // Erreur passagère (réseau, Seerr qui répond 500) : un second essai avant de l'afficher.
+        let mut got = client.seerr_details(tv, tmdb, focus.clone()).await;
+        if got.is_err() {
+            tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+            got = client.seerr_details(tv, tmdb, focus).await;
+        }
+        let d = match got {
             Ok(d) => d,
             Err(e) => {
                 let msg = trf("Seerr : {}", &[&human_err(&e)]);
@@ -5226,7 +5528,7 @@ fn open_seerr(app: &Arc<App>, tv: bool, tmdb: i64) {
                 length: d.length.clone().into(),
                 rating: d.rating.clone().into(),
                 facts: ModelRc::new(VecModel::from(
-                    d.facts.iter().map(|(k, v)| FactData { label: k.clone().into(), value: v.clone().into() }).collect::<Vec<_>>(),
+                    d.facts.iter().map(|(k, v)| FactData { label: k.clone().into(), value: v.clone().into(), ..Default::default() }).collect::<Vec<_>>(),
                 )),
                 status: status_text.into(),
                 state,
@@ -5374,6 +5676,18 @@ fn open_library_at(app: &Arc<App>, client: &api::Client, lib_id: String, ctype: 
         Some((id, sel)) if id == lib_id => Some(sel),
         _ => None,
     };
+    // Autre page de la grille : plus de sélection (un retour depuis une fiche la garde).
+    if back_to.is_none() {
+        app.picks.lock().unwrap().clear();
+        let _ = app.ui().upgrade_in_event_loop(|u| {
+            u.set_pick_mode(false);
+            u.set_pick_btn(-1);
+            u.set_lib_picked(ModelRc::default());
+            u.set_pick_n(0);
+            u.set_pick_req(0);
+            u.set_pick_dl(0);
+        });
+    }
     *app.library.lock().unwrap() = Some((lib_id, ctype, 0, 0));
     // Retour d'une fiche : le filtre tapé avant reste (la sélection est comptée dedans) ; sinon, effacé.
     if back_to.is_none() {
@@ -5864,6 +6178,9 @@ fn ident_apply(app: &Arc<App>, i: usize) {
 // ---------------------------------------------------------------------------
 fn open_servers(app: &Arc<App>) {
     if let Some(u) = app.ui().upgrade() {
+        // Tout premier démarrage (aucun compte, aucune session) : la visite guidée est proposée ici ;
+        // ensuite, seulement dans les Paramètres (« Revoir la visite »).
+        u.set_srv_first(config::accounts().is_empty() && config::load().server.is_empty());
         u.set_srv_sel(0);
         u.set_manual_open(false);
         u.set_choice_a("".into());
@@ -8751,6 +9068,11 @@ fn push_detail(app: &Arc<App>, id: String) {
     }
     if let Some(u) = app.ui().upgrade() {
         cache_current_page(app, &u);
+        // Depuis la recherche ou les téléchargements, la pile repart d'eux : une fiche ouverte avant (la
+        // recherche lancée depuis une fiche) n'est plus sur le chemin du retour, qui ramène ici.
+        if matches!(u.get_screen().as_str(), "search" | "downloads") && !app.opening.load(Ordering::SeqCst) {
+            app.stack.lock().unwrap().clear();
+        }
         if app.stack.lock().unwrap().is_empty() {
             // Page d'où part la pile : le dernier retour y ramène (sinon : l'accueil).
             let screen = u.get_screen();
@@ -8935,7 +9257,7 @@ fn start_detail(app: &Arc<App>, id: String) {
 
 /// Fiche d'une série : saisons absentes du serveur et pas encore demandées -> bouton « Demander ».
 async fn add_missing_seasons_button(app: Arc<App>, client: api::Client, id: String, tmdb: i64) {
-    let Ok(d) = client.seerr_details(true, tmdb).await else { return };
+    let Ok(d) = client.seerr_details(true, tmdb, None).await else { return };
     if d.missing_seasons.is_empty() {
         return;
     }
@@ -9379,6 +9701,7 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
     let page_bg = page_backdrop(&app, &client, &item_id).await;
     let app3 = app.clone();
     let _ = ui.upgrade_in_event_loop(move |u| {
+        let fact_rows = fact_rows(&app3, facts);
         let detail = DetailData {
             id: id_for_ui.into(),
             title: title.into(),
@@ -9391,9 +9714,8 @@ async fn load_detail(app: Arc<App>, client: api::Client, id: String, my_gen: u64
             stat_time: stat_time.into(),
             stat_date: stat_date.into(),
             stat_age: stat_age.into(),
-            facts: ModelRc::new(VecModel::from(
-                facts.into_iter().map(|(label, value)| FactData { label: label.into(), value: value.into() }).collect::<Vec<_>>(),
-            )),
+            facts: ModelRc::new(VecModel::from(fact_rows.0)),
+            fact_chips: fact_rows.1,
             overview: overview.into(),
             expect_logo,
             logo_key: logo_key.into(),
@@ -10281,7 +10603,9 @@ impl Swipe {
                 u.global::<Nav>().set_drag(false);
                 // Souris dans un champ de saisie ou pendant la lecture : glisser sélectionne du texte, ou
                 // la barre de lecture ; pas de geste.
-                if !finger && (u.get_playing() || u.get_screen() == "login") {
+                // Grille des bibliothèques : glisser à la souris choisit les cartes survolées (sélection de
+                // plusieurs) ; la molette fait défiler.
+                if !finger && (u.get_playing() || u.get_screen() == "login" || u.get_screen() == "library") {
                     self.id = None;
                     return false;
                 }
@@ -10836,6 +11160,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
         bg_hash: AtomicU64::new(0),
         stack_base: Mutex::new(String::new()),
         bg_gen: AtomicU64::new(0),
+        bg_cache: Mutex::new(Vec::new()),
+        bg_rush: Mutex::new(String::new()),
+        bg_shown: Mutex::new(String::new()),
         banner_pick: Mutex::new(None),
         trick: Mutex::new(TrickState::default()),
         pending_server: Mutex::new(None),
@@ -10850,6 +11177,14 @@ pub(crate) fn main() -> anyhow::Result<()> {
         pw_cur: Mutex::new(String::new()),
         pw_new: Mutex::new(String::new()),
         login_pub: Mutex::new(Vec::new()),
+        fact_chips: Mutex::new(Vec::new()),
+        fact_pos: Mutex::new(Vec::new()),
+        search_more: Mutex::new(Vec::new()),
+        picks: Mutex::new(std::collections::HashSet::new()),
+        pick_last: Mutex::new(None),
+        pick_drag: Mutex::new(None),
+        seerr_roles: Mutex::new(std::collections::HashMap::new()),
+        hero_origins: Mutex::new(std::collections::HashMap::new()),
         detail_kind: Mutex::new(String::new()),
         lx_dir: Mutex::new(std::path::PathBuf::new()),
         lib_title: Mutex::new((String::new(), true)),
@@ -11134,7 +11469,22 @@ pub(crate) fn main() -> anyhow::Result<()> {
 
     ui.on_backdrop_for({
         let app = app.clone();
-        move |id| set_backdrop(&app, id.to_string())
+        move |id, banner| set_backdrop(&app, id.to_string(), banner)
+    });
+    ui.on_backdrop_now({
+        let app = app.clone();
+        move |id, banner| {
+            // Pas de fond d'écran (réglage) : l'image qui vole n'a rien à attendre.
+            if NO_BACKDROP.load(Ordering::Relaxed) {
+                if let Some(u) = app.ui().upgrade() {
+                    u.set_bg_now(id.clone());
+                }
+            }
+            // Seerr, personnes, groupes : rien (leur page a son propre fond, ou aucun).
+            if !id.contains(':') {
+                set_backdrop_after(&app, id.to_string(), Some(0), banner);
+            }
+        }
     });
 
 
@@ -11465,7 +11815,9 @@ pub(crate) fn main() -> anyhow::Result<()> {
     });
 
     // Le menu (vu, non vu…) ne vaut que pour un média du serveur.
-    ui.on_card_menu_ok(|id| !(id.starts_with("person:") || id.starts_with("jfperson:") || id.starts_with("seerrcol:") || id.starts_with("seerr:") || id.starts_with("group:") || id.starts_with("empty:")));
+    // Médias de Seerr : un menu aussi (Demander, Sélectionner).
+    ui.on_card_menu_ok(|id| !(id.starts_with("person:") || id.starts_with("jfperson:") || id.starts_with("seerrcol:") || id.starts_with("group:") || id.starts_with("empty:")));
+    ui.on_pick_kind(|id| pick_kind(id.as_str()) as i32);
     ui.on_is_empty_card(|id| id.starts_with("empty:"));
     ui.on_card_is_lib({
         let app = app.clone();
@@ -11548,6 +11900,59 @@ pub(crate) fn main() -> anyhow::Result<()> {
                 let _ = slint::quit_event_loop();
             }
         }
+    });
+
+    // Pastille de l'onglet Détails (genre, tag, studio) : recherche filtrée.
+    ui.on_fact_chip({
+        let app = app.clone();
+        move |i| fact_chip(&app, i)
+    });
+    ui.on_chip_place({
+        let app = app.clone();
+        move |i, x, y| {
+            if let Some(p) = app.fact_pos.lock().unwrap().get_mut(i.max(0) as usize) {
+                *p = (x, y);
+            }
+        }
+    });
+    ui.on_hero_origin({
+        let app = app.clone();
+        move |id, x, y| {
+            app.hero_origins.lock().unwrap().insert(id.to_string(), (x, y));
+        }
+    });
+    ui.on_hero_origin_of({
+        let app = app.clone();
+        move |id| match app.hero_origins.lock().unwrap().get(id.as_str()) {
+            Some(&(x, y)) => HeroSpot { x, y, known: true },
+            None => HeroSpot::default(),
+        }
+    });
+    ui.on_lib_pick({
+        let app = app.clone();
+        move |i| lib_pick(&app, i)
+    });
+    ui.on_lib_drag({
+        let app = app.clone();
+        move |a, b, on| lib_drag(&app, a, b, on)
+    });
+    ui.on_lib_drag_end({
+        let app = app.clone();
+        move || {
+            app.pick_drag.lock().unwrap().take();
+        }
+    });
+    ui.on_lib_pick_set({
+        let app = app.clone();
+        move |i, on| lib_pick_set(&app, i, on)
+    });
+    ui.on_pick_act({
+        let app = app.clone();
+        move |a| pick_act(&app, a.as_str())
+    });
+    ui.on_chip_step({
+        let app = app.clone();
+        move |from, dir| chip_step(&app, from, dir)
     });
 
     ui.on_open_item({
@@ -12075,6 +12480,306 @@ fn leave_party_blocking(app: &Arc<App>, rt: &tokio::runtime::Runtime) {
 // Téléchargements (lecture hors ligne)
 // ---------------------------------------------------------------------------
 
+/// Sorte d'une carte de la grille pour la sélection : 1 à demander (Seerr), 2 à télécharger (média du
+/// serveur), 0 ni l'un ni l'autre (personne, groupe, collection de Seerr…).
+fn pick_kind(id: &str) -> u8 {
+    if id.starts_with("seerr:") {
+        1
+    } else if id.is_empty() || id.contains(':') {
+        0
+    } else {
+        2
+    }
+}
+
+/// Cartes choisies redonnées à l'interface (une case par carte de la grille) avec leurs comptes.
+fn show_picks(app: &Arc<App>, u: &AppWindow) {
+    let picks = app.picks.lock().unwrap();
+    let items = u.get_lib_items();
+    let flags: Vec<bool> = (0..items.row_count()).map(|i| items.row_data(i).is_some_and(|c| picks.contains(c.id.as_str()))).collect();
+    u.set_lib_picked(ModelRc::new(VecModel::from(flags)));
+    u.set_pick_n(picks.len() as i32);
+    u.set_pick_req(picks.iter().filter(|id| pick_kind(id) == 1).count() as i32);
+    u.set_pick_dl(picks.iter().filter(|id| pick_kind(id) == 2).count() as i32);
+}
+
+/// Carte n° i de la grille choisie, ou plus choisie (sélection de plusieurs).
+fn lib_pick(app: &Arc<App>, i: i32) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let Some(c) = u.get_lib_items().row_data(i.max(0) as usize) else { return };
+    let id = c.id.to_string();
+    if pick_kind(&id) == 0 {
+        u.set_toast(tr("Ni à demander ni à télécharger.").into());
+        return;
+    }
+    {
+        let mut p = app.picks.lock().unwrap();
+        if !p.remove(&id) {
+            p.insert(id);
+        }
+    }
+    *app.pick_last.lock().unwrap() = Some(i.max(0) as usize);
+    show_picks(app, &u);
+}
+
+/// Glisser à la souris de la carte `a` à la carte `b` : toutes celles entre les deux (ordre de la grille)
+/// choisies (`on`) ou retirées, les autres comme avant le glisser ; la sélection commence au besoin.
+fn lib_drag(app: &Arc<App>, a: i32, b: i32, on: bool) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let items = u.get_lib_items();
+    {
+        let mut p = app.picks.lock().unwrap();
+        let mut base = app.pick_drag.lock().unwrap();
+        let before = base.get_or_insert_with(|| if u.get_pick_mode() { p.clone() } else { Default::default() }).clone();
+        *p = before;
+        let (lo, hi) = (a.min(b).max(0) as usize, a.max(b).max(0) as usize);
+        for i in lo..=hi {
+            let Some(c) = items.row_data(i) else { continue };
+            if pick_kind(&c.id) == 0 {
+                continue;
+            }
+            if on {
+                p.insert(c.id.to_string());
+            } else {
+                p.remove(c.id.as_str());
+            }
+        }
+    }
+    if !u.get_pick_mode() {
+        u.set_pick_mode(true);
+        u.set_pick_btn(-1);
+    }
+    *app.pick_last.lock().unwrap() = Some(b.max(0) as usize);
+    show_picks(app, &u);
+}
+
+/// La carte n° i choisie (`on`) ou retirée ; la sélection commence au besoin.
+fn lib_pick_set(app: &Arc<App>, i: i32, on: bool) {
+    let Some(u) = app.ui().upgrade() else { return };
+    let Some(c) = u.get_lib_items().row_data(i.max(0) as usize) else { return };
+    let id = c.id.to_string();
+    if pick_kind(&id) == 0 {
+        return;
+    }
+    {
+        let mut p = app.picks.lock().unwrap();
+        if on {
+            p.insert(id);
+        } else {
+            p.remove(&id);
+        }
+    }
+    if on && !u.get_pick_mode() {
+        u.set_pick_mode(true);
+        u.set_pick_btn(-1);
+    }
+    *app.pick_last.lock().unwrap() = Some(i.max(0) as usize);
+    show_picks(app, &u);
+}
+
+/// Barre du bas de la grille : "start" (commencer à choisir), "exit", "all" (tout / rien), "req" (demander
+/// à Seerr ce qui est choisi), "dl" (télécharger ce qui est choisi).
+fn pick_act(app: &Arc<App>, action: &str) {
+    let Some(u) = app.ui().upgrade() else { return };
+    // Menu d'une carte, ou geste sur une carte (voir pick-act dans app.slint).
+    if let Some((what, arg)) = action.split_once('|') {
+        let items = u.get_lib_items();
+        let index_of = |id: &str| (0..items.row_count()).find(|&i| items.row_data(i).is_some_and(|c| c.id.as_str() == id));
+        match what {
+            // Commencer la sélection sur cette carte, ou l'ajouter / la retirer.
+            "pick" => {
+                if pick_kind(arg) == 0 {
+                    u.set_toast(tr("Ni à demander ni à télécharger.").into());
+                    return;
+                }
+                if !u.get_pick_mode() {
+                    app.picks.lock().unwrap().clear();
+                    u.set_pick_mode(true);
+                    u.set_pick_btn(-1);
+                }
+                {
+                    let mut p = app.picks.lock().unwrap();
+                    if !p.remove(arg) {
+                        p.insert(arg.to_string());
+                    }
+                }
+                *app.pick_last.lock().unwrap() = index_of(arg);
+                show_picks(app, &u);
+            }
+            // Maj + clic : toutes les cartes entre la dernière choisie et celle-ci.
+            "range" => {
+                let to: usize = arg.parse().unwrap_or(0);
+                let from = app.pick_last.lock().unwrap().unwrap_or(to);
+                {
+                    let mut p = app.picks.lock().unwrap();
+                    for i in from.min(to)..=from.max(to) {
+                        if let Some(c) = items.row_data(i) {
+                            if pick_kind(&c.id) > 0 {
+                                p.insert(c.id.to_string());
+                            }
+                        }
+                    }
+                }
+                *app.pick_last.lock().unwrap() = Some(to);
+                show_picks(app, &u);
+            }
+            // Demander / télécharger depuis le menu : la carte seule, ou toute la sélection si elle en fait partie.
+            "one-req" | "one-dl" => {
+                let want = if what == "one-req" { 1 } else { 2 };
+                let in_sel = u.get_pick_mode() && app.picks.lock().unwrap().contains(arg);
+                if in_sel {
+                    pick_act(app, if want == 1 { "req" } else { "dl" });
+                    return;
+                }
+                let Some(client) = app.client() else { return };
+                u.set_toast(if want == 1 { tr("Demandes en cours…") } else { tr("Ajout aux téléchargements…") }.into());
+                let (app2, ids) = (app.clone(), vec![arg.to_string()]);
+                app.rt.spawn(async move {
+                    let msg = if want == 1 { pick_requests(&app2, &client, ids).await } else { pick_downloads(&app2, &client, ids).await };
+                    let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+                });
+            }
+            _ => {}
+        }
+        return;
+    }
+    match action {
+        "exit" => {
+            app.picks.lock().unwrap().clear();
+            u.set_pick_mode(false);
+            u.set_pick_btn(-1);
+            show_picks(app, &u);
+        }
+        "all" => {
+            let items = u.get_lib_items();
+            let all: Vec<String> = (0..items.row_count()).filter_map(|i| items.row_data(i)).map(|c| c.id.to_string()).filter(|id| pick_kind(id) > 0).collect();
+            {
+                let mut p = app.picks.lock().unwrap();
+                if all.iter().all(|id| p.contains(id)) {
+                    p.clear();
+                } else {
+                    p.extend(all);
+                }
+            }
+            show_picks(app, &u);
+        }
+        "req" | "dl" => {
+            let want = if action == "req" { 1 } else { 2 };
+            let ids: Vec<String> = app.picks.lock().unwrap().iter().filter(|id| pick_kind(id) == want).cloned().collect();
+            if ids.is_empty() {
+                u.set_toast(if want == 1 { tr("Rien à demander dans la sélection.") } else { tr("Rien à télécharger dans la sélection.") }.into());
+                return;
+            }
+            let Some(client) = app.client() else { return };
+            // Ce qui part est retiré de la sélection ; la sélection se termine quand il n'y a plus rien.
+            {
+                let mut p = app.picks.lock().unwrap();
+                for id in &ids {
+                    p.remove(id);
+                }
+                if p.is_empty() {
+                    u.set_pick_mode(false);
+                    u.set_pick_btn(-1);
+                }
+            }
+            show_picks(app, &u);
+            u.set_toast(if want == 1 { tr("Demandes en cours…") } else { tr("Ajout aux téléchargements…") }.into());
+            let app2 = app.clone();
+            app.rt.spawn(async move {
+                let msg = if want == 1 { pick_requests(&app2, &client, ids).await } else { pick_downloads(&app2, &client, ids).await };
+                let _ = app2.ui().upgrade_in_event_loop(move |u| u.set_toast(msg.into()));
+            });
+        }
+        _ => {}
+    }
+}
+
+/// Demande à Seerr chaque média choisi (série : les saisons qui manquent) ; rend le message à afficher.
+async fn pick_requests(app: &Arc<App>, client: &api::Client, ids: Vec<String>) -> String {
+    let (mut sent, mut failed) = (0, 0);
+    for id in ids {
+        let rest = id.strip_prefix("seerr:").unwrap_or("");
+        let (kind, tmdb) = rest.split_once(':').unwrap_or(("movie", "0"));
+        let (tv, tmdb) = (kind == "tv", tmdb.parse::<i64>().unwrap_or(0));
+        let r = if tv {
+            match client.seerr_details(true, tmdb, None).await {
+                Ok(d) if d.jellyfin_id.is_some() || d.seasons.is_empty() => Ok(()),
+                Ok(d) => client.seerr_request(true, tmdb, &d.seasons).await,
+                Err(e) => Err(e),
+            }
+        } else {
+            client.seerr_request(false, tmdb, &[]).await
+        };
+        match r {
+            Ok(()) => sent += 1,
+            Err(e) => {
+                eprintln!("turtlefin : demande Seerr {id} : {e:#}");
+                failed += 1;
+            }
+        }
+    }
+    if sent > 0 {
+        let user = *app.seerr_user.lock().unwrap();
+        if let Some(user) = user {
+            if let Ok(list) = client.seerr_requests(user).await {
+                store_reqs(app, list);
+            }
+        }
+        app.home_stale.store(true, Ordering::SeqCst);
+    }
+    match (sent, failed) {
+        (s, 0) => trf("Demandes envoyées : {}.", &[&s]),
+        (0, f) => trf("Demandes impossibles : {}.", &[&f]),
+        (s, f) => trf("Demandes envoyées : {} · impossibles : {}.", &[&s, &f]),
+    }
+}
+
+/// Met en téléchargement chaque média choisi (série, saison : tous leurs épisodes) ; rend le message.
+async fn pick_downloads(app: &Arc<App>, client: &api::Client, ids: Vec<String>) -> String {
+    let mut added = 0;
+    for id in ids {
+        let Ok(item) = client.item(&id).await else { continue };
+        let list = download_list(client, item).await;
+        added += enqueue_downloads(app, list);
+    }
+    persist_dl_queue(app);
+    run_downloads(app, client);
+    if added > 0 {
+        trf("Ajouté aux téléchargements : {}.", &[&added])
+    } else {
+        tr("Déjà téléchargé ou dans la file.").to_string()
+    }
+}
+
+/// Ce que télécharge un média : lui-même (film, épisode), ou tous les épisodes d'une saison / série.
+async fn download_list(client: &api::Client, item: api::Item) -> Vec<api::Item> {
+    match item.kind.as_str() {
+        "Series" => client.episodes(&item.id, None).await.unwrap_or_default(),
+        "Season" => match &item.series_id {
+            Some(sid) => client.episodes(sid, Some(&item.id)).await.unwrap_or_default(),
+            None => Vec::new(),
+        },
+        _ => vec![item],
+    }
+}
+
+/// Met des épisodes / films dans la file de téléchargement (sauf ce qui y est déjà, ou déjà téléchargé) ;
+/// rend le nombre ajouté.
+fn enqueue_downloads(app: &Arc<App>, list: Vec<api::Item>) -> usize {
+    let mut added = 0;
+    let mut q = app.dl_queue.lock().unwrap();
+    let current = app.dl_current.lock().unwrap().as_ref().map(|c| c.0.clone());
+    for it in list {
+        let already = downloads::exists(&it.id) || q.iter().any(|(i, _)| *i == it.id) || current.as_deref() == Some(it.id.as_str());
+        if !already {
+            let (t, s) = it.titles();
+            q.push_back((it.id.clone(), if s.is_empty() { t } else { format!("{t} · {s}") }));
+            added += 1;
+        }
+    }
+    added
+}
+
 /// Bouton Télécharger de la fiche : film / épisode, ou tous les épisodes d'une saison / série.
 fn start_download(app: &Arc<App>) {
     let Some(client) = app.client() else { return };
@@ -12082,14 +12787,7 @@ fn start_download(app: &Arc<App>) {
     let app2 = app.clone();
     app.rt.spawn(async move {
         let Ok(item) = client.item(&id).await else { return };
-        let list: Vec<api::Item> = match item.kind.as_str() {
-            "Series" => client.episodes(&item.id, None).await.unwrap_or_default(),
-            "Season" => match &item.series_id {
-                Some(sid) => client.episodes(sid, Some(&item.id)).await.unwrap_or_default(),
-                None => Vec::new(),
-            },
-            _ => vec![item],
-        };
+        let list = download_list(&client, item).await;
         // Déjà en cours ou en attente : un nouvel appui sur ⬇ annule (l'élément, ou toute la série / saison).
         let ids: Vec<String> = list.iter().map(|i| i.id.clone()).collect();
         let pending_cur = app2.dl_current.lock().unwrap().as_ref().map(|c| c.0.clone()).filter(|c| ids.contains(c));
@@ -12117,19 +12815,7 @@ fn start_download(app: &Arc<App>) {
             run_downloads(&app2, &client);
             return;
         }
-        let mut added = 0;
-        {
-            let mut q = app2.dl_queue.lock().unwrap();
-            let current = app2.dl_current.lock().unwrap().as_ref().map(|c| c.0.clone());
-            for it in list {
-                let already = downloads::exists(&it.id) || q.iter().any(|(i, _)| *i == it.id) || current.as_deref() == Some(it.id.as_str());
-                if !already {
-                    let (t, s) = it.titles();
-                    q.push_back((it.id.clone(), if s.is_empty() { t } else { format!("{t} · {s}") }));
-                    added += 1;
-                }
-            }
-        }
+        let added = enqueue_downloads(&app2, list);
         let msg = if added > 0 {
             trf("Ajouté aux téléchargements ({}). Appuyez de nouveau sur Télécharger pour annuler.", &[&added])
         } else if let Some(p) = app2.dl_current.lock().unwrap().as_ref().filter(|c| c.0 == id).map(|c| c.2) {
@@ -12697,17 +13383,23 @@ fn set_local_backdrop(app: &Arc<App>, key: String, path: std::path::PathBuf) {
         if *cur == key {
             return;
         }
-        *cur = key;
+        *cur = key.clone();
     }
     let my = app.bg_gen.fetch_add(1, Ordering::SeqCst) + 1;
     let a = app.clone();
     app.rt.spawn(async move {
         let Ok(bytes) = std::fs::read(&path) else { return };
+        let h = backdrop_hash(&bytes);
+        let key2 = key.clone();
         if !same_backdrop(&a, &bytes) {
             // Même image que celle déjà posée : rien à recharger, mais elle doit être visible (elle
             // pouvait rester cachée, après un changement de compte par exemple).
             if a.bg_gen.load(Ordering::SeqCst) == my {
-                let _ = a.ui().upgrade_in_event_loop(|u| u.set_bg_show(true));
+                let a2 = a.clone();
+                let _ = a.ui().upgrade_in_event_loop(move |u| {
+                    bg_shown(&a2, &u, &key2, h);
+                    u.set_bg_show(true);
+                });
             }
             return;
         }
@@ -12715,7 +13407,12 @@ fn set_local_backdrop(app: &Arc<App>, key: String, path: std::path::PathBuf) {
         if a.bg_gen.load(Ordering::SeqCst) != my {
             return;
         }
+        let a2 = a.clone();
         let _ = a.ui().upgrade_in_event_loop(move |u| {
+            if a2.bg_gen.load(Ordering::SeqCst) != my {
+                return;
+            }
+            bg_shown(&a2, &u, &key2, h);
             let img = slint::Image::from_rgba8(buf);
             if u.get_bg_flip() {
                 u.set_bg_a(img);

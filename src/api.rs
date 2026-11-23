@@ -322,6 +322,16 @@ pub fn seerr_id(tv: bool, tmdb: i64) -> String {
     format!("seerr:{}:{tmdb}", if tv { "tv" } else { "movie" })
 }
 
+/// Personne trouvée par la recherche Seerr (voir `Client::seerr_people`) : ses rôles, ses apparitions, et
+/// pour chaque carte (identifiant) le personnage qu'elle y joue.
+pub struct SeerrPerson {
+    pub name: String,
+    pub photo: Option<String>,
+    pub main: Vec<CardInfo>,
+    pub guest: Vec<CardInfo>,
+    pub parts: Vec<(String, String)>,
+}
+
 /// Noms d'une liste de `/Items/Filters2` : des textes (tags) ou des objets `{Name, Id}` (genres).
 fn filter_names(v: &serde_json::Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(|t| t.as_str().or(t["Name"].as_str()).map(str::to_string)).collect()
@@ -663,6 +673,8 @@ impl Item {
                 "kor" => "KO".to_string(),
                 "chi" | "zho" => "ZH".to_string(),
                 "rus" => "RU".to_string(),
+                "dut" | "nld" => "NL".to_string(),
+                "pol" => "PL".to_string(),
                 other => other.to_uppercase(),
             };
             if !out.contains(&label) {
@@ -706,10 +718,10 @@ impl Item {
         (score, time, date, age)
     }
 
-    /// Ligne d'informations quand les chiffres sont affichés à part (voir `stats`) : les langues audio.
+    /// Ligne d'informations quand les chiffres sont affichés à part (voir `stats`) : rien (les langues
+    /// audio sont dans l'onglet Détails, avec leur drapeau).
     pub fn misc_short(&self) -> String {
-        let langs = self.audio_langs();
-        if langs.is_empty() { String::new() } else { trf("Audio : {}", &[&langs.join(", ")]) }
+        String::new()
     }
 
     pub fn misc_line(&self) -> String {
@@ -730,10 +742,6 @@ impl Item {
         }
         if let Some(c) = self.community_rating {
             parts.push(format!("{c:.1}/10"));
-        }
-        let langs = self.audio_langs();
-        if !langs.is_empty() {
-            parts.push(trf("Audio : {}", &[&langs.join(", ")]));
         }
         parts.join("  ·  ")
     }
@@ -1790,6 +1798,88 @@ impl Client {
 
     /// Seerr : résultats absents du serveur (ceux présents sont déjà dans la recherche Jellyfin).
     /// `kind` : 0 tout · 1 films · 2 séries · 3 collections (sagas de TMDB : « Le Seigneur des anneaux »…).
+    /// Seerr : filmographie des personnes que trouve la recherche (« Bob Odenkirk ») : (nom, rôles, apparitions),
+    /// films et séries absents du serveur, les plus connus d'abord. La recherche de Seerr ne renvoie d'une
+    /// personne que trois titres « connus » ; le reste de sa carrière vient de ses crédits.
+    /// Apparition : une série où elle ne passe que dans quelques épisodes (invitée), ou un rôle où elle joue
+    /// son propre personnage, sans être créditée ou en caméo. Seerr ne donne pas le rang au générique d'un
+    /// film : un film où elle a un vrai personnage compte comme un rôle.
+    /// `kind` : 0 tout · 1 films · 2 séries (3, collections : rien).
+    pub async fn seerr_people(&self, term: &str, kind: u8) -> Vec<SeerrPerson> {
+        if kind == 3 {
+            return Vec::new();
+        }
+        let Ok(v) = self.get::<serde_json::Value>("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await else {
+            return Vec::new();
+        };
+        // Deux personnes au plus, et seulement celles dont le nom contient ce qu'on a tapé (pas une
+        // personne remontée par un titre).
+        let lower = term.to_lowercase();
+        let people: Vec<(i64, String, Option<String>)> = v["results"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r["mediaType"].as_str() == Some("person"))
+            .filter_map(|r| Some((r["id"].as_i64()?, r["name"].as_str()?.to_string(), tmdb_img(r["profilePath"].as_str(), "w185"))))
+            .filter(|(_, n, _)| n.to_lowercase().contains(&lower) || lower.contains(&n.to_lowercase()))
+            .take(2)
+            .collect();
+        let credits = futures_util::future::join_all(people.iter().map(|(id, ..)| async move {
+            self.get::<serde_json::Value>(&format!("/JellyfinEnhanced/jellyseerr/person/{id}/combined_credits"), &[]).await
+        }))
+        .await;
+        let mut out = Vec::new();
+        for ((_, name, photo), c) in people.into_iter().zip(credits) {
+            let Ok(c) = c else { continue };
+            let mut roles: Vec<&serde_json::Value> = c["cast"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|r| match r["mediaType"].as_str() {
+                    Some("movie") => kind <= 1,
+                    Some("tv") => kind == 0 || kind == 2,
+                    _ => false,
+                })
+                // Déjà sur le serveur : dans les résultats de la bibliothèque (rangée « Avec … »).
+                .filter(|r| !r["mediaInfo"]["jellyfinMediaId"].as_str().is_some_and(|s| !s.is_empty()))
+                // Émissions (talk-shows, actualités) où la personne passe en invitée.
+                .filter(|r| !r["genreIds"].as_array().is_some_and(|g| g.iter().any(|x| matches!(x.as_i64(), Some(10763 | 10767)))))
+                .collect();
+            roles.sort_by(|a, b| {
+                let p = |r: &serde_json::Value| r["popularity"].as_f64().unwrap_or(0.0);
+                p(b).partial_cmp(&p(a)).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let cameo = |r: &serde_json::Value| {
+                let c = r["character"].as_str().unwrap_or("").to_lowercase();
+                let guest = r["mediaType"].as_str() == Some("tv") && r["episodeCount"].as_i64().is_some_and(|n| n < 4);
+                guest || ["self", "himself", "herself", "uncredited", "cameo"].iter().any(|w| c.contains(w))
+            };
+            let mut seen = std::collections::HashSet::new();
+            let (mut main, mut guest, mut parts) = (Vec::new(), Vec::new(), Vec::new());
+            for r in roles {
+                if !seen.insert((r["mediaType"].as_str().unwrap_or("").to_string(), r["id"].as_i64())) {
+                    continue;
+                }
+                let to = if cameo(r) { &mut guest } else { &mut main };
+                if to.len() >= 40 {
+                    continue;
+                }
+                let Some(mut card) = seerr_card(r) else { continue };
+                // Série : dans combien d'épisodes (Seerr ne dit pas lesquels).
+                if let Some(n) = r["episodeCount"].as_i64().filter(|_| r["mediaType"].as_str() == Some("tv")).filter(|n| *n > 0) {
+                    let eps = if n == 1 { tr("1 épisode").to_string() } else { trf("{} épisodes", &[&n]) };
+                    card.subtitle = format!("{} · {eps}", card.subtitle);
+                }
+                parts.push((card.id.clone(), r["character"].as_str().unwrap_or("").to_string()));
+                to.push(card);
+            }
+            if !main.is_empty() || !guest.is_empty() {
+                out.push(SeerrPerson { name, photo, main, guest, parts });
+            }
+        }
+        out
+    }
+
     pub async fn seerr_search(&self, term: &str, kind: u8) -> Vec<CardInfo> {
         let v: serde_json::Value = match self.get("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await {
             Ok(v) => v,
@@ -2274,7 +2364,9 @@ impl Client {
     }
 
     /// Seerr : page d'un film / d'une série.
-    pub async fn seerr_details(&self, tv: bool, tmdb: i64) -> Result<SeerrDetails> {
+    /// `focus` : personne cherchée qui a mené à ce média (nom, personnage, photo) : en tête de la
+    /// distribution (Seerr n'en donne pour une série que les rôles réguliers : elle y est ajoutée).
+    pub async fn seerr_details(&self, tv: bool, tmdb: i64, focus: Option<(String, String, Option<String>)>) -> Result<SeerrDetails> {
         let path = format!("/JellyfinEnhanced/jellyseerr/{}/{tmdb}", if tv { "tv" } else { "movie" });
         let d: serde_json::Value = self.get(&path, &[]).await?;
         let s = |k: &str| d[k].as_str().unwrap_or("").to_string();
@@ -2316,11 +2408,10 @@ impl Client {
         }
         fact(tr("Langue originale"), s("originalLanguage").to_uppercase());
         fact(if tv { tr("Diffuseur") } else { tr("Studios") }, names(if tv { "networks" } else { "productionCompanies" }));
-        let cast = d["credits"]["cast"]
+        let mut cast: Vec<(String, String, Option<String>)> = d["credits"]["cast"]
             .as_array()
             .into_iter()
             .flatten()
-            .take(20)
             .map(|c| {
                 (
                     c["name"].as_str().unwrap_or("").to_string(),
@@ -2329,6 +2420,11 @@ impl Client {
                 )
             })
             .collect();
+        if let Some((name, role, photo)) = focus {
+            let found = cast.iter().position(|c| c.0 == name).map(|i| cast.remove(i));
+            cast.insert(0, found.unwrap_or((name, role, photo)));
+        }
+        cast.truncate(20);
         // Saisons déjà là ou en route : statut média de la saison (2 en attente, 3 en cours,
         // 4 partielle, 5 disponible), ou saison d'une demande qui n'a pas été refusée (3).
         let mut known: Vec<i64> = d["mediaInfo"]["seasons"]

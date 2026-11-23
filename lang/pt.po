@@ -11,7 +11,7 @@ msgstr[0] "{n} participante"
 msgstr[1] "{n} participantes"
 
 msgid "{n} serveur trouvé sur vos réseaux"
-msgid_plural "{n} serveurs trouvés sur tes réseaux"
+msgid_plural "{n} serveurs trouvés sur vos réseaux"
 msgstr[0] "{n} servidor encontrado nas suas redes"
 msgstr[1] "{n} servidores encontrados nas suas redes"
 
@@ -399,6 +399,9 @@ msgstr "O servidor respondeu {} para {}"
 msgid "{} épisodes"
 msgstr "{} episódios"
 
+msgid "1 épisode"
+msgstr "1 episódio"
+
 msgid "Terminée"
 msgstr "Terminada"
 
@@ -629,6 +632,12 @@ msgstr "Watch party: {}"
 
 msgid "À demander (Seerr)"
 msgstr "Para pedir (Seerr)"
+
+msgid "À demander : avec {}"
+msgstr "Para pedir: com {}"
+
+msgid "À demander : apparitions de {}"
+msgstr "Para pedir: participações de {}"
 
 msgid "Plus rien à découvrir : tout a été vu !"
 msgstr "Nada mais para descobrir: já viste tudo!"
@@ -4355,3 +4364,95 @@ msgstr "Ao seu gosto"
 
 msgid "← → : 10 s en arrière ou en avant. OK ou ↓ : les commandes (pause, volume, audio, sous-titres) ; ↓ encore : les épisodes de la saison. Retour : arrêter la lecture. Trois intros passées d'affilée : les suivantes le sont toutes seules."
 msgstr "← →: 10 s para trás ou para a frente. OK ou ↓: os comandos (pausa, volume, áudio, legendas); ↓ outra vez: os episódios da temporada. Voltar: parar a reprodução. Três intros saltadas seguidas: as seguintes são saltadas sozinhas."
+
+msgid "Afficher plus"
+msgstr "Mostrar mais"
+
+msgid "{} de plus"
+msgstr "mais {}"
+
+msgid "Choisissez des cartes"
+msgstr "Escolha cartões"
+
+msgid "Sélectionner"
+msgstr "Selecionar"
+
+msgid "Demander ({})"
+msgstr "Pedir ({})"
+
+msgid "Télécharger"
+msgstr "Transferir"
+
+msgid "Télécharger ({})"
+msgstr "Transferir ({})"
+
+msgid "Tout enlever"
+msgstr "Tirar tudo"
+
+msgid "Tout choisir"
+msgstr "Escolher tudo"
+
+msgid "Ni à demander ni à télécharger."
+msgstr "Não se pode pedir nem transferir."
+
+msgid "Rien à demander dans la sélection."
+msgstr "Nada a pedir na seleção."
+
+msgid "Rien à télécharger dans la sélection."
+msgstr "Nada a transferir na seleção."
+
+msgid "Demandes en cours…"
+msgstr "A enviar pedidos…"
+
+msgid "Ajout aux téléchargements…"
+msgstr "A adicionar às transferências…"
+
+msgid "Demandes envoyées : {}."
+msgstr "Pedidos enviados: {}."
+
+msgid "Demandes impossibles : {}."
+msgstr "Pedidos impossíveis: {}."
+
+msgid "Demandes envoyées : {} · impossibles : {}."
+msgstr "Pedidos enviados: {} · impossíveis: {}."
+
+msgid "Ajouté aux téléchargements : {}."
+msgstr "Adicionado às transferências: {}."
+
+msgid "Déjà téléchargé ou dans la file."
+msgstr "Já transferido ou na fila."
+
+msgid "{n} choisie"
+msgid_plural "{n} choisies"
+msgstr[0] "{n} escolhido"
+msgstr[1] "{n} escolhidos"
+
+msgid "Télécharger la sélection ({})"
+msgstr "Transferir a seleção ({})"
+
+msgid "Demander la sélection ({})"
+msgstr "Pedir a seleção ({})"
+
+msgid "Retirer de la sélection"
+msgstr "Tirar da seleção"
+
+msgid "Ajouter à la sélection"
+msgstr "Adicionar à seleção"
+
+msgid "Terminer la sélection"
+msgstr "Terminar a seleção"
+
+msgid "OK maintenu : actions"
+msgstr "Manter OK premido: ações"
+
+msgid "Actions"
+msgstr "Ações"
+
+msgid "OK : arrêter"
+msgstr "OK: parar"
+
+msgid "relâchez OK pour finir"
+msgstr "solte OK para terminar"
+
+msgid "OK maintenu + flèches"
+msgstr "manter OK + setas"

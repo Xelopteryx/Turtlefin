@@ -11,7 +11,7 @@ msgstr[0] "{n} participant"
 msgstr[1] "{n} participants"
 
 msgid "{n} serveur trouvé sur vos réseaux"
-msgid_plural "{n} serveurs trouvés sur tes réseaux"
+msgid_plural "{n} serveurs trouvés sur vos réseaux"
 msgstr[0] "{n} server found on your networks"
 msgstr[1] "{n} servers found on your networks"
 
@@ -399,6 +399,9 @@ msgstr "The server answered {} for {}"
 msgid "{} épisodes"
 msgstr "{} episodes"
 
+msgid "1 épisode"
+msgstr "1 episode"
+
 msgid "Terminée"
 msgstr "Ended"
 
@@ -629,6 +632,12 @@ msgstr "Watch party: {}"
 
 msgid "À demander (Seerr)"
 msgstr "To request (Seerr)"
+
+msgid "À demander : avec {}"
+msgstr "To request: with {}"
+
+msgid "À demander : apparitions de {}"
+msgstr "To request: appearances by {}"
 
 msgid "Plus rien à découvrir : tout a été vu !"
 msgstr "Nothing left to discover: everything has been watched!"
@@ -4355,3 +4364,95 @@ msgstr "Fine-tuning the settings"
 
 msgid "Prépare de quoi regarder hors ligne"
 msgstr "Getting something ready to watch offline"
+
+msgid "Afficher plus"
+msgstr "Show more"
+
+msgid "{} de plus"
+msgstr "{} more"
+
+msgid "Choisissez des cartes"
+msgstr "Choose some cards"
+
+msgid "Sélectionner"
+msgstr "Select"
+
+msgid "Demander ({})"
+msgstr "Request ({})"
+
+msgid "Télécharger"
+msgstr "Download"
+
+msgid "Télécharger ({})"
+msgstr "Download ({})"
+
+msgid "Tout enlever"
+msgstr "Clear all"
+
+msgid "Tout choisir"
+msgstr "Select all"
+
+msgid "Ni à demander ni à télécharger."
+msgstr "Can be neither requested nor downloaded."
+
+msgid "Rien à demander dans la sélection."
+msgstr "Nothing to request in the selection."
+
+msgid "Rien à télécharger dans la sélection."
+msgstr "Nothing to download in the selection."
+
+msgid "Demandes en cours…"
+msgstr "Sending requests…"
+
+msgid "Ajout aux téléchargements…"
+msgstr "Adding to downloads…"
+
+msgid "Demandes envoyées : {}."
+msgstr "Requests sent: {}."
+
+msgid "Demandes impossibles : {}."
+msgstr "Requests failed: {}."
+
+msgid "Demandes envoyées : {} · impossibles : {}."
+msgstr "Requests sent: {} · failed: {}."
+
+msgid "Ajouté aux téléchargements : {}."
+msgstr "Added to downloads: {}."
+
+msgid "Déjà téléchargé ou dans la file."
+msgstr "Already downloaded or queued."
+
+msgid "{n} choisie"
+msgid_plural "{n} choisies"
+msgstr[0] "{n} chosen"
+msgstr[1] "{n} chosen"
+
+msgid "Télécharger la sélection ({})"
+msgstr "Download selection ({})"
+
+msgid "Demander la sélection ({})"
+msgstr "Request selection ({})"
+
+msgid "Retirer de la sélection"
+msgstr "Remove from selection"
+
+msgid "Ajouter à la sélection"
+msgstr "Add to selection"
+
+msgid "Terminer la sélection"
+msgstr "End selection"
+
+msgid "OK maintenu : actions"
+msgstr "Hold OK: actions"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "OK : arrêter"
+msgstr "OK: stop"
+
+msgid "relâchez OK pour finir"
+msgstr "release OK to finish"
+
+msgid "OK maintenu + flèches"
+msgstr "hold OK + arrows"
