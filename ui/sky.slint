@@ -1738,9 +1738,16 @@ export component Lagon inherits Rectangle {
     if Lagoon.ready && !Perf.hide(1024): Rectangle {
         // Sable, récif lointain, gorgones.
         Image { x: root.ox; y: root.oy + 760 * root.s; width: 1600 * root.s; height: 140 * root.s; source: Lagoon.sand; image-fit: fill; }
-        Rectangle { x: root.ox; y: root.oy + 760 * root.s; width: 1600 * root.s; height: 140 * root.s; background: #020816.with-alpha(root.dark * 0.6); }
+        // Nuit : le sable lui-même s'assombrit (un rectangle assombrissait aussi l'eau au-dessus des dunes : ligne droite).
+        if root.dark > 0: Image { x: root.ox; y: root.oy + 760 * root.s; width: 1600 * root.s; height: 140 * root.s; source: Lagoon.sand; image-fit: fill; colorize: #020816; opacity: root.dark * 0.6; }
         Image { x: root.ox; y: root.oy + 480 * root.s; width: 1600 * root.s; height: 420 * root.s; source: Lagoon.reef-back; image-fit: fill; }
-        Rectangle { x: root.ox; y: root.oy + 680 * root.s; width: 1600 * root.s; height: 220 * root.s; background: #020816.with-alpha(root.dark * 0.65); }
+        // Profondeur : l'eau fonce vers le fond, en dégradé (un rectangle sombre faisait une bande à bord net).
+        // Plus profond la nuit.
+        Rectangle {
+            property <float> a: 0.3 + root.dark * 0.4;
+            x: root.ox; y: root.oy + 560 * root.s; width: 1600 * root.s; height: 340 * root.s;
+            background: @linear-gradient(180deg, #02081600 0%, #020816.with-alpha(self.a * 0.35) 40%, #020816.with-alpha(self.a * 0.8) 75%, #020816.with-alpha(self.a) 100%);
+        }
         for f in Lagoon.fans: Rectangle {
             x: root.ox + (f.x - f.r / 2) * root.s;
             y: root.oy + (f.y - f.r) * root.s;
