@@ -11409,6 +11409,8 @@ export component AppWindow inherits Window {
         property <int> cols: max(1, floor((self.usable - 2 * self.pad + self.gap) / (self.cw + self.gap)));
         property <int> rows: ceil(root.lib-items.length / self.cols);
         property <int> sel-row: floor(root.l-sel / self.cols);
+        // Défilement le plus bas possible (0 : tout tient à l'écran).
+        property <length> max-y: max(0px, self.top-pad + self.rows * (self.ch + self.gap) - self.height + 24px * root.k);
         // Première ligne affichée (départ de la vague d'arrivée).
         property <int> top-row: max(0, floor(max(0px, -grid.y - lib.top-pad) / (self.ch + self.gap)));
         // Rangées visibles : leur milieu est le centre de l'onde d'arrivée (voir ripple).
@@ -11437,7 +11439,7 @@ export component AppWindow inherits Window {
         function wheel(dy: length) {
             let view = lib.height;
             let max-y = max(0px, lib.top-pad + lib.rows * (lib.ch + lib.gap) - view + 24px * root.k);
-            let base = root.lib-free ? root.lib-free-y : -min(0px, view / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+            let base = root.lib-free ? root.lib-free-y : min(max-y, -min(0px, view / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2)));
             root.lib-free-y = clamp(base - dy, 0px, max-y);
             root.lib-free = true;
             if (root.lib-free-y > max-y - 2 * (lib.ch + lib.gap) && root.lib-items.length < root.lib-total) {
@@ -11680,7 +11682,9 @@ export component AppWindow inherits Window {
 
             grid := Rectangle {
                 // La rangée sélectionnée reste vers le milieu de l'écran (défilement libre : le décalage).
-                y: root.lib-free ? -root.lib-free-y : min(0px, parent.height / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2));
+                // Rangée choisie vers le milieu, sans dépasser la fin (quand tout tenait à l'écran, choisir une
+                // carte de la deuxième ligne faisait remonter la grille sous la barre du haut).
+                y: root.lib-free ? -root.lib-free-y : max(-lib.max-y, min(0px, parent.height / 2 - (lib.top-pad + lib.sel-row * (lib.ch + lib.gap) + lib.ch / 2)));
                 animate y { duration: Motion.scroll && !Nav.drag ? 260ms : 0ms; easing: cubic-bezier(0.3, 1.22, 0.5, 1); }
 
                 for card[i] in root.lib-items: Card {
@@ -17360,6 +17364,11 @@ export component AppWindow inherits Window {
         pure function mix(a: length, b: length) -> length {
             return a + (b - a) * self.p;
         }
+        // Tailles de texte en pixels entiers pendant le vol : quelques tailles seulement, gardées en cache
+        // (une taille nouvelle à chaque image faisait redessiner les lettres : vol saccadé sur le Pi 5).
+        pure function px(v: length) -> length {
+            return round(v / 1px) * 1px;
+        }
         if root.banner.has-logo: Image {
             x: bgh.mix(bgh.bx, bgh.t-x + (bgh.t-w - bgh.lw1) / 2);
             y: bgh.mix(bgh.b-logo-y + (bgh.b-logo-h - bgh.lh0) / 2, bgh.t-y + (84 * bgh.u - bgh.lh1) / 2) - root.header-row;
@@ -17375,7 +17384,7 @@ export component AppWindow inherits Window {
             height: bgh.mix(bgh.b-logo-h, 84 * bgh.u);
             text: root.banner.title;
             color: #ffffff.mix(Theme.text, 1 - bgh.p);
-            font-size: (30 + 4 * bgh.p) * bgh.u * Theme.text-scale;
+            font-size: bgh.px((30 + 4 * bgh.p) * bgh.u * Theme.text-scale);
             font-weight: 700;
             vertical-alignment: center;
             overflow: elide;
@@ -17388,20 +17397,22 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
             text: root.banner.subtitle;
             color: Theme.accent2.mix(Theme.accent-ink, 1 - bgh.p);
-            font-size: (15 + 3 * bgh.p) * bgh.u * Theme.text-scale;
+            font-size: bgh.px((15 + 3 * bgh.p) * bgh.u * Theme.text-scale);
             font-weight: 600;
             overflow: elide;
         }
         if root.banner.overview != "": Text {
             x: bgh.mix(bgh.bx, bgh.o-x);
             y: bgh.mix(bgh.b-ov-y, bgh.o-y) - root.header-row;
-            width: bgh.mix(bgh.bw, bgh.o-w);
+            // Largeur de départ, puis d'arrivée à mi-trajet, quand il est presque effacé : remis en lignes une
+            // seule fois (avant : à chaque image, la largeur changeant sans cesse).
+            width: bgh.p < 0.5 ? bgh.bw : bgh.o-w;
             height: bgh.mix(56 * bgh.u, bgh.o-h);
             text: root.banner.overview;
             // S'estompe au milieu du trajet : il croise le bouton de lecture (ordre inversé sur la fiche).
-            opacity: 1 - 0.85 * sin(bgh.p * 180deg);
-            color: #ffffffd9.mix(Theme.text, 1 - bgh.p);
-            font-size: (14 + bgh.p) * bgh.u * Theme.text-scale;
+            // Transparence de la couleur, pas `opacity` (un calque de plus à chaque image).
+            color: #ffffffd9.mix(Theme.text, 1 - bgh.p).transparentize(0.85 * sin(bgh.p * 180deg));
+            font-size: bgh.p < 0.5 ? bgh.px(14 * bgh.u * Theme.text-scale) : bgh.px(15 * bgh.u * Theme.text-scale);
             wrap: word-wrap;
             overflow: elide;
         }

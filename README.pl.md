@@ -57,6 +57,9 @@ Ta sama aplikacja na telefonie:
 - **Wyszukiwanie** w bibliotece i w Seerr: tytuły, osoby (z ich filmografią, której brak na serwerze) oraz **studia lub
   stacje** („disney”, „pixar”, „netflix”: ich filmy i seriale do poproszenia); filtry, wyszukiwanie zaawansowane,
   losowy element.
+- **Biblioteki**: siatka z indeksem A–Z i paskiem przewijania, filtrowanie przez wpisanie pierwszych liter tytułu;
+  menu każdej karty (prawy przycisk, długie przytrzymanie, przytrzymane OK): obejrzane / nieobejrzane, Pobierz, Poproś
+  oraz, dla administratora, Identyfikuj, Odśwież, Edytuj. Media, o które już poproszono, pokazują stan prośby.
 - **Zaznaczanie wielu kart** w siatkach (długie przytrzymanie, przeciągnięcie myszą, przytrzymanie OK na pilocie),
   a potem poproszenie o nie lub pobranie wszystkich naraz.
 - **Watch party** (SyncPlay): oglądanie tego samego w tym samym czasie na kilku urządzeniach.

@@ -1,4 +1,4 @@
-# Turtlefin: project handoff (state on November 22, 2026, version 2.0.0, not yet released)
+# Turtlefin: project handoff (state on November 23, 2026, version 2.0.0, not yet released)
 
 [Français](HANDOFF.md) · **English** · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -306,7 +306,7 @@ loses and finds its server again by itself, both ways and on every page; during 
 message, and the theme and page change once playback ends. Tested on Windows, Linux (Raspberry Pi 5) and
 Android; some issues remain.
 
-## 6 septies. Version 2.0.0 (November 2026, ready, not yet released)
+## 6 septies. Version 2.0.0 “Deep Dive Update” (November 2026, ready, not yet released)
 
 The French [HANDOFF.md](HANDOFF.md) is the complete, up-to-date reference (sections 6 octies to 6 septdecies).
 Summary:
@@ -325,6 +325,14 @@ Summary:
   text size; media editing for administrators (`editor.rs`); mods in a sandbox; Android TV scaling, 32-bit APK.
 - **The app addresses the user formally** in every language (French “vous”, German Sie, Spanish usted, Italian
   Lei, Dutch u, Portuguese polite forms, Polish capitalised “Ty”). New texts follow this rule.
+- **Finishing touches (November 22–23)**: the banner flies open into the item page and back; page transitions;
+  “watched episodes” on series and season pages; redesigned end screen; Seerr search by studio or network; selecting
+  several cards in grids (Request / Download at once); Seerr cards show the state of their request, right after it
+  is sent; “Turtlefin Symbols” font (★ ✓ ● on Android); theme icon bug fixed (Windows shortcuts, a single Android
+  launcher icon); Aero's lagoon lets the item's backdrop show through and gets darker towards the bottom (gradient);
+  README rewritten in 8 languages with screenshots (`docs/screenshots/`) and thanks to LainX84 (issue #2). Test
+  server **Abydos**: Jellyfin 12.4 on the maintainer's PC (port 8096) with a Seerr in Docker that has no
+  Radarr/Sonarr (requests stay there).
 - Release notes for the tag message: `packaging/notes/v2.0.0.md`. Test builds: `--profile essai` (release
   without thin-LTO); frame cost: `TURTLEFIN_DEBUG_FINISH=1`.
 

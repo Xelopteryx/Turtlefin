@@ -59,6 +59,9 @@ The same app on a phone:
 - **Search** in the library and in Seerr: titles, people (with their filmography missing from the server) and
   **studios or networks** (“disney”, “pixar”, “netflix”: their films and series to request); filters, advanced
   search, random item.
+- **Libraries**: grid with an A–Z index and a scrollbar, filtering by typing the first letters of a title; a menu on
+  every card (right click, long press, held OK): watched / unwatched, Download, Request and, for an administrator,
+  Identify, Refresh, Edit. Media already requested show the state of their request.
 - **Select several cards** in grids (long press, mouse drag, OK held on the remote), then Request or Download them
   all at once.
 - **Watch party** (SyncPlay): watch the same thing at the same time on several devices.

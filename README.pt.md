@@ -60,6 +60,9 @@ A mesma aplicação num telemóvel:
 - **Pesquisa** na biblioteca e no Seerr: títulos, pessoas (com a filmografia que falta no servidor) e **estúdios ou
   canais** («disney», «pixar», «netflix»: os seus filmes e séries para pedir); filtros, pesquisa avançada, conteúdo ao
   acaso.
+- **Bibliotecas**: grelha com índice A–Z e barra de deslocamento, filtragem escrevendo as primeiras letras de um
+  título; um menu em cada cartão (clique direito, toque longo, OK mantido): visto / não visto, Transferir, Pedir e,
+  para um administrador, Identificar, Atualizar, Editar. Os conteúdos já pedidos mostram o estado do seu pedido.
 - **Selecionar vários cartões** nas grelhas (toque longo, arrastar com o rato, OK mantido no comando) e depois pedi-los
   ou transferi-los de uma só vez.
 - **Watch party** (SyncPlay): ver a mesma coisa ao mesmo tempo em vários dispositivos.

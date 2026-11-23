@@ -1,4 +1,4 @@
-# Turtlefin: Projektübergabe (Stand 22. November 2026, Version 2.0.0, noch nicht veröffentlicht)
+# Turtlefin: Projektübergabe (Stand 23. November 2026, Version 2.0.0, noch nicht veröffentlicht)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · **Deutsch** · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
@@ -195,7 +195,7 @@ Offline-Modus, Sicherheitsprüfung, schnelleres Kompilieren (`codegen-units = 16
 Richtungen und auf jeder Seite; während einer Wiedergabe nur eine Meldung, Thema und Seite wechseln erst danach.
 Getestet unter Windows, Linux (Raspberry Pi 5) und Android; es bleiben Probleme.
 
-## 6 ter. Version 2.0.0 (November 2026, fertig, noch nicht veröffentlicht)
+## 6 ter. Version 2.0.0 „Deep Dive Update“ (November 2026, fertig, noch nicht veröffentlicht)
 
 Die französische [HANDOFF.md](HANDOFF.md) ist die vollständige, aktuelle Referenz (Abschnitte 6 octies bis
 6 septdecies). Zusammenfassung:
@@ -216,6 +216,14 @@ Die französische [HANDOFF.md](HANDOFF.md) ist die vollständige, aktuelle Refer
   richtig skaliert, 32-Bit-APK.
 - **Die App siezt** in allen Sprachen (Französisch „vous“, Deutsch Sie, Spanisch usted, Italienisch Lei,
   Niederländisch u, Portugiesisch Höflichkeitsform, Polnisch „Ty“ großgeschrieben). Neue Texte folgen dieser Regel.
+- **Letzte Feinarbeiten (22.–23. November)**: Das Banner fliegt zur Medienseite und zurück; Übergänge zwischen
+  Seiten; „Gesehene Episoden“ auf Serien- und Staffelseiten; neuer Abspannbildschirm; Seerr-Suche nach Studio oder
+  Sender; Auswahl mehrerer Karten in Rastern (Anfragen / Herunterladen auf einmal); Seerr-Karten zeigen den Stand
+  ihrer Anfrage, sofort nach dem Senden; Schrift „Turtlefin Symbols“ (★ ✓ ● auf Android); Symbolfehler beim
+  Designwechsel behoben (Windows-Verknüpfungen, nur ein Android-Startsymbol); Aeros Lagune lässt das Hintergrundbild
+  des Mediums durchscheinen und wird nach unten dunkler (Verlauf); README in 8 Sprachen neu geschrieben, mit
+  Screenshots (`docs/screenshots/`) und Dank an LainX84 (Issue #2). Testserver **Abydos**: Jellyfin 12.4 auf dem PC
+  des Maintainers (Port 8096) mit einem Seerr in Docker ohne Radarr/Sonarr (Anfragen bleiben dort).
 - Versionshinweise für die Tag-Nachricht: `packaging/notes/v2.0.0.md`. Testbinärdateien: `--profile essai`
   (release ohne thin-LTO); Kosten eines Bildes: `TURTLEFIN_DEBUG_FINISH=1`.
 

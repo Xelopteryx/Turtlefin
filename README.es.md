@@ -60,6 +60,10 @@ La misma aplicación en un teléfono:
 - **Búsqueda** en la biblioteca y en Seerr: títulos, personas (con su filmografía ausente del servidor) y **estudios o
   cadenas** («disney», «pixar», «netflix»: sus películas y series para solicitar); filtros, búsqueda avanzada, medio
   al azar.
+- **Bibliotecas**: cuadrícula con índice A–Z y barra de desplazamiento, filtrado escribiendo las primeras letras de un
+  título; un menú en cada tarjeta (clic derecho, pulsación larga, OK mantenido): visto / no visto, Descargar,
+  Solicitar y, para un administrador, Identificar, Actualizar, Editar. Los medios ya solicitados muestran el estado de
+  su solicitud.
 - **Seleccionar varias tarjetas** en las cuadrículas (pulsación larga, arrastrar con el ratón, OK mantenido en el
   mando), y luego solicitarlas o descargarlas de una vez.
 - **Watch party** (SyncPlay): ver lo mismo al mismo tiempo en varios dispositivos.

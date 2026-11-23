@@ -57,6 +57,9 @@ La stessa app su un telefono:
   suggerimenti, con il riassunto di quello scelto; posizione e «visto» inviati al server.
 - **Ricerca** nella libreria e in Seerr: titoli, persone (con la loro filmografia assente dal server) e **studi o
   reti** («disney», «pixar», «netflix»: i loro film e serie da richiedere); filtri, ricerca avanzata, media a caso.
+- **Librerie**: griglia con indice A–Z e barra di scorrimento, filtro digitando le prime lettere di un titolo; un menu
+  su ogni scheda (clic destro, pressione lunga, OK tenuto premuto): visto / non visto, Scarica, Richiedi e, per un
+  amministratore, Identifica, Aggiorna, Modifica. I contenuti già richiesti mostrano lo stato della loro richiesta.
 - **Selezionare più schede** nelle griglie (pressione lunga, trascinamento con il mouse, OK tenuto premuto sul
   telecomando), poi richiederle o scaricarle tutte insieme.
 - **Watch party** (SyncPlay): guardare la stessa cosa nello stesso momento su più dispositivi.

@@ -62,6 +62,10 @@ Dieselbe App auf einem Telefon:
 - **Suche** in der Bibliothek und in Seerr: Titel, Personen (mit ihrer Filmografie, die auf dem Server fehlt) und
   **Studios oder Sender** („disney“, „pixar“, „netflix“: ihre Filme und Serien zum Anfragen); Filter, erweiterte
   Suche, Zufallsmedium.
+- **Bibliotheken**: Raster mit A–Z-Index und Bildlaufleiste, Filtern durch Eintippen der ersten Buchstaben eines
+  Titels; ein Menü auf jeder Karte (Rechtsklick, langes Drücken, gehaltenes OK): gesehen / nicht gesehen,
+  Herunterladen, Anfragen und für Administratoren Identifizieren, Aktualisieren, Bearbeiten. Bereits angefragte Medien
+  zeigen den Stand ihrer Anfrage.
 - **Mehrere Karten auswählen** in Rastern (langes Drücken, Ziehen mit der Maus, OK gedrückt halten auf der
   Fernbedienung), dann alle auf einmal anfragen oder herunterladen.
 - **Watch Party** (SyncPlay): auf mehreren Geräten gleichzeitig dasselbe schauen.

@@ -58,6 +58,9 @@ La même application sur un téléphone :
 - **Recherche** dans la bibliothèque et dans Seerr : titres, personnes (avec leur filmographie absente du serveur)
   et **studios ou chaînes** (« disney », « pixar », « netflix » : leurs films et séries à demander) ; filtres, recherche
   avancée, média au hasard.
+- **Bibliothèques** : grille avec index A–Z et barre de défilement, filtre en tapant les premières lettres d'un
+  titre ; menu de chaque carte (clic droit, appui long, OK maintenu) : vu / non vu, Télécharger, Demander et, pour un
+  administrateur, Identifier, Actualiser, Modifier. Les médias déjà demandés affichent l'état de leur demande.
 - **Sélection de plusieurs cartes** dans les grilles (appui long, glisser à la souris, OK maintenu à la télécommande),
   puis Demander ou Télécharger d'un coup.
 - **Watch party** (SyncPlay) : regarder la même chose en même temps sur plusieurs appareils.

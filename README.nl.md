@@ -60,6 +60,9 @@ Dezelfde app op een telefoon:
 - **Zoeken** in de bibliotheek en in Seerr: titels, personen (met hun filmografie die op de server ontbreekt) en
   **studio's of zenders** („disney”, „pixar”, „netflix”: hun films en series om aan te vragen); filters, uitgebreid
   zoeken, willekeurig item.
+- **Bibliotheken**: raster met A–Z-index en schuifbalk, filteren door de eerste letters van een titel te typen; een
+  menu op elke kaart (rechtsklik, lang drukken, OK ingedrukt houden): bekeken / niet bekeken, Downloaden, Aanvragen
+  en, voor een beheerder, Identificeren, Vernieuwen, Bewerken. Al aangevraagde media tonen de stand van hun aanvraag.
 - **Meerdere kaarten selecteren** in rasters (lang drukken, slepen met de muis, OK ingedrukt houden op de
   afstandsbediening), en ze daarna in één keer aanvragen of downloaden.
 - **Watch party** (SyncPlay): hetzelfde tegelijk kijken op meerdere apparaten.

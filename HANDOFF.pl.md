@@ -1,4 +1,4 @@
-# Turtlefin: przekazanie projektu (stan na 22 listopada 2026, wersja 2.0.0, jeszcze nieopublikowana)
+# Turtlefin: przekazanie projektu (stan na 23 listopada 2026, wersja 2.0.0, jeszcze nieopublikowana)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · **Polski** · [Português](HANDOFF.pt.md)
 
@@ -194,7 +194,7 @@ co 6 s): aplikacja sama traci i odzyskuje serwer, w obie strony i na każdej str
 jeden komunikat, motyw i strona zmieniają się po jego końcu. Testowana na Windows, Linuksie (Raspberry Pi 5) i
 Androidzie; pozostają problemy.
 
-## 6 ter. Wersja 2.0.0 (listopad 2026, gotowa, jeszcze nieopublikowana)
+## 6 ter. Wersja 2.0.0 „Deep Dive Update” (listopad 2026, gotowa, jeszcze nieopublikowana)
 
 Francuski [HANDOFF.md](HANDOFF.md) jest pełnym, aktualnym odniesieniem (sekcje od 6 octies do 6 septdecies).
 Podsumowanie:
@@ -217,6 +217,14 @@ Podsumowanie:
 - **Aplikacja zwraca się grzecznie** we wszystkich językach (francuski „vous”, niemiecki Sie, hiszpański usted,
   włoski Lei, niderlandzki u, portugalski forma grzecznościowa, polski „Ty” wielką literą). Nowe teksty stosują
   tę zasadę.
+- **Ostatnie poprawki (22–23 listopada)**: baner przelatuje do strony medium i z powrotem; przejścia między
+  stronami; „obejrzane odcinki” na stronach seriali i sezonów; nowy ekran końcowy; wyszukiwanie w Seerr według
+  studia lub stacji; zaznaczanie wielu kart w siatkach (Poproś / Pobierz za jednym razem); karty Seerr pokazują stan
+  prośby zaraz po jej wysłaniu; czcionka „Turtlefin Symbols” (★ ✓ ● na Androidzie); poprawiony błąd ikon przy
+  zmianie motywu (skróty Windows, jedna ikona w programie uruchamiającym Androida); laguna Aero pokazuje obraz tła
+  medium i ciemnieje ku dołowi (gradient); README napisane od nowa w 8 językach, ze zrzutami ekranu
+  (`docs/screenshots/`) i podziękowaniem dla LainX84 (zgłoszenie nr 2). Serwer testowy **Abydos**: Jellyfin 12.4 na
+  komputerze osoby utrzymującej projekt (port 8096) z Seerr w Dockerze bez Radarr/Sonarr (prośby tam zostają).
 - Informacje o wersji do wiadomości tagu: `packaging/notes/v2.0.0.md`. Pliki testowe: `--profile essai`
   (release bez thin-LTO); koszt klatki: `TURTLEFIN_DEBUG_FINISH=1`.
 

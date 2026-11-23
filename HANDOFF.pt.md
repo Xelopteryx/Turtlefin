@@ -1,4 +1,4 @@
-# Turtlefin: passagem do projeto (estado a 22 de novembro de 2026, versão 2.0.0, ainda não publicada)
+# Turtlefin: passagem do projeto (estado a 23 de novembro de 2026, versão 2.0.0, ainda não publicada)
 
 [Français](HANDOFF.md) · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · **Português**
 
@@ -193,7 +193,7 @@ compilação mais rápida (`codegen-units = 16`). O nome segue as versões do Gi
 reprodução, só uma mensagem, e o tema e a página mudam no fim. Testada em Windows, Linux (Raspberry Pi 5) e
 Android; restam problemas.
 
-## 6 ter. Versão 2.0.0 (novembro de 2026, pronta, ainda não publicada)
+## 6 ter. Versão 2.0.0 «Deep Dive Update» (novembro de 2026, pronta, ainda não publicada)
 
 O [HANDOFF.md](HANDOFF.md) em francês é a referência completa e atualizada (secções 6 octies a 6 septdecies).
 Resumo:
@@ -217,6 +217,14 @@ Resumo:
 - **A app trata o utilizador com cortesia** em todas as línguas (francês «vous», alemão Sie, espanhol usted,
   italiano Lei, neerlandês u, português forma de cortesia, polaco «Ty» com maiúscula). Os novos textos seguem
   esta regra.
+- **Últimos retoques (22–23 de novembro)**: a faixa voa até à ficha e volta; transições entre páginas; «episódios
+  vistos» nas fichas de séries e temporadas; novo ecrã de fim; pesquisa no Seerr por estúdio ou canal; seleção de
+  vários cartões nas grelhas (Pedir / Transferir de uma vez); os cartões do Seerr mostram o estado do pedido, logo
+  após o envio; tipo de letra «Turtlefin Symbols» (★ ✓ ● no Android); corrigido o erro de ícones ao mudar de tema
+  (atalhos do Windows, um único ícone de arranque no Android); a lagoa do Aero deixa ver a imagem de fundo do
+  conteúdo e escurece para baixo (gradiente); README reescrito em 8 línguas com capturas (`docs/screenshots/`) e
+  agradecimento a LainX84 (issue n.º 2). Servidor de teste **Abydos**: Jellyfin 12.4 no PC de quem mantém o projeto
+  (porta 8096) com um Seerr em Docker sem Radarr/Sonarr (os pedidos ficam lá).
 - Notas de versão para a mensagem da etiqueta: `packaging/notes/v2.0.0.md`. Binários de teste:
   `--profile essai` (release sem thin-LTO); custo de uma imagem: `TURTLEFIN_DEBUG_FINISH=1`.
 

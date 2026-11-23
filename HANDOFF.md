@@ -1,10 +1,10 @@
-# Turtlefin : passation de projet (état au 22 novembre 2026, version 2.0.0, pas encore publiée)
+# Turtlefin : passation de projet (état au 23 novembre 2026, version 2.0.0, pas encore publiée)
 
 **Français** · [English](HANDOFF.en.md) · [Deutsch](HANDOFF.de.md) · [Español](HANDOFF.es.md) · [Italiano](HANDOFF.it.md) · [Nederlands](HANDOFF.nl.md) · [Polski](HANDOFF.pl.md) · [Português](HANDOFF.pt.md)
 
 Document destiné à qui reprend le développement (humain ou Claude Code). Lis-le en entier avant de toucher au
 code, puis lis [README.fr.md](README.fr.md) (usage, installation, touches, fichiers).
-Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 2.0.0 (prête, pas encore publiée : section 6 septdecies ; avant elle, la 1.9.9, correctifs de la 1.9.7 « Cast Update » :
+Dépôt : https://github.com/Xelopteryx/Turtlefin · Version dans `Cargo.toml` : 2.0.0 « Deep Dive Update » (prête, pas encore publiée : section 6 septdecies ; avant elle, la 1.9.9, correctifs de la 1.9.7 « Cast Update » :
 1.9.8 et 1.9.7 le 29 octobre 2026, 1.9.9 le 30 ; versions publiées avant : 0.9.0, 0.9.1, 1.0.0, 1.1.0, 1.2.0).
 Détail : 1.9.8 en section 6 quater (« Lignes sur NVIDIA », « Journal de mpv sans jeton »), 1.9.9 en 6 septies.
 L'APK Android reste en 1.9.7 (les correctifs ne concernent pas Android).
@@ -879,7 +879,7 @@ en portrait.
   utilisées par le manifeste) et `packaging/tv/<thème>-landscape.png` (1920 x 1080), `-poster.png` (1000 x 1500).
 - `packaging/flatpak/cargo-sources.json` régénéré (667 crates).
 
-## 6 septdecies. Version 2.0.0 (13 au 22 novembre 2026, prête, pas encore publiée)
+## 6 septdecies. Version 2.0.0 « Deep Dive Update » (13 au 23 novembre 2026, prête, pas encore publiée)
 
 Tout ce qui est décrit en 6 octies à 6 sexdecies, plus :
 - **Recherche** en interface TV (suggestions au-dessus du clavier à l'écran, filtres en pastilles, « Recherche
@@ -1184,6 +1184,27 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
      `sections`, `search-sections`) et sur les rangées gardées pour la grille (`search_more`). Vérifié : 2 séries demandées dans la
      grille, « Acceptée » aussitôt ; retour aux rangées, pastilles présentes.
   Demandes d'essai laissées dans le Seerr d'Abydos.
+- **Fin de soirée du 23 novembre 2026** (commits 9b71113 à 263c322, puis non commité au moment d'écrire) :
+  - Pastille de demande aussi dans les rangées de la recherche (`search-sections`), vue sur le Pi (Pi → Abydos par
+    Tailscale : `SRV=http://abydos:8096 CFG=~/tftest-aby ~/leaktest/ps.sh start …`, config effacée après).
+  - **Méduses d'Aero : elles restent au premier plan.** Une version qui les faisait passer derrière l'image du
+    média a été retirée à sa demande (e592e6a, annulé par 79149ec) : ne pas y revenir.
+  - **Lagon : plus de bande sombre.** La nuit, un rectangle sombre sous le récif lointain (680/900) faisait une
+    bande à bord net, et celui du sable une ligne droite au-dessus des dunes. Remplacés par un dégradé de
+    profondeur (560/900 → fond, plus marqué la nuit) et par le sable lui-même assombri (`colorize`). Il a demandé
+    un dégradé, jamais un « carré sombre ».
+  - Pi, téléphone (Aero puis retour à son thème Turtlefin) : méduses, fond, fiche, retour, changement de thème
+    sans fermeture de l'appli, aucun plantage au journal.
+  - **Grille** : choisir une carte de la deuxième ligne faisait remonter une grille qui tenait à l'écran (le
+    centrage de la rangée choisie n'était pas borné) : borné par `lib.max-y`.
+  - **Vol bannière ↔ fiche sur le Pi** (en cours) : tailles des textes qui volent arrondies au pixel (`bgh.px`),
+    résumé remis en lignes une seule fois à mi-trajet (largeur de départ puis d'arrivée), son fondu par la couleur
+    (`transparentize`) au lieu d'`opacity`. Mesure de référence avant ce changement, 1366x768, thème Turtlefin
+    (`~/leaktest/fly.sh turtlefin 3`, images > 20 ms) : ouverture 9 à 15 images (243 à 572 ms en tout), retour
+    10 à 15 (269 à 463 ms). Piste suivante si ça ne suffit pas : les boutons de la fiche grossissent
+    (`DetailButton.pop` : `transform-scale` et `opacity` à chaque image, texte compris).
+  - README (8 langues) : puce « Bibliothèques » (index A–Z, filtre au clavier, menu des cartes, état des demandes).
+    Traductions du HANDOFF : résumé des 22 et 23 novembre.
 
 ## 7. Compiler, fabriquer les paquets, publier
 
