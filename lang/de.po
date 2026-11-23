@@ -4456,3 +4456,12 @@ msgstr "OK loslassen zum Beenden"
 
 msgid "OK maintenu + flèches"
 msgstr "OK halten + Pfeile"
+
+msgid "Vous avez terminé"
+msgstr "Sie haben es zu Ende gesehen"
+
+msgid "À demander : films {}"
+msgstr "Anfragbar: Filme von {}"
+
+msgid "À demander : séries {}"
+msgstr "Anfragbar: Serien von {}"

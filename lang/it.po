@@ -4456,3 +4456,12 @@ msgstr "rilasci OK per finire"
 
 msgid "OK maintenu + flèches"
 msgstr "tenere OK + frecce"
+
+msgid "Vous avez terminé"
+msgstr "Ha finito"
+
+msgid "À demander : films {}"
+msgstr "Da richiedere: film {}"
+
+msgid "À demander : séries {}"
+msgstr "Da richiedere: serie {}"

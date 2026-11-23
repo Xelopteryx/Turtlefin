@@ -1534,10 +1534,14 @@ export component Lagon inherits Rectangle {
     property <length> oy: (self.height - 900 * self.s) / 2;
     property <float> dark: Sky.night;
     property <float> t: root.live ? root.ph : 0;
+    // Image du média affichée dessous (0 à 1, suit son fondu) : l'eau devient un voile teinté à travers
+    // lequel on la voit ; lumières, poissons, méduses, récif et bulles restent au premier plan.
+    in property <float> see;
+    property <float> wa: 1 - root.see * 0.62;
 
     // Eau.
     Rectangle {
-        background: @linear-gradient(180deg, Lagoon.w0 0%, Lagoon.w1 18%, Lagoon.w2 45%, Lagoon.w3 75%, Lagoon.w4 100%);
+        background: @linear-gradient(180deg, Lagoon.w0.with-alpha(root.wa * 0.85) 0%, Lagoon.w1.with-alpha(root.wa * 0.9) 18%, Lagoon.w2.with-alpha(root.wa) 45%, Lagoon.w3.with-alpha(root.wa) 75%, Lagoon.w4.with-alpha(root.wa) 100%);
     }
     // Décor allégé (Perf.decor 1, decor.rs) : sans les petits éléments (256) ni les bords assombris (2048).
     // Diagnostic (TURTLEFIN_PERF_OFF) : 128 lumières, 256 petits éléments, 512 tracés (méduses, anémones),

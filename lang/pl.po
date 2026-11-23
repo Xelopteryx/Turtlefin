@@ -4469,3 +4469,12 @@ msgstr "puść OK, aby zakończyć"
 
 msgid "OK maintenu + flèches"
 msgstr "przytrzymaj OK + strzałki"
+
+msgid "Vous avez terminé"
+msgstr "Obejrzano do końca"
+
+msgid "À demander : films {}"
+msgstr "Do poproszenia: filmy {}"
+
+msgid "À demander : séries {}"
+msgstr "Do poproszenia: seriale {}"

@@ -5370,17 +5370,19 @@ fn search_changed(app: &Arc<App>, text: String) {
         }
         // Genres, tags et studios choisis ne valent que pour la bibliothèque : Seerr et les rangées par
         // personne ne sont pas interrogés. Un type choisi seul filtre aussi Seerr.
-        let (from_seerr, by_people, seerr_people) = tokio::join!(
+        let (from_seerr, by_people, seerr_people, studios) = tokio::join!(
             // Seerr aussi avec des filtres (il ne connaît pas les genres et tags du serveur : la rangée le dit).
             async { if ask_seerr { client.seerr_search(&term, kind).await } else { Vec::new() } },
             async { if !lists && kind == 0 { client.search_people(&term).await } else { Vec::new() } },
             // Personne trouvée par Seerr : toute sa filmographie absente du serveur (rangée à part).
             async { if ask_seerr && !lists { client.seerr_people(&term, kind).await } else { Vec::new() } },
+            // Studio ou chaîne (« disney », « netflix ») : ses titres absents du serveur (rangée à part).
+            async { if ask_seerr && !lists { client.seerr_studios(&term, kind).await } else { Vec::new() } },
         );
         if app2.search_gen.load(Ordering::SeqCst) != my {
             return;
         }
-        let more = !from_seerr.is_empty() || !by_people.is_empty() || !seerr_people.is_empty();
+        let more = !from_seerr.is_empty() || !by_people.is_empty() || !seerr_people.is_empty() || !studios.is_empty();
         for (title, of) in by_people {
             push_section(&mut sections, &title, false, Ok(of));
         }
@@ -5413,6 +5415,16 @@ fn search_changed(app: &Arc<App>, text: String) {
                     tiles: false,
                     cards: guest,
                 });
+            }
+        }
+        // Studios : après les autres rangées Seerr, sans répéter ce qu'elles montrent déjà.
+        let mut shown: std::collections::HashSet<String> = sections.iter().flat_map(|s| s.cards.iter().map(|c| c.id.clone())).collect();
+        for api::SeerrStudio { name, movies, series } in studios {
+            for (title, cards) in [(trf("À demander : films {}", &[&name]), movies), (trf("À demander : séries {}", &[&name]), series)] {
+                let cards: Vec<_> = cards.into_iter().filter(|c| shown.insert(c.id.clone())).collect();
+                if !cards.is_empty() {
+                    sections.push(SectionData { title, landscape: false, tiles: false, cards });
+                }
             }
         }
         show_search_counts(&app2, &sections, true, ask_seerr);

@@ -4456,3 +4456,12 @@ msgstr "release OK to finish"
 
 msgid "OK maintenu + flèches"
 msgstr "hold OK + arrows"
+
+msgid "Vous avez terminé"
+msgstr "You have finished"
+
+msgid "À demander : films {}"
+msgstr "To request: {} movies"
+
+msgid "À demander : séries {}"
+msgstr "To request: {} series"

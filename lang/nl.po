@@ -4456,3 +4456,12 @@ msgstr "laat OK los om te stoppen"
 
 msgid "OK maintenu + flèches"
 msgstr "OK ingedrukt + pijlen"
+
+msgid "Vous avez terminé"
+msgstr "U bent klaar met kijken"
+
+msgid "À demander : films {}"
+msgstr "Aan te vragen: films van {}"
+
+msgid "À demander : séries {}"
+msgstr "Aan te vragen: series van {}"

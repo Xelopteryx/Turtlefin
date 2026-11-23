@@ -1088,6 +1088,27 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
   fiche au clic (`xdotool mousemove 450 540 click 1` sur « Voir la fiche » en 1920x1080).
 - Sécurité (cinquième passe, fa568e5) : chemins des mods (`mod_api_path_ok`), serveur de démo, url 2.5.9.
 
+**Ensuite, le 23 novembre 2026 (pas commité)** :
+- **Aero : image du média visible.** L'eau du Lagon était opaque et le voile d'Aero (`veil` 1,5) bouchait
+  le fond dès le milieu de l'écran. Maintenant l'eau devient un voile teinté quand une image de fond est
+  affichée (`Lagon.see`, alpha de l'eau 1 → 0,38), le voile de `Backdrop` vaut 0,6 pour le Lagon ;
+  lumières, poissons, méduses, récif et bulles restent devant. Vu sur l'accueil et une fiche.
+- **Écran de fin refait** (`ui/player.slint`, `ups`) : écran large en deux colonnes. Générique (« pick ») :
+  la vidéo se réduit en haut à gauche (`vid`, 750 ms) ; fin (« end ») : « Vous avez terminé », logo (ou
+  titre) et ligne du média glissent l'un après l'autre (`ups.st`, entrée de 1,6 s), fond du média qui
+  avance lentement (`zoom`, 9 s), lueur d'accent ; à gauche le résumé de la suggestion choisie (clavier ou
+  survol, fondu ; `similar` demande `Fields=Overview`), affiches à droite qui montent en rebond, « Retour à
+  l'accueil » en bas à gauche ; ← depuis la première affiche → vidéo / bouton. Écran étroit : l'un sous
+  l'autre. Vu sur le PC (dernier épisode de Jormungand, compte `test`).
+- **Recherche par studio** (`Client::seerr_studios`, `STUDIOS`, `studio_match`) : la recherche de Seerr
+  (« multi » de TMDB) ne cherche que titres et personnes, et la découverte de Seerr ne garde que la langue
+  originale réglée dans Seerr (fr chez le mainteneur) sauf `language=all`. « disney » donne maintenant
+  « À demander : films Disney » et « … séries Disney » (découverte `movies/studio/{id}` 4 pages,
+  `tv/network/{id}` 2 pages, par le proxy de Jellyfin Enhanced, qui ne transmet pas `/search/company`).
+  Table de ~30 studios et chaînes (identifiants vérifiés), sinon studios du serveur (`/Studios`) dont un
+  média donne l'identifiant TMDB par sa fiche Seerr (`local_studios`). Vérifié : La Planète au trésor,
+  Cars 1-3 dans la liste.
+
 ## 7. Compiler, fabriquer les paquets, publier
 
 Développement :

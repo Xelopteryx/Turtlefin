@@ -1090,6 +1090,7 @@ fn card_data(c: &api::CardInfo) -> CardData {
         subtitle: c.subtitle.clone().into(),
         progress: c.progress,
         rating: c.rating.clone().into(),
+        overview: c.overview.clone().into(),
                                 seerr: c.seerr,
                                 status: c.status,
                                 count: c.count,
@@ -1154,7 +1155,11 @@ pub fn show_up_next(app: &Arc<App>, client: Option<&Client>, item: Option<&Item>
             }
             return;
         }
-        let cards: Vec<api::CardInfo> = sim.iter().map(|i| i.card()).collect();
+        // Avec le résumé : l'écran de fin montre celui de la suggestion choisie.
+        let cards: Vec<api::CardInfo> = sim
+            .iter()
+            .map(|i| api::CardInfo { overview: i.overview.clone().unwrap_or_default(), ..i.card() })
+            .collect();
         let jobs: Vec<crate::ImageJob> =
             cards.iter().enumerate().filter_map(|(i, c)| crate::ImageJob::for_card(0, i, c, false)).collect();
         let _ = app2.ui().upgrade_in_event_loop(move |u| {

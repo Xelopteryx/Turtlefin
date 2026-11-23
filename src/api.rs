@@ -332,6 +332,78 @@ pub struct SeerrPerson {
     pub parts: Vec<(String, String)>,
 }
 
+/// Studios et chaînes connus (identifiants TMDB, vérifiés le 23 novembre 2026 par la découverte de
+/// Seerr) : (nom affiché, mots qui le désignent, studios de films, chaînes de séries). Voir
+/// `Client::seerr_studios`.
+const STUDIOS: &[(&str, &[&str], &[i64], &[i64])] = &[
+    // Disney : Walt Disney Pictures, Walt Disney Animation Studios, Pixar ; Disney+, Disney Channel.
+    ("Disney", &["disney", "walt disney"], &[2, 6125, 3], &[2739, 54]),
+    ("Pixar", &["pixar"], &[3], &[]),
+    ("Marvel", &["marvel"], &[420, 7505], &[]),
+    ("Lucasfilm", &["lucasfilm", "lucas film"], &[1], &[]),
+    ("DreamWorks", &["dreamworks", "dream works"], &[521, 7], &[]),
+    ("Studio Ghibli", &["ghibli", "studio ghibli"], &[10342], &[]),
+    ("Illumination", &["illumination"], &[6704], &[]),
+    ("Blue Sky", &["blue sky"], &[9383], &[]),
+    ("Sony Pictures Animation", &["sony pictures animation"], &[2251], &[]),
+    ("Columbia", &["columbia", "sony pictures", "sony"], &[5], &[]),
+    ("Warner Bros.", &["warner", "warner bros", "warner bros."], &[174], &[]),
+    ("DC", &["dc", "dc comics", "dc films", "dc studios"], &[9993, 128064], &[]),
+    ("Universal", &["universal"], &[33], &[]),
+    ("Paramount", &["paramount"], &[4], &[4330]),
+    ("20th Century", &["20th century", "20th century fox", "fox", "twentieth century"], &[25, 127928], &[]),
+    ("Lionsgate", &["lionsgate", "lions gate"], &[1632], &[]),
+    ("A24", &["a24"], &[41077], &[]),
+    ("Blumhouse", &["blumhouse"], &[3172], &[]),
+    ("Legendary", &["legendary"], &[923], &[]),
+    ("MGM", &["mgm", "metro-goldwyn-mayer"], &[21], &[]),
+    ("New Line Cinema", &["new line"], &[12], &[]),
+    ("Netflix", &["netflix"], &[], &[213]),
+    ("HBO", &["hbo"], &[], &[49, 3186]),
+    ("Prime Video", &["prime video", "amazon"], &[], &[1024]),
+    ("Apple TV+", &["apple tv", "apple tv+"], &[], &[2552]),
+    ("Hulu", &["hulu"], &[], &[453]),
+    ("AMC", &["amc"], &[], &[174]),
+    ("Cartoon Network", &["cartoon network"], &[], &[56]),
+    ("Nickelodeon", &["nickelodeon"], &[], &[13]),
+];
+
+/// Studio ou chaîne trouvé par `Client::seerr_studios` : ses films et ses séries absents du serveur.
+pub struct SeerrStudio {
+    pub name: String,
+    pub movies: Vec<CardInfo>,
+    pub series: Vec<CardInfo>,
+}
+
+/// Cartes des pages de la découverte de Seerr : absents du serveur, les plus connus d'abord, sans doublon
+/// (un film de deux studios de la même liste), 120 au plus.
+fn studio_cards(pages: Vec<serde_json::Value>) -> Vec<CardInfo> {
+    let mut rows: Vec<&serde_json::Value> = pages
+        .iter()
+        .flat_map(|v| v["results"].as_array().into_iter().flatten())
+        .filter(|r| !r["mediaInfo"]["jellyfinMediaId"].as_str().is_some_and(|s| !s.is_empty()))
+        .collect();
+    rows.sort_by(|a, b| {
+        let p = |r: &serde_json::Value| r["popularity"].as_f64().unwrap_or(0.0);
+        p(b).partial_cmp(&p(a)).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut seen = std::collections::HashSet::new();
+    rows.into_iter().filter_map(seerr_card).filter(|c| seen.insert(c.id.clone())).take(120).collect()
+}
+
+/// Ce qu'on a tapé (`t`, en minuscules) désigne-t-il ce studio (`alias`) ? Le nom entier, le début d'un
+/// nom d'au moins 4 lettres (« dream » → DreamWorks), ou le nom dans une recherche plus longue
+/// (« films disney »).
+fn studio_match(alias: &str, t: &str) -> bool {
+    if alias == t {
+        return true;
+    }
+    let words = |s: &str| s.split(|c: char| !c.is_alphanumeric() && c != '+').filter(|w| !w.is_empty()).map(str::to_string).collect::<Vec<_>>();
+    let (aw, tw) = (words(alias), words(t));
+    (t.chars().count() >= 4 && alias.starts_with(t))
+        || (alias.chars().count() >= 4 && tw.windows(aw.len().max(1)).any(|w| w == aw.as_slice()))
+}
+
 /// Noms d'une liste de `/Items/Filters2` : des textes (tags) ou des objets `{Name, Id}` (genres).
 fn filter_names(v: &serde_json::Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(|t| t.as_str().or(t["Name"].as_str()).map(str::to_string)).collect()
@@ -1880,6 +1952,129 @@ impl Client {
         out
     }
 
+    /// Seerr : films et séries d'un studio ou d'une chaîne (« disney », « pixar », « netflix ») absents du
+    /// serveur. La recherche de Seerr (recherche « multi » de TMDB) ne regarde que les titres et les
+    /// personnes, jamais les studios : « disney » n'y trouve que les titres qui contiennent « Disney ».
+    /// Identifiants TMDB : d'abord une table des studios connus (`STUDIOS`), sinon les studios du serveur
+    /// dont le nom contient ce qu'on a tapé (un de leurs médias donne, par sa fiche Seerr, l'identifiant
+    /// TMDB du studio ou de la chaîne). Le proxy de Jellyfin Enhanced ne transmet pas la recherche de
+    /// studios de Seerr (`/search/company`).
+    /// `language=all` : sans lui, la découverte de Seerr ne garde que la langue originale réglée dans
+    /// Seerr (chez le mainteneur : le français, un seul film Disney).
+    /// Deux studios au plus ; pour chacun, ses films et ses séries (deux rangées).
+    pub async fn seerr_studios(&self, term: &str, kind: u8) -> Vec<SeerrStudio> {
+        if kind == 3 {
+            return Vec::new();
+        }
+        let t = term.trim().to_lowercase();
+        if t.chars().count() < 2 {
+            return Vec::new();
+        }
+        // (nom affiché, studios de films, chaînes de séries)
+        let mut found: Vec<(String, Vec<i64>, Vec<i64>)> = STUDIOS
+            .iter()
+            .filter(|(_, aliases, ..)| aliases.iter().any(|a| studio_match(a, &t)))
+            .map(|(name, _, movies, tv)| (name.to_string(), movies.to_vec(), tv.to_vec()))
+            .take(2)
+            .collect();
+        if found.is_empty() {
+            found = self.local_studios(&t).await;
+        }
+        // Une page de la découverte : 20 titres, les plus connus d'abord. Films : 4 pages par studio
+        // (« La Planète au trésor » est vers le 70e de Walt Disney Pictures) ; séries : 2 par chaîne.
+        let fetch = |path: String, pages: u8| async move {
+            let pages = futures_util::future::join_all((1..=pages).map(|p| {
+                let path = &path;
+                async move {
+                    self.get::<serde_json::Value>(
+                        &format!("/JellyfinEnhanced/jellyseerr/discover/{path}"),
+                        &[("page", &p.to_string()), ("language", "all")],
+                    )
+                    .await
+                    .ok()
+                }
+            }))
+            .await;
+            pages.into_iter().flatten().collect::<Vec<_>>()
+        };
+        let lists = futures_util::future::join_all(found.iter().map(|(_, movies, tv)| async move {
+            let m = futures_util::future::join_all(
+                movies.iter().filter(|_| kind <= 1).map(|id| fetch(format!("movies/studio/{id}"), 4)),
+            );
+            let s = futures_util::future::join_all(
+                tv.iter().filter(|_| kind == 0 || kind == 2).map(|id| fetch(format!("tv/network/{id}"), 2)),
+            );
+            let (m, s) = futures_util::future::join(m, s).await;
+            (studio_cards(m.into_iter().flatten().collect()), studio_cards(s.into_iter().flatten().collect()))
+        }))
+        .await;
+        found
+            .into_iter()
+            .zip(lists)
+            .map(|((name, ..), (movies, series))| SeerrStudio { name, movies, series })
+            .filter(|s| !s.movies.is_empty() || !s.series.is_empty())
+            .collect()
+    }
+
+    /// Studios du serveur dont le nom contient `t` (deux au plus), avec leur identifiant TMDB trouvé par
+    /// la fiche Seerr d'un de leurs médias : (nom, studios de films, chaînes de séries).
+    async fn local_studios(&self, t: &str) -> Vec<(String, Vec<i64>, Vec<i64>)> {
+        let Ok(v) = self.get::<serde_json::Value>("/Studios", &[("userId", &self.user_id), ("searchTerm", t), ("Limit", "8")]).await else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = v["Items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|s| s["Name"].as_str().map(str::to_string))
+            .filter(|n| n.to_lowercase().contains(t))
+            .collect();
+        // Le nom le plus court d'abord : « Pixar » avant « Pixar Animation Studios ».
+        names.sort_by_key(|n| n.len());
+        names.truncate(2);
+        let found = futures_util::future::join_all(names.into_iter().map(|name| async move {
+            let items: serde_json::Value = self
+                .get(
+                    "/Items",
+                    &[
+                        ("userId", &self.user_id),
+                        ("Recursive", "true"),
+                        ("Studios", &name),
+                        ("IncludeItemTypes", "Movie,Series"),
+                        ("Fields", "ProviderIds"),
+                        ("Limit", "3"),
+                    ],
+                )
+                .await
+                .ok()?;
+            let lower = name.to_lowercase();
+            for it in items["Items"].as_array().into_iter().flatten() {
+                let Some(tmdb) = it["ProviderIds"]["Tmdb"].as_str() else { continue };
+                let tv = it["Type"].as_str() == Some("Series");
+                let Ok(d) = self
+                    .get::<serde_json::Value>(&format!("/JellyfinEnhanced/jellyseerr/{}/{}", if tv { "tv" } else { "movie" }, seg(tmdb)), &[])
+                    .await
+                else {
+                    continue;
+                };
+                let id_in = |key: &str| {
+                    d[key].as_array().into_iter().flatten().find(|c| c["name"].as_str().is_some_and(|n| n.to_lowercase() == lower)).and_then(|c| c["id"].as_i64())
+                };
+                // Série : la chaîne (Disney Channel) se découvre, pas le studio de production.
+                if tv {
+                    if let Some(id) = id_in("networks") {
+                        return Some((name, Vec::new(), vec![id]));
+                    }
+                } else if let Some(id) = id_in("productionCompanies") {
+                    return Some((name, vec![id], Vec::new()));
+                }
+            }
+            None
+        }))
+        .await;
+        found.into_iter().flatten().collect()
+    }
+
     pub async fn seerr_search(&self, term: &str, kind: u8) -> Vec<CardInfo> {
         let v: serde_json::Value = match self.get("/JellyfinEnhanced/jellyseerr/search", &[("query", term), ("page", "1")]).await {
             Ok(v) => v,
@@ -2084,7 +2279,7 @@ impl Client {
 
     /// « Plus de ce genre » (éléments similaires de la bibliothèque).
     pub async fn similar(&self, id: &str) -> Result<Vec<Item>> {
-        let r: ItemsResp = self.get(&format!("/Items/{}/Similar", seg(id)), &[("userId", &self.user_id), ("limit", "16")]).await?;
+        let r: ItemsResp = self.get(&format!("/Items/{}/Similar", seg(id)), &[("userId", &self.user_id), ("limit", "16"), ("Fields", "Overview")]).await?;
         Ok(r.items)
     }
 
