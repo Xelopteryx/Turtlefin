@@ -1218,6 +1218,13 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
 - README (8 langues) : les trois logos d'en-tête sont une seule image, `docs/logos.png` (l'appli GitHub sur téléphone
   mettait trois images l'une sous l'autre). À refaire si un logo change : assemblage Pillow des
   `packaging/icons/turtlefin{-aero,,-nerd}-256.png` (192 / 256 / 192 px, 56 px d'écart, fond transparent).
+- **Android, saisie (24 novembre 2026)** : avec Gboard ou le clavier Samsung, les lettres n'apparaissaient pas dans
+  les champs (et ne comptaient pas) avant un espace ou un point. Ces claviers gardent le mot en cours en
+  « composition » ; Slint la met à part (`preedit`) et nos champs dessinent `text` eux-mêmes (`TypedText`, `TextInput`
+  masqué), sans elle. `callback_update_text` (`android/vendor/…/javahelper.rs`) donne maintenant le mot composé à
+  Slint comme du texte validé ; le clavier garde sa composition côté Java. Vérifié dans MEmu avec un clavier d'essai
+  qui compose (`setComposingText`, 1.9.8 : rien ; corrigé : le mot s'affiche, pas de lettres doublées en changeant ou
+  raccourcissant la composition). APK de la 2.0.0 remplacées, étiquette `v2.0.0` déplacée sur ce correctif.
 
 ## 7. Compiler, fabriquer les paquets, publier
 

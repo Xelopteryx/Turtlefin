@@ -592,6 +592,12 @@ fn callback_update_text<'local>(
     let anchor_position = utf16_offset_to_byte_offset_clamped(&text, anchor_position as usize);
     let preedit_start = utf16_offset_to_byte_offset_clamped(&text, preedit_start as usize);
     let preedit_end = utf16_offset_to_byte_offset_clamped(&text, preedit_end as usize);
+    // Turtlefin : le mot en cours de composition (Gboard, clavier Samsung… le gardent tant qu'on
+    // n'a pas tapé d'espace ou de point) est donné à Slint comme du texte validé. Les champs de
+    // l'appli dessinent `text` eux-mêmes (TypedText, TextInput masqué), et `text` ne contient pas la
+    // composition : les lettres n'apparaissaient pas et la saisie ne comptait pas avant l'espace.
+    // Le clavier garde sa composition côté Java (SlintEditable) : rien ne change pour lui.
+    let (preedit_start, preedit_end) = (0usize, 0usize);
 
     i_slint_core::api::invoke_from_event_loop(move || {
         if let Some(adaptor) = CURRENT_WINDOW.with_borrow(|x| x.upgrade()) {
