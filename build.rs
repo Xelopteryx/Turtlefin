@@ -47,9 +47,15 @@ fn libmpv_next_to_exe() {
         return;
     }
     let want = want.as_str();
-    // OUT_DIR = <target>/[<cible>/]<profil>/build/turtlefin-<hash>/out : l'exécutable est dans <profil>.
+    // OUT_DIR = <target>/[<cible>/]<profil>/build/turtlefin-<hash>/out (Cargo ≤ 1.99) ou
+    // …/<profil>/build/turtlefin/<hash>/out (Cargo 1.100) : l'exécutable est dans <profil>, le parent du
+    // dossier « build » le plus proche (avant : trois dossiers plus haut, faux avec 1.100 : la DLL partait
+    // dans <profil>/build et la compilation Windows de la 2.0.0 échouait sur GitHub).
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));
-    let Some(exe_dir) = out.ancestors().nth(3) else { return };
+    let Some(exe_dir) = out.ancestors().find(|p| p.file_name().is_some_and(|n| n == "build")).and_then(|b| b.parent()) else {
+        println!("cargo:warning=libmpv : dossier de l'exécutable introuvable depuis {} ; DLL non installée.", out.display());
+        return;
+    };
     let dst = exe_dir.join("libmpv-2.dll");
     let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
     let sha = |b: &[u8]| {

@@ -1205,6 +1205,16 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
     (`DetailButton.pop` : `transform-scale` et `opacity` à chaque image, texte compris).
   - README (8 langues) : puce « Bibliothèques » (index A–Z, filtre au clavier, menu des cartes, état des demandes).
     Traductions du HANDOFF : résumé des 22 et 23 novembre.
+- **Publication de la 2.0.0, nuit du 23 au 24 novembre 2026 : ratée, rien de publié.** (1) Flatpak :
+  `packaging/flatpak/cargo-sources.json` pas régénéré après url 2.5.9 (fa568e5) : régénéré (bf6f999) ; à refaire
+  après CHAQUE changement de `Cargo.lock` (`python tools/flatpak-cargo-sources.py`). (2) Windows x64 et x86 :
+  « libmpv-2.dll absente » : Cargo 1.100 (celui de GitHub) range les scripts de compilation en
+  `<profil>/build/<paquet>/<hash>/out` (1.99 : `<profil>/build/<paquet>-<hash>/out`) ; `build.rs` remontait de
+  trois dossiers et posait la DLL dans `<profil>/build`. Il prend maintenant le parent du dossier `build` le plus
+  proche (vérifié avec 1.99 et 1.100, `rustup toolchain install 1.100.0` à côté de la version par défaut).
+  Étiquette `v2.0.0` à redéplacer sur le commit corrigé une fois l'essai à blanc (`git push origin main:ci`) passé ;
+  APK prêtes dans `target/dist` (`-android-arm64`, `-android-androidtv-armv7`), à joindre avec `gh release upload`
+  (`gh` installé et connecté le 23 au soir).
 
 ## 7. Compiler, fabriquer les paquets, publier
 
