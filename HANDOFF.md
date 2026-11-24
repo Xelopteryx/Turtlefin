@@ -1215,6 +1215,9 @@ CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, `-C force-frame-pointers=yes`, `t
   Étiquette `v2.0.0` à redéplacer sur le commit corrigé une fois l'essai à blanc (`git push origin main:ci`) passé ;
   APK prêtes dans `target/dist` (`-android-arm64`, `-android-androidtv-armv7`), à joindre avec `gh release upload`
   (`gh` installé et connecté le 23 au soir).
+- README (8 langues) : les trois logos d'en-tête sont une seule image, `docs/logos.png` (l'appli GitHub sur téléphone
+  mettait trois images l'une sous l'autre). À refaire si un logo change : assemblage Pillow des
+  `packaging/icons/turtlefin{-aero,,-nerd}-256.png` (192 / 256 / 192 px, 56 px d'écart, fond transparent).
 
 ## 7. Compiler, fabriquer les paquets, publier
 

@@ -1,4 +1,4 @@
-<p align="center"><img src="packaging/icons/turtlefin-aero-256.png" width="96" alt="Logo de Turtlefin (thème Frutiger Aero)">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-256.png" width="128" alt="Logo de Turtlefin">&nbsp;&nbsp;&nbsp;<img src="packaging/icons/turtlefin-nerd-256.png" width="96" alt="Logo de Turtlefin (thème Nerd)"></p>
+<p align="center"><img src="docs/logos.png" width="360" alt="Logo de Turtlefin · Logo de Turtlefin (thème Frutiger Aero) · Logo de Turtlefin (thème Nerd)"></p>
 
 # Turtlefin
 
